@@ -9,6 +9,11 @@ interface Props {
   consumers: ConsumerData[]
   onClose: () => void
   onGoToConsumer: (consumer: ConsumerData) => void
+  defaultRange?: number
+  minRange?: number
+  maxRange?: number
+  stepRange?: number
+  defaultFilterPending?: boolean
 }
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -50,12 +55,21 @@ function formatOsdMarkerLabel(value: string | number | undefined): string {
   return `₹${Math.round(numeric)}`
 }
 
-export function NearbyConsumerMap({ consumers, onClose, onGoToConsumer }: Props) {
-  const [range, setRange] = useState<number>(500)
+export function NearbyConsumerMap({ 
+  consumers, 
+  onClose, 
+  onGoToConsumer,
+  defaultRange = 500,
+  minRange = 500,
+  maxRange = 5000,
+  stepRange = 500,
+  defaultFilterPending = true
+}: Props) {
+  const [range, setRange] = useState<number>(defaultRange)
   const [leafletLoaded, setLeafletLoaded] = useState(false)
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null)
   const [loadingLocation, setLoadingLocation] = useState(true)
-  const [filterPending, setFilterPending] = useState(true)
+  const [filterPending, setFilterPending] = useState(defaultFilterPending)
   const [mapType, setMapType] = useState<"roadmap" | "hybrid">("roadmap")
 
   // Store callback in ref so Leaflet popup HTML can call it without stale closure
@@ -149,10 +163,17 @@ export function NearbyConsumerMap({ consumers, onClose, onGoToConsumer }: Props)
     if (!L) return
 
     let zoom = 16
-    if (range >= 5000) zoom = 12
-    else if (range >= 3000) zoom = 13
-    else if (range >= 1500) zoom = 14
-    else if (range >= 1000) zoom = 15
+    if (maxRange <= 1000) {
+      if (range <= 100) zoom = 19
+      else if (range <= 250) zoom = 18
+      else if (range <= 400) zoom = 17
+      else zoom = 16
+    } else {
+      if (range >= 5000) zoom = 12
+      else if (range >= 3000) zoom = 13
+      else if (range >= 1500) zoom = 14
+      else if (range >= 1000) zoom = 15
+    }
 
     const map = L.map("nearby-consumer-map-container").setView(userCoords, zoom)
 
@@ -396,9 +417,9 @@ export function NearbyConsumerMap({ consumers, onClose, onGoToConsumer }: Props)
         <div className="flex-grow max-w-xs sm:max-w-md">
           <input
             type="range"
-            min="500"
-            max="5000"
-            step="500"
+            min={minRange}
+            max={maxRange}
+            step={stepRange}
             value={range}
             onChange={(e) => setRange(Number(e.target.value))}
             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus:outline-none"

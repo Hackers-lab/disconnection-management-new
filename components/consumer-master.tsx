@@ -481,6 +481,11 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
           <div className="w-full max-w-4xl h-full max-h-[90vh]">
             <NearbyConsumerMap
               consumers={mappedConsumers}
+              defaultRange={500}
+              minRange={50}
+              maxRange={500}
+              stepRange={50}
+              defaultFilterPending={false}
               onClose={() => setShowNearbyMap(false)}
               onGoToConsumer={(consumer) => {
                 setShowNearbyMap(false)
