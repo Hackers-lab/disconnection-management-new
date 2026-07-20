@@ -11,6 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
 import { Search, X, User, MapPin, Phone, Monitor, Map, ChevronDown, ChevronUp, Upload, ExternalLink, Database, Smartphone, Gauge, ShieldCheck, AlertTriangle, Layers, Activity, ChevronRight } from "lucide-react"
+import dynamic from "next/dynamic"
+
+const NearbyConsumerMap = dynamic(
+  () => import("./nearby-consumer-map").then((mod) => mod.NearbyConsumerMap),
+  { ssr: false }
+)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface ConsumerMasterRow {
@@ -211,7 +217,27 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
   const [dataLoaded, setDataLoaded]       = useState(false)
   const [selectedConsumer, setSelectedConsumer] = useState<ConsumerMasterRow | null>(null)
   const [showUpload, setShowUpload]       = useState(false)
+  const [showNearbyMap, setShowNearbyMap] = useState(false)
   const timerRef                          = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Mapped consumers for NearbyConsumerMap radar component
+  const consumersToMap = query.trim() ? results : allData
+  const mappedConsumers = useMemo(() => {
+    return consumersToMap.map(r => ({
+      consumerId: r.consumerId,
+      name: r.name,
+      address: r.address,
+      mobileNumber: r.mobile,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      baseClass: r.baseClass,
+      class: r.baseClass,
+      disconStatus: "Master Record",
+      d2NetOS: "0",
+      mru: r.zone,
+      agency: r.zone,
+    }))
+  }, [consumersToMap])
 
   // ── Compute Dashboard Statistics ──────────────────────────────────────────
   const stats = useMemo(() => {
@@ -449,6 +475,25 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
 
   return (
     <div className="space-y-4">
+      {/* Nearby Consumer Radar overlay */}
+      {showNearbyMap && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-6">
+          <div className="w-full max-w-4xl h-full max-h-[90vh]">
+            <NearbyConsumerMap
+              consumers={mappedConsumers}
+              onClose={() => setShowNearbyMap(false)}
+              onGoToConsumer={(consumer) => {
+                setShowNearbyMap(false)
+                const found = allData.find(c => c.consumerId === consumer.consumerId)
+                if (found) {
+                  setSelectedConsumer(found)
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Header + stats */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -479,6 +524,20 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
           />
           {query && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => { setQuery(""); setResults([]) }} />}
         </div>
+        
+        {dataLoaded && (
+          <Button
+            type="button"
+            onClick={() => {
+              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+              setShowNearbyMap(v => !v)
+            }}
+            className="w-full h-11 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-sm transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white"
+          >
+            <MapPin className="h-4 w-4 animate-bounce" />
+            {showNearbyMap ? "Hide Navigation Radar" : "Locate Nearby Consumers"}
+          </Button>
+        )}
         {results.length > 0 && (
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {results.map((r, i) => (
