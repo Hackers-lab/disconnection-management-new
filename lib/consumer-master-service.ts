@@ -112,6 +112,47 @@ export async function uploadMasterData(rows: ConsumerMasterRow[], clearExisting:
     return { count: 0 }
   }
 
+  // Ensure the sheet has enough rows to avoid grid limit errors on append
+  try {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId })
+    const sheet = (meta.data.sheets || []).find(s => s.properties?.title === MASTER_TAB)
+    if (sheet) {
+      const sheetId = sheet.properties?.sheetId
+      const currentRows = sheet.properties?.gridProperties?.rowCount || 0
+      
+      let requiredRows = rows.length + 1
+      if (!clearExisting) {
+        // For appending, we fetch the existing raw count
+        const existingData = await _fetchMasterRaw(spreadsheetId)
+        requiredRows = existingData.length + rows.length + 1
+      }
+
+      if (currentRows < requiredRows) {
+        console.log(`Resizing sheet "${MASTER_TAB}" rows from ${currentRows} to ${requiredRows}...`)
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                updateSheetProperties: {
+                  properties: {
+                    sheetId,
+                    gridProperties: {
+                      rowCount: requiredRows,
+                    },
+                  },
+                  fields: "gridProperties.rowCount",
+                },
+              },
+            ],
+          },
+        })
+      }
+    }
+  } catch (err: any) {
+    console.error(`Failed to resize rows for sheet "${MASTER_TAB}":`, err.message || err)
+  }
+
   // Write in batches of 5000 to stay within API limits while minimising
   // the number of round-trips (and therefore rate-limit risk).
   // A 1-second pause between batches avoids the 60-writes/min/user quota.
