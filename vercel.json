@@ -1,11 +1,23 @@
-﻿{
+{
   "fluid": false,
   "functions": {
-    "app/api/meters/finalize/route.ts": { "maxDuration": 10 },
-    "app/api/meters/route.ts":          { "maxDuration": 10 },
-    "app/api/nsc/route.ts":             { "maxDuration": 10 },
-    "app/api/nsc/inspect/route.ts":     { "maxDuration": 10 },
-    "app/api/nsc/process/route.ts":     { "maxDuration": 10 },
-    "app/api/notifications/route.ts":   { "maxDuration": 10 }
+    "app/api/meters/finalize/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/meters/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/nsc/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/nsc/inspect/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/nsc/process/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/notifications/route.ts": {
+      "maxDuration": 10
+    }
   }
 }
