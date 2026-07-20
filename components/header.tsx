@@ -144,6 +144,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [profileData, setProfileData] = useState<any>(null)
 
   useEffect(() => {
+    console.log("🚀 Disconnection Management Web App - version 1.1.0 loaded");
     fetch("/api/auth/permissions")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
