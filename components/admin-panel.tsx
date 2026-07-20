@@ -100,19 +100,77 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         setIsUploading(true);
         setDcUploadResult(null);
         try {
-            const response = await fetch("/api/consumers/bulk-upsert", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ rows: finalUploadRows, newCycle: newCycleUpload, overrides: conflictOverrides }),
-            });
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.error || "Failed to upload data");
+            const CHUNK_SIZE = 1000;
+            const total = finalUploadRows.length;
+            const allUploadIds = finalUploadRows.map(row => String(row[2] || "").trim()).filter(Boolean);
+            
+            let inserted = 0;
+            let updated = 0;
+            let protectedStatusSkipped = 0;
+            let autoAssigned = 0;
+            let deletedNotInUpload = 0;
+
+            for (let i = 0; i < total; i += CHUNK_SIZE) {
+                const chunkRows = finalUploadRows.slice(i, i + CHUNK_SIZE);
+                const isLastChunk = (i + CHUNK_SIZE) >= total;
+                
+                setMessage({
+                    type: "default" as any,
+                    text: `Uploading rows ${i + 1} to ${Math.min(i + CHUNK_SIZE, total)} of ${total}...`
+                });
+
+                const payload: any = {
+                    rows: chunkRows,
+                    newCycle: newCycleUpload,
+                    overrides: conflictOverrides,
+                    isChunk: true,
+                    isLastChunk,
+                };
+
+                if (isLastChunk) {
+                    payload.allUploadIds = allUploadIds;
+                }
+
+                const response = await fetch("/api/consumers/bulk-upsert", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                const contentType = response.headers.get("content-type") || "";
+                let result;
+                if (contentType.includes("application/json")) {
+                    result = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(text || `Server returned status ${response.status}`);
+                }
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || "Failed to upload data chunk");
+                }
+
+                const s = result.summary;
+                inserted += s.inserted || 0;
+                updated += s.updated || 0;
+                protectedStatusSkipped += s.protectedStatusSkipped || 0;
+                autoAssigned += s.autoAssigned || 0;
+                deletedNotInUpload += s.deletedNotInUpload || 0;
             }
-            setDcUploadResult(result.summary);
+
+            const finalSummary = {
+                total,
+                inserted,
+                updated,
+                protectedStatusSkipped,
+                autoAssigned,
+                deletedNotInUpload,
+            };
+
+            setDcUploadResult(finalSummary);
             setMessage({
                 type: "success",
-                text: `Upload complete: ${result.summary.inserted} new, ${result.summary.updated} updated, ${result.summary.autoAssigned} auto-assigned agency.`,
+                text: `Upload complete: ${inserted} new, ${updated} updated, ${autoAssigned} auto-assigned agency, ${deletedNotInUpload} removed.`,
             });
         } catch (error) {
             console.error("Upload error:", error);
@@ -511,17 +569,72 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     setPaymentSubmitting(true)
     setPaymentResult(null)
     try {
-      const resp = await fetch("/api/payments/bulk-apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: paymentSource, payments: paymentRows }),
-      })
-      const data = await resp.json()
-      if (!resp.ok || !data.success) {
-        throw new Error(data?.error || "Bulk apply failed")
+      const CHUNK_SIZE = 1000;
+      const total = paymentRows.length;
+      
+      let receivedRows = 0;
+      let uniqueConsumers = 0;
+      let matched = 0;
+      let notFound = 0;
+      let fullPayments = 0;
+      let partialPayments = 0;
+      const aggregatedNotFoundIds: string[] = [];
+
+      for (let i = 0; i < total; i += CHUNK_SIZE) {
+        const chunkPayments = paymentRows.slice(i, i + CHUNK_SIZE);
+        
+        setMessage({
+          type: "default" as any,
+          text: `Applying payments ${i + 1} to ${Math.min(i + CHUNK_SIZE, total)} of ${total}...`
+        });
+
+        const resp = await fetch("/api/payments/bulk-apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: paymentSource, payments: chunkPayments }),
+        });
+
+        const contentType = resp.headers.get("content-type") || "";
+        let data;
+        if (contentType.includes("application/json")) {
+          data = await resp.json();
+        } else {
+          const text = await resp.text();
+          throw new Error(text || `Server returned status ${resp.status}`);
+        }
+
+        if (!resp.ok || !data.success) {
+          throw new Error(data?.error || "Bulk apply failed for payment chunk");
+        }
+
+        const s = data.summary;
+        receivedRows += s.receivedRows || 0;
+        uniqueConsumers += s.uniqueConsumers || 0;
+        matched += s.matched || 0;
+        notFound += s.notFound || 0;
+        fullPayments += s.fullPayments || 0;
+        partialPayments += s.partialPayments || 0;
+        if (Array.isArray(data.notFoundIds)) {
+          aggregatedNotFoundIds.push(...data.notFoundIds);
+        }
       }
-      setPaymentResult({ ...data.summary, notFoundIds: data.notFoundIds || [] })
+
+      setPaymentResult({
+        receivedRows,
+        uniqueConsumers,
+        matched,
+        notFound,
+        fullPayments,
+        partialPayments,
+        notFoundIds: aggregatedNotFoundIds.slice(0, 50), // cap display size
+      });
+
+      setMessage({
+        type: "success",
+        text: `Successfully applied payments: ${matched} matched, ${notFound} unmatched.`,
+      });
     } catch (err: any) {
+      console.error("Payment submit error:", err);
       setMessage({ type: "error", text: err?.message || "Bulk apply failed" })
     } finally {
       setPaymentSubmitting(false)

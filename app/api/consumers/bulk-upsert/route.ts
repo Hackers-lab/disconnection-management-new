@@ -81,6 +81,9 @@ type UpsertRequest = {
   // "replace" → overwrite existing (incl. status reset); "keep" → protect existing.
   // Unset consumers fall back to the default newCycle/protection logic.
   overrides?: Record<string, "keep" | "replace">
+  isChunk?: boolean
+  isLastChunk?: boolean
+  allUploadIds?: string[]
 }
 
 export const POST = withTenant(async function POST(request: NextRequest) {
@@ -96,6 +99,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   const newCycle = !!body.newCycle
   const overrides = body.overrides && typeof body.overrides === "object" ? body.overrides : {}
   const uploadRows = Array.isArray(body.rows) ? body.rows : []
+  const isChunk = !!body.isChunk
+  const isLastChunk = !!body.isLastChunk
+  const allUploadIds = Array.isArray(body.allUploadIds) ? new Set(body.allUploadIds.map(String)) : null
   if (uploadRows.length === 0) {
     return NextResponse.json({ error: "No rows supplied" }, { status: 400 })
   }
@@ -289,24 +295,28 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     // 5. Consumers NOT in new upload → save to history then DELETE the row entirely.
     const rowsToDelete: number[] = []
-    existingMap.forEach((existing, consumerId) => {
-      if (uploadIdSet.has(consumerId)) return
-      // Record history before deletion
-      historyEntries.push({
-        timestamp: ts,
-        consumerId,
-        name: existing.name,
-        action: "removed_from_upload",
-        oldStatus: existing.status,
-        newStatus: "deleted",
-        oldOsd: existing.osd,
-        oldNotes: existing.notes,
-        oldImageUrl: existing.image,
-        changedBy: "upload",
+    let deletedCount = 0
+    if (!isChunk || isLastChunk) {
+      const checkSet = allUploadIds || uploadIdSet
+      existingMap.forEach((existing, consumerId) => {
+        if (checkSet.has(consumerId)) return
+        // Record history before deletion
+        historyEntries.push({
+          timestamp: ts,
+          consumerId,
+          name: existing.name,
+          action: "removed_from_upload",
+          oldStatus: existing.status,
+          newStatus: "deleted",
+          oldOsd: existing.osd,
+          oldNotes: existing.notes,
+          oldImageUrl: existing.image,
+          changedBy: "upload",
+        })
+        rowsToDelete.push(existing.row)
       })
-      rowsToDelete.push(existing.row)
-    })
-    const deletedCount = rowsToDelete.length
+      deletedCount = rowsToDelete.length
+    }
 
     // 6. Write updates + inserts first (before row indices shift due to deletions).
     if (updateWrites.length > 0) {
