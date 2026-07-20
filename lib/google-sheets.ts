@@ -206,8 +206,7 @@ let backgroundFetching: { [spreadsheetId: string]: boolean } = {}
 
 function getCacheFilePath(spreadsheetId: string): string {
   const sanitizedId = spreadsheetId.replace(/[^a-zA-Z0-9_-]/g, "")
-  const nextCacheDir = path.join(process.cwd(), ".next", "cache")
-  const dir = fs.existsSync(nextCacheDir) ? nextCacheDir : os.tmpdir()
+  const dir = os.tmpdir()
   return path.join(dir, `consumer-data-${sanitizedId}.json`)
 }
 
@@ -267,18 +266,15 @@ export function invalidateConsumerCache() {
 
   // Delete cache files from disk
   try {
-    const nextCacheDir = path.join(process.cwd(), ".next", "cache")
-    const dirs = [nextCacheDir, os.tmpdir()]
-    for (const dir of dirs) {
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir)
-        for (const file of files) {
-          if (file.startsWith("consumer-data-") && file.endsWith(".json")) {
-            try {
-              fs.unlinkSync(path.join(dir, file))
-            } catch (e) {
-              // Ignore file removal errors
-            }
+    const dir = os.tmpdir()
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir)
+      for (const file of files) {
+        if (file.startsWith("consumer-data-") && file.endsWith(".json")) {
+          try {
+            fs.unlinkSync(path.join(dir, file))
+          } catch (e) {
+            // Ignore file removal errors
           }
         }
       }
