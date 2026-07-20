@@ -99,20 +99,7 @@ export function invalidateMasterCache(spreadsheetId?: string) {
 export async function uploadMasterData(rows: ConsumerMasterRow[], clearExisting: boolean = true, spreadsheetId: string): Promise<{ count: number }> {
   await ensureTab(spreadsheetId)
 
-  if (clearExisting) {
-    // Clear existing data (keep header row)
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId,
-      range: `${MASTER_TAB}!A2:J`,
-    })
-  }
-
-  if (rows.length === 0) {
-    invalidateMasterCache()
-    return { count: 0 }
-  }
-
-  // Ensure the sheet has enough rows to avoid grid limit errors on append
+  // Ensure the sheet has enough rows to avoid grid limit errors on clear and append
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId })
     const sheet = (meta.data.sheets || []).find(s => s.properties?.title === MASTER_TAB)
@@ -120,7 +107,7 @@ export async function uploadMasterData(rows: ConsumerMasterRow[], clearExisting:
       const sheetId = sheet.properties?.sheetId
       const currentRows = sheet.properties?.gridProperties?.rowCount || 0
       
-      let requiredRows = rows.length + 1
+      let requiredRows = Math.max(2, rows.length + 1)
       if (!clearExisting) {
         // For appending, we fetch the existing raw count
         const existingData = await _fetchMasterRaw(spreadsheetId)
@@ -151,6 +138,19 @@ export async function uploadMasterData(rows: ConsumerMasterRow[], clearExisting:
     }
   } catch (err: any) {
     console.error(`Failed to resize rows for sheet "${MASTER_TAB}":`, err.message || err)
+  }
+
+  if (clearExisting) {
+    // Clear existing data (keep header row)
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `${MASTER_TAB}!A2:J`,
+    })
+  }
+
+  if (rows.length === 0) {
+    invalidateMasterCache()
+    return { count: 0 }
   }
 
   // Write in batches of 5000 to stay within API limits while minimising
