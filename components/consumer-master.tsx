@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import Papa from "papaparse"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
-import { Search, X, User, MapPin, Phone, Monitor, Map, ChevronDown, ChevronUp, Upload, ExternalLink } from "lucide-react"
+import { Search, X, User, MapPin, Phone, Monitor, Map, ChevronDown, ChevronUp, Upload, ExternalLink, Database, Smartphone, Gauge, ShieldCheck, AlertTriangle, Layers, Activity, ChevronRight } from "lucide-react"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface ConsumerMasterRow {
@@ -213,6 +213,59 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
   const [showUpload, setShowUpload]       = useState(false)
   const timerRef                          = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Compute Dashboard Statistics ──────────────────────────────────────────
+  const stats = useMemo(() => {
+    if (!allData || allData.length === 0) return null
+
+    let geotaggedCount = 0
+    let mobileCount = 0
+    let meterCount = 0
+    const zoneMap: Record<string, number> = {}
+    const classMap: Record<string, number> = {}
+
+    for (const r of allData) {
+      if (r.latitude && r.longitude && r.latitude.trim() && r.longitude.trim() && r.latitude !== "0" && r.longitude !== "0") {
+        geotaggedCount++
+      }
+      if (r.mobile && r.mobile.trim() && r.mobile !== "0") {
+        mobileCount++
+      }
+      if (r.meterNo && r.meterNo.trim()) {
+        meterCount++
+      }
+
+      const zoneName = r.zone ? r.zone.trim() : "Unassigned"
+      zoneMap[zoneName] = (zoneMap[zoneName] || 0) + 1
+
+      const className = r.baseClass ? r.baseClass.trim() : "Unspecified"
+      classMap[className] = (classMap[className] || 0) + 1
+    }
+
+    const sortedZones = Object.entries(zoneMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+
+    const sortedClasses = Object.entries(classMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+
+    const total = allData.length
+    const geotagPct = total > 0 ? Math.round((geotaggedCount / total) * 100) : 0
+    const mobilePct = total > 0 ? Math.round((mobileCount / total) * 100) : 0
+    const meterPct = total > 0 ? Math.round((meterCount / total) * 100) : 0
+    const completeness = Math.round((geotagPct + mobilePct + meterPct) / 3)
+
+    return {
+      total,
+      geotagged: { count: geotaggedCount, percent: geotagPct },
+      mobile: { count: mobileCount, percent: mobilePct },
+      meter: { count: meterCount, percent: meterPct },
+      completeness,
+      zones: sortedZones,
+      classes: sortedClasses,
+    }
+  }, [allData])
+
   useEffect(() => {
     loadMasterData(false)
   }, [])
@@ -266,7 +319,9 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
         allData.filter(r =>
           r.consumerId.toLowerCase().includes(lower) ||
           r.name.toLowerCase().includes(lower) ||
-          r.meterNo.toLowerCase().includes(lower)
+          (r.meterNo && r.meterNo.toLowerCase().includes(lower)) ||
+          (r.zone && r.zone.toLowerCase().includes(lower)) ||
+          (r.baseClass && r.baseClass.toLowerCase().includes(lower))
         ).slice(0, 100)
       )
     }, 200)
@@ -473,6 +528,241 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
           <p className="text-sm text-muted-foreground text-center py-2">Loading data…</p>
         )}
       </div>
+
+      {/* Stats Dashboard — visible when query is empty and data is loaded */}
+      {!query.trim() && dataLoaded && stats && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          
+          {/* KPI Metrics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            
+            {/* Total Consumers */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <span className="p-2 bg-indigo-500 text-white rounded-xl">
+                  <Database className="h-5 w-5" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 bg-indigo-100/60 px-2 py-0.5 rounded-full">
+                  Total
+                </span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-800 mt-4">
+                {stats.total.toLocaleString()}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Active Consumers</p>
+            </div>
+
+            {/* Mobile Registry */}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <span className="p-2 bg-emerald-500 text-white rounded-xl">
+                  <Smartphone className="h-5 w-5" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-100/60 px-2 py-0.5 rounded-full">
+                  {stats.mobile.percent}%
+                </span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-800 mt-4">
+                {stats.mobile.count.toLocaleString()}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Mobile Registered</p>
+            </div>
+
+            {/* Geotagged */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <span className="p-2 bg-blue-500 text-white rounded-xl">
+                  <MapPin className="h-5 w-5" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded-full">
+                  {stats.geotagged.percent}%
+                </span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-800 mt-4">
+                {stats.geotagged.count.toLocaleString()}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Geotagged Locations</p>
+            </div>
+
+            {/* Meters Linked */}
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <span className="p-2 bg-amber-500 text-white rounded-xl">
+                  <Gauge className="h-5 w-5" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-100/60 px-2 py-0.5 rounded-full">
+                  {stats.meter.percent}%
+                </span>
+              </div>
+              <h3 className="text-2xl font-extrabold text-slate-800 mt-4">
+                {stats.meter.count.toLocaleString()}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Meters Linked</p>
+            </div>
+
+          </div>
+
+          {/* Database Health & Data Completeness Scorecard */}
+          <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 text-slate-700 rounded-xl">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">Database Completeness Score</h4>
+                  <p className="text-xs text-muted-foreground">Overall health score based on key attribute fields completeness</p>
+                </div>
+              </div>
+              <div className="flex items-baseline gap-1 self-start sm:self-auto">
+                <span className="text-3xl font-black text-indigo-600">{stats.completeness}%</span>
+                <span className="text-xs text-muted-foreground font-semibold">health</span>
+              </div>
+            </div>
+
+            {/* Visual health score indicator */}
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${stats.completeness}%` }}
+              />
+            </div>
+
+            {/* Progress indicators for each KPI */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-slate-600">Mobile Coverage</span>
+                  <span className="text-slate-850">{stats.mobile.percent}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${stats.mobile.percent}%` }} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-slate-600">Geotagging Rate</span>
+                  <span className="text-slate-850">{stats.geotagged.percent}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${stats.geotagged.percent}%` }} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-slate-600">Meter Linkage</span>
+                  <span className="text-slate-850">{stats.meter.percent}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-amber-500 h-full rounded-full" style={{ width: `${stats.meter.percent}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Help Callout */}
+            {stats.completeness < 90 && (
+              <div className="flex items-start gap-2.5 bg-amber-50/50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-semibold">Improving Completeness Score:</span>
+                  <p className="text-amber-700 leading-normal">
+                    To boost this score, upload consumer updates with complete data. Key missing fields include:
+                    {stats.mobile.percent < 90 && ` phone numbers (${(stats.total - stats.mobile.count).toLocaleString()} missing)`}
+                    {stats.geotagged.percent < 90 && `${stats.mobile.percent < 90 ? ',' : ''} GPS coordinates (${(stats.total - stats.geotagged.count).toLocaleString()} missing)`}
+                    {stats.meter.percent < 90 && `${(stats.mobile.percent < 90 || stats.geotagged.percent < 90) ? ',' : ''} meters (${(stats.total - stats.meter.count).toLocaleString()} missing)`}.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Breakdown Distributions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            
+            {/* Zone Breakdown */}
+            <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Layers className="h-4 w-4 text-indigo-500" />
+                <h4 className="font-bold text-slate-800 text-sm">Zone Distribution</h4>
+                <Badge variant="secondary" className="ml-auto text-[10px]">
+                  {stats.zones.length} Zones
+                </Badge>
+              </div>
+              <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                {stats.zones.map((zone, idx) => {
+                  const pct = Math.round((zone.count / stats.total) * 100)
+                  return (
+                    <div 
+                      key={idx} 
+                      className="group cursor-pointer space-y-1"
+                      onClick={() => handleSearch(zone.name)}
+                      title={`Click to filter by ${zone.name}`}
+                    >
+                      <div className="flex justify-between items-center text-xs font-semibold">
+                        <span className="text-slate-700 group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                          {zone.name}
+                          <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 text-indigo-500 transition-all" />
+                        </span>
+                        <span className="text-slate-500">
+                          {zone.count.toLocaleString()} <span className="text-[10px] text-slate-450 font-normal font-sans">({pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-indigo-500 h-full rounded-full transition-all group-hover:bg-indigo-600" 
+                          style={{ width: `${pct || 1}%` }} 
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b">
+                <Activity className="h-4 w-4 text-indigo-500" />
+                <h4 className="font-bold text-slate-800 text-sm">Tariff Class Breakdown</h4>
+                <Badge variant="secondary" className="ml-auto text-[10px]">
+                  {stats.classes.length} Classes
+                </Badge>
+              </div>
+              <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                {stats.classes.map((cls, idx) => {
+                  const pct = Math.round((cls.count / stats.total) * 100)
+                  return (
+                    <div 
+                      key={idx} 
+                      className="group cursor-pointer space-y-1"
+                      onClick={() => handleSearch(cls.name)}
+                      title={`Click to filter by ${cls.name}`}
+                    >
+                      <div className="flex justify-between items-center text-xs font-semibold">
+                        <span className="text-slate-700 group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                          {cls.name}
+                          <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 text-indigo-500 transition-all" />
+                        </span>
+                        <span className="text-slate-500">
+                          {cls.count.toLocaleString()} <span className="text-[10px] text-slate-450 font-normal font-sans">({pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-indigo-400 h-full rounded-full transition-all group-hover:bg-indigo-500" 
+                          style={{ width: `${pct || 1}%` }} 
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
       {/* Upload section (admin only) — collapsible */}
       {isAdmin && (
