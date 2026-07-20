@@ -14,6 +14,7 @@ interface Props {
   maxRange?: number
   stepRange?: number
   defaultFilterPending?: boolean
+  isMasterMode?: boolean
 }
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -32,6 +33,7 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 // Returns a color class string based on disconnection status
 function getStatusColor(status: string): string {
   const s = (status || "").toLowerCase()
+  if (s === "master record") return "#3b82f6"       // Blue marker for Master Records
   if (s === "connected") return "#ef4444"          // red
   if (s === "disconnected") return "#22c55e"       // green
   if (s === "paid" || s === "agency paid") return "#16a34a" // dark green
@@ -63,7 +65,8 @@ export function NearbyConsumerMap({
   minRange = 500,
   maxRange = 5000,
   stepRange = 500,
-  defaultFilterPending = true
+  defaultFilterPending = true,
+  isMasterMode = false
 }: Props) {
   const [range, setRange] = useState<number>(defaultRange)
   const [leafletLoaded, setLeafletLoaded] = useState(false)
@@ -217,7 +220,9 @@ export function NearbyConsumerMap({
 
       const color = getStatusColor(consumer.disconStatus)
       const osd = Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()
-      const markerLabel = formatOsdMarkerLabel(consumer.d2NetOS)
+      const markerLabel = isMasterMode 
+        ? (consumer.baseClass || consumer.class || "—")
+        : formatOsdMarkerLabel(consumer.d2NetOS)
 
       const marker = L.marker([lat, lng], {
         icon: L.divIcon({
@@ -251,7 +256,35 @@ export function NearbyConsumerMap({
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
 
-      marker.bindPopup(`
+      const popupHtml = isMasterMode
+        ? `
+        <div style="font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.6; color: #1e293b; min-width: 200px; max-width: 240px;">
+          <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+            ${consumer.name}
+          </p>
+          <p style="margin: 2px 0; color: #475569;">Class: <strong style="color:#0f172a;">${consumer.baseClass || consumer.class || "—"}</strong></p>
+          <p style="margin: 2px 0; color: #475569;">Address: <strong style="color:#0f172a; font-weight:600;">${safeAddress}</strong></p>
+          <p style="margin: 2px 0; color: #475569;">Distance: <strong style="color:#0f172a;">${Math.round(dist)} m</strong></p>
+          ${consumer.mobileNumber ? `<p style="margin: 2px 0; color: #475569;">Mobile: <a href="tel:${consumer.mobileNumber}" style="color:#2563eb;">${consumer.mobileNumber}</a></p>` : ""}
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button
+              type="button"
+              style="flex: 1; padding: 7px 0; background: #0f766e; color: #fff; font-weight: 700; font-size: 11px; border-radius: 8px; border: none; cursor: pointer;"
+              onclick="window.__nearbyConsumerOpenDirections && window.__nearbyConsumerOpenDirections(${lat}, ${lng})"
+            >
+              Directions
+            </button>
+            <button
+              type="button"
+              style="flex: 1; padding: 7px 0; background: #2563eb; color: #fff; font-weight: 700; font-size: 11px; border-radius: 8px; border: none; cursor: pointer;"
+              onclick="window.__nearbyConsumerGo && window.__nearbyConsumerGo('${safeId}')"
+            >
+              Details
+            </button>
+          </div>
+        </div>
+        `
+        : `
         <div style="font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.6; color: #1e293b; min-width: 200px; max-width: 240px;">
           <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
             ${consumer.name}
@@ -279,7 +312,9 @@ export function NearbyConsumerMap({
             </button>
           </div>
         </div>
-      `, { maxWidth: 260 })
+        `;
+
+      marker.bindPopup(popupHtml, { maxWidth: 260 })
     })
 
     // Nearest consumer dashed line + arrow
@@ -303,7 +338,9 @@ export function NearbyConsumerMap({
           iconAnchor: [10, 10]
         })
       }).addTo(map).bindTooltip(
-        `Nearest: ${formatOsdMarkerLabel(nc.consumer.d2NetOS)} (${Math.round(nc.dist)}m)`,
+        isMasterMode
+          ? `Nearest: ${nc.consumer.baseClass || nc.consumer.class || "—"} (${Math.round(nc.dist)}m)`
+          : `Nearest: ${formatOsdMarkerLabel(nc.consumer.d2NetOS)} (${Math.round(nc.dist)}m)`,
         { permanent: true, direction: "top", className: "px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[9px] font-bold border-none shadow-md" }
       )
     }
@@ -335,17 +372,19 @@ export function NearbyConsumerMap({
           </Button>
 
           {/* Pending only toggle */}
-          <Button
-            variant="ghost"
-            onClick={() => setFilterPending(!filterPending)}
-            className={`h-7 px-2.5 text-[10px] font-bold rounded-lg border transition-all duration-200 ${
-              filterPending
-                ? "bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30 hover:text-orange-400"
-                : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
-            }`}
-          >
-            {filterPending ? "Pending Only" : "Showing All"}
-          </Button>
+          {!isMasterMode && (
+            <Button
+              variant="ghost"
+              onClick={() => setFilterPending(!filterPending)}
+              className={`h-7 px-2.5 text-[10px] font-bold rounded-lg border transition-all duration-200 ${
+                filterPending
+                  ? "bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30 hover:text-orange-400"
+                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
+              }`}
+            >
+              {filterPending ? "Pending Only" : "Showing All"}
+            </Button>
+          )}
 
           {loadingLocation && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />}
 
@@ -373,19 +412,26 @@ export function NearbyConsumerMap({
 
       {/* Legend bar */}
       <div className="bg-slate-800 px-3 py-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0">
-        {[
-          { color: "#ef4444", label: "Connected" },
-          { color: "#f97316", label: "Visited" },
-          { color: "#22c55e", label: "Disconnected" },
-          { color: "#16a34a", label: "Paid" },
-          { color: "#8b5cf6", label: "Not Found" },
-          { color: "#0ea5e9", label: "Dispute/Office" },
-        ].map(({ color, label }) => (
-          <div key={label} className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
-            <span className="text-[10px] text-slate-300 font-medium">{label}</span>
+        {isMasterMode ? (
+          <div className="flex items-center gap-1">
+            <div className="h-2 w-2 rounded-full shrink-0 bg-[#3b82f6]" />
+            <span className="text-[10px] text-slate-300 font-medium">Consumer Master Records (Label shows Tariff Class)</span>
           </div>
-        ))}
+        ) : (
+          [
+            { color: "#ef4444", label: "Connected" },
+            { color: "#f97316", label: "Visited" },
+            { color: "#22c55e", label: "Disconnected" },
+            { color: "#16a34a", label: "Paid" },
+            { color: "#8b5cf6", label: "Not Found" },
+            { color: "#0ea5e9", label: "Dispute/Office" },
+          ].map(({ color, label }) => (
+            <div key={label} className="flex items-center gap-1">
+              <div className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
+              <span className="text-[10px] text-slate-300 font-medium">{label}</span>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Map body */}
@@ -411,8 +457,12 @@ export function NearbyConsumerMap({
         </div>
         <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
           <span>Nearby: {nearbyConsumers.length}</span>
-          <span className="text-slate-400">•</span>
-          <span>OSD: {formatOsdValue(nearbyConsumers.reduce((sum, item) => sum + (Number.parseFloat(item.consumer.d2NetOS || "0") || 0), 0))}</span>
+          {!isMasterMode && (
+            <>
+              <span className="text-slate-400">•</span>
+              <span>OSD: {formatOsdValue(nearbyConsumers.reduce((sum, item) => sum + (Number.parseFloat(item.consumer.d2NetOS || "0") || 0), 0))}</span>
+            </>
+          )}
         </div>
         <div className="flex-grow max-w-xs sm:max-w-md">
           <input
