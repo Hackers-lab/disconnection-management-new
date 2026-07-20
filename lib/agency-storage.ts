@@ -5,16 +5,18 @@ import { getTenantContext } from "./tenant-context"
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const AGENCY_SHEET_NAME = "Agencies"
 
-// Infinite in-memory cache per CCC — never expires by time.
-// Invalidated immediately on any add / update / delete so all users
-// see the new agency list on their very next request.
+// In-memory cache per CCC with 5-minute TTL to pick up direct sheet edits
 let agenciesCache: Record<string, any[]> = {}
+let agenciesCacheTimestamp: Record<string, number> = {}
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes cache TTL
 
 export function invalidateAgencyCache(cccCode?: string) {
   if (cccCode) {
     delete agenciesCache[cccCode]
+    delete agenciesCacheTimestamp[cccCode]
   } else {
     agenciesCache = {}
+    agenciesCacheTimestamp = {}
   }
 }
 
@@ -60,9 +62,10 @@ async function ensureTab() {
 export async function getAgencies() {
   const context = getTenantContext()
   const cccCode = context?.cccCode || "SYSTEM"
+  const now = Date.now()
 
-  // Serve from infinite in-memory cache — only cleared by writes
-  if (agenciesCache[cccCode]) {
+  // Serve from cache if not expired
+  if (agenciesCache[cccCode] && (now - (agenciesCacheTimestamp[cccCode] || 0) < CACHE_TTL_MS)) {
     return agenciesCache[cccCode]
   }
 
@@ -95,8 +98,9 @@ export async function getAgencies() {
   // Filter to keep only the agencies belonging to the active CCC subdivision
   const tenantAgencies = processed.filter(a => a && a.cccCode === cccCode)
 
-  // Cache indefinitely until a write invalidates it
+  // Cache with timestamp
   agenciesCache[cccCode] = tenantAgencies
+  agenciesCacheTimestamp[cccCode] = now
   return tenantAgencies
 }
 

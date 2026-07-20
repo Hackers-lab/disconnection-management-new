@@ -10,8 +10,8 @@ export async function getUserByCredentials(username: string, password: string) {
 }
 
 export async function login(formData: FormData) {
-  const username = (formData.get("username") as string) || ""
-  const password = (formData.get("password") as string) || ""
+  const username = ((formData.get("username") as string) || "").trim()
+  const password = ((formData.get("password") as string) || "").trim()
   const deviceId = (formData.get("deviceId") as string) || undefined
 
   if (!username || !password) {

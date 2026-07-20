@@ -95,9 +95,8 @@ export async function verifySession() {
             if (Date.now() > expiry.getTime()) {
               isSubscribed = false
             }
-          } else {
-            isSubscribed = false
           }
+          // If no expiry is set, they remain active (isSubscribed is initialized to true)
         } else {
           isSubscribed = false
         }
@@ -118,7 +117,14 @@ export async function verifySession() {
     } else {
       // User not found in storage, check role from session payload as fallback
       const roleLower = (session.role || "").toLowerCase()
-      if (roleLower !== "admin" && roleLower !== "superuser" && roleLower !== "monitor") {
+      const billingStartDate = new Date("2026-09-01T00:00:00")
+      const isExempt =
+        roleLower === "admin" ||
+        roleLower === "superuser" ||
+        roleLower === "monitor" ||
+        Date.now() < billingStartDate.getTime()
+
+      if (!isExempt) {
         isSubscribed = false
       }
     }
