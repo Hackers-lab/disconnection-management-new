@@ -33,6 +33,14 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       })
     }
 
+    if (type === 'master') {
+      const { fetchMasterData } = await import("@/lib/consumer-master-service")
+      const data = await fetchMasterData(spreadsheetId)
+      return NextResponse.json({ count: data.length, version: null }, {
+        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+      })
+    }
+
     const cacheKey = `${spreadsheetId}_${type}`
     const cached = serverCache.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < SERVER_CACHE_TTL_MS) {

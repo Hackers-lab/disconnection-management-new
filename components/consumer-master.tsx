@@ -243,6 +243,9 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
       })
       await saveToCache(CACHE_KEY, data)
       setCount(data.length)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("consumer_master_row_count", String(data.length))
+      }
       setAllData(data)
       setDataLoaded(true)
     } catch (e: any) {
@@ -357,6 +360,9 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
         }
       })
       await saveToCache(CACHE_KEY, fresh)
+      if (typeof window !== "undefined") {
+        localStorage.setItem("consumer_master_row_count", String(fresh.length))
+      }
       setAllData(fresh)
       setDataLoaded(true)
       setCsvHeaders([])

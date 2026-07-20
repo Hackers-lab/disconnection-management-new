@@ -41,6 +41,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [dtrPendingCount, setDtrPendingCount] = useState<number>(0)
   const [dtrPaintingPendingCount, setDtrPaintingPendingCount] = useState<number>(0)
   const [materialPendingCount, setMaterialPendingCount] = useState<number>(0)
+  const [masterCount, setMasterCount] = useState<number>(0)
   const [showDevModal, setShowDevModal] = useState(false)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
     disconnection: false,
@@ -52,6 +53,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     nsc: false,
     "meter-replacement": false,
     material: false,
+    "consumer-master": false,
   })
 
   const modules = [
@@ -417,6 +419,25 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       } finally {
         setLoadingModules(prev => ({ ...prev, material: false }))
       }
+
+      // Consumer Master count (cached in localStorage for speed, updated in background)
+      try {
+        const cachedMaster = localStorage.getItem("consumer_master_row_count")
+        if (cachedMaster) {
+          setMasterCount(parseInt(cachedMaster, 10))
+        }
+        setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+        const res = await fetch("/api/system/row-count?type=master")
+        if (res.ok) {
+          const data = await res.json()
+          setMasterCount(data.count)
+          localStorage.setItem("consumer_master_row_count", String(data.count))
+        }
+      } catch (e) {
+        console.error("Auto-fetch master count failed", e)
+      } finally {
+        setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
+      }
     }
     loadPendingCount()
   }, [userRole, userAgencies])
@@ -497,6 +518,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-orange-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr-painting"] ? "bg-blue-500 animate-pulse" : dtrPaintingPendingCount > 0 ? "bg-orange-600" : "bg-gray-400"
                       }`}>
                       {loadingModules["dtr-painting"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : dtrPaintingPendingCount}
+                    </div>
+                  )}
+                  {module.id === "consumer-master" && (
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-teal-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["consumer-master"] ? "bg-blue-500 animate-pulse" : masterCount > 0 ? "bg-teal-600 shadow-teal-500/20" : "bg-gray-400 shadow-gray-400/20"
+                      }`}>
+                      {loadingModules["consumer-master"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : masterCount.toLocaleString()}
                     </div>
                   )}
 
