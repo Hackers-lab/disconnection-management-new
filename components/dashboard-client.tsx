@@ -68,7 +68,11 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     if (role !== "admin") return
     const checkTenantStatus = async () => {
       try {
-        const res = await fetch("/api/admin/tenant-status")
+        const params = new URLSearchParams(window.location.search)
+        const isSuccess = params.get("success") === "true"
+        const url = isSuccess ? "/api/admin/tenant-status?bypassCache=true" : "/api/admin/tenant-status"
+        
+        const res = await fetch(url)
         if (res.ok) {
           const status = await res.json()
           if (status && status.linked === false) {

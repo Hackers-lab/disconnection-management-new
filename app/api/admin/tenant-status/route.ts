@@ -14,7 +14,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   try {
-    const config = await getTenantConfig(session.cccCode)
+    const bypassCache = request.nextUrl.searchParams.get("bypassCache") === "true"
+    const config = await getTenantConfig(session.cccCode, bypassCache)
     return NextResponse.json({
       cccCode: config.cccCode,
       cccName: config.cccName,

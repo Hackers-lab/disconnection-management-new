@@ -36,8 +36,8 @@ export function invalidateTenantCache() {
   registryCache = null
 }
 
-export async function getTenantRegistry(): Promise<Record<string, TenantConfig>> {
-  if (registryCache && Date.now() - registryCache.timestamp < CACHE_TTL_MS) {
+export async function getTenantRegistry(bypassCache = false): Promise<Record<string, TenantConfig>> {
+  if (!bypassCache && registryCache && Date.now() - registryCache.timestamp < CACHE_TTL_MS) {
     return registryCache.tenants
   }
 
@@ -84,8 +84,8 @@ export async function getTenantRegistry(): Promise<Record<string, TenantConfig>>
   return tenants
 }
 
-export async function getTenantConfig(cccCode: string): Promise<TenantConfig> {
-  const registry = await getTenantRegistry()
+export async function getTenantConfig(cccCode: string, bypassCache = false): Promise<TenantConfig> {
+  const registry = await getTenantRegistry(bypassCache)
   let tenant = registry[cccCode]
   if (!tenant && cccCode === "SYSTEM") {
     const firstCode = Object.keys(registry)[0]
