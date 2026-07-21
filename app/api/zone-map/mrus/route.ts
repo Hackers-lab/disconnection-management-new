@@ -16,7 +16,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     consumers.forEach(c => { if (c.mru) mruSet.add(c.mru.trim().toUpperCase()) })
     const sorted = Array.from(mruSet).sort()
     return NextResponse.json(sorted, {
-      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
+      headers: { "Cache-Control": "no-store" },
     })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 })

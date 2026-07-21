@@ -19,12 +19,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     const ids = await getBlockedConsumerIds(agencies)
     return NextResponse.json(ids, {
-      // When agencies are specified the response is user-scoped — do NOT cache
-      // publicly. Without the param (admin/executive) the global set is fine to
-      // cache for a short window at the CDN level.
-      headers: agencies
-        ? { "Cache-Control": "no-store" }
-        : { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "no-store" },
     })
   } catch (e) {
     console.error("blocked-ids error:", e)

@@ -21,9 +21,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     return NextResponse.json(updates, {
       headers: {
-        // Derived from the consumer data warm-fn cache (30s TTL), so
-        // caching here for 30s is safe and eliminates repeated origin calls.
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        'Cache-Control': 'no-store',
       },
     });
   } catch (error) {

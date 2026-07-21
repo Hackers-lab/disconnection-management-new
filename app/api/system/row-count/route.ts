@@ -29,7 +29,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     if (type === 'consumer') {
       const data = await getConsumerCountAndVersion(spreadsheetId)
       return NextResponse.json(data, {
-        headers: { "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60" },
+        headers: { "Cache-Control": "no-store" },
       })
     }
 
@@ -37,7 +37,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       const { fetchMasterData } = await import("@/lib/consumer-master-service")
       const data = await fetchMasterData(spreadsheetId)
       return NextResponse.json({ count: data.length, version: null }, {
-        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+        headers: { "Cache-Control": "no-store" },
       })
     }
 
@@ -45,7 +45,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     const cached = serverCache.get(cacheKey)
     if (cached && Date.now() - cached.timestamp < SERVER_CACHE_TTL_MS) {
       return NextResponse.json(cached.data, {
-        headers: { "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60" },
+        headers: { "Cache-Control": "no-store" },
       })
     }
 
@@ -78,7 +78,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     serverCache.set(cacheKey, { data: responseData, timestamp: Date.now() })
 
     return NextResponse.json(responseData, {
-      headers: { "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60" },
+      headers: { "Cache-Control": "no-store" },
     })
   } catch (error) {
     console.error(`API Error: Failed to fetch row count or generate hash for '${(request.nextUrl.searchParams.get('type') || 'consumer')}':`, error)

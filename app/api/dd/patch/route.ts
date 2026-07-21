@@ -16,8 +16,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     return NextResponse.json(updates, {
       headers: {
-        // CDN-cache 15s with SWR so concurrent tabs share one origin call.
-        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     })
   } catch (error: any) {

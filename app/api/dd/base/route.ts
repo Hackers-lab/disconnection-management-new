@@ -16,9 +16,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=300",
-        "CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=300",
-        "Vercel-CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=300",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     })
   } catch (error: any) {

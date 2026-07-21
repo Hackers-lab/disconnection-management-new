@@ -13,7 +13,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     if (data.length < 100) {
       return NextResponse.json(data, {
         headers: {
-          "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
         },
       });
     }
@@ -51,9 +51,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     return NextResponse.json(patchData, {
       status: 200,
       headers: {
-        // 15s CDN cache lets many tabs share one origin call; stale-while-
-        // revalidate hides latency while the next refresh runs in the background.
-        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     })
   } catch (error) {

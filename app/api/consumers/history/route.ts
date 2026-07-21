@@ -21,9 +21,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     const entries = await getHistoryForConsumer(consumerId, spreadsheetId)
     return NextResponse.json(entries, {
       headers: {
-        // CDN-cache 20s: history reads are user-triggered, not on page load.
-        // Multiple users viewing the same consumer share one origin call.
-        "Cache-Control": "public, s-maxage=20, stale-while-revalidate=60",
+        "Cache-Control": "no-store",
       },
     })
   } catch (e: any) {

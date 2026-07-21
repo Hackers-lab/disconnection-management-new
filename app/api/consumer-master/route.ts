@@ -36,9 +36,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     return NextResponse.json(result, {
       headers: {
         'X-Total-Count': String(data.length),
-        'Cache-Control': isRefresh
-          ? 'no-store'
-          : 'public, s-maxage=2592000, stale-while-revalidate=86400',
+        'Cache-Control': 'no-store',
       }
     })
   } catch (e: any) {

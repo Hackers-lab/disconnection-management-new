@@ -34,7 +34,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     return NextResponse.json(data, {
       status: 200,
       headers: {
-        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=900',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
       },
     });
   } catch (error) {
