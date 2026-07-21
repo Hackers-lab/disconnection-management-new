@@ -15,18 +15,46 @@ export function openDB() {
   })
 }
 
+export function getCccPrefix(): string {
+  if (typeof window === "undefined") return ""
+  try {
+    const match = document.cookie.match(/(^|;)\s*cccCode\s*=\s*([^;]+)/)
+    if (match) {
+      const val = decodeURIComponent(match[2]).trim()
+      if (val) return val
+    }
+  } catch (e) {}
+  try {
+    const local = localStorage.getItem("user_ccc_code")
+    if (local) {
+      const val = local.trim()
+      if (val) return val
+    }
+  } catch (e) {}
+  try {
+    const session = sessionStorage.getItem("user_ccc_code")
+    if (session) {
+      const val = session.trim()
+      if (val) return val
+    }
+  } catch (e) {}
+  return ""
+}
+
 export async function getFromCache<T>(key: string): Promise<T | null> {
+  const ccc = getCccPrefix()
+  const prefixedKey = ccc ? `${ccc}_${key}` : key
   try {
     const db = await openDB()
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly")
       const store = transaction.objectStore(STORE_NAME)
-      const request = store.get(key)
+      const request = store.get(prefixedKey)
       request.onerror   = () => reject(request.error)
       request.onsuccess = () => resolve(request.result ?? null)
     })
   } catch (error) {
-    console.warn(`Error reading ${key} from cache:`, error)
+    console.warn(`Error reading ${prefixedKey} from cache:`, error)
     return null
   }
 }
@@ -34,19 +62,21 @@ export async function getFromCache<T>(key: string): Promise<T | null> {
 // Saves data AND a `{key}_ts` timestamp in a single transaction so
 // staleness can be checked without extra reads.
 export async function saveToCache(key: string, data: any): Promise<void> {
+  const ccc = getCccPrefix()
+  const prefixedKey = ccc ? `${ccc}_${key}` : key
   try {
     const db  = await openDB()
     const now = Date.now()
     await new Promise<void>((resolve, reject) => {
       const tx    = db.transaction(STORE_NAME, "readwrite")
       const store = tx.objectStore(STORE_NAME)
-      store.put(data, key)
-      store.put(now,  `${key}_ts`)
+      store.put(data, prefixedKey)
+      store.put(now,  `${prefixedKey}_ts`)
       tx.oncomplete = () => resolve()
       tx.onerror    = () => reject(tx.error)
     })
   } catch (error) {
-    console.warn(`Error saving ${key} to cache:`, error)
+    console.warn(`Error saving ${prefixedKey} to cache:`, error)
   }
 }
 

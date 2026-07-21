@@ -22,7 +22,7 @@ import {
   Package
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -422,7 +422,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
       // Consumer Master count (cached in localStorage for speed, updated in background)
       try {
-        const cachedMaster = localStorage.getItem("consumer_master_row_count")
+        const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+        const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
         if (cachedMaster) {
           setMasterCount(parseInt(cachedMaster, 10))
         }
@@ -431,7 +432,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         if (res.ok) {
           const data = await res.json()
           setMasterCount(data.count)
-          localStorage.setItem("consumer_master_row_count", String(data.count))
+          localStorage.setItem(`${prefix}consumer_master_row_count`, String(data.count))
         }
       } catch (e) {
         console.error("Auto-fetch master count failed", e)

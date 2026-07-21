@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { Search, X, User, MapPin, Phone, Monitor, Map, ChevronDown, ChevronUp, Upload, ExternalLink, Database, Smartphone, Gauge, ShieldCheck, AlertTriangle, Layers, Activity, ChevronRight } from "lucide-react"
 import dynamic from "next/dynamic"
 
@@ -323,7 +323,8 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
       await saveToCache(CACHE_KEY, data)
       setCount(data.length)
       if (typeof window !== "undefined") {
-        localStorage.setItem("consumer_master_row_count", String(data.length))
+        const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+        localStorage.setItem(`${prefix}consumer_master_row_count`, String(data.length))
       }
       setAllData(data)
       setDataLoaded(true)
@@ -442,7 +443,8 @@ export function ConsumerMaster({ role }: ConsumerMasterProps) {
       })
       await saveToCache(CACHE_KEY, fresh)
       if (typeof window !== "undefined") {
-        localStorage.setItem("consumer_master_row_count", String(fresh.length))
+        const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+        localStorage.setItem(`${prefix}consumer_master_row_count`, String(fresh.length))
       }
       setAllData(fresh)
       setDataLoaded(true)

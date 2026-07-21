@@ -54,52 +54,7 @@ import { AppSidebar, ViewType } from "@/components/app-sidebar"
 import { HistoryReportsDialog } from "@/components/history-reports-dialog"
 import { useDashboard } from "@/components/dashboard-context"
 import { getAgencyDescription } from "@/app/actions/agency-details"
-
-// IndexedDB Helper Functions to handle caching
-const DB_NAME = "DisconnectionAppDB"
-const STORE_NAME = "keyval"
-
-function openDB() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1)
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME)
-      }
-    }
-  })
-}
-
-async function getFromCache<T>(key: string): Promise<T | null> {
-  try {
-    const db = await openDB()
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly")
-      const store = transaction.objectStore(STORE_NAME)
-      const request = store.get(key)
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve(request.result)
-    })
-  } catch (error) {
-    console.warn(`Error reading ${key} from cache:`, error)
-    return null
-  }
-}
-
-async function saveToCache(key: string, data: any) {
-  try {
-    const db = await openDB()
-    const transaction = db.transaction(STORE_NAME, "readwrite")
-    const store = transaction.objectStore(STORE_NAME)
-    const request = store.put(data, key)
-    await new Promise((resolve, reject) => { request.onsuccess = resolve; request.onerror = reject; });
-  } catch (error) {
-    console.warn(`Error saving ${key} to cache:`, error)
-  }
-}
+import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
 
 interface HeaderProps {
   userRole: string
@@ -494,16 +449,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const handleGlobalRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     if (confirm("Sync fresh data from server? This will reload the page.")) {
-      try {
-        const db = await openDB()
-        const transaction = db.transaction(STORE_NAME, "readwrite")
-        const store = transaction.objectStore(STORE_NAME)
-        store.clear()
-      } catch (e) {
-        console.error("Failed to clear IndexedDB", e)
-      }
+      await clearAllCache()
       
-      localStorage.removeItem("dd_row_count")
+      const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+      localStorage.removeItem(`${prefix}dd_row_count`)
       sessionStorage.removeItem("consumers_synced_session")
       window.location.reload()
     }

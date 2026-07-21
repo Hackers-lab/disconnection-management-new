@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import dynamic from "next/dynamic"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
 import { logout } from "@/app/actions/auth"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ViewType } from "@/components/app-sidebar"
@@ -206,6 +206,12 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             setProfileName(data.name || "")
             setBypassSubscription(!!data.bypassSubscription)
             setProfileCccCode(data.cccCode || "")
+            try {
+              localStorage.setItem("user_ccc_code", data.cccCode || "")
+              sessionStorage.setItem("user_ccc_code", data.cccCode || "")
+            } catch (e) {
+              console.error("Failed to save cccCode to storage", e)
+            }
           }
         }
       })
@@ -243,9 +249,10 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
 
   // Background prefetch: warm up IndexedDB as soon as user is on dashboard
   useEffect(() => {
+    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
     const CACHE_KEY = "consumers_data_cache"
-    const ROW_COUNT_KEY = "consumer_row_count"
-    const CONSUMER_VERSION_KEY = "consumer_version_hash"
+    const ROW_COUNT_KEY = `${prefix}consumer_row_count`
+    const CONSUMER_VERSION_KEY = `${prefix}consumer_version_hash`
     const BASE_DATE_KEY = "consumers_base_date"
 
     async function prefetch() {

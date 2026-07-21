@@ -68,7 +68,7 @@ import {
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ConsumerData } from "@/lib/google-sheets"
-import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { useToast } from "@/components/ui/use-toast"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
@@ -226,11 +226,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   }, [userRole, agenciesKey])
 
   useEffect(() => {
+    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
     const CACHE_KEY = "consumers_data_cache"
     const AGENCY_CACHE_KEY = "agencies_data_cache"
     const BASE_DATE_KEY = "consumers_base_date"
-    const ROW_COUNT_KEY = "consumer_row_count"
-    const CONSUMER_VERSION_KEY = "consumer_version_hash"
+    const ROW_COUNT_KEY = `${prefix}consumer_row_count`
+    const CONSUMER_VERSION_KEY = `${prefix}consumer_version_hash`
 
     async function processData(data: ConsumerData[], preloadedAgencies: string[] | null = null, isBackgroundUpdate = false) {
       // Yield to main thread to prevent UI blocking during heavy processing

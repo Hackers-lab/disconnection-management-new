@@ -13,7 +13,7 @@ import {
   Check, Loader2, DownloadCloud, Activity,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getFromCache, saveToCache, clearAllCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
 import type { DeemedVisitData } from "@/lib/dd-service"
 import { DDStats } from "./dd-stats"
 import { DDForm } from "./dd-form"
@@ -91,10 +91,11 @@ export function DDList({ userRole, userAgencies }: DDListProps) {
 
   // --- Data Loading ---
   useEffect(() => {
+    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
     const CACHE_KEY = "dd_data_cache"
     const BASE_DATE_KEY = "dd_base_date"
-    const ROW_COUNT_KEY = "dd_row_count"
-    const VERSION_KEY = "dd_version_hash"
+    const ROW_COUNT_KEY = `${prefix}dd_row_count`
+    const VERSION_KEY = `${prefix}dd_version_hash`
 
     async function loadData() {
       let finalStatus = 'idle'
@@ -327,8 +328,9 @@ export function DDList({ userRole, userAgencies }: DDListProps) {
   const handleManualRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     await clearAllCache()
-    localStorage.removeItem("dd_row_count")
-    localStorage.removeItem("dd_version_hash")
+    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+    localStorage.removeItem(`${prefix}dd_row_count`)
+    localStorage.removeItem(`${prefix}dd_version_hash`)
     setLoading(true)
     setRefreshKey(k => k + 1)
   }

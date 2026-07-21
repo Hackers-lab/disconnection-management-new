@@ -47,11 +47,21 @@ export async function createSession(userId: string, username: string, role: stri
     sameSite: "lax",
     path: "/",
   })
+
+  // Set cccCode cookie (non-httpOnly) so client-side code can read it for caching scoping
+  cookieStore.set("cccCode", cccCode, {
+    httpOnly: false,
+    secure: true,
+    expires: expiresAt,
+    sameSite: "lax",
+    path: "/",
+  })
 }
 
 export async function deleteSession() {
   const cookieStore = await cookies()
   cookieStore.delete("session")
+  cookieStore.delete("cccCode")
 }
 
 export async function verifySession() {
