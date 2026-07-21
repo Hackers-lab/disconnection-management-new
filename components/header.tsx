@@ -855,13 +855,13 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     }
   }
 
-  // Helper variables for permissions
   const isAdminUser = userRole === "admin" || !!(permissions && permissions.admin?.includes("read"));
   const canSeeAgencyUpdates = userRole === "admin" || userRole === "executive" || userRole === "viewer" || userRole === "agency" || !!(permissions && permissions.disconnection?.includes("read"));
   const canDownloadDefaulters = canSeeAgencyUpdates;
   const displayAgencyName = (userAgencies && userAgencies.length > 0)
     ? (userAgencies.length === 1 ? userAgencies[0] : `${userAgencies[0]} (+${userAgencies.length - 1})`)
     : null;
+  const cccCode = profileData?.cccCode || (typeof window !== "undefined" ? localStorage.getItem("user_ccc_code") : "") || "";
 
   return (
     <header className="bg-white shadow sticky top-0 z-50">
@@ -898,11 +898,18 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                 setActiveView("profile")
               }}
-              className="flex items-center space-x-2 text-sm text-blue-700 bg-blue-50/50 hover:bg-blue-100/50 px-2.5 py-1.5 rounded-full border border-blue-200 cursor-pointer transition-colors"
-              title="View Profile & Subscription"
+              className="flex items-center gap-1.5 text-xs text-blue-900 bg-gradient-to-r from-blue-50/90 to-indigo-50/90 hover:from-blue-100 hover:to-indigo-100 px-3 py-1.5 rounded-full border border-blue-200 cursor-pointer transition-colors shadow-xs"
+              title={`Office Supply (CCC): ${cccCode || "Default"} | User/Agency: ${displayAgencyName || userRole}`}
             >
-              <User className="h-4 w-4 text-blue-600" />
-              <span className="capitalize inline truncate max-w-[120px] font-semibold">{displayAgencyName || userRole}</span>
+              <Building2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+              {cccCode ? (
+                <span className="font-extrabold text-indigo-950 uppercase tracking-tight text-[11px] bg-indigo-200/70 px-1.5 py-0.5 rounded border border-indigo-300/50">
+                  {cccCode}
+                </span>
+              ) : null}
+              <span className="capitalize truncate max-w-[110px] font-semibold text-slate-700">
+                {displayAgencyName || userRole}
+              </span>
             </div>
 
             {/* --- DESKTOP VIEW (Hidden on Mobile) --- */}

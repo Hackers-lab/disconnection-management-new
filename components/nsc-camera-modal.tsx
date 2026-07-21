@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Camera, RefreshCw, X, Check, Zap, ZapOff, Image as ImageIcon, RotateCcw } from "lucide-react"
+import { Camera, RefreshCw, X, Check, Zap, ZapOff, Image as ImageIcon, RotateCcw, CheckCircle2 } from "lucide-react"
 
 interface NscCameraModalProps {
   isOpen: boolean
@@ -43,7 +43,6 @@ export function NscCameraModal({
           throw new Error("Camera access is not supported by your browser.")
         }
 
-        // Stop existing stream if any
         if (stream) {
           stream.getTracks().forEach((track: MediaStreamTrack) => track.stop())
         }
@@ -69,7 +68,6 @@ export function NscCameraModal({
           await videoRef.current.play()
         }
 
-        // Check torch capability
         const videoTrack = mediaStream.getVideoTracks()[0]
         if (videoTrack) {
           const capabilities = typeof (videoTrack as any).getCapabilities === "function" 
@@ -127,7 +125,6 @@ export function NscCameraModal({
     if (!videoRef.current || isCapturing) return
     setIsCapturing(true)
 
-    // Trigger visual shutter flash & haptic vibration
     setFlashAnimation(true)
     setTimeout(() => setFlashAnimation(false), 150)
     if (typeof navigator !== "undefined" && (navigator as any).vibrate) {
@@ -141,7 +138,6 @@ export function NscCameraModal({
 
     const ctx = canvas.getContext("2d")
     if (ctx) {
-      // Draw frame from video
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
       onCapture(dataUrl)
@@ -153,9 +149,9 @@ export function NscCameraModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none overflow-hidden touch-none">
+    <div className="fixed inset-0 z-[200] bg-black flex flex-col justify-between select-none overflow-hidden touch-none">
       {/* Top Header Controls */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/90 to-transparent z-20">
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/90 to-transparent z-[210]">
         <Button
           type="button"
           variant="ghost"
@@ -166,7 +162,7 @@ export function NscCameraModal({
           <X className="h-6 w-6" />
         </Button>
 
-        <span className="text-xs font-bold text-white tracking-widest uppercase bg-indigo-600/60 px-3 py-1 rounded-full border border-indigo-400/30 backdrop-blur-md">
+        <span className="text-xs font-bold text-white tracking-widest uppercase bg-indigo-600/80 px-3 py-1 rounded-full border border-indigo-400/40 backdrop-blur-md shadow-md">
           A4 Camera Viewfinder
         </span>
 
@@ -210,7 +206,7 @@ export function NscCameraModal({
               className="mt-2 text-xs"
               onClick={onClose}
             >
-              Use Standard File Upload
+              Use File Upload Instead
             </Button>
           </div>
         ) : (
@@ -225,13 +221,13 @@ export function NscCameraModal({
             <canvas ref={canvasRef} className="hidden" />
 
             {/* Exact A4 Ratio Viewfinder Box Overlay (1 : 1.414) */}
-            <div className="absolute inset-x-6 top-14 bottom-20 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-x-6 top-10 bottom-24 flex items-center justify-center pointer-events-none">
               <div className="w-full max-w-xs aspect-[1/1.414] border-2 border-indigo-400/80 rounded-2xl relative flex flex-col justify-between p-3 bg-indigo-900/10 shadow-2xl backdrop-blur-[1px]">
                 <div className="flex justify-between">
                   <div className="w-7 h-7 border-t-4 border-l-4 border-indigo-400 rounded-tl-lg"></div>
                   <div className="w-7 h-7 border-t-4 border-r-4 border-indigo-400 rounded-tr-lg"></div>
                 </div>
-                <p className="text-center text-white text-[11px] bg-black/70 py-1.5 px-3 rounded-full self-center backdrop-blur-md font-bold tracking-wide border border-indigo-400/40">
+                <p className="text-center text-white text-[11px] bg-black/75 py-1.5 px-3 rounded-full self-center backdrop-blur-md font-bold tracking-wide border border-indigo-400/40">
                   Align A4 Document
                 </p>
                 <div className="flex justify-between">
@@ -249,40 +245,39 @@ export function NscCameraModal({
         )}
       </div>
 
-      {/* Bottom Shutter & Controls */}
-      <div className="bg-gradient-to-t from-black/95 via-black/80 to-transparent px-6 py-6 flex items-center justify-between z-20">
+      {/* Bottom Shutter & Controls Container (z-[210] to remain above all forms) */}
+      <div className="bg-gradient-to-t from-black/95 via-black/85 to-transparent px-6 pt-4 pb-10 flex items-center justify-between z-[210] relative">
         {/* Gallery / Status Counter */}
-        <div className="w-16 flex justify-start">
+        <div className="w-20 flex justify-start">
           {capturedCount > 0 && (
-            <div className="flex items-center gap-1.5 bg-indigo-600/90 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg animate-pulse">
+            <div className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg animate-pulse">
               <span>{capturedCount}</span>
-              <span className="text-[10px] opacity-80">pg</span>
+              <span className="text-[10px] opacity-90">pgs</span>
             </div>
           )}
         </div>
 
-        {/* Persistent Shutter Button */}
+        {/* Persistent Large Shutter Button */}
         <button
           type="button"
           onClick={takePhoto}
           disabled={!!cameraError || isCapturing}
           className="relative group focus:outline-none disabled:opacity-50"
         >
-          <div className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 group-active:scale-95 transition-transform">
+          <div className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 group-active:scale-95 transition-transform shadow-xl">
             <div className="w-full h-full bg-white group-active:bg-indigo-300 rounded-full transition-colors shadow-inner" />
           </div>
         </button>
 
-        {/* Done / Finish Capture Button */}
-        <div className="w-16 flex justify-end">
+        {/* Finish & Review Pages Button */}
+        <div className="w-20 flex justify-end">
           <Button
             type="button"
-            disabled={capturedCount === 0}
             onClick={onClose}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full px-4 py-2 text-xs font-semibold flex items-center gap-1 shadow-md disabled:opacity-40"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full px-4 py-2.5 text-xs font-bold flex items-center gap-1.5 shadow-lg border border-emerald-400/40"
           >
-            <Check className="h-4 w-4" />
-            Done
+            <CheckCircle2 className="h-4 w-4" />
+            {capturedCount > 0 ? `Done (${capturedCount})` : "Close"}
           </Button>
         </div>
       </div>
