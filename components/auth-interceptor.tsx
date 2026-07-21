@@ -9,16 +9,20 @@ export function AuthInterceptor() {
     const originalFetch = window.fetch
     window.fetch = async (...args) => {
       const res = await originalFetch(...args)
+
+      // Only redirect on strict 401 Unauthenticated responses from application APIs
       if (res.status === 401) {
-        // Clear cached permissions
-        try {
-          sessionStorage.removeItem("user_permissions")
-        } catch (e) {
-          // ignore
+        const urlStr = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url || ""
+        if (!urlStr.includes("/login") && !urlStr.includes("/api/auth/login")) {
+          try {
+            sessionStorage.removeItem("user_permissions")
+          } catch (e) {
+            // ignore
+          }
+          window.location.href = "/login"
         }
-        // Redirect to login page
-        window.location.href = "/login"
       }
+
       return res
     }
 

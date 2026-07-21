@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { verifySession } from "@/lib/session"
 import { processApplication } from "@/lib/nsc-service"
 import { withTenant } from "@/lib/tenant-context"
+import { checkApiPermission } from "@/lib/permissions"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
-  const session = await verifySession()
-  if (!session || !["admin", "executive"].includes(session.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { authorized, error, status, session } = await checkApiPermission("nsc", "update")
+  if (!authorized) {
+    return NextResponse.json({ error }, { status: status || 403 })
   }
+
   try {
     const body = await request.json()
     if (!body.receiveNo)   return NextResponse.json({ error: "receiveNo required" }, { status: 400 })
