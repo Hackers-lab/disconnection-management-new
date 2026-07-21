@@ -8,10 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   ArrowLeft, Loader2, Camera, Trash2, RotateCw,
-  ArrowUp, ArrowDown, UploadCloud, CheckCircle2
+  ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon,
+  UploadCloud, CheckCircle2, Crop, Plus, Image as ImageIcon, FileText, AlertCircle
 } from "lucide-react"
 import { getFromCache } from "@/lib/indexed-db"
 import { NSC_CLASSES, NSC_PHASES } from "@/lib/nsc-types"
+import { NscCameraModal } from "@/components/nsc-camera-modal"
+import { NscCropDialog } from "@/components/nsc-crop-dialog"
+import { applyCamScannerMagicColor, detectDocumentCorners, warpPerspective } from "@/lib/document-scanner"
 
 interface Props {
   agencies: string[]
@@ -20,30 +24,53 @@ interface Props {
 }
 
 interface CapturedPage {
+  id: string
   src: string // base64 URL
   rotation: number // 0, 90, 180, 270
 }
 
-// Helper function to apply rotation and filter on a canvas
-const applyFilterToImage = (
+// Helper to auto-detect document edges & apply perspective warp immediately upon import/capture
+const autoCropImage = (imgSrc: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { resolve(imgSrc); return }
+
+      ctx.drawImage(img, 0, 0)
+      const autoCorners = detectDocumentCorners(canvas)
+      const isLandscape = img.width > img.height
+      const warpedCanvas = warpPerspective(canvas, autoCorners, isLandscape)
+      resolve(warpedCanvas.toDataURL("image/jpeg", 0.9))
+    }
+    img.onerror = () => resolve(imgSrc)
+    img.src = imgSrc
+  })
+}
+
+// Helper function to process rotation and apply CamScanner "Magic Color" Enhancement
+const processImageForScan = (
   imgSrc: string,
-  filter: "color" | "grayscale" | "bw",
   rotationAngle: number
-): Promise<string> => {
+): Promise<{ dataUrl: string; width: number; height: number }> => {
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")
-      if (!ctx) { resolve(imgSrc); return }
+      if (!ctx) { resolve({ dataUrl: imgSrc, width: img.width, height: img.height }); return }
 
       const isRotated = rotationAngle === 90 || rotationAngle === 270
       const origW = img.width
       const origH = img.height
 
-      // Downscale to maximum 1200px for storage efficiency
-      const MAX_SIZE = 1200
+      // Scale to high-clarity A4 standard resolution (max 1697px)
+      const MAX_SIZE = 1697
       let w = origW
       let h = origH
       if (w > MAX_SIZE || h > MAX_SIZE) {
@@ -56,40 +83,25 @@ const applyFilterToImage = (
         }
       }
 
-      canvas.width = isRotated ? h : w
-      canvas.height = isRotated ? w : h
+      const finalW = isRotated ? h : w
+      const finalH = isRotated ? w : h
+      canvas.width = finalW
+      canvas.height = finalH
 
-      // Translate, rotate, and draw image centered
       ctx.translate(canvas.width / 2, canvas.height / 2)
       ctx.rotate((rotationAngle * Math.PI) / 180)
       ctx.drawImage(img, -w / 2, -h / 2, w, h)
 
-      // Apply image scan filters
-      if (filter !== "color") {
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const data = imgData.data
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i]
-          const g = data[i + 1]
-          const b = data[i + 2]
-          const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
+      // Apply automatic CamScanner Magic Color Enhancer (pure #FFFFFF paper, crisp text, vivid ink)
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      applyCamScannerMagicColor(imgData)
+      ctx.putImageData(imgData, 0, 0)
 
-          if (filter === "bw") {
-            const val = gray > 120 ? 255 : 0 // Threshold binarization
-            data[i] = val
-            data[i + 1] = val
-            data[i + 2] = val
-          } else {
-            // Grayscale
-            data[i] = gray
-            data[i + 1] = gray
-            data[i + 2] = gray
-          }
-        }
-        ctx.putImageData(imgData, 0, 0)
-      }
-
-      resolve(canvas.toDataURL("image/jpeg", 0.55))
+      resolve({
+        dataUrl: canvas.toDataURL("image/jpeg", 0.75),
+        width: finalW,
+        height: finalH,
+      })
     }
     img.src = imgSrc
   })
@@ -107,11 +119,16 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
   const [agencyList, setAgencyList]       = useState<string[]>(agencies)
   const [submitting, setSubmitting]       = useState(false)
 
-  // Document scan states
+  // Document scanner states
   const [pages, setPages]                 = useState<CapturedPage[]>([])
-  const [filter, setFilter]               = useState<"color" | "grayscale" | "bw">("grayscale")
   const [uploadingPdf, setUploadingPdf]   = useState(false)
+  const [uploadProgressText, setUploadProgressText] = useState("")
+  const [uploadError, setUploadError]     = useState<string | null>(null)
   const [applicationFormUrl, setApplicationFormUrl] = useState("")
+
+  // Modal states
+  const [isCameraOpen, setIsCameraOpen]   = useState(false)
+  const [cropTargetIndex, setCropTargetIndex] = useState<number | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -129,22 +146,73 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
     load()
   }, [])
 
-  const handleImageSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Continuous In-App Camera Capture with Instant Auto-Crop
+  const handleCameraCapture = async (base64Img: string) => {
+    const croppedSrc = await autoCropImage(base64Img)
+    setPages((prev) => [
+      ...prev,
+      {
+        id: `page_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        src: croppedSrc,
+        rotation: 0,
+      },
+    ])
+  }
+
+  // Gallery File Selection with Instant Auto-Crop
+  const handleGallerySelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
     const fileList = Array.from(files)
 
     fileList.forEach((file) => {
       const reader = new FileReader()
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         if (event.target?.result) {
-          setPages((prev) => [...prev, { src: event.target!.result as string, rotation: 0 }])
+          const rawSrc = event.target!.result as string
+          const croppedSrc = await autoCropImage(rawSrc)
+          setPages((prev) => [
+            ...prev,
+            {
+              id: `page_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+              src: croppedSrc,
+              rotation: 0,
+            },
+          ])
         }
       }
       reader.readAsDataURL(file)
     })
-    // Reset file input value to allow uploading same file again if deleted
     e.target.value = ""
+  }
+
+  // Direct PDF File Upload Option
+  const handleDirectPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPdf(true)
+    setUploadError(null)
+    setUploadProgressText("Uploading PDF document to cloud storage...")
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const safeApplicantName = applicantName.trim().replace(/[^a-zA-Z0-9]/g, "_") || "nsc"
+      formData.append("consumerId", `NSC_FORM_${safeApplicantName}`)
+
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to upload PDF")
+      setApplicationFormUrl(data.url)
+    } catch (err: any) {
+      setUploadError(err.message || "Error uploading PDF")
+    } finally {
+      setUploadingPdf(false)
+      setUploadProgressText("")
+      e.target.value = ""
+    }
   }
 
   const rotatePage = (index: number) => {
@@ -157,7 +225,7 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
     setPages((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const movePageUp = (index: number) => {
+  const movePageLeft = (index: number) => {
     if (index === 0) return
     setPages((prev) => {
       const next = [...prev]
@@ -168,7 +236,7 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
     })
   }
 
-  const movePageDown = (index: number) => {
+  const movePageRight = (index: number) => {
     if (index === pages.length - 1) return
     setPages((prev) => {
       const next = [...prev]
@@ -179,36 +247,60 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
     })
   }
 
+  const handleApplyCrop = (warpedBase64: string) => {
+    if (cropTargetIndex === null) return
+    setPages((prev) =>
+      prev.map((p, i) => (i === cropTargetIndex ? { ...p, src: warpedBase64 } : p))
+    )
+    setCropTargetIndex(null)
+  }
+
+  // Dynamic Orientation PDF Compilation
   const compileAndUploadPdf = async () => {
-    if (pages.length === 0) { alert("Please capture or select at least one page."); return }
+    if (pages.length === 0) return
     setUploadingPdf(true)
+    setUploadError(null)
+    setUploadProgressText("Processing A4 enhancements & compiling PDF...")
     try {
       const { jsPDF } = await import("jspdf")
+
+      const firstProcessed = await processImageForScan(pages[0].src, pages[0].rotation)
+      const firstIsLandscape = firstProcessed.width > firstProcessed.height
+
       const doc = new jsPDF({
-        orientation: "portrait",
+        orientation: firstIsLandscape ? "landscape" : "portrait",
         unit: "mm",
         format: "a4",
         compress: true
       })
 
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i]
-        const processedSrc = await applyFilterToImage(page.src, filter, page.rotation)
-
-        if (i > 0) {
-          doc.addPage()
-        }
-
-        // Add JPEG image fitting A4 page proportions
-        doc.addImage(processedSrc, "JPEG", 0, 0, 210, 297, undefined, "FAST")
+      if (firstIsLandscape) {
+        doc.addImage(firstProcessed.dataUrl, "JPEG", 0, 0, 297, 210, undefined, "FAST")
+      } else {
+        doc.addImage(firstProcessed.dataUrl, "JPEG", 0, 0, 210, 297, undefined, "FAST")
       }
 
+      for (let i = 1; i < pages.length; i++) {
+        setUploadProgressText(`Processing page ${i + 1} of ${pages.length}...`)
+        const page = pages[i]
+        const processed = await processImageForScan(page.src, page.rotation)
+        const isLandscape = processed.width > processed.height
+
+        doc.addPage("a4", isLandscape ? "landscape" : "portrait")
+
+        if (isLandscape) {
+          doc.addImage(processed.dataUrl, "JPEG", 0, 0, 297, 210, undefined, "FAST")
+        } else {
+          doc.addImage(processed.dataUrl, "JPEG", 0, 0, 210, 297, undefined, "FAST")
+        }
+      }
+
+      setUploadProgressText("Uploading compiled PDF to cloud storage...")
       const pdfBlob = doc.output("blob")
       const pdfFile = new File([pdfBlob], `nsc_app_${Date.now()}.pdf`, { type: "application/pdf" })
 
       const formData = new FormData()
       formData.append("file", pdfFile)
-      // Form identification name
       const safeApplicantName = applicantName.trim().replace(/[^a-zA-Z0-9]/g, "_") || "nsc"
       formData.append("consumerId", `NSC_FORM_${safeApplicantName}`)
 
@@ -219,11 +311,11 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to upload")
       setApplicationFormUrl(data.url)
-      alert("Application Form PDF compiled and uploaded successfully!")
     } catch (e: any) {
-      alert("Error compiling or uploading PDF: " + e.message)
+      setUploadError(e.message || "Error compiling or uploading PDF")
     } finally {
       setUploadingPdf(false)
+      setUploadProgressText("")
     }
   }
 
@@ -234,7 +326,7 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
     if (!appliedClass)         { alert("Applied class is required."); return }
     if (!phase)                { alert("Phase is required."); return }
     if (!agency)               { alert("Please assign an agency."); return }
-    if (!applicationFormUrl)   { alert("Please compile and upload the Application Form PDF first."); return }
+    if (!applicationFormUrl)   { alert("Please upload or compile the Application Form PDF first."); return }
 
     setSubmitting(true)
     try {
@@ -333,177 +425,253 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
         </CardContent>
       </Card>
 
-      {/* Application Form PDF Scan Card */}
-      <Card className="border-indigo-100 bg-indigo-50/20">
-        <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm text-indigo-900 flex items-center gap-2">
-            <Camera className="h-4 w-4 text-indigo-600" />
-            Application Form Scan (PDF)
+      {/* Application Form Scanner Experience Card */}
+      <Card className="border-indigo-200 bg-indigo-50/30 overflow-hidden shadow-sm">
+        <CardHeader className="pb-2 pt-4 px-4 bg-indigo-100/50">
+          <CardTitle className="text-sm text-indigo-950 flex items-center justify-between">
+            <span className="flex items-center gap-2 font-bold">
+              <Camera className="h-4 w-4 text-indigo-600" />
+              Document Scanner (A4 Mode)
+            </span>
+            {pages.length > 0 && !applicationFormUrl && (
+              <span className="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                {pages.length} {pages.length === 1 ? "Page" : "Pages"}
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-4">
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleImageSelection}
-            className="hidden"
-            id="nsc-camera-input"
-          />
+
+        <CardContent className="px-4 py-4 space-y-4">
           <input
             type="file"
             accept="image/*"
             multiple
-            onChange={handleImageSelection}
+            onChange={handleGallerySelection}
             className="hidden"
-            id="nsc-gallery-input"
+            id="nsc-gallery-input-v2"
           />
 
-          {!applicationFormUrl && (
-            <div className="grid grid-cols-2 gap-3">
-              <label htmlFor="nsc-camera-input" className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 bg-white rounded-xl p-4 cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-300 transition group text-center">
-                <Camera className="h-6 w-6 text-indigo-500 group-hover:text-indigo-600 mb-1.5 transition-colors" />
-                <span className="text-xs font-semibold text-indigo-950">Open Camera</span>
-                <span className="text-[9px] text-gray-400 mt-1">Take photo directly</span>
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={handleDirectPdfUpload}
+            className="hidden"
+            id="nsc-direct-pdf-input"
+          />
+
+          {/* Upload Progress Loader View */}
+          {uploadingPdf && (
+            <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-6 flex flex-col items-center justify-center text-center space-y-3 shadow-xs">
+              <Loader2 className="h-8 w-8 text-indigo-600 animate-spin" />
+              <div>
+                <p className="text-xs font-bold text-indigo-950">{uploadProgressText || "Uploading document..."}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Please wait, streaming file to cloud storage...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Success Card (Attached PDF View) */}
+          {!uploadingPdf && applicationFormUrl && (
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center shrink-0 shadow-xs">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-emerald-950 font-sans truncate">Application Form PDF Attached</p>
+                  <a
+                    href={applicationFormUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-indigo-600 font-semibold underline hover:text-indigo-800 flex items-center gap-1 mt-0.5 font-mono"
+                  >
+                    View Uploaded Document ↗
+                  </a>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-red-600 border-red-200 hover:bg-red-50 text-[10px] font-bold rounded-lg shrink-0 ml-2"
+                onClick={() => {
+                  setApplicationFormUrl("")
+                  setPages([])
+                }}
+              >
+                Replace
+              </Button>
+            </div>
+          )}
+
+          {/* Upload Error Banner */}
+          {uploadError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2 text-red-700 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{uploadError}</span>
+            </div>
+          )}
+
+          {/* Action Launchers */}
+          {!uploadingPdf && !applicationFormUrl && (
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCameraOpen(true)}
+                className="flex flex-col items-center justify-center border-2 border-indigo-500 bg-indigo-600 text-white rounded-2xl p-3 cursor-pointer hover:bg-indigo-700 transition shadow-md group text-center"
+              >
+                <Camera className="h-6 w-6 text-white group-hover:scale-110 mb-1 transition-transform" />
+                <span className="text-[11px] font-bold leading-tight">A4 Camera Scanner</span>
+              </button>
+
+              <label
+                htmlFor="nsc-gallery-input-v2"
+                className="flex flex-col items-center justify-center border-2 border-indigo-200 bg-white rounded-2xl p-3 cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition group text-center"
+              >
+                <ImageIcon className="h-6 w-6 text-indigo-600 group-hover:scale-110 mb-1 transition-transform" />
+                <span className="text-[11px] font-bold text-indigo-950 leading-tight">Import Images</span>
               </label>
-              
-              <label htmlFor="nsc-gallery-input" className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 bg-white rounded-xl p-4 cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-300 transition group text-center">
-                <UploadCloud className="h-6 w-6 text-indigo-500 group-hover:text-indigo-600 mb-1.5 transition-colors" />
-                <span className="text-xs font-semibold text-indigo-950">Upload Images</span>
-                <span className="text-[9px] text-gray-400 mt-1">Choose from gallery</span>
+
+              <label
+                htmlFor="nsc-direct-pdf-input"
+                className="flex flex-col items-center justify-center border-2 border-emerald-200 bg-emerald-50/50 rounded-2xl p-3 cursor-pointer hover:bg-emerald-100 hover:border-emerald-300 transition group text-center"
+              >
+                <FileText className="h-6 w-6 text-emerald-600 group-hover:scale-110 mb-1 transition-transform" />
+                <span className="text-[11px] font-bold text-emerald-950 leading-tight">Upload PDF File</span>
               </label>
             </div>
           )}
 
-          {pages.length > 0 && !applicationFormUrl && (
+          {/* Multi-Page Horizontal Thumbnail Review Strip */}
+          {!uploadingPdf && pages.length > 0 && !applicationFormUrl && (
             <div className="space-y-3">
-              {/* Pages editor list */}
-              <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                  Captured Pages ({pages.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsCameraOpen(true)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-xs"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add More Pages
+                </button>
+              </div>
+
+              {/* Horizontal Page Thumbnail Strip */}
+              <div className="flex gap-3 overflow-x-auto pb-2 pt-1 px-1 snap-x">
                 {pages.map((p, index) => (
-                  <div key={index} className="flex items-center gap-3 bg-white border border-indigo-100 rounded-xl p-2 relative">
-                    <div className="h-16 w-12 shrink-0 bg-gray-100 rounded overflow-hidden flex items-center justify-center relative border border-gray-200">
+                  <div
+                    key={p.id}
+                    className="relative flex-shrink-0 w-36 bg-white border-2 border-indigo-100 rounded-xl p-2 shadow-xs snap-start flex flex-col justify-between"
+                  >
+                    <div className="relative h-48 w-full bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center border border-gray-200">
                       <img
                         src={p.src}
                         alt={`Page ${index + 1}`}
-                        className="h-full w-full object-cover transition-transform"
+                        className="h-full w-full object-contain transition-transform duration-200"
                         style={{ transform: `rotate(${p.rotation}deg)` }}
                       />
-                      <span className="absolute bottom-0.5 left-0.5 bg-black/60 text-white text-[8px] font-bold px-1 rounded">
-                        P{index + 1}
+                      <span className="absolute top-1 left-1 bg-black/75 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md backdrop-blur-xs">
+                        Page {index + 1}
                       </span>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-700">Page {index + 1} of {pages.length}</p>
-                      <p className="text-[9px] text-gray-400 font-mono">Rotation: {p.rotation}°</p>
+                    {/* Page Actions */}
+                    <div className="grid grid-cols-4 gap-1 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-full rounded-md border-indigo-100 hover:bg-indigo-50"
+                        onClick={() => rotatePage(index)}
+                        title="Rotate 90°"
+                      >
+                        <RotateCw className="h-3.5 w-3.5 text-indigo-700" />
+                      </Button>
 
-                      <div className="flex gap-1.5 mt-1.5">
-                        <Button
-                          type="button" variant="outline" size="icon" className="h-6 w-6 rounded border-indigo-100 hover:bg-indigo-50"
-                          onClick={() => rotatePage(index)}
-                          title="Rotate 90°"
-                        >
-                          <RotateCw className="h-3 w-3 text-indigo-700" />
-                        </Button>
-                        <Button
-                          type="button" variant="outline" size="icon" className="h-6 w-6 rounded border-indigo-100 hover:bg-indigo-50"
-                          onClick={() => movePageUp(index)}
-                          disabled={index === 0}
-                          title="Move Up"
-                        >
-                          <ArrowUp className="h-3 w-3 text-indigo-700" />
-                        </Button>
-                        <Button
-                          type="button" variant="outline" size="icon" className="h-6 w-6 rounded border-indigo-100 hover:bg-indigo-50"
-                          onClick={() => movePageDown(index)}
-                          disabled={index === pages.length - 1}
-                          title="Move Down"
-                        >
-                          <ArrowDown className="h-3 w-3 text-indigo-700" />
-                        </Button>
-                        <Button
-                          type="button" variant="outline" size="icon" className="h-6 w-6 rounded text-red-500 hover:text-red-700 hover:bg-red-50 border-red-100 hover:border-red-200"
-                          onClick={() => deletePage(index)}
-                          title="Delete Page"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-full rounded-md border-indigo-100 hover:bg-indigo-50"
+                        onClick={() => setCropTargetIndex(index)}
+                        title="Perspective Crop"
+                      >
+                        <Crop className="h-3.5 w-3.5 text-indigo-700" />
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-full rounded-md border-indigo-100 hover:bg-indigo-50"
+                        onClick={() => movePageLeft(index)}
+                        disabled={index === 0}
+                        title="Move Left"
+                      >
+                        <ArrowLeftIcon className="h-3.5 w-3.5 text-indigo-700" />
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-full rounded-md border-indigo-100 hover:bg-indigo-50"
+                        onClick={() => movePageRight(index)}
+                        disabled={index === pages.length - 1}
+                        title="Move Right"
+                      >
+                        <ArrowRightIcon className="h-3.5 w-3.5 text-indigo-700" />
+                      </Button>
                     </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full h-6 mt-1 text-[10px] text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md font-semibold"
+                      onClick={() => deletePage(index)}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" /> Delete
+                    </Button>
                   </div>
                 ))}
-              </div>
-
-              {/* Document scanner filters */}
-              <div className="space-y-1.5">
-                <Label className="text-[10px] text-indigo-900 uppercase tracking-wider font-bold">Document Scanner Filter</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: "color", label: "Color" },
-                    { value: "grayscale", label: "Grayscale" },
-                    { value: "bw", label: "B&W Photocopy" },
-                  ].map((f) => (
-                    <button
-                      key={f.value}
-                      type="button"
-                      onClick={() => setFilter(f.value as any)}
-                      className={`py-1.5 rounded-lg text-xs font-semibold border transition ${
-                        filter === f.value
-                          ? "bg-indigo-600 text-white border-indigo-600"
-                          : "bg-white text-indigo-900 border-indigo-200 hover:bg-indigo-50/50"
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[9px] text-gray-400">
-                  Grayscale and B&W filters clear up shadows and optimize PDF size for storage.
-                </p>
               </div>
             </div>
           )}
 
-          {/* Action buttons */}
-          {pages.length > 0 && (
+          {/* Compile & Upload PDF Button */}
+          {!uploadingPdf && pages.length > 0 && !applicationFormUrl && (
             <div>
-              {applicationFormUrl ? (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold text-green-800 font-sans">Form Compiled Successfully</p>
-                      <a href={applicationFormUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 underline font-mono">
-                        View Uploaded PDF ↗
-                      </a>
-                    </div>
-                  </div>
-                  <Button
-                    type="button" variant="outline" size="sm" className="h-8 text-red-500 border-red-200 hover:bg-red-50 text-[10px] font-semibold"
-                    onClick={() => { setApplicationFormUrl(""); setPages([]) }}
-                  >
-                    Clear Form
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2"
-                  onClick={compileAndUploadPdf}
-                  disabled={uploadingPdf}
-                >
-                  {uploadingPdf ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <UploadCloud className="h-4 w-4" />
-                  )}
-                  {uploadingPdf ? "Generating & Compiling..." : `Compile & Upload ${pages.length} Page(s) as PDF`}
-                </Button>
-              )}
+              <Button
+                type="button"
+                className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2"
+                onClick={compileAndUploadPdf}
+              >
+                <UploadCloud className="h-4 w-4" />
+                Compile & Upload {pages.length} Page(s) as PDF
+              </Button>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Persistent In-App Camera Viewfinder Modal */}
+      <NscCameraModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={handleCameraCapture}
+        capturedCount={pages.length}
+      />
+
+      {/* Perspective Crop & Edge Tuning Modal */}
+      <NscCropDialog
+        isOpen={cropTargetIndex !== null}
+        imageSrc={cropTargetIndex !== null && pages[cropTargetIndex] ? pages[cropTargetIndex].src : null}
+        onClose={() => setCropTargetIndex(null)}
+        onApplyCrop={handleApplyCrop}
+      />
 
       {/* Agency assignment */}
       <Card>
@@ -520,7 +688,7 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <Button variant="outline" className="flex-1 h-12" onClick={onCancel}>Cancel</Button>
-        <Button className="flex-[2] h-12 bg-slate-950 hover:bg-slate-900 text-white" onClick={handleSubmit} disabled={submitting}>
+        <Button className="flex-[2] h-12 bg-slate-950 hover:bg-slate-900 text-white font-bold" onClick={handleSubmit} disabled={submitting}>
           {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           {submitting ? "Creating..." : "Create Application"}
         </Button>
