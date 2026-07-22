@@ -393,17 +393,6 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
             </SelectContent>
           </Select>
 
-          {canCreate && (
-            <Button
-              size="sm"
-              onClick={() => setView("create")}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 rounded-xl px-3 flex items-center gap-1.5 shrink-0 shadow-sm"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline font-bold">New Application</span>
-            </Button>
-          )}
-
           {/* Filter button */}
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
@@ -738,7 +727,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       <NscViewDialog app={viewApp} open={!!viewApp} onClose={() => setViewApp(null)} />
 
       {/* Sticky bottom — Add NSC */}
-      {isAdmin && (
+      {canCreate && (
         <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
           <div className="max-w-xl mx-auto pointer-events-auto">
             <Button

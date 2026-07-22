@@ -49,6 +49,7 @@ import {
   Trash2,
   LayoutGrid,
   List,
+  Eye,
   CheckCircle2,
   Power,
   Clock,
@@ -490,21 +491,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     // 1. Role-Based Security Filter (Applied to Full Data)
     let dataToFilter = consumers;
     
-    if (userRole !== "admin" && userRole !== "viewer") {
+    if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive") {
        const userAgenciesUpper = userAgencies.map(a => a.toUpperCase())
-       if (userRole === "executive") {
-          dataToFilter = consumers.filter(c => {
-            const consumerAgency = (c.agency || "").toUpperCase()
-            const isOwnAgency = userAgenciesUpper.includes(consumerAgency)
-            const isBillDispute = c.disconStatus?.toLowerCase() === "bill dispute"
-            return (isOwnAgency || isBillDispute) && c.disconStatus !== "&"
-          })
-       } else {
-          dataToFilter = consumers.filter(c => {
-             const consumerAgency = (c.agency || "").toUpperCase()
-             return userAgenciesUpper.includes(consumerAgency) && c.disconStatus !== "&"
-          })
-       }
+       dataToFilter = consumers.filter(c => {
+          const consumerAgency = (c.agency || "").toUpperCase()
+          return userAgenciesUpper.includes(consumerAgency) && c.disconStatus !== "&"
+       })
     }
 
     return dataToFilter.filter((consumer) => {
@@ -1482,7 +1474,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 {/* 👆 END UPDATED SECTION 👆 */}
 
                 {(() => {
-                  const roleBlocked = (!["connected", "visited", "not found"].includes(consumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer"
+                  const isReadOnlyMode = permissions
+                    ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
+                    : (userRole === "viewer" || userRole === "reader")
                   const reconnBlocked = blockedIds.has(consumer.consumerId)
                   return (
                     <Button
@@ -1490,13 +1484,25 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                         setSelectedConsumer(consumer)
                       }}
-                      className={`w-full mt-4 ${roleBlocked ? "bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed" : ""}`}
+                      className={`w-full mt-4 ${
+                        isReadOnlyMode
+                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-semibold"
+                          : "bg-slate-900 hover:bg-slate-800 text-white"
+                      }`}
                       size="sm"
-                      disabled={roleBlocked}
                       title={reconnBlocked ? "Reconnection pending >30h" : undefined}
                     >
-                      <Edit className={`h-4 w-4 mr-2 ${roleBlocked ? "text-gray-400" : ""}`} />
-                      {reconnBlocked ? "⚠ Update Status" : "Update Status"}
+                      {isReadOnlyMode ? (
+                        <>
+                          <Eye className="h-4 w-4 mr-2 text-slate-600" />
+                          View Details
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="h-4 w-4 mr-2" />
+                          {reconnBlocked ? "⚠ Update Status" : "Update Status"}
+                        </>
+                      )}
                     </Button>
                   )
                 })()}
@@ -1566,7 +1572,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         {(() => {
-                          const roleBlocked = (!["connected", "visited", "not found"].includes(consumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer"
+                          const isReadOnlyMode = permissions
+                            ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
+                            : (userRole === "viewer" || userRole === "reader")
                           const reconnBlocked = blockedIds.has(consumer.consumerId)
                           return (
                             <Button
@@ -1575,11 +1583,14 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                                 setSelectedConsumer(consumer)
                               }}
                               size="sm"
-                              className="h-8 bg-slate-950 hover:bg-slate-900 text-white"
-                              disabled={roleBlocked}
+                              className={`h-8 ${
+                                isReadOnlyMode
+                                  ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-semibold"
+                                  : "bg-slate-950 hover:bg-slate-900 text-white"
+                              }`}
                               title={reconnBlocked ? "Reconnection pending >30h" : undefined}
                             >
-                              {reconnBlocked ? "⚠ Update" : "Update"}
+                              {isReadOnlyMode ? "View" : reconnBlocked ? "⚠ Update" : "Update"}
                             </Button>
                           )
                         })()}
