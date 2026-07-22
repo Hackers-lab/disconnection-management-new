@@ -180,268 +180,294 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     }
   ]
 
+  const hasReadPermission = (moduleName: string) => {
+    if (userRole === "admin") return true
+    if (!permissions) return false
+    const key = moduleName.replace(/-/g, "_")
+    const perms = permissions[key] || permissions[moduleName] || []
+    return perms.includes("read")
+  }
+
   useEffect(() => {
     async function loadPendingCount() {
       // Disconnection
-      try {
-        let data = await getFromCache<ConsumerData[]>("consumers_data_cache")
-        if (!data || data.length === 0) {
-          setLoadingModules(prev => ({ ...prev, disconnection: true }))
-          try {
-            const res = await fetch("/api/consumers/base")
-            if (res.ok) {
-              data = await res.json()
-              if (data) await saveToCache("consumers_data_cache", data)
-            }
-          } catch (err) { console.error("Auto-fetch consumers failed", err) }
-        }
+      if (hasReadPermission("disconnection")) {
+        try {
+          let data = await getFromCache<ConsumerData[]>("consumers_data_cache")
+          if (!data || data.length === 0) {
+            setLoadingModules(prev => ({ ...prev, disconnection: true }))
+            try {
+              const res = await fetch("/api/consumers/base")
+              if (res.ok) {
+                data = await res.json()
+                if (data) await saveToCache("consumers_data_cache", data)
+              }
+            } catch (err) { console.error("Auto-fetch consumers failed", err) }
+          }
 
-        if (!data) data = []
-        const count = data.filter(c => {
-          const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
-          if (!isConnected) return false
-          if (userRole === "admin" || userRole === "viewer") return true
-          const consumerAgency = (c.agency || "").trim().toUpperCase()
-          const safeAgencies = userAgencies || []
-          const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
-          return userAgenciesUpper.includes(consumerAgency)
-        }).length
-        setPendingCount(count)
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, disconnection: false }))
+          if (!data) data = []
+          const count = data.filter(c => {
+            const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
+            if (!isConnected) return false
+            if (userRole === "admin" || userRole === "viewer") return true
+            const consumerAgency = (c.agency || "").trim().toUpperCase()
+            const safeAgencies = userAgencies || []
+            const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
+            return userAgenciesUpper.includes(consumerAgency)
+          }).length
+          setPendingCount(count)
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, disconnection: false }))
+        }
       }
 
       // Deemed
-      try {
-        let ddData = await getFromCache<DeemedVisitData[]>("dd_data_cache")
-        if (!ddData || ddData.length === 0) {
-          setLoadingModules(prev => ({ ...prev, deemed: true }))
-          try {
-            const res = await fetch("/api/dd/base")
-            if (res.ok) {
-              ddData = await res.json()
-              if (ddData) await saveToCache("dd_data_cache", ddData)
-            }
-          } catch (err) { console.error("Auto-fetch DD failed", err) }
-        }
+      if (hasReadPermission("deemed")) {
+        try {
+          let ddData = await getFromCache<DeemedVisitData[]>("dd_data_cache")
+          if (!ddData || ddData.length === 0) {
+            setLoadingModules(prev => ({ ...prev, deemed: true }))
+            try {
+              const res = await fetch("/api/dd/base")
+              if (res.ok) {
+                ddData = await res.json()
+                if (ddData) await saveToCache("dd_data_cache", ddData)
+              }
+            } catch (err) { console.error("Auto-fetch DD failed", err) }
+          }
 
-        if (ddData) {
-          const ddCount = ddData.filter(d => {
-            const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
-            if (!isPending) return false
-            if (userRole === "admin" || userRole === "viewer") return true
-            const agency = (d.agency || "").trim().toUpperCase()
-            const safeAgencies = userAgencies || []
-            const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
-            return userAgenciesUpper.includes(agency)
-          }).length
-          setDdPendingCount(ddCount)
+          if (ddData) {
+            const ddCount = ddData.filter(d => {
+              const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
+              if (!isPending) return false
+              if (userRole === "admin" || userRole === "viewer") return true
+              const agency = (d.agency || "").trim().toUpperCase()
+              const safeAgencies = userAgencies || []
+              const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
+              return userAgenciesUpper.includes(agency)
+            }).length
+            setDdPendingCount(ddCount)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, deemed: false }))
         }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, deemed: false }))
       }
 
       // Reconnection
-      try {
-        let rcCached = await getFromCache<any[]>("reconnection_data_cache")
-        if (!rcCached || rcCached.length === 0) {
-          setLoadingModules(prev => ({ ...prev, reconnection: true }))
-          try {
-            const res = await fetch("/api/reconnection")
-            if (res.ok) {
-              rcCached = await res.json()
-              if (rcCached) await saveToCache("reconnection_data_cache", rcCached)
-            }
-          } catch (err) { console.error("Auto-fetch reconnection failed", err) }
+      if (hasReadPermission("reconnection")) {
+        try {
+          let rcCached = await getFromCache<any[]>("reconnection_data_cache")
+          if (!rcCached || rcCached.length === 0) {
+            setLoadingModules(prev => ({ ...prev, reconnection: true }))
+            try {
+              const res = await fetch("/api/reconnection")
+              if (res.ok) {
+                rcCached = await res.json()
+                if (rcCached) await saveToCache("reconnection_data_cache", rcCached)
+              }
+            } catch (err) { console.error("Auto-fetch reconnection failed", err) }
+          }
+          if (rcCached) {
+            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+            const rcPending = rcCached.filter((r: any) => {
+              if (r.status !== "pending") return false
+              if (userRole === "admin" || userRole === "viewer" || userRole === "executive") return true
+              return upper.includes((r.agency || "").toUpperCase())
+            }).length
+            setReconnectionPendingCount(rcPending)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, reconnection: false }))
         }
-        if (rcCached) {
-          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-          const rcPending = rcCached.filter((r: any) => {
-            if (r.status !== "pending") return false
-            if (userRole === "admin" || userRole === "viewer" || userRole === "executive") return true
-            return upper.includes((r.agency || "").toUpperCase())
-          }).length
-          setReconnectionPendingCount(rcPending)
-        }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, reconnection: false }))
       }
 
       // Meter
-      try {
-        const isAgency = userRole === "agency"
-        const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
-        let meterCached = await getFromCache<any>(cacheKey)
-        if (!meterCached || (isAgency && meterCached.length === 0) || (!isAgency && (!meterCached.issues || meterCached.issues.length === 0))) {
-          setLoadingModules(prev => ({ ...prev, meter: true }))
-          try {
-            const url = isAgency ? "/api/meters/issue" : "/api/meters/stock"
-            const res = await fetch(url)
-            if (res.ok) {
-              const freshData = await res.json()
-              if (freshData) {
-                if (isAgency) {
-                  meterCached = [...freshData].reverse()
-                } else {
-                  const sorted = [...(freshData.issues || [])].reverse()
-                  meterCached = { summary: freshData.summary || [], stock: freshData.stock || [], issues: sorted }
+      if (hasReadPermission("meter")) {
+        try {
+          const isAgency = userRole === "agency"
+          const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
+          let meterCached = await getFromCache<any>(cacheKey)
+          if (!meterCached || (isAgency && meterCached.length === 0) || (!isAgency && (!meterCached.issues || meterCached.issues.length === 0))) {
+            setLoadingModules(prev => ({ ...prev, meter: true }))
+            try {
+              const url = isAgency ? "/api/meters/issue" : "/api/meters/stock"
+              const res = await fetch(url)
+              if (res.ok) {
+                const freshData = await res.json()
+                if (freshData) {
+                  if (isAgency) {
+                    meterCached = [...freshData].reverse()
+                  } else {
+                    const sorted = [...(freshData.issues || [])].reverse()
+                    meterCached = { summary: freshData.summary || [], stock: freshData.stock || [], issues: sorted }
+                  }
+                  await saveToCache(cacheKey, meterCached)
                 }
-                await saveToCache(cacheKey, meterCached)
               }
-            }
-          } catch (err) { console.error("Auto-fetch meters failed", err) }
+            } catch (err) { console.error("Auto-fetch meters failed", err) }
+          }
+          if (meterCached) {
+            const meterIssues: any[] = isAgency ? meterCached : (meterCached.issues || [])
+            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+            const count = meterIssues.filter((i: any) => {
+              if (isAgency) {
+                if (i.status !== "issued") return false
+                return upper.includes((i.agency || "").toUpperCase())
+              } else {
+                return i.status === "installation_done"
+              }
+            }).length
+            setMeterPendingCount(count)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, meter: false }))
         }
-        if (meterCached) {
-          const meterIssues: any[] = isAgency ? meterCached : (meterCached.issues || [])
-          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-          const count = meterIssues.filter((i: any) => {
-            if (isAgency) {
-              if (i.status !== "issued") return false
-              return upper.includes((i.agency || "").toUpperCase())
-            } else {
-              return i.status === "installation_done"
-            }
-          }).length
-          setMeterPendingCount(count)
-        }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, meter: false }))
       }
 
       // NSC
-      try {
-        let nscCached = await getFromCache<any[]>("nsc_data_cache")
-        if (!nscCached || nscCached.length === 0) {
-          setLoadingModules(prev => ({ ...prev, nsc: true }))
-          try {
-            const res = await fetch("/api/nsc")
-            if (res.ok) {
-              nscCached = await res.json()
-              if (nscCached) await saveToCache("nsc_data_cache", nscCached)
-            }
-          } catch (err) { console.error("Auto-fetch NSC failed", err) }
+      if (hasReadPermission("nsc")) {
+        try {
+          let nscCached = await getFromCache<any[]>("nsc_data_cache")
+          if (!nscCached || nscCached.length === 0) {
+            setLoadingModules(prev => ({ ...prev, nsc: true }))
+            try {
+              const res = await fetch("/api/nsc")
+              if (res.ok) {
+                nscCached = await res.json()
+                if (nscCached) await saveToCache("nsc_data_cache", nscCached)
+              }
+            } catch (err) { console.error("Auto-fetch NSC failed", err) }
+          }
+          if (nscCached) {
+            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+            const nscCount = nscCached.filter((a: any) => {
+              if (userRole === "agency") {
+                return a.status === "pending" && upper.includes((a.agency || "").toUpperCase())
+              }
+              return a.status === "inspected"
+            }).length
+            setNscPendingCount(nscCount)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, nsc: false }))
         }
-        if (nscCached) {
-          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-          const nscCount = nscCached.filter((a: any) => {
-            if (userRole === "agency") {
-              return a.status === "pending" && upper.includes((a.agency || "").toUpperCase())
-            }
-            return a.status === "inspected"
-          }).length
-          setNscPendingCount(nscCount)
-        }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, nsc: false }))
       }
 
       // Meter Replacement
-      try {
-        let mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
-        if (!mrCached || mrCached.length === 0) {
-          setLoadingModules(prev => ({ ...prev, "meter-replacement": true }))
-          try {
-            const res = await fetch("/api/meters/replacement")
-            if (res.ok) {
-              mrCached = await res.json()
-              if (mrCached) await saveToCache("meter_replacement_data_cache", mrCached)
-            }
-          } catch (err) { console.error("Auto-fetch meter replacement failed", err) }
+      if (hasReadPermission("meter_replacement")) {
+        try {
+          let mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
+          if (!mrCached || mrCached.length === 0) {
+            setLoadingModules(prev => ({ ...prev, "meter-replacement": true }))
+            try {
+              const res = await fetch("/api/meters/replacement")
+              if (res.ok) {
+                mrCached = await res.json()
+                if (mrCached) await saveToCache("meter_replacement_data_cache", mrCached)
+              }
+            } catch (err) { console.error("Auto-fetch meter replacement failed", err) }
+          }
+          if (mrCached) {
+            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+            const count = mrCached.filter((r: any) => {
+              if ((r.status || "").toLowerCase() !== "proposed") return false
+              if (userRole === "admin" || userRole === "executive") return true
+              return upper.includes((r.agency || "").toUpperCase())
+            }).length
+            setReplacementPendingCount(count)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, "meter-replacement": false }))
         }
-        if (mrCached) {
-          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-          const count = mrCached.filter((r: any) => {
-            if ((r.status || "").toLowerCase() !== "proposed") return false
-            if (userRole === "admin" || userRole === "executive") return true
-            return upper.includes((r.agency || "").toUpperCase())
-          }).length
-          setReplacementPendingCount(count)
-        }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, "meter-replacement": false }))
       }
 
       // DTR
-      try {
-        let dtrCached = await getFromCache<any[]>("dtr_data_cache")
-        if (!dtrCached || dtrCached.length === 0) {
-          setLoadingModules(prev => ({ ...prev, dtr: true, "dtr-painting": true }))
-          try {
-            const res = await fetch("/api/dtr")
-            if (res.ok) {
-              dtrCached = await res.json()
-              if (dtrCached) await saveToCache("dtr_data_cache", dtrCached)
-            }
-          } catch (err) { console.error("Auto-fetch DTR failed", err) }
-        }
-        if (dtrCached) {
-          const count = dtrCached.filter(r => (r.status || "").toUpperCase() !== "EXIST").length
-          setDtrPendingCount(count)
+      if (hasReadPermission("dtr") || hasReadPermission("dtr_painting")) {
+        try {
+          let dtrCached = await getFromCache<any[]>("dtr_data_cache")
+          if (!dtrCached || dtrCached.length === 0) {
+            setLoadingModules(prev => ({ ...prev, dtr: true, "dtr-painting": true }))
+            try {
+              const res = await fetch("/api/dtr")
+              if (res.ok) {
+                dtrCached = await res.json()
+                if (dtrCached) await saveToCache("dtr_data_cache", dtrCached)
+              }
+            } catch (err) { console.error("Auto-fetch DTR failed", err) }
+          }
+          if (dtrCached) {
+            const count = dtrCached.filter(r => (r.status || "").toUpperCase() !== "EXIST").length
+            setDtrPendingCount(count)
 
-          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-          const paintingPending = dtrCached.filter(r => {
-            const isAssigned = userRole === "admin" || userRole === "viewer" || userRole === "executive" || 
-              (r.paintingAgency && upper.includes(r.paintingAgency.trim().toUpperCase()))
-            return isAssigned && (r.painting || "").toLowerCase() !== "done"
-          }).length
-          setDtrPaintingPendingCount(paintingPending)
+            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+            const paintingPending = dtrCached.filter(r => {
+              const isAssigned = userRole === "admin" || userRole === "viewer" || userRole === "executive" || 
+                (r.paintingAgency && upper.includes(r.paintingAgency.trim().toUpperCase()))
+              return isAssigned && (r.painting || "").toLowerCase() !== "done"
+            }).length
+            setDtrPaintingPendingCount(paintingPending)
+          }
+        } catch (e) {
+          console.error(e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, dtr: false, "dtr-painting": false }))
         }
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, dtr: false, "dtr-painting": false }))
       }
 
       // Material Stock
-      try {
-        setLoadingModules(prev => ({ ...prev, material: true }))
-        const res = await fetch("/api/material")
-        if (res.ok) {
-          const data = await res.json()
-          const stock = data.stock || []
-          const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
-          setMaterialPendingCount(belowThresholdCount)
+      if (hasReadPermission("material")) {
+        try {
+          setLoadingModules(prev => ({ ...prev, material: true }))
+          const res = await fetch("/api/material")
+          if (res.ok) {
+            const data = await res.json()
+            const stock = data.stock || []
+            const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
+            setMaterialPendingCount(belowThresholdCount)
+          }
+        } catch (e) {
+          console.error("Auto-fetch material failed", e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, material: false }))
         }
-      } catch (e) {
-        console.error("Auto-fetch material failed", e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, material: false }))
       }
 
-      // Consumer Master count (cached in localStorage for speed, updated in background)
-      try {
-        const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
-        const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
-        if (cachedMaster) {
-          setMasterCount(parseInt(cachedMaster, 10))
+      // Consumer Master count
+      if (hasReadPermission("consumer_master")) {
+        try {
+          const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+          const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
+          if (cachedMaster) {
+            setMasterCount(parseInt(cachedMaster, 10))
+          }
+          setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+          const res = await fetch("/api/system/row-count?type=master")
+          if (res.ok) {
+            const data = await res.json()
+            setMasterCount(data.count)
+            localStorage.setItem(`${prefix}consumer_master_row_count`, String(data.count))
+          }
+        } catch (e) {
+          console.error("Auto-fetch master count failed", e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
         }
-        setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
-        const res = await fetch("/api/system/row-count?type=master")
-        if (res.ok) {
-          const data = await res.json()
-          setMasterCount(data.count)
-          localStorage.setItem(`${prefix}consumer_master_row_count`, String(data.count))
-        }
-      } catch (e) {
-        console.error("Auto-fetch master count failed", e)
-      } finally {
-        setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
       }
     }
     loadPendingCount()
-  }, [userRole, userAgencies])
+  }, [userRole, userAgencies, permissions])
 
   return (
     <>
