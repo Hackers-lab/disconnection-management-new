@@ -187,13 +187,14 @@ export function ConsumerMasterLookup({ onSelect, placeholder = "Search by consum
 // ── Main consumer master page (admin upload + stats) ─────────────────────────
 interface ConsumerMasterProps {
   role: string
+  permissions?: Record<string, string[]>
 }
 
 type ColumnMapping = Partial<Record<keyof ConsumerMasterRow, number>>
 
-export function ConsumerMaster({ role }: ConsumerMasterProps) {
+export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
   const { toast } = useToast()
-  const isAdmin   = role === "admin"
+  const isAdmin   = role === "admin" || !!(permissions && (permissions.consumer_master?.includes("create") || permissions.consumer_master?.includes("update")))
 
   // Upload state
   const [csvHeaders, setCsvHeaders]       = useState<string[]>([])

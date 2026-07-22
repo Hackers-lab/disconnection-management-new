@@ -1275,12 +1275,12 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
           />
         )}
 
-        {activeView === "agency-updates" && (role === "admin" || role === "executive" || role === "viewer") && (
+        {activeView === "agency-updates" && (
           <AgencyUpdatesReport userRole={role} />
         )}
 
-        {activeView === "consumer-master" && (role === "admin" || role === "executive" || role === "agency") && (
-          <ConsumerMaster role={role} />
+        {activeView === "consumer-master" && (
+          <ConsumerMaster role={role} permissions={permissions} />
         )}
 
         {activeView === "meter-replacement" && (

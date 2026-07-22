@@ -352,7 +352,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const canUpdate = (r: ReconnectionRequest & { effectiveStatus?: string }) => {
     const statusToCheck = r.effectiveStatus || r.status
     if (statusToCheck !== "pending") return false
-    if (isAdmin || (permissions && (permissions.reconnection?.includes("update") || permissions.reconnection?.includes("create")))) return true
+    if (isAdmin || (permissions && permissions.reconnection?.includes("update"))) return true
     return userAgencies.map(a => a.toUpperCase()).includes(r.agency.toUpperCase())
   }
 
