@@ -1217,6 +1217,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             onDownload={downloadPDF}
             onDownloadDefaulters={openDownloadDialog}
             onGoToReconnection={() => setActiveView("reconnection")}
+            permissions={permissions}
           />
         )}
 

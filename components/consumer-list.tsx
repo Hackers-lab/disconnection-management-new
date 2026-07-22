@@ -89,6 +89,7 @@ interface ConsumerListProps {
   onDownload: () => void
   onDownloadDefaulters: () => void
   onGoToReconnection?: () => void
+  permissions?: Record<string, string[]>
 }
 interface ConsumerListRef {  // <-- Add this interface
   getCurrentConsumers: () => ConsumerData[]
@@ -105,22 +106,22 @@ function useBackNavigation(isOpen: boolean, onClose: () => void) {
   const isBackRef = useRef(false)
 
   useEffect(() => {
-    if (isOpen) {
-      isBackRef.current = false
-      window.history.pushState(null, "", window.location.href)
+    if (!isOpen) return
 
-      const onPopState = () => {
-        isBackRef.current = true
-        onCloseRef.current()
-      }
+    isBackRef.current = false
+    window.history.pushState({ dialogOpen: true }, "")
 
-      window.addEventListener("popstate", onPopState)
+    const handlePopState = () => {
+      isBackRef.current = true
+      onCloseRef.current()
+    }
 
-      return () => {
-        window.removeEventListener("popstate", onPopState)
-        if (!isBackRef.current) {
-          window.history.back()
-        }
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      if (!isBackRef.current) {
+        window.history.back()
       }
     }
   }, [isOpen])
@@ -132,7 +133,7 @@ const SYNC_COOLDOWN_MS = 10000 // 10 seconds cooldown
 
 const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   (props, ref) => {
-  const { userRole, userAgencies, onAdminClick, showAdminPanel, onCloseAdminPanel, onGoToReconnection } = props
+  const { userRole, userAgencies, onAdminClick, showAdminPanel, onCloseAdminPanel, onGoToReconnection, permissions } = props
   const { toast } = useToast()
   const [consumers, setConsumers] = useState<ConsumerData[]>([])
   const [agencies, setAgencies] = useState<string[]>([])
@@ -883,6 +884,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         onCancel={() => setSelectedConsumer(null)}
         userRole={userRole}
         availableAgencies={agencies}
+        permissions={permissions}
       />
     )
   }
