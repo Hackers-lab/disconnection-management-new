@@ -250,6 +250,10 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
 
   // Background prefetch: warm up IndexedDB as soon as user is on dashboard
   useEffect(() => {
+    if (!permsLoaded) return
+    const canReadDisconnection = role === "admin" || permissions?.disconnection?.includes("read")
+    if (!canReadDisconnection) return
+
     const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
     const CACHE_KEY = "consumers_data_cache"
     const ROW_COUNT_KEY = `${prefix}consumer_row_count`
@@ -285,7 +289,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     }
 
     prefetch()
-  }, [])
+  }, [permsLoaded, permissions, role])
 
   // --- HELPER FUNCTIONS ---
   const calculateAgencyPerformance = (consumers: ConsumerData[]) => {
