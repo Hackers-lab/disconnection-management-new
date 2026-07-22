@@ -13,7 +13,7 @@ export function AuthInterceptor() {
       // Only redirect on strict 401 Unauthenticated responses from application APIs
       if (res.status === 401) {
         const urlStr = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url || ""
-        if (!urlStr.includes("/login") && !urlStr.includes("/api/auth/login")) {
+        if (!urlStr.includes("/login") && !urlStr.includes("/api/auth/login") && (urlStr.includes("/api/auth/") || urlStr.includes("/api/system/"))) {
           try {
             sessionStorage.removeItem("user_permissions")
           } catch (e) {

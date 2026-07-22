@@ -8,9 +8,8 @@ export const dynamic = "force-dynamic"
 // GET - List all agencies
 export const GET = withTenant(async function GET(request: NextRequest) {
   const session = await verifySession()
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const agencies = await getAgencies()
   return NextResponse.json(agencies, {
     // no-store: browser never caches — every user always hits the server.
@@ -23,9 +22,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
 // POST - Add new agency
 export const POST = withTenant(async function POST(request: NextRequest) {
   const session = await verifySession()
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   try {
     const { name, description, isActive } = await request.json()
     if (!name) {
@@ -46,9 +44,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 // PUT - Update agency
 export const PUT = withTenant(async function PUT(request: NextRequest) {
   const session = await verifySession()
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   try {
     const { id, name, description, isActive } = await request.json()
     const agencies = await getAgencies()
@@ -70,9 +67,8 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
 // DELETE - Delete agency
 export const DELETE = withTenant(async function DELETE(request: NextRequest) {
   const session = await verifySession()
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")

@@ -439,7 +439,13 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     try {
       setLoggingOut(true);
-      sessionStorage.removeItem("user_permissions");
+      try {
+        sessionStorage.clear()
+        localStorage.removeItem("user_ccc_code")
+        localStorage.removeItem("_hb_date")
+      } catch (e) {
+        // ignore storage errors
+      }
       await logout();
     } catch (err) {
       setLoggingOut(false);

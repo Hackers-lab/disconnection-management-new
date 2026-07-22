@@ -36,10 +36,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     // Agency users may only mark their own projects complete
     if (session.role === "agency" && action !== "agency_complete") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
     if (!["admin", "executive", "agency"].includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     if (action === "create") {

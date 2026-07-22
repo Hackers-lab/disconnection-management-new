@@ -9,8 +9,9 @@ import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
 export const GET = withTenant(async function GET(request: NextRequest) {
   const session = await verifySession()
-  if (!session || !["admin", "executive"].includes(session.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!["admin", "executive"].includes(session.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const id = getSpreadsheetId()
   const [summary, stock, issues] = await Promise.all([
@@ -24,8 +25,9 @@ export const GET = withTenant(async function GET(request: NextRequest) {
 })
 export const POST = withTenant(async function POST(request: NextRequest) {
   const session = await verifySession()
-  if (!session || session.role !== "admin") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (session.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   try {
     const body = await request.json()

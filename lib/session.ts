@@ -60,8 +60,8 @@ export async function createSession(userId: string, username: string, role: stri
 
 export async function deleteSession() {
   const cookieStore = await cookies()
-  cookieStore.delete("session")
-  cookieStore.delete("cccCode")
+  cookieStore.delete({ name: "session", path: "/" })
+  cookieStore.delete({ name: "cccCode", path: "/" })
 }
 
 export async function verifySession() {
