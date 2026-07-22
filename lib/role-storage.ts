@@ -123,6 +123,20 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
   },
+  {
+    role: "division_viewer",
+    disconnection: ["read"],
+    reconnection: ["read"],
+    deemed: ["read"],
+    dtr: [],
+    meter: [],
+    nsc: [],
+    consumer_master: ["read"],
+    admin: [],
+    meter_replacement: [],
+    dtr_painting: [],
+    material: [],
+  },
 ]
 
 

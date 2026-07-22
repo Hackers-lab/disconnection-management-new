@@ -26,6 +26,7 @@ const DTRList = dynamic(() => import("@/components/dtr-list").then(m => ({ defau
 const DTRPaintingList = dynamic(() => import("@/components/dtr-painting-list").then(m => ({ default: m.DTRPaintingList })), { ssr: false })
 const MeterReplacementList = dynamic(() => import("@/components/meter-replacement-list").then(m => ({ default: m.MeterReplacementList })), { ssr: false })
 const MaterialList = dynamic(() => import("@/components/material-list").then(m => ({ default: m.MaterialList })), { ssr: false })
+const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
 
@@ -1202,9 +1203,11 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
 
         {/* VIEW SWITCHING LOGIC */}
         
-        {activeView === "home" && (
+        {role === "division_viewer" ? (
+          <DivisionalDashboard userRole={role} username={profileCccCode || role} cccCode={profileCccCode} />
+        ) : activeView === "home" ? (
           <DashboardMenu onSelect={setActiveView} userRole={role} userAgencies={agencies} permissions={permissions} />
-        )}
+        ) : null}
 
         {activeView === "disconnection" && (
           <ConsumerList

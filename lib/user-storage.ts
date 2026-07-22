@@ -103,6 +103,24 @@ export class UserStorage {
       const freshUsers = await this.getUsers()
       user = freshUsers.find(u => u.username === username && u.password === password) || null
     }
+
+    // Dynamic fallback for divisional credentials (e.g., 6612000 / 6612000 or 6634000 / 6634000)
+    if (!user && /^\d{4}000$/.test(username) && password === username) {
+      const divPrefix = username.slice(0, 4)
+      user = {
+        id: `div-${username}`,
+        username,
+        password,
+        role: "division_viewer",
+        cccCode: username,
+        name: `Division ${divPrefix} View Account`,
+        agencies: [],
+        subscriptionStatus: "active",
+        subscriptionExpiresAt: "",
+        bypassSubscription: true,
+      }
+    }
+
     return user
   }
 
