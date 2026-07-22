@@ -90,7 +90,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const [selected, setSelected] = useState<ReconnectionRequest | null>(null)
 
   const isAdmin = userRole === "admin" || userRole === "executive"
-  const canCreate = isAdmin || userRole === "agency" || !!(permissions && (permissions.reconnection?.includes("create") || permissions.reconnection?.includes("update")))
+  const canCreate = userRole === "admin" || userRole === "executive" || !!(permissions && permissions.reconnection?.includes("create"))
   const PAGE_SIZE = 15
 
   const load = async (silent = false) => {
@@ -352,7 +352,9 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const canUpdate = (r: ReconnectionRequest & { effectiveStatus?: string }) => {
     const statusToCheck = r.effectiveStatus || r.status
     if (statusToCheck !== "pending") return false
-    if (isAdmin || (permissions && permissions.reconnection?.includes("update"))) return true
+    const hasUpdatePerm = userRole === "admin" || (permissions && permissions.reconnection?.includes("update"))
+    if (!hasUpdatePerm) return false
+    if (userRole === "admin") return true
     return userAgencies.map(a => a.toUpperCase()).includes(r.agency.toUpperCase())
   }
 
@@ -447,17 +449,6 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
               <SelectItem value="all" className="text-xs font-medium">📁 All ({allCount})</SelectItem>
             </SelectContent>
           </Select>
-
-          {canCreate && (
-            <Button
-              size="sm"
-              onClick={() => setView("create")}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 rounded-xl px-3 flex items-center gap-1.5 shrink-0 shadow-sm"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline font-bold">New Request</span>
-            </Button>
-          )}
 
           {isAdmin && (
             <Button size="sm" variant="outline" onClick={downloadReport} className="shrink-0 rounded-xl h-9 w-9 p-0">
@@ -655,14 +646,14 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
           </Button>
         </div>
       )}
-      {/* Sticky bottom — Add Consumer */}
-      {isAdmin && (
+      {/* Sticky bottom — Add Reconnection */}
+      {canCreate && (
         <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
           <div className="max-w-xl mx-auto pointer-events-auto">
             <Button
               className="w-full h-13 bg-blue-600 hover:bg-blue-700 text-white shadow-lg rounded-2xl text-base font-semibold flex items-center justify-center gap-2 py-3"
               onClick={() => setView("create")}>
-              <Plus className="h-5 w-5" /> Add Consumer
+              <Plus className="h-5 w-5" /> Add Reconnection
             </Button>
           </div>
         </div>

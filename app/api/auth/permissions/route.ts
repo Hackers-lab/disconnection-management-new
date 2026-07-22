@@ -3,6 +3,8 @@ import { verifySession } from "@/lib/session"
 import { roleStorage } from "@/lib/role-storage"
 import { withTenant } from "@/lib/tenant-context"
 
+import { expandRolePermissions } from "@/lib/permissions"
+
 export const dynamic = "force-dynamic"
 
 export const GET = withTenant(async function GET(req: NextRequest) {
@@ -14,7 +16,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     let permissions
     try {
-      permissions = await roleStorage.getPermissionsForRole(session.role)
+      const raw = await roleStorage.getPermissionsForRole(session.role)
+      permissions = expandRolePermissions(session.role, raw)
     } catch (e: any) {
       console.warn("Failed to retrieve custom role permissions (likely sheet not linked yet):", e.message || e)
       // Fallback: If they are an admin, give them access to the admin module so they can link Google account

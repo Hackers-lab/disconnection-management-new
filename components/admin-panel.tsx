@@ -39,6 +39,87 @@ const HEADER_SYNONYMS: Record<string, string[]> = {
   "Discon Status": ["discon status", "disconnection status", "status"],
 }
 
+const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
+  admin: {
+    disconnection: ["read", "create", "update", "delete"],
+    reconnection: ["read", "create", "update", "delete"],
+    deemed: ["read", "create", "update", "delete"],
+    dtr: ["read", "create", "update", "delete"],
+    meter: ["read", "create", "update", "delete"],
+    nsc: ["read", "create", "update", "delete", "inspect", "process", "project_create", "po_entry", "agency_complete", "admin_approve"],
+    consumer_master: ["read", "create", "update", "delete"],
+    admin: ["read", "create", "update", "delete"],
+    meter_replacement: ["read", "create", "update", "delete", "issue", "install", "return", "finalize"],
+    dtr_painting: ["read", "create", "update", "delete"],
+    material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
+  },
+  executive: {
+    disconnection: ["read", "create", "update"],
+    reconnection: ["read", "create", "update"],
+    deemed: ["read", "create", "update"],
+    dtr: ["read", "create", "update"],
+    meter: ["read", "create", "update"],
+    nsc: ["read", "create", "update", "inspect", "process", "project_create", "po_entry", "admin_approve"],
+    consumer_master: ["read", "create", "update"],
+    admin: [],
+    meter_replacement: ["read", "create", "update", "issue", "install", "return", "finalize"],
+    dtr_painting: ["read", "create", "update"],
+    material: ["read", "create", "update", "receive", "issue", "stock"],
+  },
+  agency: {
+    disconnection: ["read", "update"],
+    reconnection: ["read", "update"],
+    deemed: ["read", "update"],
+    dtr: ["read", "update"],
+    meter: ["read", "update"],
+    nsc: ["read", "inspect", "agency_complete"],
+    consumer_master: ["read"],
+    admin: [],
+    meter_replacement: ["read", "install"],
+    dtr_painting: ["read", "update"],
+    material: ["read", "update", "receive", "issue", "stock"],
+  },
+  store_keeper: {
+    disconnection: ["read"],
+    reconnection: ["read"],
+    deemed: ["read"],
+    dtr: ["read"],
+    meter: ["read", "create", "update"],
+    nsc: ["read"],
+    consumer_master: ["read"],
+    admin: [],
+    meter_replacement: ["read", "create", "issue", "return"],
+    dtr_painting: ["read"],
+    material: ["read", "create", "update", "receive", "issue", "stock"],
+  },
+  reader: {
+    disconnection: ["read"],
+    reconnection: ["read"],
+    deemed: ["read"],
+    dtr: ["read"],
+    meter: ["read"],
+    nsc: ["read"],
+    consumer_master: ["read"],
+    admin: [],
+    meter_replacement: ["read", "create"],
+    dtr_painting: ["read"],
+    material: ["read"],
+  },
+  viewer: {
+    disconnection: ["read"],
+    reconnection: ["read"],
+    deemed: ["read"],
+    dtr: ["read"],
+    meter: ["read"],
+    nsc: ["read"],
+    consumer_master: ["read"],
+    admin: [],
+    meter_replacement: ["read"],
+    dtr_painting: ["read"],
+    material: ["read"],
+  },
+}
+
 // Existing-consumer statuses that are "protected" — these reappearing in a new
 // upload trigger the conflict-resolution UI. Mirrors the server-side sets.
 const PROTECTED_STATUSES = new Set([
@@ -2767,10 +2848,34 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
             {/* Permissions Checkbox Grid */}
             <Card className="md:col-span-3">
-              <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b">
-                <CardTitle className="text-sm">
-                  Permissions Grid for: <span className="capitalize font-bold text-blue-700">{selectedRole}</span>
-                </CardTitle>
+              <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-sm">
+                    Permissions Grid for: <span className="capitalize font-bold text-blue-700">{selectedRole}</span>
+                  </CardTitle>
+
+                  {selectedRole !== "admin" && (
+                    <Select onValueChange={(tplKey) => {
+                      const tpl = ROLE_TEMPLATES[tplKey]
+                      if (tpl) {
+                        setRoles(prev => prev.map(x => x.role === selectedRole ? { ...x, ...tpl } : x))
+                        setMessage({ type: "success", text: `Loaded '${tplKey}' template presets for ${selectedRole}. Click 'Save Grid' to apply.` })
+                      }
+                    }}>
+                      <SelectTrigger className="h-7 w-44 text-xs bg-slate-50 border-slate-200 font-semibold">
+                        <SelectValue placeholder="Load Role Template…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="executive" className="text-xs">Executive / Officer</SelectItem>
+                        <SelectItem value="agency" className="text-xs">Field Agency (Site)</SelectItem>
+                        <SelectItem value="store_keeper" className="text-xs">Store Keeper</SelectItem>
+                        <SelectItem value="reader" className="text-xs">Inspector / Reader</SelectItem>
+                        <SelectItem value="viewer" className="text-xs">Viewer (Read Only)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
                 {selectedRole !== "admin" && (
                   <Button
                     size="sm"
@@ -2805,15 +2910,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     { id: "admin", name: "Admin Panel" },
                   ]
 
-                  const actions = [
-                    { id: "read", name: "Read" },
-                    { id: "create", name: "Create" },
-                    { id: "update", name: "Update" },
-                    { id: "delete", name: "Delete" },
-                  ]
-
                   const togglePerm = (mod: string, act: string) => {
-                    if (selectedRole === "admin") return // admin is read-only all
+                    if (selectedRole === "admin") return
 
                     const cur = roleData[mod] || []
                     const next = cur.includes(act)
@@ -2828,32 +2926,33 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                   }
 
                   return (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto p-4 space-y-4">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="text-xs w-1/3">Module / Section</TableHead>
-                            {actions.map((act) => (
-                              <TableHead key={act.id} className="text-xs text-center">{act.name}</TableHead>
-                            ))}
+                            <TableHead className="text-xs w-1/3">Standard Modules</TableHead>
+                            <TableHead className="text-xs text-center">Read (View)</TableHead>
+                            <TableHead className="text-xs text-center">Create (+ Add)</TableHead>
+                            <TableHead className="text-xs text-center">Update Status</TableHead>
+                            <TableHead className="text-xs text-center">Delete</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {modulesList.map((mod) => {
+                          {modulesList.filter(m => !["nsc", "meter_replacement"].includes(m.id)).map((mod) => {
                             const curPerms = roleData[mod.id] || []
                             return (
                               <TableRow key={mod.id}>
                                 <TableCell className="text-xs font-semibold text-gray-800">{mod.name}</TableCell>
-                                {actions.map((act) => {
-                                  const checked = curPerms.includes(act.id)
+                                {["read", "create", "update", "delete"].map((actId) => {
+                                  const checked = curPerms.includes(actId)
                                   const disabled = selectedRole === "admin"
                                   return (
-                                    <TableCell key={act.id} className="text-center py-2">
+                                    <TableCell key={actId} className="text-center py-2">
                                       <input
                                         type="checkbox"
                                         checked={checked}
                                         disabled={disabled}
-                                        onChange={() => togglePerm(mod.id, act.id)}
+                                        onChange={() => togglePerm(mod.id, actId)}
                                         className="h-4 w-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
                                       />
                                     </TableCell>
@@ -2864,6 +2963,71 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                           })}
                         </TableBody>
                       </Table>
+
+                      {/* Granular Sub-Actions Section for Workflow Modules */}
+                      <div className="pt-2 border-t space-y-4">
+                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Workflow Specific Sub-Action Permissions</h4>
+                        
+                        {/* NSC Granular */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                          <p className="text-xs font-bold text-blue-800">NSC Management Sub-Actions</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            {[
+                              { id: "read", label: "Read (View Only)" },
+                              { id: "create", label: "Create Application (+ Add NSC)" },
+                              { id: "inspect", label: "Start Site Inspection" },
+                              { id: "process", label: "Process & Sanction Application" },
+                              { id: "project_create", label: "Create Project (NPC/...)" },
+                              { id: "po_entry", label: "Enter PO Number" },
+                              { id: "agency_complete", label: "Mark Project Work Complete" },
+                              { id: "admin_approve", label: "Approve Project Completion" },
+                            ].map(sub => {
+                              const checked = (roleData["nsc"] || []).includes(sub.id)
+                              return (
+                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-blue-50/50">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={selectedRole === "admin"}
+                                    onChange={() => togglePerm("nsc", sub.id)}
+                                    className="h-3.5 w-3.5 rounded text-blue-600"
+                                  />
+                                  <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Meter Replacement Granular */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                          <p className="text-xs font-bold text-purple-800">Meter Replacement Sub-Actions</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            {[
+                              { id: "read", label: "Read (View Only)" },
+                              { id: "create", label: "Propose Meter Replacement" },
+                              { id: "issue", label: "Issue Meter from Stock" },
+                              { id: "install", label: "Mark Installed (Site)" },
+                              { id: "return", label: "Return Meter to Store" },
+                              { id: "finalize", label: "Finalize Replacement" },
+                            ].map(sub => {
+                              const checked = (roleData["meter_replacement"] || []).includes(sub.id)
+                              return (
+                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-purple-50/50">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={selectedRole === "admin"}
+                                    onChange={() => togglePerm("meter_replacement", sub.id)}
+                                    className="h-3.5 w-3.5 rounded text-purple-600"
+                                  />
+                                  <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )
                 })()}

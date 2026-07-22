@@ -90,10 +90,10 @@ interface Props {
 export function NscList({ userRole, userAgencies, username, agencies, permissions }: Props) {
   const { toast } = useToast()
   const isAdmin  = userRole === "admin" || userRole === "executive"
-  const isAgency = userRole === "agency"
-  const canCreate = isAdmin || isAgency || !!(permissions && (permissions.nsc?.includes("create") || permissions.nsc?.includes("update")))
-  const canInspect = isAgency || isAdmin || !!(permissions && permissions.nsc?.includes("update"))
-  const canProcess = isAdmin || !!(permissions && permissions.nsc?.includes("update"))
+  const isAgency = userRole === "agency" || (userRole !== "admin" && userRole !== "executive" && !!(userAgencies && userAgencies.length > 0))
+  const canCreate = userRole === "admin" || userRole === "executive" || !!(permissions && permissions.nsc?.includes("create"))
+  const canInspect = userRole === "admin" || userRole === "executive" || userRole === "agency" || !!(permissions && permissions.nsc?.includes("inspect"))
+  const canProcess = userRole === "admin" || userRole === "executive" || !!(permissions && permissions.nsc?.includes("process"))
 
   const [apps, setApps]         = useState<NSCApplication[]>([])
   const [syncState, setSyncState] = useState<SyncState>("loading")

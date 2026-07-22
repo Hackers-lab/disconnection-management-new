@@ -348,8 +348,8 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         </div>
       )}
 
-      {/* Admin Proposed Float */}
-      {isAdmin && permissions?.meter_replacement?.includes("create") && (
+      {/* Proposed Float */}
+      {(userRole === "admin" || userRole === "executive" || !!(permissions && permissions.meter_replacement?.includes("create"))) && (
         <div className="fixed bottom-4 left-0 right-0 z-40 p-4 pointer-events-none">
           <div className="max-w-xl mx-auto pointer-events-auto">
             <Button

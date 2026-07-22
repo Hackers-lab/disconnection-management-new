@@ -10,7 +10,7 @@ import {
   Search, MapPin, Phone, IndianRupee, RefreshCw, AlertCircle, X, Filter,
   CheckCircle2, Power, Clock, HelpCircle, Edit, LayoutGrid, List,
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, UserX, Image as ImageIcon,
-  Check, Loader2, DownloadCloud, Activity,
+  Check, Loader2, DownloadCloud, Activity, Eye,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
@@ -50,9 +50,10 @@ function useBackNavigation(isOpen: boolean, onClose: () => void) {
 interface DDListProps {
   userRole: string
   userAgencies: string[]
+  permissions?: Record<string, string[]>
 }
 
-export function DDList({ userRole, userAgencies }: DDListProps) {
+export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   const { toast } = useToast()
   const [consumers, setConsumers] = useState<DeemedVisitData[]>([])
   const [loading, setLoading] = useState(true)
@@ -620,15 +621,33 @@ export function DDList({ userRole, userAgencies }: DDListProps) {
                   </div>
                 )}
 
-                <Button
-                  className="w-full mt-2"
-                  size="sm"
-                  disabled={isRowLocked(consumer)}
-                  onClick={() => setSelectedConsumer(consumer)}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  {isRowLocked(consumer) ? "Locked" : "Update Status"}
-                </Button>
+                {(() => {
+                  const isReadOnlyMode = permissions ? !permissions.deemed?.includes("update") : (userRole === "viewer" || userRole === "reader")
+                  return (
+                    <Button
+                      className={`w-full mt-2 ${
+                        isReadOnlyMode
+                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-semibold"
+                          : ""
+                      }`}
+                      size="sm"
+                      disabled={!isReadOnlyMode && isRowLocked(consumer)}
+                      onClick={() => setSelectedConsumer(consumer)}
+                    >
+                      {isReadOnlyMode ? (
+                        <>
+                          <Eye className="h-4 w-4 mr-2 text-slate-600" />
+                          View Details
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="h-4 w-4 mr-2" />
+                          {isRowLocked(consumer) ? "Locked" : "Update Status"}
+                        </>
+                      )}
+                    </Button>
+                  )
+                })()}
               </CardContent>
             </Card>
           ))}

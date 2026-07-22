@@ -28,6 +28,72 @@ function getModulePermKeys(module: string): string[] {
 }
 
 /**
+ * Automatically expands legacy "update" permissions into site vs. office sub-actions
+ * so existing 200+ users across 58 CCCs experience zero disruption.
+ */
+export function expandRolePermissions(roleName: string, perms: Record<string, string[]> | null): Record<string, string[]> {
+  if (!perms) return {}
+  const roleLower = (roleName || "").toLowerCase()
+  const isAgency = roleLower === "agency" || roleLower.includes("agency")
+  const isAdminOrExec = roleLower === "admin" || roleLower === "executive" || roleLower === "superuser"
+
+  const expanded: Record<string, string[]> = {}
+
+  for (const [mod, list] of Object.entries(perms)) {
+    const actSet = new Set(list || [])
+
+    // NSC Auto-Expansion
+    if (mod === "nsc") {
+      if (actSet.has("update")) {
+        if (isAgency) {
+          actSet.add("inspect")
+          actSet.add("agency_complete")
+        } else {
+          actSet.add("inspect")
+          actSet.add("process")
+          actSet.add("project_create")
+          actSet.add("po_entry")
+          actSet.add("admin_approve")
+        }
+      }
+      if (isAdminOrExec) {
+        actSet.add("inspect")
+        actSet.add("process")
+        actSet.add("project_create")
+        actSet.add("po_entry")
+        actSet.add("admin_approve")
+      }
+    }
+
+    // Meter Replacement Auto-Expansion
+    if (mod === "meter" || mod === "meter_replacement") {
+      if (actSet.has("update")) {
+        if (isAgency) {
+          actSet.add("install")
+        } else {
+          actSet.add("create")
+          actSet.add("issue")
+          actSet.add("install")
+          actSet.add("return")
+          actSet.add("finalize")
+        }
+      }
+      if (isAdminOrExec) {
+        actSet.add("create")
+        actSet.add("issue")
+        actSet.add("install")
+        actSet.add("return")
+        actSet.add("finalize")
+      }
+    }
+
+    expanded[mod] = Array.from(actSet)
+  }
+
+  return expanded
+}
+
+/**
  * Verifies if the active session has the requested module permission.
  * Admins & Superusers bypass all checks.
  */
@@ -51,10 +117,11 @@ export async function checkApiPermission(module: string, action: string | string
   try {
     const tenantConfig = await getTenantConfig(session.cccCode)
     // Load permissions for session role
-    const permissions = await roleStorage.getPermissionsForRole(session.role, tenantConfig.spreadsheetId)
-    if (!permissions) {
+    const rawPermissions = await roleStorage.getPermissionsForRole(session.role, tenantConfig.spreadsheetId)
+    if (!rawPermissions) {
       return { authorized: false, error: `Forbidden: Role '${session.role}' not configured`, status: 403, session }
     }
+    const permissions = expandRolePermissions(session.role, rawPermissions)
 
     const possibleKeys = getModulePermKeys(module)
     let modulePerms: string[] = []

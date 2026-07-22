@@ -410,7 +410,7 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, userRole, userAgencies = [], onAction }: ProjectCardProps) {
   const isAdmin  = userRole === "admin" || userRole === "executive"
-  const isAgency = userRole === "agency"
+  const isAgency = userRole === "agency" || (userRole !== "admin" && userRole !== "executive" && !!(userAgencies && userAgencies.length > 0))
   const myAgency = isAgency && (userAgencies || []).some(a => a.toUpperCase() === project.agency.toUpperCase())
 
   const statusLabel: Record<string, string> = {
