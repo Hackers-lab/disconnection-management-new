@@ -98,10 +98,14 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
   const eventMeta = (h: { action: string; newStatus: string }) => {
     const a = (h.action || "").toLowerCase()
     const ns = (h.newStatus || "").toLowerCase()
-    if (a === "paid" || ns === "paid") return { label: "Paid", Icon: Wallet, color: "text-green-600", ring: "bg-green-100" }
+    if (a === "paid" || ns === "paid") return { label: "Payment Recorded", Icon: Wallet, color: "text-green-600", ring: "bg-green-100" }
+    if (a === "reconnection_issued" || ns === "reconnection_pending") return { label: "Reconnection Issued", Icon: Clock, color: "text-purple-600", ring: "bg-purple-100" }
+    if (a === "reconnected" || ns === "reconnected") return { label: "Reconnected", Icon: Check, color: "text-emerald-600", ring: "bg-emerald-100" }
+    if (a === "door_locked" || ns === "door_locked") return { label: "Door Locked (Reconnection)", Icon: AlertCircle, color: "text-amber-600", ring: "bg-amber-100" }
+    if (a === "cancelled" || ns === "cancelled") return { label: "Reconnection Cancelled", Icon: CircleX, color: "text-gray-500", ring: "bg-gray-100" }
     if (a === "removed_from_upload") return { label: "Removed from list", Icon: Trash2, color: "text-red-600", ring: "bg-red-100" }
     if (a.startsWith("in_new_list")) return { label: "Listed in cycle", Icon: PlusCircle, color: "text-blue-600", ring: "bg-blue-100" }
-    if (ns === "disconnected" || ns.includes("disconnect")) return { label: "Disconnected", Icon: PowerOff, color: "text-red-600", ring: "bg-red-100" }
+    if (a === "disconnected" || ns === "disconnected" || ns.includes("disconnect")) return { label: "Disconnected", Icon: PowerOff, color: "text-red-600", ring: "bg-red-100" }
     if (ns === "visited" || ns === "not found") return { label: ns === "visited" ? "Visited" : "Not found", Icon: Footprints, color: "text-amber-600", ring: "bg-amber-100" }
     return { label: (h.action || "Updated").replace(/_/g, " "), Icon: Clock, color: "text-gray-500", ring: "bg-gray-100" }
   }

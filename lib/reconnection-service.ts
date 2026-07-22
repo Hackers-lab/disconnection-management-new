@@ -109,6 +109,8 @@ async function nextRequestId(id: string): Promise<string> {
   return `REC-${String(max + 1).padStart(4, "0")}`
 }
 
+import { appendHistory, invalidateHistoryCache as invalidateConsumerHistoryCache } from "./consumer-history"
+
 // ─── Create request ───────────────────────────────────────────────────────────
 export async function createReconnectionRequest(
   req: Omit<ReconnectionRequest, "requestId" | "createdAt" | "status" | "updatedAt" | "updatedBy" | "imageUrl" | "reading">
@@ -130,6 +132,22 @@ export async function createReconnectionRequest(
     },
   })
   invalidateReconnectionCache()
+
+  // Log to DC_History (fire-and-forget)
+  appendHistory([{
+    timestamp: now,
+    consumerId: req.consumerId,
+    name: req.name || "",
+    action: "reconnection_issued",
+    oldStatus: "disconnected",
+    newStatus: "reconnection_pending",
+    oldOsd: "",
+    oldNotes: req.remarks ? `Request Remarks: ${req.remarks}` : "",
+    oldImageUrl: req.requestImageUrl || "",
+    changedBy: req.agency || "system",
+    eventDate: now.split(" ")[0],
+  }], id).then(() => invalidateConsumerHistoryCache(id)).catch(e => console.warn("Reconnection create history append failed:", e))
+
   return requestId
 }
 
@@ -147,6 +165,7 @@ export async function updateReconnectionStatus(update: {
   const all = await _fetchReconnectionDataRaw(id)
   const idx = all.findIndex(r => r.requestId === update.requestId)
   if (idx === -1) throw new Error("Request not found")
+  const req = all[idx]
   const sheetRow = idx + 2 // 1-based + header
   const now = nowTs()
 
@@ -165,6 +184,25 @@ export async function updateReconnectionStatus(update: {
     },
   })
   invalidateReconnectionCache()
+
+  // Log to DC_History (fire-and-forget)
+  const notesParts = []
+  if (update.reading) notesParts.push(`Reading: ${update.reading}`)
+  if (update.remarks) notesParts.push(`Remarks: ${update.remarks}`)
+
+  appendHistory([{
+    timestamp: now,
+    consumerId: req.consumerId,
+    name: req.name || "",
+    action: update.status,
+    oldStatus: "reconnection_pending",
+    newStatus: update.status,
+    oldOsd: "",
+    oldNotes: notesParts.join(" | "),
+    oldImageUrl: update.imageUrl || req.requestImageUrl || "",
+    changedBy: update.updatedBy || req.agency || "system",
+    eventDate: now.split(" ")[0],
+  }], id).then(() => invalidateConsumerHistoryCache(id)).catch(e => console.warn("Reconnection update history append failed:", e))
 }
 
 // ─── Blocked consumer IDs (pending > 30 hours, or door locked > 144 hours) ────
