@@ -78,76 +78,99 @@ export function LoginForm() {
 
   return (
     <>
-      {/* 📲 Top-Right Moveable Aesthetic Install App Button + Angled Thread Arrow */}
-      {!isStandalone && (
-        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex flex-col items-end group">
-          <button
-            onClick={handleInstallClick}
-            className="bg-slate-900 hover:bg-black text-white px-3.5 py-2 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 flex items-center gap-2 text-xs font-semibold border border-slate-800/40 hover:scale-105 active:scale-95 cursor-pointer"
-            title="Install App on Home Screen"
-          >
-            <Smartphone className="h-4 w-4 text-blue-400 animate-pulse" />
-            <span>Install App</span>
-            <Download className="h-3.5 w-3.5 opacity-70" />
-          </button>
+      {/* 💬 Top-Left Single White Color WhatsApp Group Button */}
+      <a
+        href="https://chat.whatsapp.com/LZKLg40n8FxCLdnAIO9HGE"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed top-4 left-4 sm:top-6 sm:left-6 z-40 h-11 w-11 sm:h-12 sm:w-12 bg-slate-900 hover:bg-black text-white rounded-2xl flex items-center justify-center shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 border border-slate-800/40 cursor-pointer"
+        title="Join Official WhatsApp Group"
+      >
+        <svg className="h-6 w-6 fill-current text-white" viewBox="0 0 24 24">
+          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l.999 1.589-1.048 3.827 3.914-1.027.878 1.278z"/>
+        </svg>
+      </a>
 
-          {/* Angled Thread Arrow pointing up to Install button */}
-          <div className="mt-1.5 flex items-center gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
-            <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">
-              Get App
+      {/* 📲 Top-Right Icon-Only Install App Button + Wavy Threaded Arrow */}
+      {!isStandalone && (
+        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-2 group">
+          {/* Wavy Threaded Arrow pointing towards the install icon */}
+          <div className="hidden sm:flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+            <span className="text-[11px] font-semibold text-slate-500 tracking-wide select-none">
+              Install App
             </span>
-            <svg
-              className="w-4 h-4 text-slate-700 transform -rotate-45 animate-bounce"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            <svg className="w-8 h-8 text-slate-700" fill="none" viewBox="0 0 50 40" stroke="currentColor">
+              <path
+                d="M 5 30 Q 20 38, 30 20 T 42 8"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray="4 2"
+              />
+              <path
+                d="M 34 6 L 44 6 L 44 16"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
             </svg>
           </div>
+
+          {/* Larger Icon-Only Install Button */}
+          <button
+            onClick={handleInstallClick}
+            className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-slate-900 hover:bg-black text-white flex items-center justify-center shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 border border-slate-800/40 cursor-pointer"
+            title="Install App on Home Screen"
+          >
+            <Smartphone className="h-6 w-6 text-blue-400 animate-pulse" />
+          </button>
         </div>
       )}
 
+      {/* Visually Balanced & Symmetrical Card */}
       <Card className="rounded-3xl shadow-xl hover:shadow-2xl transition bg-white/95 backdrop-blur-md border border-gray-100/80">
-        <CardContent className="space-y-6 pt-7 pb-6 px-6 sm:px-8">
+        <CardContent className="space-y-6 p-6 sm:p-8">
           <form
             onSubmit={async (e) => {
               e.preventDefault()
               const formData = new FormData(e.currentTarget)
               await handleSubmit(formData)
             }}
-            className="space-y-4"
+            className="space-y-5"
           >
-            {/* Username Field with In-Box Placeholder */}
+            {/* Username Field with Taller Height & Larger Text */}
             <div className="relative">
-              <User className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 h-4.5 w-4.5 pointer-events-none" />
+              <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 pointer-events-none" />
               <Input
                 id="username"
                 name="username"
                 type="text"
                 required
                 placeholder="Username"
-                className="pl-11 h-13 rounded-2xl border-gray-200 focus:border-slate-900 focus:ring-2 focus:ring-slate-400 text-sm font-medium"
+                className="pl-12 h-14 sm:h-16 rounded-2xl border-gray-200 focus:border-slate-900 focus:ring-2 focus:ring-slate-400 text-base sm:text-lg font-medium placeholder:text-gray-400"
               />
             </div>
 
-            {/* Password Field with In-Box Placeholder */}
+            {/* Password Field with Taller Height & Larger Text */}
             <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 h-4.5 w-4.5 pointer-events-none" />
+              <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 pointer-events-none" />
               <Input
                 id="password"
                 name="password"
                 type={showPassword ? "text" : "password"}
                 required
                 placeholder="Password"
-                className="pl-11 pr-11 h-13 rounded-2xl border-gray-200 focus:border-slate-900 focus:ring-2 focus:ring-slate-400 text-sm font-medium"
+                className="pl-12 pr-12 h-14 sm:h-16 rounded-2xl border-gray-200 focus:border-slate-900 focus:ring-2 focus:ring-slate-400 text-base sm:text-lg font-medium placeholder:text-gray-400"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors p-1"
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
 
