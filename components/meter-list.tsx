@@ -163,7 +163,7 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
           if (!silent) setSyncState("idle")
         }
         // 2. Fetch fresh
-        const res = await fetch("/api/meters/stock")
+        const res = await fetch(`/api/meters/stock?t=${Date.now()}`, { cache: "no-store" })
         if (!res.ok) throw new Error()
         const data = await res.json()
         const sorted = [...(data.issues || [])].reverse()
@@ -179,7 +179,7 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
           if (!silent) setSyncState("idle")
         }
         // 2. Fetch fresh
-        const res = await fetch("/api/meters/issue")
+        const res = await fetch(`/api/meters/issue?t=${Date.now()}`, { cache: "no-store" })
         if (!res.ok) throw new Error()
         const data: MeterIssue[] = await res.json()
         const sorted = [...data].reverse()
@@ -214,7 +214,7 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
       if (cached && cached.length > 0) {
         setReplacements(cached)
       }
-      const res = await fetch("/api/meters/replacement")
+      const res = await fetch(`/api/meters/replacement?t=${Date.now()}`, { cache: "no-store" })
       if (res.ok) {
         const data = await res.json()
         setReplacements(data)

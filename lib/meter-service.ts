@@ -39,7 +39,7 @@ const ISSUES_HEADERS = [
 // Read paths use the cached wrappers; write paths use the raw fetch so row
 // positions / next IDs are always computed against live data.
 const METER_TAG = "meter"
-const METER_REVALIDATE_S = 30 * 24 * 60 * 60 // 30 days — write-invalidated infinite cache
+const METER_REVALIDATE_S = 10 // 10 seconds TTL for fast sync
 let tabsReady = false
 
 export function invalidateMeterCache() { revalidateTag(METER_TAG) }
@@ -108,29 +108,29 @@ function parseIssue(r: string[]): MeterIssue {
 }
 
 // ─── Reads ────────────────────────────────────────────────────────────────────
-async function _fetchStockRaw(spreadsheetId: string): Promise<MeterStock[]> {
+export async function _fetchStockRaw(spreadsheetId: string): Promise<MeterStock[]> {
   await ensureTabs(spreadsheetId)
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${STOCK_TAB}!A:I` })
   return (res.data.values || []).slice(1).filter(r => r[0]).map(r => parseStock(r.map(String)))
 }
 
-async function _fetchIssuesRaw(spreadsheetId: string): Promise<MeterIssue[]> {
+export async function _fetchIssuesRaw(spreadsheetId: string): Promise<MeterIssue[]> {
   await ensureTabs(spreadsheetId)
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${ISSUES_TAB}!A:U` })
   return (res.data.values || []).slice(1).filter(r => r[0]).map(r => parseIssue(r.map(String)))
 }
 
-export const fetchStock = unstable_cache(
-  async (spreadsheetId: string) => _fetchStockRaw(spreadsheetId),
-  ["meter-stock"],
+export const fetchStock = (spreadsheetId: string) => unstable_cache(
+  async () => _fetchStockRaw(spreadsheetId),
+  ["meter-stock", spreadsheetId],
   { revalidate: METER_REVALIDATE_S, tags: [METER_TAG] },
-)
+)()
 
-export const fetchIssues = unstable_cache(
-  async (spreadsheetId: string) => _fetchIssuesRaw(spreadsheetId),
-  ["meter-issues"],
+export const fetchIssues = (spreadsheetId: string) => unstable_cache(
+  async () => _fetchIssuesRaw(spreadsheetId),
+  ["meter-issues", spreadsheetId],
   { revalidate: METER_REVALIDATE_S, tags: [METER_TAG] },
-)
+)()
 
 // ─── Stock summary ────────────────────────────────────────────────────────────
 export async function getStockSummary(spreadsheetId: string): Promise<StockSummary[]> {

@@ -33,7 +33,7 @@ const REPLACEMENT_HEADERS = [
 ]
 
 const REPLACEMENT_TAG = "meter-replacement"
-const REVAL_S = 30 * 24 * 60 * 60 // 30 days — write-invalidated infinite cache
+const REVAL_S = 10 // 10 seconds TTL for fast sync
 let tabReady = false
 
 export function invalidateReplacementCache() {
@@ -95,7 +95,7 @@ function parseReplacement(r: string[]): MeterReplacement {
   }
 }
 
-async function _fetchReplacementsRaw(spreadsheetId: string): Promise<MeterReplacement[]> {
+export async function _fetchReplacementsRaw(spreadsheetId: string): Promise<MeterReplacement[]> {
   await ensureReplacementTab(spreadsheetId)
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
@@ -107,11 +107,11 @@ async function _fetchReplacementsRaw(spreadsheetId: string): Promise<MeterReplac
     .map(r => parseReplacement(r.map(String)))
 }
 
-export const fetchReplacements = unstable_cache(
-  async (spreadsheetId: string) => _fetchReplacementsRaw(spreadsheetId),
-  ["meter-replacements"],
+export const fetchReplacements = (spreadsheetId: string) => unstable_cache(
+  async () => _fetchReplacementsRaw(spreadsheetId),
+  ["meter-replacements", spreadsheetId],
   { revalidate: REVAL_S, tags: [REPLACEMENT_TAG] }
-)
+)()
 
 async function nextReplacementId(id: string): Promise<string> {
   const all = await _fetchReplacementsRaw(id)
