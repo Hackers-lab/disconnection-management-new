@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 import {
   Sheet,
   SheetContent,
@@ -157,14 +158,22 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     to: null,
     isActive: false
   })
-  const [filters, setFilters] = useState({
-    agency: "All Agencies",
-    mru: "All MRUs",
+  const [filters, setFilters] = useState<{
+    agency: string[]
+    mru: string[]
+    address: string
+    name: string
+    consumerId: string
+    status: string[]
+    baseClass: string[]
+  }>({
+    agency: [],
+    mru: [],
     address: "",
     name: "",
     consumerId: "",
-    status: "All Status",
-    baseClass: "All Classes",
+    status: [],
+    baseClass: [],
   })
   const [excludeFilters, setExcludeFilters] = useState({
     excludeDeemedDisconnection: false,
@@ -558,14 +567,18 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
     // Base class filter
     const matchesBaseClass = 
-      filters.baseClass === "All Classes" || 
-      (consumer.baseClass || "").toUpperCase() === filters.baseClass.toUpperCase()
+      filters.baseClass.length === 0 || 
+      filters.baseClass.some(bc => (consumer.baseClass || "").toUpperCase() === bc.toUpperCase())
+
     // Agency filter (case-insensitive)
     const matchesAgency =
-      filters.agency === "All Agencies" || (consumer.agency || "").toUpperCase() === filters.agency.toUpperCase()
+      filters.agency.length === 0 || 
+      filters.agency.some(ag => (consumer.agency || "").toUpperCase() === ag.toUpperCase())
 
+    // MRU / Zone filter (case-insensitive & trimmed)
     const matchesMru = 
-      filters.mru === "All MRUs" || (consumer.mru || "") === filters.mru
+      filters.mru.length === 0 || 
+      filters.mru.some(m => (consumer.mru || "").trim().toUpperCase() === m.trim().toUpperCase())
 
     // Address fuzzy match
     const matchesAddress = !filters.address || consumer.address.toLowerCase().includes(filters.address.toLowerCase())
@@ -579,12 +592,14 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
     // Status filter (case-insensitive; "paid" matches both "paid" and "agency paid")
     const consumerStatusLc = (consumer.disconStatus || "").toLowerCase()
-    const filterStatusLc = filters.status.toLowerCase()
     const matchesStatus =
-      filters.status === "All Status" ||
-      (filterStatusLc === "paid"
-        ? consumerStatusLc === "paid" || consumerStatusLc === "agency paid"
-        : consumerStatusLc === filterStatusLc)
+      filters.status.length === 0 ||
+      filters.status.some(st => {
+        const filterStatusLc = st.toLowerCase()
+        return filterStatusLc === "paid"
+          ? consumerStatusLc === "paid" || consumerStatusLc === "agency paid"
+          : consumerStatusLc === filterStatusLc
+      })
 
     // OSD range filter
     const consumerOsd = Number.parseFloat(consumer.d2NetOS || "0")
@@ -616,7 +631,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     })
   }, [consumers, searchTerm, filters, minOsd, excludeFilters, dateFilter, userRole, userAgencies])
 
-  // MRUs scoped to what this role can actually see (before search/filter criteria)
+  // MRUs scoped to what this role can actually see (and dynamically filtered by selected agencies)
   const mrus = useMemo(() => {
     let base = consumers
     if (userRole !== "admin" && userRole !== "viewer") {
@@ -630,8 +645,23 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         base = consumers.filter(c => upper.includes((c.agency || "").toUpperCase()) && c.disconStatus !== "&")
       }
     }
+    // Cascading agency -> zone filter: if specific agencies are selected, show only MRUs of those agencies
+    if (filters.agency.length > 0) {
+      const selectedAgenciesUpper = filters.agency.map(a => a.toUpperCase())
+      base = base.filter(c => selectedAgenciesUpper.includes((c.agency || "").toUpperCase()))
+    }
     return Array.from(new Set(base.map(c => (c.mru || "").trim()).filter(Boolean))).sort()
-  }, [consumers, userRole, userAgencies])
+  }, [consumers, userRole, userAgencies, filters.agency])
+
+  // Auto-prune selected MRUs if they are no longer in the available MRU list
+  useEffect(() => {
+    if (filters.mru.length > 0) {
+      const validMrus = filters.mru.filter(m => mrus.includes(m))
+      if (validMrus.length !== filters.mru.length) {
+        setFilters(prev => ({ ...prev, mru: validMrus }))
+      }
+    }
+  }, [mrus])
 
   const sortedConsumers = useMemo(() => [...filteredConsumers].sort((a, b) => {
     // 0. Urgent rows always appear first (admin-set priority flag)
@@ -786,13 +816,13 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const clearFilters = () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     setFilters({
-      agency: "All Agencies",
+      agency: [],
       address: "",
-      mru: "All MRUs",
+      mru: [],
       name: "",
       consumerId: "",
-      status: "All Status",
-      baseClass: "All Classes",
+      status: [],
+      baseClass: [],
     })
     setSearchTerm("")
     setMinOsd(0)
@@ -1004,7 +1034,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon" className="relative shrink-0">
                   <Filter className="h-4 w-4" />
-                  {(Object.values(filters).some((f) => f !== "All Agencies" && f !== "All Status" && f !== "All Classes" && f !== "All MRUs" && f !== "") ||
+                  {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
                     minOsd > 0 ||
                     dateFilter.isActive ||
                     sortByOSD !== "desc" || sortByMRU) && (
@@ -1133,22 +1163,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   <div className="grid grid-cols-3 items-center gap-2">
                     <label className="text-sm font-medium col-span-1">Agency</label>
                     <div className="col-span-2">
-                    <Select
-                      value={filters.agency}
-                      onValueChange={(value) => setFilters((prev) => ({ ...prev, agency: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Agencies" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All Agencies">All Agencies</SelectItem>
-                        {agencies.map((agency) => (
-                          <SelectItem key={agency} value={agency}>
-                            {agency}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <MultiSelectDropdown
+                        placeholder="All Agencies"
+                        options={agencies}
+                        selected={filters.agency}
+                        onChange={(val) => setFilters((prev) => ({ ...prev, agency: val }))}
+                      />
                     </div>
                   </div>
                   )}
@@ -1156,68 +1176,47 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   <div className="grid grid-cols-3 items-center gap-2">
                     <label className="text-sm font-medium col-span-1">Status</label>
                     <div className="col-span-2">
-                    <Select
-                      value={filters.status}
-                      onValueChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All Status">All Status</SelectItem>
-                        <SelectItem value="connected">Connected</SelectItem>
-                        <SelectItem value="disconnected">Disconnected</SelectItem>
-                        <SelectItem value="office team">Office Team</SelectItem>
-                        <SelectItem value="bill dispute">Bill Dispute</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="not found">Not Found</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <MultiSelectDropdown
+                        placeholder="All Status"
+                        options={[
+                          "connected",
+                          "disconnected",
+                          "office team",
+                          "bill dispute",
+                          "pending",
+                          "paid",
+                          "not found",
+                        ]}
+                        selected={filters.status}
+                        onChange={(val) => setFilters((prev) => ({ ...prev, status: val }))}
+                        searchable={false}
+                      />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 items-center gap-2">
-                    <label className="text-sm font-medium col-span-1">MRU</label>
+                    <label className="text-sm font-medium col-span-1">MRU (Zone)</label>
                     <div className="col-span-2">
-                    <Select
-                      value={filters.mru}
-                      onValueChange={(value) => setFilters((prev) => ({ ...prev, mru: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All MRUs" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All MRUs">All MRUs</SelectItem>
-                        {mrus.map((mru) => (
-                          <SelectItem key={mru} value={mru}>
-                            {mru}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <MultiSelectDropdown
+                        placeholder="All MRUs"
+                        options={mrus}
+                        selected={filters.mru}
+                        onChange={(val) => setFilters((prev) => ({ ...prev, mru: val }))}
+                        searchable={true}
+                      />
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-3 items-center gap-2">
                     <label className="text-sm font-medium col-span-1">Base Class</label>
                     <div className="col-span-2">
-                    <Select
-                      value={filters.baseClass}
-                      onValueChange={(value) => setFilters((prev) => ({ ...prev, baseClass: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Classes" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All Classes">All Classes</SelectItem>
-                        {baseClasses.map((bc) => (
-                          <SelectItem key={bc} value={bc}>
-                            {bc}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <MultiSelectDropdown
+                        placeholder="All Classes"
+                        options={baseClasses}
+                        selected={filters.baseClass}
+                        onChange={(val) => setFilters((prev) => ({ ...prev, baseClass: val }))}
+                        searchable={false}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1344,7 +1343,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 }
               </button>
            </div>
-           {(Object.values(filters).some((f) => f !== "All Agencies" && f !== "All Status" && f !== "All Classes" && f !== "All MRUs" && f !== "") ||
+           {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
               minOsd > 0 ||
               dateFilter.isActive ||
               sortByOSD !== "desc") && (
