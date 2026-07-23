@@ -11,19 +11,9 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Disconnection Management</h1>
-          <p className="mt-2 text-xs text-gray-600 max-w-sm mx-auto leading-relaxed">
-            Utility management platform for electrical Customer Care Centers (CCCs) to process disconnections, reconnections, meter stock, and field inspections.
-          </p>
         </div>
 
         <LoginForm />
-
-        <div className="bg-white/70 backdrop-blur-sm border border-blue-100 rounded-xl p-4 text-left shadow-sm">
-          <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-1">About Disconnection Management</h3>
-          <p className="text-xs text-gray-600 leading-relaxed">
-            Disconnection Management automates electrical utility workflows. Authorized administrators can link their Google Account to store administrative logs in Google Sheets and save field verification receipts directly to Google Drive.
-          </p>
-        </div>
 
         <div className="text-center pt-2 border-t border-slate-200/60">
           <p className="text-xs text-slate-500 space-x-3">
