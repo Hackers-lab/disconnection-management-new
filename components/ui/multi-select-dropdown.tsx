@@ -83,7 +83,7 @@ export function MultiSelectDropdown({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[calc(100vw-2rem)] sm:w-[320px] max-w-[340px] p-2 z-[100]"
+        className="w-[var(--radix-popover-trigger-width)] min-w-[220px] max-w-[300px] p-2 z-[100]"
         align="start"
       >
         {searchable && options.length > 5 && (
@@ -102,7 +102,7 @@ export function MultiSelectDropdown({
           <button
             type="button"
             onClick={handleSelectAll}
-            className="text-blue-600 hover:underline font-medium text-[11px] py-1"
+            className="text-blue-600 hover:underline font-medium text-[11px] py-0.5"
           >
             {isAllSelected ? "Deselect All" : "Select All"}
           </button>
@@ -110,7 +110,7 @@ export function MultiSelectDropdown({
             <button
               type="button"
               onClick={handleClear}
-              className="text-red-500 hover:underline text-[11px] flex items-center gap-0.5 py-1"
+              className="text-red-500 hover:underline text-[11px] flex items-center gap-0.5 py-0.5"
             >
               <X className="h-3 w-3" /> Clear ({selected.length})
             </button>
@@ -118,30 +118,36 @@ export function MultiSelectDropdown({
         </div>
 
         <div
-          className="max-h-52 sm:max-h-60 overflow-y-auto space-y-1 pr-1 touch-pan-y overscroll-contain"
+          className="max-h-52 overflow-y-auto space-y-0.5 pr-1 touch-pan-y"
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           {filteredOptions.length === 0 ? (
             <p className="text-xs text-muted-foreground py-3 text-center">No options found.</p>
           ) : (
-            filteredOptions.map((option) => {
+            filteredOptions.map((option, idx) => {
               const checked = selected.includes(option)
+              const optId = `ms-opt-${idx}-${option.replace(/[^a-zA-Z0-9]/g, '-')}`
               return (
-                <label
+                <div
                   key={option}
                   className={cn(
-                    "flex items-center space-x-2 px-2 py-2 sm:py-1.5 rounded text-xs cursor-pointer hover:bg-accent active:bg-accent/70 transition-colors touch-manipulation select-none",
-                    checked && "bg-accent/50 font-medium"
+                    "flex items-center space-x-2 px-2 py-1.5 rounded text-xs hover:bg-accent transition-colors select-none",
+                    checked && "bg-accent/60 font-medium"
                   )}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    handleToggle(option)
-                  }}
                 >
-                  <Checkbox checked={checked} onCheckedChange={() => handleToggle(option)} />
-                  <span className="truncate flex-1 pointer-events-none">{option}</span>
-                </label>
+                  <Checkbox
+                    id={optId}
+                    checked={checked}
+                    onCheckedChange={() => handleToggle(option)}
+                    className="shrink-0"
+                  />
+                  <label
+                    htmlFor={optId}
+                    className="truncate flex-1 text-xs cursor-pointer py-0.5 select-none"
+                  >
+                    {option}
+                  </label>
+                </div>
               )
             })
           )}
