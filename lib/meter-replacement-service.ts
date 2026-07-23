@@ -164,6 +164,60 @@ export async function addReplacement(req: {
   return replacementId
 }
 
+export async function addBulkReplacements(items: Array<{
+  consumerId: string
+  consumerName: string
+  address: string
+  mobile?: string
+  agency?: string
+  purpose: string
+  remarks?: string
+  attachmentUrl?: string
+  oldMeterNo?: string
+}>): Promise<{ added: number }> {
+  if (items.length === 0) return { added: 0 }
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  
+  const all = await _fetchReplacementsRaw(id)
+  let max = all.reduce((m, r) => {
+    const n = parseInt(r.replacementId.replace("MR-", ""), 10)
+    return isNaN(n) ? m : Math.max(m, n)
+  }, 0)
+
+  const today = nowDate()
+  const rows = items.map(item => {
+    max += 1
+    const replacementId = `MR-${String(max).padStart(4, "0")}`
+    return [
+      replacementId,
+      item.consumerId || "000000000",
+      item.consumerName || "",
+      item.address || "",
+      item.mobile || "",
+      item.agency || "",
+      item.purpose || "faulty_replacement",
+      today,
+      "proposed",
+      "", // serialNo
+      "", // issueId
+      item.remarks || "",
+      item.attachmentUrl || "",
+      item.oldMeterNo || "",
+      "" // workOrderNo
+    ]
+  })
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: id,
+    range: `${REPLACEMENT_TAB}!A:O`,
+    valueInputOption: "RAW",
+    requestBody: { values: rows }
+  })
+  invalidateReplacementCache()
+  return { added: items.length }
+}
+
 export async function issueReplacement(
   replacementId: string,
   serialNo: string,

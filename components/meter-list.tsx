@@ -1677,6 +1677,25 @@ function AddStockForm({ onSave, onCancel }: { onSave: () => void; onCancel: () =
     finally { setSubmitting(false) }
   }
 
+  const downloadStockTemplate = async () => {
+    const XLSX = await loadXLSX()
+    const sampleRows = [
+      { "Serial No": "SGB10001", "Type Label": "1P 5-30A Smart", "Remarks": "Initial Batch 2026" },
+      { "Serial No": "SGB10002", "Type Label": "3P 10-60A Smart", "Remarks": "Initial Batch 2026" },
+      { "Serial No": "SGB10003", "Type Label": "3P CT Operated 100/5A", "Remarks": "High Value Meter" },
+    ]
+    const ws = XLSX.utils.json_to_sheet(sampleRows)
+    XLSX.utils.sheet_add_aoa(ws, [
+      [],
+      ["Valid Type Labels:"],
+      ...METER_TYPES.map(t => [t.label])
+    ], { origin: -1 })
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Template")
+    XLSX.writeFile(wb, "Meter_Stock_Upload_Template.xlsx")
+  }
+
   return (
     <div className="max-w-xl mx-auto space-y-4 pb-28">
       <div className="flex items-center gap-2">
@@ -1743,7 +1762,21 @@ function AddStockForm({ onSave, onCancel }: { onSave: () => void; onCancel: () =
 
           {mode === "excel" && (
             <div className="space-y-3">
-              <p className="text-xs text-gray-500">Excel columns required: <span className="font-mono">Serial No, Type Label</span> (optional: Remarks)</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-gray-500">
+                  Excel columns required: <span className="font-mono font-semibold">Serial No, Type Label</span> (optional: Remarks)
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadStockTemplate}
+                  className="shrink-0 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                  title="Download sample Excel template for meter stock"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Template
+                </Button>
+              </div>
               <p className="text-xs text-gray-400">Type Label must match exactly, e.g. "3P 10-60A Smart"</p>
               <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => e.target.files?.[0] && handleExcel(e.target.files[0])} />
               <Button variant="outline" className="w-full h-12" onClick={() => fileRef.current?.click()} disabled={submitting}>

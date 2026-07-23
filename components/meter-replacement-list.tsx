@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Search, X, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Loader2, Download, RefreshCw, Check, ArrowLeft, RotateCcw, Package,
-  MapPin, Phone, Building2, User, Upload, FileText, Monitor
+  MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
@@ -180,10 +180,60 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     XLSX.writeFile(wb, `Meter_Replacement_List_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
+  const downloadProposalTemplate = async () => {
+    const XLSX = await import("xlsx")
+    const sampleRows = [
+      {
+        "Consumer ID": "661200001",
+        "Consumer Name": "Consumer Name 1",
+        "Address": "Main Road, Ward 5",
+        "Mobile": "9876543210",
+        "Agency": "AGENCY NAME",
+        "Purpose": "faulty_replacement",
+        "Old Meter No": "MTR10001",
+        "Remarks": "Meter display blank"
+      },
+      {
+        "Consumer ID": "661200002",
+        "Consumer Name": "Consumer Name 2",
+        "Address": "Station Area",
+        "Mobile": "9876543211",
+        "Agency": "AGENCY NAME",
+        "Purpose": "burnt_replacement",
+        "Old Meter No": "MTR10002",
+        "Remarks": "Terminal box burnt"
+      },
+      {
+        "Consumer ID": "661200003",
+        "Consumer Name": "Consumer Name 3",
+        "Address": "Market Yard",
+        "Mobile": "9876543212",
+        "Agency": "AGENCY NAME",
+        "Purpose": "slow_fast",
+        "Old Meter No": "MTR10003",
+        "Remarks": "Running slow"
+      }
+    ]
+    const ws = XLSX.utils.json_to_sheet(sampleRows)
+    XLSX.utils.sheet_add_aoa(ws, [
+      [],
+      ["Valid Purpose Values:"],
+      ["faulty_replacement (or Faulty / Defective)"],
+      ["burnt_replacement (or Burnt Meter)"],
+      ["slow_fast (or Slow / Fast Meter)"]
+    ], { origin: -1 })
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Proposal Template")
+    XLSX.writeFile(wb, "Meter_Replacement_Proposal_Template.xlsx")
+  }
+
   if (view === "create") {
     return (
       <MeterReplacementCreateForm
         agencies={agencies}
+        oldMeterMap={oldMeterMap}
+        downloadProposalTemplate={downloadProposalTemplate}
         onSave={(id) => {
           toast({ title: "Proposed replacement created", description: `ID: ${id}` })
           setView("list")
@@ -225,6 +275,9 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               <Download className="h-4 w-4" />
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={downloadProposalTemplate} className="shrink-0 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50" title="Download Excel Template for Proposals">
+            <FileSpreadsheet className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Template</span>
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
             <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
           </Button>
@@ -366,11 +419,14 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
 interface FormProps {
   agencies: string[]
+  oldMeterMap?: Record<string, string>
+  downloadProposalTemplate: () => void
   onSave: (requestId: string) => void
   onCancel: () => void
 }
 
-function MeterReplacementCreateForm({ agencies, onSave, onCancel }: FormProps) {
+function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadProposalTemplate, onSave, onCancel }: FormProps) {
+  const [entryMode, setEntryMode] = useState<"single" | "excel">("single")
   const [consumerId, setConsumerId] = useState("")
   const [looking, setLooking] = useState(false)
   const [found, setFound] = useState<any>(null)
@@ -393,6 +449,10 @@ function MeterReplacementCreateForm({ agencies, onSave, onCancel }: FormProps) {
   const [uploading, setUploading] = useState(false)
   const [uploadedFileName, setUploadedFileName] = useState("")
 
+  // Excel Bulk states
+  const [parsedExcelItems, setParsedExcelItems] = useState<any[]>([])
+  const excelFileRef = useRef<HTMLInputElement>(null)
+
   // Load agencies
   useEffect(() => {
     async function loadAgencies() {
@@ -409,6 +469,104 @@ function MeterReplacementCreateForm({ agencies, onSave, onCancel }: FormProps) {
     }
     loadAgencies()
   }, [])
+
+  const normalizePurpose = (str: string): string => {
+    const s = String(str || "").toLowerCase()
+    if (s.includes("burnt")) return "burnt_replacement"
+    if (s.includes("slow") || s.includes("fast")) return "slow_fast"
+    return "faulty_replacement"
+  }
+
+  const handleExcelProposalUpload = async (file: File) => {
+    try {
+      setLooking(true)
+      const XLSX = await import("xlsx")
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: "array" })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows: any[] = XLSX.utils.sheet_to_json(ws)
+
+      if (rows.length === 0) {
+        alert("No rows found in the uploaded Excel file.")
+        setLooking(false)
+        return
+      }
+
+      // Load cache for lookup
+      const consumersCache = (await getFromCache<ConsumerData[]>("consumers_data_cache")) || []
+      const masterCache = (await getFromCache<ConsumerMasterRow[]>("consumer_master_cache")) || []
+
+      const parsed = rows.map((r: any) => {
+        const cid = String(r["Consumer ID"] || r["ConsumerId"] || r["consumer_id"] || r["ID"] || r["Consumer ID*"] || "").trim()
+        
+        let cName = String(r["Consumer Name"] || r["Name"] || r["consumer_name"] || r["Consumer Name*"] || "").trim()
+        let cAddr = String(r["Address"] || r["address"] || r["Address*"] || "").trim()
+        let cMob = String(r["Mobile"] || r["Phone"] || r["mobile"] || "").trim()
+        let cAgency = String(r["Agency"] || r["agency"] || "").trim()
+        let cOldMeter = String(r["Old Meter No"] || r["Old Meter"] || r["Meter No"] || r["old_meter_no"] || "").trim()
+
+        // Lookup from cache if consumer ID exists and missing info
+        if (cid && cid.length === 9) {
+          const matchConsumer = consumersCache.find(c => c.consumerId === cid)
+          const matchMaster = masterCache.find(c => c.consumerId === cid)
+
+          if (!cName) cName = matchConsumer?.name || matchMaster?.name || ""
+          if (!cAddr) cAddr = matchConsumer?.address || matchMaster?.address || ""
+          if (!cMob) cMob = matchConsumer?.mobileNumber || matchMaster?.mobile || ""
+          if (!cAgency) cAgency = matchConsumer?.agency || ""
+          if (!cOldMeter) cOldMeter = matchConsumer?.device || matchMaster?.meterNo || ""
+        }
+
+        const rawPurpose = String(r["Purpose"] || r["purpose"] || "").trim()
+        const purposeVal = normalizePurpose(rawPurpose)
+        const remarksVal = String(r["Remarks"] || r["remarks"] || "").trim()
+
+        return {
+          consumerId: cid || "000000000",
+          consumerName: cName,
+          address: cAddr,
+          mobile: cMob,
+          agency: cAgency,
+          purpose: purposeVal,
+          oldMeterNo: cOldMeter,
+          remarks: remarksVal,
+          isValid: !!(cName && cAddr)
+        }
+      })
+
+      setParsedExcelItems(parsed)
+    } catch (err: any) {
+      alert("Failed to parse Excel file: " + (err.message || "Unknown error"))
+    } finally {
+      setLooking(false)
+    }
+  }
+
+  const handleBulkSubmit = async () => {
+    const validItems = parsedExcelItems.filter(i => i.isValid)
+    if (validItems.length === 0) {
+      alert("No valid proposal items to submit. Ensure Consumer Name and Address are present.")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/meters/replacement/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: validItems })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to submit bulk proposals")
+      
+      window.dispatchEvent(new Event("notif-refresh"))
+      onSave(`Bulk ${data.added} Proposals`)
+    } catch (err: any) {
+      alert(err.message || "Bulk submission failed")
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const handleLookup = async () => {
     const id = consumerId.trim()
@@ -580,119 +738,241 @@ function MeterReplacementCreateForm({ agencies, onSave, onCancel }: FormProps) {
         <CardTitle>Propose Meter Replacement</CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Lookup section */}
-        <div className="space-y-2 p-3 bg-slate-50 border rounded-xl mb-4">
-          <Label htmlFor="search-cid">Lookup Consumer ID</Label>
-          <div className="flex gap-2">
-            <Input
-              id="search-cid"
-              value={consumerId}
-              onChange={e => setConsumerId(e.target.value.replace(/\D/g, "").slice(0, 9))}
-              placeholder="e.g. 661200001"
-              maxLength={9}
-              disabled={looking || submitting}
-            />
-            <Button type="button" onClick={handleLookup} disabled={looking || consumerId.length !== 9 || submitting}>
-              {looking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            </Button>
-          </div>
-          {looking && <p className="text-xs text-blue-600 font-medium">{lookupStatus}</p>}
-          {notFound && <p className="text-xs text-amber-600 font-semibold">Consumer not found in active list or master database. Please fill details manually.</p>}
-          {found && <p className="text-xs text-green-700 font-bold flex items-center gap-1">✓ Match Found: {found.name}</p>}
+        {/* Entry mode switcher */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setEntryMode("single")}
+            className={`py-2 rounded-xl text-xs font-semibold border transition ${
+              entryMode === "single"
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Single Proposal Entry
+          </button>
+          <button
+            type="button"
+            onClick={() => setEntryMode("excel")}
+            className={`py-2 rounded-xl text-xs font-semibold border transition ${
+              entryMode === "excel"
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            Excel Bulk Upload
+          </button>
         </div>
 
-        {/* Form details */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="c-name">Consumer Name *</Label>
-            <Input id="c-name" value={manualName} onChange={e => setManualName(e.target.value)} disabled={submitting} required />
-          </div>
+        {entryMode === "excel" ? (
+          <div className="space-y-4">
+            <div className="bg-slate-50 p-4 border rounded-xl space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800">Bulk Upload Proposals</h3>
+                  <p className="text-xs text-gray-500">
+                    Upload an Excel (.xlsx / .csv) file containing replacement proposal rows.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadProposalTemplate}
+                  className="shrink-0 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                  title="Download sample template"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Template
+                </Button>
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="c-addr">Address *</Label>
-            <Textarea id="c-addr" value={manualAddress} onChange={e => setManualAddress(e.target.value)} disabled={submitting} required />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="c-oldmeter">Old Meter Number (optional)</Label>
-              <Input id="c-oldmeter" value={oldMeterNo} onChange={e => setOldMeterNo(e.target.value.toUpperCase())} placeholder="e.g. OLD1234" disabled={submitting} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="c-mobile">Mobile Number (optional)</Label>
-              <Input id="c-mobile" value={manualMobile} onChange={e => setManualMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} disabled={submitting} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="c-agency">Assign Agency (optional)</Label>
-              <Select value={agency || "none"} onValueChange={val => setAgency(val === "none" ? "" : val)} disabled={submitting}>
-                <SelectTrigger id="c-agency">
-                  <SelectValue placeholder="Select Agency (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None / Unassigned</SelectItem>
-                  {agencyList.map(a => (
-                    <SelectItem key={a} value={a}>{a}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="c-purpose">Replacement Purpose *</Label>
-            <Select value={purpose} onValueChange={setPurpose} disabled={submitting}>
-              <SelectTrigger id="c-purpose">
-                <SelectValue placeholder="Select Purpose" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(PURPOSE_LABELS).map(([val, label]) => (
-                  <SelectItem key={val} value={val}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="c-attachment">Attachment / Document (optional)</Label>
-            <div className="flex gap-2 items-center">
-              <Input
-                id="c-attachment"
+              <input
+                ref={excelFileRef}
                 type="file"
-                onChange={e => {
-                  const f = e.target.files?.[0]
-                  if (f) handleFileUpload(f)
-                }}
-                disabled={uploading || submitting}
-                className="cursor-pointer"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={e => e.target.files?.[0] && handleExcelProposalUpload(e.target.files[0])}
               />
-              {uploading && <Loader2 className="h-4 w-4 animate-spin text-blue-600 shrink-0" />}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 border-dashed border-2 hover:bg-slate-100"
+                onClick={() => excelFileRef.current?.click()}
+                disabled={looking || submitting}
+              >
+                {looking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                Select Proposal Excel / CSV File
+              </Button>
             </div>
-            {attachmentUrl && (
-              <p className="text-xs text-green-700 font-bold flex items-center gap-1 mt-1">
-                ✓ Uploaded: <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="underline">{uploadedFileName || "File"}</a>
-              </p>
+
+            {parsedExcelItems.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-700">
+                    Parsed Proposals ({parsedExcelItems.filter(i => i.isValid).length} Valid / {parsedExcelItems.length} Total)
+                  </span>
+                  <span className="text-gray-400">Preview:</span>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto border rounded-xl divide-y bg-white text-xs">
+                  {parsedExcelItems.map((item, idx) => (
+                    <div key={idx} className={`p-2.5 flex items-start justify-between gap-2 ${!item.isValid ? "bg-red-50" : ""}`}>
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 font-medium text-gray-800">
+                          <span className="font-mono text-gray-500">{item.consumerId}</span>
+                          <span className="truncate">{item.consumerName || "(No Name)"}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 truncate">{item.address || "(No Address)"}</p>
+                        <div className="flex gap-2 text-[10px] text-gray-400 font-mono">
+                          {item.mobile && <span>Mob: {item.mobile}</span>}
+                          {item.agency && <span>Agency: {item.agency}</span>}
+                          {item.oldMeterNo && <span>Old Meter: {item.oldMeterNo}</span>}
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          {PURPOSE_LABELS[item.purpose] || item.purpose}
+                        </Badge>
+                        {!item.isValid && <span className="text-[10px] font-bold text-red-600">Missing Name/Address</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={submitting}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-[2] bg-slate-950 hover:bg-slate-900 text-white"
+                    onClick={handleBulkSubmit}
+                    disabled={submitting || parsedExcelItems.filter(i => i.isValid).length === 0}
+                  >
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                    {submitting ? "Submitting..." : `Submit ${parsedExcelItems.filter(i => i.isValid).length} Proposals`}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
+        ) : (
+          <>
+            {/* Lookup section */}
+            <div className="space-y-2 p-3 bg-slate-50 border rounded-xl mb-4">
+              <Label htmlFor="search-cid">Lookup Consumer ID</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="search-cid"
+                  value={consumerId}
+                  onChange={e => setConsumerId(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  placeholder="e.g. 661200001"
+                  maxLength={9}
+                  disabled={looking || submitting}
+                />
+                <Button type="button" onClick={handleLookup} disabled={looking || consumerId.length !== 9 || submitting}>
+                  {looking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+              {looking && <p className="text-xs text-blue-600 font-medium">{lookupStatus}</p>}
+              {notFound && <p className="text-xs text-amber-600 font-semibold">Consumer not found in active list or master database. Please fill details manually.</p>}
+              {found && <p className="text-xs text-green-700 font-bold flex items-center gap-1">✓ Match Found: {found.name}</p>}
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="c-remarks">Remarks (optional)</Label>
-            <Textarea id="c-remarks" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="e.g. Broken display / burnt terminals" disabled={submitting} />
-          </div>
+            {/* Form details */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="c-name">Consumer Name *</Label>
+                <Input id="c-name" value={manualName} onChange={e => setManualName(e.target.value)} disabled={submitting} required />
+              </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-[2] bg-slate-950 hover:bg-slate-900 text-white" disabled={submitting || uploading}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-              {submitting ? "Submitting..." : "Save Proposal"}
-            </Button>
-          </div>
-        </form>
+              <div className="space-y-2">
+                <Label htmlFor="c-addr">Address *</Label>
+                <Textarea id="c-addr" value={manualAddress} onChange={e => setManualAddress(e.target.value)} disabled={submitting} required />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="c-oldmeter">Old Meter Number (optional)</Label>
+                  <Input id="c-oldmeter" value={oldMeterNo} onChange={e => setOldMeterNo(e.target.value.toUpperCase())} placeholder="e.g. OLD1234" disabled={submitting} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="c-mobile">Mobile Number (optional)</Label>
+                  <Input id="c-mobile" value={manualMobile} onChange={e => setManualMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} disabled={submitting} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="c-agency">Assign Agency (optional)</Label>
+                  <Select value={agency || "none"} onValueChange={val => setAgency(val === "none" ? "" : val)} disabled={submitting}>
+                    <SelectTrigger id="c-agency">
+                      <SelectValue placeholder="Select Agency (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None / Unassigned</SelectItem>
+                      {agencyList.map(a => (
+                        <SelectItem key={a} value={a}>{a}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c-purpose">Replacement Purpose *</Label>
+                <Select value={purpose} onValueChange={setPurpose} disabled={submitting}>
+                  <SelectTrigger id="c-purpose">
+                    <SelectValue placeholder="Select Purpose" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PURPOSE_LABELS).map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c-attachment">Attachment / Document (optional)</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    id="c-attachment"
+                    type="file"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) handleFileUpload(f)
+                    }}
+                    disabled={uploading || submitting}
+                    className="cursor-pointer"
+                  />
+                  {uploading && <Loader2 className="h-4 w-4 animate-spin text-blue-600 shrink-0" />}
+                </div>
+                {attachmentUrl && (
+                  <p className="text-xs text-green-700 font-bold flex items-center gap-1 mt-1">
+                    ✓ Uploaded: <a href={attachmentUrl} target="_blank" rel="noopener noreferrer" className="underline">{uploadedFileName || "File"}</a>
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c-remarks">Remarks (optional)</Label>
+                <Textarea id="c-remarks" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="e.g. Broken display / burnt terminals" disabled={submitting} />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-[2] bg-slate-950 hover:bg-slate-900 text-white" disabled={submitting || uploading}>
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                  {submitting ? "Submitting..." : "Save Proposal"}
+                </Button>
+              </div>
+            </form>
+          </>
+        )}
       </CardContent>
     </Card>
   )
