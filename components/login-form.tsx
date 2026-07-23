@@ -78,58 +78,6 @@ export function LoginForm() {
 
   return (
     <>
-      {/* 💬 Top-Left Single White Color WhatsApp Group Button */}
-      <a
-        href="https://chat.whatsapp.com/LZKLg40n8FxCLdnAIO9HGE"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed top-4 left-4 sm:top-6 sm:left-6 z-40 h-11 w-11 sm:h-12 sm:w-12 bg-slate-900 hover:bg-black text-white rounded-2xl flex items-center justify-center shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 border border-slate-800/40 cursor-pointer"
-        title="Join Official WhatsApp Group"
-      >
-        <svg className="h-6 w-6 fill-current text-white" viewBox="0 0 24 24">
-          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l.999 1.589-1.048 3.827 3.914-1.027.878 1.278z"/>
-        </svg>
-      </a>
-
-      {/* 📲 Top-Right Icon-Only Install App Button + Wavy Threaded Arrow */}
-      {!isStandalone && (
-        <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-40 flex items-center gap-2 group">
-          {/* Wavy Threaded Arrow pointing towards the install icon */}
-          <div className="hidden sm:flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-            <span className="text-[11px] font-semibold text-slate-500 tracking-wide select-none">
-              Install App
-            </span>
-            <svg className="w-8 h-8 text-slate-700" fill="none" viewBox="0 0 50 40" stroke="currentColor">
-              <path
-                d="M 5 30 Q 20 38, 30 20 T 42 8"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                fill="none"
-                strokeDasharray="4 2"
-              />
-              <path
-                d="M 34 6 L 44 6 L 44 16"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          </div>
-
-          {/* Larger Icon-Only Install Button */}
-          <button
-            onClick={handleInstallClick}
-            className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-slate-900 hover:bg-black text-white flex items-center justify-center shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 border border-slate-800/40 cursor-pointer"
-            title="Install App on Home Screen"
-          >
-            <Smartphone className="h-6 w-6 text-blue-400 animate-pulse" />
-          </button>
-        </div>
-      )}
-
       {/* Visually Balanced & Symmetrical Card */}
       <Card className="rounded-3xl shadow-xl hover:shadow-2xl transition bg-white/95 backdrop-blur-md border border-gray-100/80">
         <CardContent className="space-y-6 p-6 sm:p-8">
@@ -194,16 +142,48 @@ export function LoginForm() {
           </form>
 
           {/* Footer Section */}
-          <div className="text-center pt-3 border-t border-gray-100">
+          <div className="text-center pt-3 border-t border-gray-100 space-y-2">
             <p className="text-xs font-medium text-gray-500">
               Developed by{" "}
               <button
-                onClick={() => setShowDevModal(false)}
+                onClick={() => setShowDevModal(true)}
                 className="font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity cursor-pointer"
               >
                 Pramod Verma
               </button>
             </p>
+
+            {/* Clean Line Icon Links */}
+            <div className="flex items-center justify-center gap-2 text-xs text-gray-500 pt-0.5">
+              <a
+                href="https://chat.whatsapp.com/LZKLg40n8FxCLdnAIO9HGE"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 hover:text-emerald-600 transition-colors cursor-pointer group"
+                title="Join Official WhatsApp Group"
+              >
+                <svg className="w-4 h-4 stroke-current fill-none text-gray-500 group-hover:text-emerald-600" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span className="text-[11px] font-medium group-hover:underline">WhatsApp</span>
+              </a>
+
+              {!isStandalone && (
+                <>
+                  <span className="text-gray-300 font-bold">•</span>
+                  <button
+                    onClick={handleInstallClick}
+                    className="flex items-center gap-1.5 hover:text-blue-600 transition-colors cursor-pointer group"
+                    title="Install App on Home Screen"
+                  >
+                    <svg className="w-4 h-4 stroke-current fill-none text-gray-500 group-hover:text-blue-600" viewBox="0 0 24 24" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span className="text-[11px] font-medium group-hover:underline">Install</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
