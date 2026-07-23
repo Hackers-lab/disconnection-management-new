@@ -36,6 +36,7 @@ import {
   LegacyImportPanel, ProjectCard,
 } from "@/components/nsc-project-form"
 import type { NSCProject } from "@/lib/nsc-types"
+import { MultiSelectDropdown } from "@/components/ui/multi-select-dropdown"
 
 const CACHE_KEY = "nsc_data_cache"
 const PAGE = 20
@@ -74,10 +75,11 @@ interface ActiveFilters {
   phase:    string   // "" | "1P" | "3P"
   klass:    string   // "" | appliedClass value
   pole:     string   // "" | "yes" | "no"
-  dispute:  boolean  // only dispute-flagged applications
+  dispute:  boolean  // dispute flag
+  agency:   string[] // agency list filter
 }
 
-const DEFAULT_FILTERS: ActiveFilters = { phase: "", klass: "", pole: "", dispute: false }
+const DEFAULT_FILTERS: ActiveFilters = { phase: "", klass: "", pole: "", dispute: false, agency: [] }
 
 interface Props {
   userRole:     string
@@ -179,18 +181,30 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   }
 
   // ── Filter ────────────────────────────────────────────────────────────────
-  const activeFilterCount = [
-    filters.phase !== "",
-    filters.klass !== "",
-    filters.pole  !== "",
-    filters.dispute,
-  ].filter(Boolean).length
-
   const scopedApps = useMemo(() =>
     isAgency
       ? apps.filter(a => userAgencies.map(x => x.toUpperCase()).includes(a.agency.toUpperCase()))
       : apps,
   [apps, isAgency, userAgencies])
+
+  const agencyOptions = useMemo(() => {
+    const set = new Set<string>()
+    if (agencies && agencies.length > 0) {
+      agencies.forEach(a => set.add(a))
+    }
+    scopedApps.forEach(a => {
+      if (a.agency) set.add(a.agency)
+    })
+    return Array.from(set).sort()
+  }, [agencies, scopedApps])
+
+  const activeFilterCount = [
+    filters.phase !== "",
+    filters.klass !== "",
+    filters.pole  !== "",
+    filters.dispute,
+    filters.agency.length > 0,
+  ].filter(Boolean).length
 
   const filtered = useMemo(() => {
     let data = scopedApps
@@ -200,6 +214,9 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     if (tab === "projects")  data = data.filter(a => ["project_required", "project_ongoing", "project_done"].includes(a.status))
 
     // Additional filters
+    if (filters.agency.length > 0) {
+      data = data.filter(a => a.agency && filters.agency.map(x => x.toUpperCase()).includes(a.agency.toUpperCase()))
+    }
     if (filters.phase)   data = data.filter(a => a.phase === filters.phase)
     if (filters.klass)   data = data.filter(a => a.appliedClass === filters.klass)
     if (filters.pole === "yes") data = data.filter(a => a.poleRequired === "yes")
@@ -346,6 +363,17 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
           ))}
         </div>
       </div>
+      {/* Agency */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Agency</p>
+        <MultiSelectDropdown
+          placeholder="Filter by Agency"
+          options={agencyOptions}
+          selected={filters.agency}
+          onChange={selectedAgencies => setFilters(f => ({ ...f, agency: selectedAgencies }))}
+          className="w-full text-xs"
+        />
+      </div>
       {/* Dispute flag */}
       <div>
         <button onClick={() => setFilters(f => ({ ...f, dispute: !f.dispute }))}
@@ -380,7 +408,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
           {/* Status tab dropdown */}
           <Select value={tab} onValueChange={(val) => setTab(val as Tab)}>
-            <SelectTrigger className="w-[170px] h-9 rounded-xl shrink-0 text-xs font-semibold bg-gray-50 border-gray-200 hover:bg-gray-100 transition-colors">
+            <SelectTrigger className="w-[150px] sm:w-[170px] h-9 rounded-xl shrink-0 text-xs font-semibold bg-gray-50 border-gray-200 hover:bg-gray-100 transition-colors">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -392,6 +420,17 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
               <SelectItem value="all"       className="text-xs font-medium">🗂️ All ({scopedApps.length})</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Agency Filter Dropdown */}
+          <div className="w-[150px] sm:w-[170px] shrink-0">
+            <MultiSelectDropdown
+              placeholder="All Agencies"
+              options={agencyOptions}
+              selected={filters.agency}
+              onChange={selectedAgencies => setFilters(f => ({ ...f, agency: selectedAgencies }))}
+              className="h-9 text-xs rounded-xl bg-gray-50 border-gray-200"
+            />
+          </div>
 
           {/* Filter button */}
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
@@ -435,6 +474,12 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
               </span>
             )}
             {/* Active filter pills */}
+            {filters.agency.length > 0 && (
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                Agency: {filters.agency.length === 1 ? filters.agency[0] : `${filters.agency.length} selected`}
+                <X className="h-3 w-3 cursor-pointer hover:text-red-600 ml-0.5" onClick={() => setFilters(f => ({ ...f, agency: [] }))} />
+              </span>
+            )}
             {filters.phase   && <span className="bg-slate-100 text-slate-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{filters.phase}</span>}
             {filters.klass   && <span className="bg-slate-100 text-slate-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">{CLASS_LABELS[filters.klass]}</span>}
             {filters.pole === "yes" && <span className="bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">Pole</span>}
