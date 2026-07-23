@@ -39,6 +39,7 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
     })
   }, [issue.consumerId])
 
+  const [installationDate, setInstallationDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [beforeImageUrl, setBeforeImageUrl] = useState("")
   const [afterImageUrl, setAfterImageUrl]   = useState("")
   const [beforePreview, setBeforePreview]   = useState<string | null>(null)
@@ -109,6 +110,18 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
     if (isReplacement && !beforeImageUrl) { alert("Before image is required for replacements."); return }
     if (isReplacement && !lastReading.trim()) { alert("Last meter reading is required."); return }
     if (!newReading.trim()) { alert("New meter initial reading is required."); return }
+    if (!installationDate) { alert("Installation date is required."); return }
+
+    let formattedInstDate = ""
+    if (installationDate) {
+      const parts = installationDate.split("-")
+      if (parts.length === 3) {
+        const now = new Date()
+        const hh = String(now.getHours()).padStart(2, "0")
+        const min = String(now.getMinutes()).padStart(2, "0")
+        formattedInstDate = `${parts[2]}/${parts[1]}/${parts[0]} ${hh}:${min}`
+      }
+    }
 
     setSubmitting(true)
     try {
@@ -116,12 +129,13 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          issueId:    issue.issueId,
-          afterImage:  afterImageUrl,
-          beforeImage: beforeImageUrl,
-          lastReading: lastReading.trim(),
-          newReading:  newReading.trim(),
-          remarks:     remarks.trim(),
+          issueId:          issue.issueId,
+          afterImage:       afterImageUrl,
+          beforeImage:      beforeImageUrl,
+          lastReading:      lastReading.trim(),
+          newReading:       newReading.trim(),
+          installationDate: formattedInstDate,
+          remarks:          remarks.trim(),
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
@@ -233,8 +247,18 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
 
       {/* Readings */}
       <Card>
-        <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm">Meter Readings</CardTitle></CardHeader>
+        <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm">Installation Date & Meter Readings</CardTitle></CardHeader>
         <CardContent className="px-4 pb-4 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="installation-date">Installation Date *</Label>
+            <Input
+              id="installation-date"
+              type="date"
+              value={installationDate}
+              onChange={e => setInstallationDate(e.target.value)}
+              required
+            />
+          </div>
           {isReplacement && (
             <div className="space-y-2">
               <Label>Last Reading (Old Meter) *</Label>

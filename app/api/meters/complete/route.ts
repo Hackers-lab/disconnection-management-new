@@ -13,13 +13,14 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     if (!body.afterImage) return NextResponse.json({ error: "After-installation image required" }, { status: 400 })
 
     await completeMeterInstallation({
-      issueId:     body.issueId,
-      afterImage:  body.afterImage,
-      beforeImage: body.beforeImage || "",
-      lastReading: body.lastReading || "",
-      newReading:  body.newReading  || "",
-      completedBy: `${session.role}:${session.username}`,
-      remarks:     body.remarks || "",
+      issueId:          body.issueId,
+      afterImage:       body.afterImage,
+      beforeImage:      body.beforeImage || "",
+      lastReading:      body.lastReading || "",
+      newReading:       body.newReading  || "",
+      completedBy:      `${session.role}:${session.username}`,
+      remarks:          body.remarks || "",
+      installationDate: body.installationDate || "",
     })
     return NextResponse.json({ success: true })
   } catch (e: any) {

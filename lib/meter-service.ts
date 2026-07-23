@@ -233,13 +233,14 @@ export async function issueMeter(req: {
 
 // ─── Agency: mark installation done (no completionRef yet) ───────────────────
 export async function completeMeterInstallation(req: {
-  issueId:     string
-  afterImage:  string
-  beforeImage?: string
-  lastReading?: string
-  newReading?:  string
-  completedBy:  string
-  remarks?:     string
+  issueId:          string
+  afterImage:       string
+  beforeImage?:      string
+  lastReading?:      string
+  newReading?:       string
+  completedBy:       string
+  remarks?:          string
+  installationDate?: string
 }): Promise<void> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
@@ -247,7 +248,7 @@ export async function completeMeterInstallation(req: {
   const issueIdx = issues.findIndex(i => i.issueId === req.issueId)
   if (issueIdx === -1) throw new Error("Issue not found")
   const row = issueIdx + 2
-  const now = nowDate()
+  const now = req.installationDate || nowDate()
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: id,
     requestBody: {
@@ -286,9 +287,12 @@ export async function finalizeMeterInstallation(req: {
   const updates: any[] = [
     { range: `${ISSUES_TAB}!J${row}`, values: [["installed"]] },
     { range: `${ISSUES_TAB}!O${row}`, values: [[req.completionRef]] },
-    { range: `${ISSUES_TAB}!P${row}`, values: [[now]] },
     { range: `${ISSUES_TAB}!Q${row}`, values: [[req.finalizedBy]] },
   ]
+  // Preserve original installation date if recorded; otherwise populate with now
+  if (!issue.completedAt) {
+    updates.push({ range: `${ISSUES_TAB}!P${row}`, values: [[now]] })
+  }
   if (req.installationNo) {
     updates.push({ range: `${ISSUES_TAB}!S${row}`, values: [[req.installationNo]] })
   }
@@ -343,9 +347,12 @@ export async function bulkFinalizeMeterInstallations(req: {
     issueUpdates.push(
       { range: `${ISSUES_TAB}!J${row}`, values: [["installed"]] },
       { range: `${ISSUES_TAB}!O${row}`, values: [[req.completionRef]] },
-      { range: `${ISSUES_TAB}!P${row}`, values: [[now]] },
       { range: `${ISSUES_TAB}!Q${row}`, values: [[req.finalizedBy]] },
     )
+    // Preserve original installation date if recorded; otherwise populate with now
+    if (!issue.completedAt) {
+      issueUpdates.push({ range: `${ISSUES_TAB}!P${row}`, values: [[now]] })
+    }
     if (req.installationNo) {
       issueUpdates.push({ range: `${ISSUES_TAB}!S${row}`, values: [[req.installationNo]] })
     }
