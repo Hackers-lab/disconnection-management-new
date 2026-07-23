@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import {
   fetchStock, fetchIssues, getStockSummary,
+  _fetchStockRaw, _fetchIssuesRaw,
   addMeterStock, METER_TYPES,
 } from "@/lib/meter-service"
 import { withTenant } from "@/lib/tenant-context"
@@ -14,13 +15,15 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const id = getSpreadsheetId()
+  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true" || request.nextUrl.searchParams.get("t") !== null
+
   const [summary, stock, issues] = await Promise.all([
     getStockSummary(id),
-    fetchStock(id),
-    fetchIssues(id),
+    bypass ? _fetchStockRaw(id) : fetchStock(id),
+    bypass ? _fetchIssuesRaw(id) : fetchIssues(id),
   ])
   return NextResponse.json({ summary, stock, issues }, {
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
   })
 })
 export const POST = withTenant(async function POST(request: NextRequest) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
-import { fetchIssues, issueMeter } from "@/lib/meter-service"
+import { fetchIssues, _fetchIssuesRaw, issueMeter } from "@/lib/meter-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
@@ -9,16 +9,17 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const id = getSpreadsheetId()
-  const all = await fetchIssues(id)
+  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true" || request.nextUrl.searchParams.get("t") !== null
+  const all = bypass ? await _fetchIssuesRaw(id) : await fetchIssues(id)
 
   if (session.role === "agency") {
     const upper = session.agencies.map((a: string) => a.toUpperCase())
     return NextResponse.json(all.filter(i => upper.includes(i.agency.toUpperCase())), {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })
   }
   return NextResponse.json(all, {
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
   })
 })
 export const POST = withTenant(async function POST(request: NextRequest) {

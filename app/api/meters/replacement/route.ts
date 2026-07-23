@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
-import { fetchReplacements, addReplacement } from "@/lib/meter-replacement-service"
+import { fetchReplacements, _fetchReplacementsRaw, addReplacement } from "@/lib/meter-replacement-service"
 import { checkApiPermission } from "@/lib/permissions"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
@@ -13,16 +13,17 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!authorized) return NextResponse.json({ error }, { status })
 
   const id = getSpreadsheetId()
-  const all = await fetchReplacements(id)
+  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true" || request.nextUrl.searchParams.get("t") !== null
+  const all = bypass ? await _fetchReplacementsRaw(id) : await fetchReplacements(id)
 
   if (session.role === "agency") {
     const upper = session.agencies.map((a: string) => a.toUpperCase())
     return NextResponse.json(all.filter(r => upper.includes((r.agency || "").toUpperCase())), {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })
   }
   return NextResponse.json(all, {
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
   })
 })
 export const POST = withTenant(async function POST(request: NextRequest) {
