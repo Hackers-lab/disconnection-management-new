@@ -85,6 +85,10 @@ export function MultiSelectDropdown({
       <PopoverContent
         className="w-[var(--radix-popover-trigger-width)] min-w-[220px] max-w-[300px] p-2 z-[100]"
         align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         {searchable && options.length > 5 && (
           <div className="relative mb-2">
@@ -118,8 +122,16 @@ export function MultiSelectDropdown({
         </div>
 
         <div
+          data-scroll-lock-scrollable="true"
           className="max-h-52 overflow-y-auto space-y-0.5 pr-1 touch-pan-y"
-          style={{ WebkitOverflowScrolling: "touch" }}
+          style={{
+            WebkitOverflowScrolling: "touch",
+            touchAction: "pan-y",
+            overscrollBehavior: "contain",
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
         >
           {filteredOptions.length === 0 ? (
             <p className="text-xs text-muted-foreground py-3 text-center">No options found.</p>
