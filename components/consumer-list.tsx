@@ -631,37 +631,129 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     })
   }, [consumers, searchTerm, filters, minOsd, excludeFilters, dateFilter, userRole, userAgencies])
 
-  // MRUs scoped to what this role can actually see (and dynamically filtered by selected agencies)
-  const mrus = useMemo(() => {
-    let base = consumers
-    if (userRole !== "admin" && userRole !== "viewer") {
-      const upper = userAgencies.map(a => a.toUpperCase())
-      if (userRole === "executive") {
-        base = consumers.filter(c => {
-          const ca = (c.agency || "").toUpperCase()
-          return upper.includes(ca) || c.disconStatus?.toLowerCase() === "bill dispute"
-        })
-      } else {
-        base = consumers.filter(c => upper.includes((c.agency || "").toUpperCase()) && c.disconStatus !== "&")
-      }
+  // ── Cascading Dependent Filters ───────────────────────────────────────────
+  // Base scoped dataset according to user role & permission
+  const scopedConsumers = useMemo(() => {
+    if (userRole === "admin" || userRole === "viewer") return consumers
+    const upper = userAgencies.map(a => a.toUpperCase())
+    if (userRole === "executive") {
+      return consumers.filter(c => {
+        const ca = (c.agency || "").toUpperCase()
+        return upper.includes(ca) || c.disconStatus?.toLowerCase() === "bill dispute"
+      })
     }
-    // Cascading agency -> zone filter: if specific agencies are selected, show only MRUs of those agencies
-    if (filters.agency.length > 0) {
-      const selectedAgenciesUpper = filters.agency.map(a => a.toUpperCase())
-      base = base.filter(c => selectedAgenciesUpper.includes((c.agency || "").toUpperCase()))
-    }
-    return Array.from(new Set(base.map(c => (c.mru || "").trim()).filter(Boolean))).sort()
-  }, [consumers, userRole, userAgencies, filters.agency])
+    return consumers.filter(c => upper.includes((c.agency || "").toUpperCase()) && c.disconStatus !== "&")
+  }, [consumers, userRole, userAgencies])
 
-  // Auto-prune selected MRUs if they are no longer in the available MRU list
+  // Available agencies: dynamically scoped by selected MRU, status, baseClass
+  const availableAgencies = useMemo(() => {
+    let pool = scopedConsumers
+    if (filters.mru.length > 0) {
+      const mruUpper = filters.mru.map(m => m.toUpperCase())
+      pool = pool.filter(c => mruUpper.includes((c.mru || "").toUpperCase()))
+    }
+    if (filters.status.length > 0) {
+      const statusLower = filters.status.map(s => s.toLowerCase())
+      pool = pool.filter(c => statusLower.includes((c.disconStatus || "").toLowerCase()))
+    }
+    if (filters.baseClass.length > 0) {
+      const bcUpper = filters.baseClass.map(b => b.toUpperCase())
+      pool = pool.filter(c => bcUpper.includes((c.baseClass || "").toUpperCase()))
+    }
+    const set = new Set(pool.map(c => c.agency).filter((a): a is string => Boolean(a)))
+    const fullList = agencies.length > 0 ? agencies : Array.from(set).sort()
+    if (filters.mru.length === 0 && filters.status.length === 0 && filters.baseClass.length === 0) {
+      return fullList
+    }
+    return fullList.filter(a => set.has(a))
+  }, [scopedConsumers, agencies, filters.mru, filters.status, filters.baseClass])
+
+  // Available MRUs (Zones): dynamically scoped by selected agency, status, baseClass
+  const availableMrus = useMemo(() => {
+    let pool = scopedConsumers
+    if (filters.agency.length > 0) {
+      const agUpper = filters.agency.map(a => a.toUpperCase())
+      pool = pool.filter(c => agUpper.includes((c.agency || "").toUpperCase()))
+    }
+    if (filters.status.length > 0) {
+      const statusLower = filters.status.map(s => s.toLowerCase())
+      pool = pool.filter(c => statusLower.includes((c.disconStatus || "").toLowerCase()))
+    }
+    if (filters.baseClass.length > 0) {
+      const bcUpper = filters.baseClass.map(b => b.toUpperCase())
+      pool = pool.filter(c => bcUpper.includes((c.baseClass || "").toUpperCase()))
+    }
+    return Array.from(new Set(pool.map(c => (c.mru || "").trim()).filter(Boolean))).sort()
+  }, [scopedConsumers, filters.agency, filters.status, filters.baseClass])
+
+  // Available Statuses: dynamically scoped by selected agency, MRU, baseClass
+  const availableStatuses = useMemo(() => {
+    let pool = scopedConsumers
+    if (filters.agency.length > 0) {
+      const agUpper = filters.agency.map(a => a.toUpperCase())
+      pool = pool.filter(c => agUpper.includes((c.agency || "").toUpperCase()))
+    }
+    if (filters.mru.length > 0) {
+      const mruUpper = filters.mru.map(m => m.toUpperCase())
+      pool = pool.filter(c => mruUpper.includes((c.mru || "").toUpperCase()))
+    }
+    if (filters.baseClass.length > 0) {
+      const bcUpper = filters.baseClass.map(b => b.toUpperCase())
+      pool = pool.filter(c => bcUpper.includes((c.baseClass || "").toUpperCase()))
+    }
+    const ALL_POSSIBLE_STATUSES = [
+      "connected", "disconnected", "office team", "bill dispute", "pending", "paid", "not found"
+    ]
+    const presentSet = new Set(pool.map(c => (c.disconStatus || "").toLowerCase().trim()).filter(Boolean))
+    return ALL_POSSIBLE_STATUSES.filter(s => presentSet.has(s))
+  }, [scopedConsumers, filters.agency, filters.mru, filters.baseClass])
+
+  // Available Base Classes: dynamically scoped by selected agency, MRU, status
+  const availableBaseClasses = useMemo(() => {
+    let pool = scopedConsumers
+    if (filters.agency.length > 0) {
+      const agUpper = filters.agency.map(a => a.toUpperCase())
+      pool = pool.filter(c => agUpper.includes((c.agency || "").toUpperCase()))
+    }
+    if (filters.mru.length > 0) {
+      const mruUpper = filters.mru.map(m => m.toUpperCase())
+      pool = pool.filter(c => mruUpper.includes((c.mru || "").toUpperCase()))
+    }
+    if (filters.status.length > 0) {
+      const statusLower = filters.status.map(s => s.toLowerCase())
+      pool = pool.filter(c => statusLower.includes((c.disconStatus || "").toLowerCase()))
+    }
+    return Array.from(new Set(pool.map(c => (c.baseClass || "").toUpperCase().trim()).filter(Boolean))).sort()
+  }, [scopedConsumers, filters.agency, filters.mru, filters.status])
+
+  // Auto-prune effect hooks to keep selected filters valid when parent dependencies change
+  useEffect(() => {
+    if (filters.agency.length > 0) {
+      const valid = filters.agency.filter(a => availableAgencies.includes(a))
+      if (valid.length !== filters.agency.length) setFilters(prev => ({ ...prev, agency: valid }))
+    }
+  }, [availableAgencies])
+
   useEffect(() => {
     if (filters.mru.length > 0) {
-      const validMrus = filters.mru.filter(m => mrus.includes(m))
-      if (validMrus.length !== filters.mru.length) {
-        setFilters(prev => ({ ...prev, mru: validMrus }))
-      }
+      const valid = filters.mru.filter(m => availableMrus.includes(m))
+      if (valid.length !== filters.mru.length) setFilters(prev => ({ ...prev, mru: valid }))
     }
-  }, [mrus])
+  }, [availableMrus])
+
+  useEffect(() => {
+    if (filters.status.length > 0) {
+      const valid = filters.status.filter(s => availableStatuses.includes(s))
+      if (valid.length !== filters.status.length) setFilters(prev => ({ ...prev, status: valid }))
+    }
+  }, [availableStatuses])
+
+  useEffect(() => {
+    if (filters.baseClass.length > 0) {
+      const valid = filters.baseClass.filter(b => availableBaseClasses.includes(b))
+      if (valid.length !== filters.baseClass.length) setFilters(prev => ({ ...prev, baseClass: valid }))
+    }
+  }, [availableBaseClasses])
 
   const sortedConsumers = useMemo(() => [...filteredConsumers].sort((a, b) => {
     // 0. Urgent rows always appear first (admin-set priority flag)
@@ -1165,7 +1257,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     <div className="col-span-2">
                       <MultiSelectDropdown
                         placeholder="All Agencies"
-                        options={agencies}
+                        options={availableAgencies}
                         selected={filters.agency}
                         onChange={(val) => setFilters((prev) => ({ ...prev, agency: val }))}
                       />
@@ -1178,15 +1270,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     <div className="col-span-2">
                       <MultiSelectDropdown
                         placeholder="All Status"
-                        options={[
-                          "connected",
-                          "disconnected",
-                          "office team",
-                          "bill dispute",
-                          "pending",
-                          "paid",
-                          "not found",
-                        ]}
+                        options={availableStatuses}
                         selected={filters.status}
                         onChange={(val) => setFilters((prev) => ({ ...prev, status: val }))}
                         searchable={false}
@@ -1199,7 +1283,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     <div className="col-span-2">
                       <MultiSelectDropdown
                         placeholder="All MRUs"
-                        options={mrus}
+                        options={availableMrus}
                         selected={filters.mru}
                         onChange={(val) => setFilters((prev) => ({ ...prev, mru: val }))}
                         searchable={true}
@@ -1212,7 +1296,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     <div className="col-span-2">
                       <MultiSelectDropdown
                         placeholder="All Classes"
-                        options={baseClasses}
+                        options={availableBaseClasses}
                         selected={filters.baseClass}
                         onChange={(val) => setFilters((prev) => ({ ...prev, baseClass: val }))}
                         searchable={false}
