@@ -15,8 +15,9 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showDevModal, setShowDevModal] = useState(false)
   const [deviceId, setDeviceId] = useState("")
-  const [isStandalone, setIsStandalone] = useState(true) // default true to avoid flash
+  const [isStandalone, setIsStandalone] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [isInstallClicked, setIsInstallClicked] = useState(false)
   const router = useRouter()
 
   // Detect PWA status & listen for install prompt
@@ -38,9 +39,16 @@ export function LoginForm() {
     }
     checkPWA()
 
+    // Read early prompt caught by layout head script if available
+    if ((window as any).deferredPwaPrompt) {
+      setDeferredPrompt((window as any).deferredPwaPrompt)
+      setIsStandalone(false)
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e)
+      ;(window as any).deferredPwaPrompt = e
       setIsStandalone(false)
     }
 
@@ -49,13 +57,25 @@ export function LoginForm() {
   }, [])
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt()
-      const { outcome } = await deferredPrompt.userChoice
-      if (outcome === "accepted") {
-        setIsStandalone(true)
+    setIsInstallClicked(true)
+    setTimeout(() => setIsInstallClicked(false), 600)
+
+    const promptEvent = deferredPrompt || (typeof window !== "undefined" ? (window as any).deferredPwaPrompt : null)
+
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt()
+        const choiceResult = await promptEvent.userChoice
+        if (choiceResult?.outcome === "accepted") {
+          setIsStandalone(true)
+          setDeferredPrompt(null)
+          if (typeof window !== "undefined") {
+            ;(window as any).deferredPwaPrompt = null
+          }
+        }
+      } catch (err) {
+        console.error("PWA install error:", err)
       }
-      setDeferredPrompt(null)
     }
   }
 
@@ -203,15 +223,23 @@ export function LoginForm() {
           {!isStandalone && (
             <>
               <span className="text-slate-300 font-bold">•</span>
-              {/* Install Button (Down Arrow Only ↓ - Icon Only) */}
+              {/* Install Button (Down Arrow Only ↓ with Glow & Scale-up click animation) */}
               <button
                 type="button"
                 onClick={handleInstallClick}
-                className="hover:text-blue-600 transition-colors p-1 cursor-pointer"
+                className={`relative inline-flex items-center justify-center p-1.5 rounded-full text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-300 transform active:scale-140 cursor-pointer ${
+                  isInstallClicked
+                    ? "scale-130 text-blue-600 drop-shadow-[0_0_12px_rgba(37,99,235,0.95)]"
+                    : "hover:scale-115"
+                }`}
                 title="Install App"
                 aria-label="Install App"
               >
-                <ArrowDown className="w-4 h-4 stroke-[2.2]" />
+                <ArrowDown
+                  className={`w-4 h-4 stroke-[2.4] transition-all duration-300 ${
+                    isInstallClicked ? "animate-bounce text-blue-600 stroke-[3]" : ""
+                  }`}
+                />
               </button>
             </>
           )}

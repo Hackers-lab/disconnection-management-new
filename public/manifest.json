@@ -1,8 +1,9 @@
 {
   "name": "Disconnection Management System",
   "short_name": "Disconnection Management",
-  "description": "Disconnection Management for Agencies",
-  "start_url": "/dashboard",
+  "description": "Disconnection Management for Electrical Utilities",
+  "id": "/",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
