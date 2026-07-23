@@ -14,6 +14,18 @@ export default function LoginPage() {
           {/* <p className="mt-2 text-sm text-gray-600">Sign in to manage disconnection consumers</p> */}
         </div>
         <LoginForm />
+        
+        <div className="text-center pt-4 border-t border-slate-200/60">
+          <p className="text-xs text-slate-500 space-x-3">
+            <a href="/privacy-policy" className="hover:text-blue-600 transition-colors underline">
+              Privacy Policy
+            </a>
+            <span>•</span>
+            <a href="/terms-of-service" className="hover:text-blue-600 transition-colors underline">
+              Terms of Service
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   )

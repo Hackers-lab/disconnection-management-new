@@ -70,7 +70,10 @@ export async function GET(request: NextRequest) {
         client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
         private_key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, "\n"),
       },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+      scopes: [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+      ],
     })
 
     const masterSheetId = process.env.MASTER_CONFIG_SHEET
@@ -102,6 +105,40 @@ export async function GET(request: NextRequest) {
     let sheetId = existingSheetId
     if (!sheetId) {
       sheetId = await duplicateSpreadsheetTemplate(cccName, driveClient, folderId)
+    }
+
+    // 3b. Auto-Share: Share pre-existing spreadsheet with the linking Admin's email
+    try {
+      const aboutUser = await driveClient.about.get({ fields: "user" })
+      const userEmail = aboutUser.data.user?.emailAddress
+      if (userEmail && sheetId) {
+        console.log(`🔗 Auto-sharing spreadsheet ${sheetId} with linking admin (${userEmail})...`)
+        const serviceAccountDrive = googleDrive({ version: "v3", auth: defaultAuth })
+        await serviceAccountDrive.permissions.create({
+          fileId: sheetId,
+          requestBody: {
+            role: "writer",
+            type: "user",
+            emailAddress: userEmail,
+          },
+          sendNotificationEmail: false,
+        })
+      }
+      
+      // Also share Admin's Drive folder with Service Account
+      if (folderId && process.env.GOOGLE_SHEETS_CLIENT_EMAIL) {
+        await driveClient.permissions.create({
+          fileId: folderId,
+          requestBody: {
+            role: "writer",
+            type: "user",
+            emailAddress: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
+          },
+          sendNotificationEmail: false,
+        })
+      }
+    } catch (shareError: any) {
+      console.warn("Auto-sharing permissions warning:", shareError?.message || shareError)
     }
 
     // 4. Encrypt Refresh Token
