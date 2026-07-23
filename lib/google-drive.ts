@@ -56,7 +56,15 @@ class DynamicAuth extends GoogleAuth {
   override async getRequestHeaders(url?: string): Promise<any> {
     const active = this.getActiveAuth()
     if (typeof active.getRequestHeaders === "function") {
-      return active.getRequestHeaders(url)
+      try {
+        return await active.getRequestHeaders(url)
+      } catch (err: any) {
+        if (active !== this.defaultAuth && typeof this.defaultAuth.getRequestHeaders === "function") {
+          console.warn("[DynamicAuth] Active OAuth getRequestHeaders failed, falling back to defaultAuth:", err?.message || err)
+          return await this.defaultAuth.getRequestHeaders(url)
+        }
+        throw err
+      }
     }
     return {}
   }
@@ -64,7 +72,21 @@ class DynamicAuth extends GoogleAuth {
   override async request(opts: any): Promise<any> {
     const active = this.getActiveAuth()
     if (typeof active.request === "function") {
-      return active.request(opts)
+      try {
+        return await active.request(opts)
+      } catch (err: any) {
+        const statusCode = err?.status || err?.code || err?.response?.status
+        const isPermissionOrNotFound = statusCode === 403 || statusCode === 404 || statusCode === 401
+
+        if (active !== this.defaultAuth && isPermissionOrNotFound && typeof this.defaultAuth.request === "function") {
+          console.warn(
+            `[DynamicAuth] Active OAuth client request returned HTTP ${statusCode}. Falling back to Service Account (defaultAuth)...`,
+            opts?.url
+          )
+          return await this.defaultAuth.request(opts)
+        }
+        throw err
+      }
     }
     throw new Error("Active auth client does not support request method")
   }
