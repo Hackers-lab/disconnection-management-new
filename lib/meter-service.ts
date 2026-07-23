@@ -39,7 +39,7 @@ const ISSUES_HEADERS = [
 // Read paths use the cached wrappers; write paths use the raw fetch so row
 // positions / next IDs are always computed against live data.
 const METER_TAG = "meter"
-const METER_REVALIDATE_S = 60 // 60 seconds TTL for background caching; manual refresh bypasses cache
+const METER_REVALIDATE_S = 30 * 24 * 60 * 60 // 30 days — write-invalidated infinite cache
 let tabsReady = false
 
 export function invalidateMeterCache() { revalidateTag(METER_TAG) }

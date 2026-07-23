@@ -33,7 +33,7 @@ const REPLACEMENT_HEADERS = [
 ]
 
 const REPLACEMENT_TAG = "meter-replacement"
-const REVAL_S = 60 // 60 seconds TTL for background caching; manual refresh bypasses cache
+const REVAL_S = 30 * 24 * 60 * 60 // 30 days — write-invalidated infinite cache
 let tabReady = false
 
 export function invalidateReplacementCache() {
