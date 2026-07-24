@@ -326,7 +326,37 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
   // ── Filter Popover content ─────────────────────────────────────────────────
   const FilterPanel = () => (
-    <div className="space-y-4 p-1">
+    <div className="space-y-4 p-1 max-h-[75vh] overflow-y-auto pr-1">
+      {/* Status / Stage Tab Dropdown */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Stage / Status</p>
+        <Select value={tab} onValueChange={(val) => setTab(val as Tab)}>
+          <SelectTrigger className="w-full h-9 rounded-xl text-xs font-semibold bg-gray-50 border-gray-200 hover:bg-gray-100 transition-colors">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending"   className="text-xs font-medium">⏳ Pending ({pendingCount})</SelectItem>
+            <SelectItem value="inspected" className="text-xs font-medium">🕐 Inspection Completed ({inspectedCount})</SelectItem>
+            <SelectItem value="completed" className="text-xs font-medium">✅ Completed ({completedCount})</SelectItem>
+            <SelectItem value="projects"  className="text-xs font-medium">📁 Projects ({projectCount})</SelectItem>
+            {isAdmin && <SelectItem value="reports" className="text-xs font-medium">📊 Reports</SelectItem>}
+            <SelectItem value="all"       className="text-xs font-medium">🗂️ All ({scopedApps.length})</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Agency Dropdown */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Agency</p>
+        <MultiSelectDropdown
+          placeholder="Filter by Agency"
+          options={agencyOptions}
+          selected={filters.agency}
+          onChange={selectedAgencies => setFilters(f => ({ ...f, agency: selectedAgencies }))}
+          className="w-full text-xs"
+        />
+      </div>
+
       {/* Phase */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Phase</p>
@@ -339,6 +369,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
           ))}
         </div>
       </div>
+
       {/* Class */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Applied Class</p>
@@ -351,6 +382,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
           ))}
         </div>
       </div>
+
       {/* Pole case */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Case Type</p>
@@ -363,17 +395,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
           ))}
         </div>
       </div>
-      {/* Agency */}
-      <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Agency</p>
-        <MultiSelectDropdown
-          placeholder="Filter by Agency"
-          options={agencyOptions}
-          selected={filters.agency}
-          onChange={selectedAgencies => setFilters(f => ({ ...f, agency: selectedAgencies }))}
-          className="w-full text-xs"
-        />
-      </div>
+
       {/* Dispute flag */}
       <div>
         <button onClick={() => setFilters(f => ({ ...f, dispute: !f.dispute }))}
@@ -381,11 +403,12 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
           ⚠ Dispute Flagged {filters.dispute && "(Active)"}
         </button>
       </div>
+
       {/* Clear */}
-      {activeFilterCount > 0 && (
-        <button onClick={() => setFilters(DEFAULT_FILTERS)}
-          className="text-xs text-red-500 hover:text-red-700 w-full text-center py-1">
-          ✕ Clear all filters
+      {(activeFilterCount > 0 || tab !== "pending") && (
+        <button onClick={() => { setFilters(DEFAULT_FILTERS); setTab("pending") }}
+          className="text-xs font-semibold text-red-500 hover:text-red-700 w-full text-center py-1">
+          ✕ Reset all filters
         </button>
       )}
     </div>
@@ -396,64 +419,40 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     <div className="space-y-4">
 
       {/* Controls */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border space-y-3">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border space-y-3">
         <div className="flex items-center gap-2">
+          {/* Search bar taking full flexible width */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search receive no, name, address, mobile, agency, consumer ID..."
-              className="pl-10 pr-8 rounded-xl h-9 text-sm" />
+              className="pl-10 pr-8 rounded-xl h-9 text-xs sm:text-sm" />
             {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
           </div>
 
-          {/* Status tab dropdown */}
-          <Select value={tab} onValueChange={(val) => setTab(val as Tab)}>
-            <SelectTrigger className="w-[150px] sm:w-[170px] h-9 rounded-xl shrink-0 text-xs font-semibold bg-gray-50 border-gray-200 hover:bg-gray-100 transition-colors">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending"   className="text-xs font-medium">⏳ Pending ({pendingCount})</SelectItem>
-              <SelectItem value="inspected" className="text-xs font-medium">🕐 Inspection Completed ({inspectedCount})</SelectItem>
-              <SelectItem value="completed" className="text-xs font-medium">✅ Completed ({completedCount})</SelectItem>
-              <SelectItem value="projects"  className="text-xs font-medium">📁 Projects ({projectCount})</SelectItem>
-              {isAdmin && <SelectItem value="reports" className="text-xs font-medium">📊 Reports</SelectItem>}
-              <SelectItem value="all"       className="text-xs font-medium">🗂️ All ({scopedApps.length})</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Agency Filter Dropdown */}
-          <div className="w-[150px] sm:w-[170px] shrink-0">
-            <MultiSelectDropdown
-              placeholder="All Agencies"
-              options={agencyOptions}
-              selected={filters.agency}
-              onChange={selectedAgencies => setFilters(f => ({ ...f, agency: selectedAgencies }))}
-              className="h-9 text-xs rounded-xl bg-gray-50 border-gray-200"
-            />
-          </div>
-
-          {/* Filter button */}
+          {/* Unified Filter Button (All filters inside popover) */}
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
               <button
-                className={`relative h-9 w-9 flex items-center justify-center rounded-xl border transition shrink-0
-                  ${activeFilterCount > 0
-                    ? "bg-slate-900 border-slate-900 text-white"
-                    : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"}`}
+                className={`relative h-9 px-3 flex items-center gap-1.5 rounded-xl border transition shrink-0 font-medium text-xs
+                  ${(activeFilterCount > 0 || tab !== "pending")
+                    ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                    : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
                 title="Filters"
               >
                 <SlidersHorizontal className="h-4 w-4" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                    {activeFilterCount}
+                <span className="hidden sm:inline font-semibold">Filter</span>
+                {(activeFilterCount > 0 || tab !== "pending") && (
+                  <span className="h-4 min-w-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount + (tab !== "pending" ? 1 : 0)}
                   </span>
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-3">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-bold text-gray-800">Filter Applications</p>
-                <button onClick={() => setFilterOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <PopoverContent align="end" className="w-[280px] sm:w-[320px] p-3 sm:p-4 rounded-2xl shadow-2xl border border-gray-100">
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                <p className="text-xs font-bold text-gray-900 uppercase tracking-wide">Filter NSC Applications</p>
+                <button onClick={() => setFilterOpen(false)} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -464,8 +463,14 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
         {/* Status bar */}
         <div className="flex justify-between items-center text-xs text-gray-500">
-          <div className="flex items-center gap-2">
-            <span>{filtered.length} records</span>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="font-medium text-gray-600">{filtered.length} records</span>
+            {tab !== "pending" && (
+              <span className="bg-indigo-100 text-indigo-800 text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                Stage: {tab === "inspected" ? "Inspected" : tab === "completed" ? "Completed" : tab === "projects" ? "Projects" : tab === "reports" ? "Reports" : "All"}
+                <X className="h-3 w-3 cursor-pointer hover:text-red-600 ml-0.5" onClick={() => setTab("pending")} />
+              </span>
+            )}
             {/* Pending breakdown */}
             {tab === "pending" && (
               <span className="flex items-center gap-1">
