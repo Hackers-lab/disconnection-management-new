@@ -19,7 +19,8 @@ import {
   RefreshCw,
   Brush,
   Phone,
-  Package
+  Package,
+  FileCheck2
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
@@ -165,6 +166,17 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       bgColor: "bg-amber-50",
       borderColor: "hover:border-amber-400 hover:shadow-amber-500/10",
       allowed: ["admin", "executive", "agency"],
+      status: "live"
+    },
+    {
+      id: "osd",
+      title: "Live OSD Check",
+      description: "Live consumer details & OSD check from WBSEDCL",
+      icon: FileCheck2,
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+      borderColor: "hover:border-emerald-400 hover:shadow-emerald-500/10",
+      allowed: ["admin", "executive", "agency", "viewer", "technical"],
       status: "live"
     },
     {
@@ -476,7 +488,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
             {modules.map((module) => {
               const permKey = module.id.replace(/-/g, "_")
-              const hasAccess = module.id === "home" || (permissions && (
+              const hasAccess = userRole === "admin" || userRole === "superuser" || module.id === "home" || module.id === "osd" || (permissions && (
                 permissions[module.id]?.includes("read") || 
                 permissions[permKey]?.includes("read") ||
                 (module.id === "material" && permissions[module.id]?.length > 0) ||

@@ -52,3 +52,6 @@ yarn-error.log*
 !/data/.gitkeep
 /data/users.json
 /ppt
+/feature/
+cookie.txt
+

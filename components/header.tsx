@@ -30,6 +30,7 @@ import {
   BarChart3,
   Upload,
   Loader2,
+  FileCheck2,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
@@ -52,6 +53,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AppSidebar, ViewType } from "@/components/app-sidebar"
 import { HistoryReportsDialog } from "@/components/history-reports-dialog"
+import { OsdDetailsDialog } from "@/components/osd-details-dialog"
 import { useDashboard } from "@/components/dashboard-context"
 import { getAgencyDescription } from "@/app/actions/agency-details"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
@@ -96,6 +98,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [changePwdLoading, setChangePwdLoading] = useState(false)
   const [showHistoryReportDialog, setShowHistoryReportDialog] = useState(false)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
+  const [showOsdDialog, setShowOsdDialog] = useState(false)
   const [profileData, setProfileData] = useState<any>(null)
 
   useEffect(() => {
@@ -107,6 +110,12 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       })
       .catch(e => console.error("Failed to load profile", e))
   }, [])
+
+  useEffect(() => {
+    if (activeView === "osd") {
+      setShowOsdDialog(true)
+    }
+  }, [activeView])
 
 
 

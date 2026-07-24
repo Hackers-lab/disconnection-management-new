@@ -22,6 +22,7 @@ export interface RolePermissions {
   meter_replacement: string[]
   dtr_painting: string[]
   material: string[]
+  osd?: string[]
 }
 
 const MODULES = [
@@ -36,6 +37,7 @@ const MODULES = [
   "meter_replacement",
   "dtr_painting",
   "material",
+  "osd",
 ] as const
 
 const DEFAULT_ROLES: RolePermissions[] = [
@@ -52,6 +54,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: ["read", "create", "update", "delete", "issue", "install", "return", "finalize"],
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
+    osd: ["read", "download"],
   },
   {
     role: "viewer",
@@ -66,6 +69,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: ["read"],
     dtr_painting: ["read"],
     material: ["read", "stock"],
+    osd: ["read", "download"],
   },
   {
     role: "agency",
@@ -80,6 +84,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: ["read", "install"],
     dtr_painting: ["read", "update"],
     material: ["read", "update", "receive", "issue", "stock"],
+    osd: ["read", "download"],
   },
   {
     role: "technical",
@@ -94,6 +99,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: [],
     dtr_painting: [],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
+    osd: ["read", "download"],
   },
   {
     role: "painter",
@@ -108,6 +114,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: [],
     dtr_painting: ["read", "update"],
     material: [],
+    osd: ["read", "download"],
   },
   {
     role: "executive",
@@ -122,6 +129,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: ["read", "create", "update", "delete", "issue", "install", "return", "finalize"],
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
+    osd: ["read", "download"],
   },
   {
     role: "division_viewer",
@@ -136,6 +144,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     meter_replacement: [],
     dtr_painting: [],
     material: [],
+    osd: ["read", "download"],
   },
 ]
 

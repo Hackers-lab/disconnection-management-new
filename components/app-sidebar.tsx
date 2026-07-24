@@ -12,7 +12,8 @@ import {
   Users,           // For Consumer Master
   RadioTower,      // For DTR Verification
   Brush,            // For DTR Painting
-  Package
+  Package,
+  FileCheck2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -22,7 +23,7 @@ import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -124,6 +125,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       label: "Material Management",
       icon: Package,
     },
+    {
+      id: "osd",
+      label: "Live OSD Check",
+      icon: FileCheck2,
+    },
     // Only show Admin Panel button here if you want it in the menu
     {
       id: "admin",
@@ -141,7 +147,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     <div className="flex flex-col space-y-2 py-4">
       {menuItems.map((item) => {
         const permKey = item.id.replace(/-/g, "_")
-        const hasAccess = item.id === "home" || (permissions && (
+        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || item.id === "osd" || (permissions && (
           permissions[item.id]?.includes("read") || 
           permissions[permKey]?.includes("read") ||
           (item.id === "material" && permissions[item.id]?.length > 0) ||

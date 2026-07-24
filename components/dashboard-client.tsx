@@ -27,6 +27,7 @@ const DTRPaintingList = dynamic(() => import("@/components/dtr-painting-list").t
 const MeterReplacementList = dynamic(() => import("@/components/meter-replacement-list").then(m => ({ default: m.MeterReplacementList })), { ssr: false })
 const MaterialList = dynamic(() => import("@/components/material-list").then(m => ({ default: m.MaterialList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
+const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
 
@@ -1307,6 +1308,10 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             username={agencies[0] || role}
             permissions={permissions}
           />
+        )}
+
+        {activeView === "osd" && (
+          <OsdDetailsView onBack={() => setActiveView("home")} />
         )}
 
         {activeView === "analysis" && role === "admin" && (

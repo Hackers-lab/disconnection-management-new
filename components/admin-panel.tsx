@@ -2913,6 +2913,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     { id: "nsc", name: "NSC Management" },
                     { id: "consumer_master", name: "Consumer Master" },
                     { id: "material", name: "Material Management" },
+                    { id: "osd", name: "Live OSD Check" },
                     { id: "admin", name: "Admin Panel" },
                   ]
 
