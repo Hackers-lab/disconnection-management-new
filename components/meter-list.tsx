@@ -66,6 +66,7 @@ interface Props {
   userAgencies: string[]
   username: string
   agencies: string[]
+  permissions?: Record<string, string[]>
 }
 
 interface MeterReplacement {

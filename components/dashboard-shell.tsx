@@ -13,6 +13,7 @@ interface DashboardShellProps {
   setActiveView: (view: ViewType | "home") => void
   children: React.ReactNode
   onDownload?: () => void
+  onDownloadExcel?: () => void
   onDownloadDefaulters?: () => void
   permissions?: Record<string, string[]>
 }
@@ -27,6 +28,7 @@ export function DashboardShell({
   setActiveView,
   children,
   onDownload,
+  onDownloadExcel,
   onDownloadDefaulters,
   permissions
 }: DashboardShellProps) {
@@ -38,6 +40,7 @@ export function DashboardShell({
         userAgencies={agencies}
         onAdminClick={(role === "admin" || permissions?.admin?.includes("read")) ? openAdmin : undefined} 
         onDownload={onDownload} 
+        onDownloadExcel={onDownloadExcel}
         onDownloadDefaulters={onDownloadDefaulters}
         activeView={activeView}
         setActiveView={setActiveView}

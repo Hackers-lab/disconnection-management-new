@@ -63,13 +63,14 @@ interface HeaderProps {
   userAgencies?: string[]
   onAdminClick?: () => void
   onDownload?: () => void
+  onDownloadExcel?: () => void
   onDownloadDefaulters?: () => void
   activeView: ViewType | "home"
   setActiveView: (view: ViewType | "home") => void
   permissions?: Record<string, string[]>
 }
 
-export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, onDownloadDefaulters, activeView: propsActiveView, setActiveView: propsSetActiveView, permissions }: HeaderProps) {
+export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, onDownloadExcel, onDownloadDefaulters, activeView: propsActiveView, setActiveView: propsSetActiveView, permissions }: HeaderProps) {
   const dashboard = useDashboard()
   const setActiveView = dashboard?.setActiveView || propsSetActiveView || (() => {})
   const activeView = dashboard?.activeView || propsActiveView
@@ -1019,14 +1020,31 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                         <>
                           <button
                             type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm"
+                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm flex items-center justify-between"
                             onClick={() => {
                               if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                               setShowDownloadMenu(false);
                               onDownload && onDownload();
                             }}
                           >
-                            Download DC List
+                            <span className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-red-600" />
+                              <span>Download DC List (PDF)</span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm flex items-center justify-between"
+                            onClick={() => {
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              setShowDownloadMenu(false);
+                              onDownloadExcel && onDownloadExcel();
+                            }}
+                          >
+                            <span className="flex items-center gap-2">
+                              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                              <span>Download DC List (Excel)</span>
+                            </span>
                           </button>
                           <button
                             type="button"
@@ -1196,8 +1214,13 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   {isDisconnectionView && (
                     <>
                       <DropdownMenuItem onClick={() => onDownload && onDownload()}>
-                        <Download className="mr-2 h-4 w-4" />
-                        <span>Download DC List</span>
+                        <FileText className="mr-2 h-4 w-4 text-red-600" />
+                        <span>Download DC List (PDF)</span>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem onClick={() => onDownloadExcel && onDownloadExcel()}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                        <span>Download DC List (Excel)</span>
                       </DropdownMenuItem>
 
                       <DropdownMenuItem onClick={() => setShowReportDialog(true)}>

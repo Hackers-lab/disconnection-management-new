@@ -230,8 +230,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false)
   const [downloadCount, setDownloadCount] = useState("50")
   const [downloadFormat, setDownloadFormat] = useState<"pdf" | "excel">("pdf")
-  // "defaulters" = top-N OSD; "remarks" = group-by-remarks with date filter
-  const [reportType, setReportType] = useState<"defaulters" | "status">("defaulters")
+  const [reportType, setReportType] = useState<"filtered" | "defaulters" | "status">("filtered")
   const [remarksDateFrom, setRemarksDateFrom] = useState("")
   const [remarksDateTo, setRemarksDateTo] = useState("")
 
@@ -321,7 +320,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   };
 
   // --- 1. OPEN DOWNLOAD DIALOG ---
-  const openDownloadDialog = () => {
+  const openDownloadDialog = (defaultType: "filtered" | "defaulters" | "status" = "filtered") => {
     if (activeView !== "disconnection" || !consumerListRef.current) {
       alert("Please open the Disconnection List to download data.");
       return;
@@ -331,6 +330,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
       alert("No consumer data available.");
       return;
     }
+    setReportType(defaultType);
     setIsDownloadDialogOpen(true);
   };
 
@@ -407,12 +407,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
       doc.setTextColor(40, 53, 147);
       doc.text(`Top ${topN} Defaulters`, doc.internal.pageSize.width / 2, 15, { align: "center" });
 
-      const tableColumn = ["#", "Con ID", "Name", "Address", "Phone", "Device", "Class", "Due Date", "OSD", "Agency", "Status", "Reading", "Notes"];
+      const tableColumn = ["#", "Con ID", "Name", "MRU/Zone", "Address", "Phone", "Device", "Class", "Due Date", "OSD", "Agency", "Status", "Reading", "Notes"];
       const tableRows = topConsumers.map((c, index) => [
         index + 1,
         c.consumerId || "-",
         c.name || "-",
-        c.address ? c.address.substring(0, 35) + (c.address.length > 35 ? "..." : "") : "-",
+        c.mru || "-",
+        c.address ? (c.address.length > 75 ? c.address.substring(0, 72) + "..." : c.address.trim()) : "-",
         {
           content: c.mobileNumber || "-",
           styles: { textColor: [0, 0, 255] },
@@ -438,7 +439,24 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         startY: 25,
         head: [tableColumn],
         body: tableRows as any,
-        styles: { fontSize: 7, font: "helvetica" },
+        styles: { fontSize: 7, font: "helvetica", overflow: "linebreak", cellPadding: 1.5 },
+        headStyles: { fillColor: [40, 53, 147], textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
+        columnStyles: {
+          0: { cellWidth: 8, halign: "center" },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 24 },
+          3: { cellWidth: 16, halign: "center" },
+          4: { cellWidth: 42 },
+          5: { cellWidth: 18 },
+          6: { cellWidth: 12 },
+          7: { cellWidth: 10 },
+          8: { cellWidth: 16 },
+          9: { cellWidth: 18, halign: "right" },
+          10: { cellWidth: 20 },
+          11: { cellWidth: 20, halign: "center" },
+          12: { cellWidth: 12 },
+          13: { cellWidth: 24 },
+        },
         didDrawPage: function(data) {
           doc.setFontSize(8);
           doc.setTextColor(100);
@@ -559,12 +577,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
           doc.setFontSize(8);
           doc.text(`${rows.length} consumer(s)  |  Total OSD: ₹${Math.round(rows.reduce((s, c) => s + Number(c.d2NetOS || 0), 0)).toLocaleString("en-IN")}`, 14, 26);
 
-          const cols = ["#", "Con ID", "Name", "Address", "Mobile", "Agency", "Class", "Status", "Date", "OSD", "Reading", "Remarks"];
+          const cols = ["#", "Con ID", "Name", "MRU/Zone", "Address", "Mobile", "Agency", "Class", "Status", "Date", "OSD", "Reading", "Remarks"];
           const body = rows.map((c, i) => [
             i + 1,
             c.consumerId || "-",
             c.name || "-",
-            c.address ? c.address.substring(0, 28) + (c.address.length > 28 ? "…" : "") : "-",
+            c.mru || "-",
+            c.address ? (c.address.length > 75 ? c.address.substring(0, 72) + "..." : c.address.trim()) : "-",
             c.mobileNumber || "-",
             c.agency || "-",
             c.baseClass || "-",
@@ -579,8 +598,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             startY: 30,
             head: [cols],
             body: body as any,
-            styles: { fontSize: 6.5, font: "helvetica" },
-            columnStyles: { 3: { cellWidth: 30 }, 11: { cellWidth: 30 } },
+            styles: { fontSize: 6.5, font: "helvetica", overflow: "linebreak", cellPadding: 1.5 },
+            headStyles: { fillColor: [40, 53, 147], textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
+            columnStyles: { 
+              3: { cellWidth: 16, halign: "center" }, 
+              4: { cellWidth: 42 }, 
+              12: { cellWidth: 28 } 
+            },
             didDrawPage: (data: any) => {
               doc.setFontSize(7);
               doc.setTextColor(120);
@@ -595,7 +619,97 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     setIsDownloadDialogOpen(false);
   };
 
-  // --- STANDARD REPORT PDF (Unchanged) ---
+  // --- EXCEL DOWNLOAD FOR CURRENT FILTERED DC LIST ---
+  const downloadExcel = async () => {
+    if (activeView !== "disconnection" || !consumerListRef.current) {
+      alert("Please open the Disconnection List to download data.");
+      return;
+    }
+    const consumers = [...consumerListRef.current.getCurrentConsumers()];
+    if (consumers.length === 0) {
+      alert("No consumer data available for export.");
+      return;
+    }
+
+    const XLSX = await import("xlsx");
+    
+    // Sort same as PDF: agency A-Z, then OSD high to low
+    consumers.sort((a, b) => {
+      const agencyCompare = (a.agency || "").localeCompare(b.agency || "");
+      if (agencyCompare !== 0) return agencyCompare;
+      const aOsd = Number.parseFloat(a.d2NetOS || "0");
+      const bOsd = Number.parseFloat(b.d2NetOS || "0");
+      return bOsd - aOsd;
+    });
+
+    const rows = consumers.map((c, index) => ({
+      "Sl No": index + 1,
+      "Office Code": c.offCode || "-",
+      "MRU / Zone": c.mru || "-",
+      "Consumer ID": /^\d+$/.test(c.consumerId) ? Number(c.consumerId) : (c.consumerId || "-"),
+      "Name": c.name || "-",
+      "Address": c.address || "-",
+      "Mobile Number": c.mobileNumber || "-",
+      "Device": c.device || "-",
+      "Class": c.baseClass || "-",
+      "Due Date Range": c.osDuedateRange || "-",
+      "Outstanding Dues (₹)": Number(c.d2NetOS || 0),
+      "Discon Status": c.disconStatus || "-",
+      "Discon Date": c.disconDate || "-",
+      "Paid Amount (₹)": c.paidAmount && c.paidAmount.trim() !== "" ? Number(c.paidAmount) : "",
+      "Agency": c.agency || "-",
+      "Meter Reading": c.reading || "-",
+      "Notes / Remarks": c.notes || "-",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    worksheet["!cols"] = [
+      { wch: 6 },  // Sl No
+      { wch: 12 }, // Office Code
+      { wch: 14 }, // MRU / Zone
+      { wch: 14 }, // Consumer ID
+      { wch: 25 }, // Name
+      { wch: 45 }, // Address
+      { wch: 14 }, // Mobile
+      { wch: 12 }, // Device
+      { wch: 10 }, // Class
+      { wch: 18 }, // Due Date
+      { wch: 18 }, // Outstanding Dues
+      { wch: 18 }, // Status
+      { wch: 14 }, // Date
+      { wch: 14 }, // Paid Amount
+      { wch: 18 }, // Agency
+      { wch: 14 }, // Meter Reading
+      { wch: 30 }, // Notes
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "DC List");
+
+    // Add Summary Sheet
+    const agencySummary: Record<string, { count: number; totalOsd: number }> = {};
+    consumers.forEach(c => {
+      const ag = c.agency || "Un-Allocated";
+      if (!agencySummary[ag]) agencySummary[ag] = { count: 0, totalOsd: 0 };
+      agencySummary[ag].count++;
+      agencySummary[ag].totalOsd += Number(c.d2NetOS || 0);
+    });
+
+    const summaryRows = Object.entries(agencySummary).map(([agency, data]) => ({
+      "Agency": agency,
+      "Consumer Count": data.count,
+      "Total Outstanding Dues (₹)": data.totalOsd,
+    }));
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+    summarySheet["!cols"] = [{ wch: 25 }, { wch: 16 }, { wch: 24 }];
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Agency Summary");
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `DC_List_${dateStr}.xlsx`);
+  };
+
+  // --- STANDARD REPORT PDF ---
   const downloadPDF = async () => {
     if (activeView !== "disconnection" || !consumerListRef.current) {
       alert("Please open the Disconnection List to download data.");
@@ -605,6 +719,11 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     const { default: jsPDF } = await import("jspdf")
     const { default: autoTable } = await import("jspdf-autotable")
     const consumers = [...consumerListRef.current.getCurrentConsumers()];
+    if (consumers.length === 0) {
+      alert("No consumer data available for export.");
+      return;
+    }
+
     const doc = new jsPDF({ orientation: "landscape" });
     const isAdmin = role === "admin" || role === "viewer" || role === "executive";
     let heading = "Disconnection Summary Dashboard";
@@ -764,12 +883,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
       doc.setFontSize(10);
       doc.text(`Total Consumers: ${agencyConsumers.length}`, 14, 20);
 
-      const tableColumn = ["#", "Con ID", "Name", "Address", "Phone", "Device", "Class", "Due Date", "OSD", "Status", "Reading", "Remarks"];
+      const tableColumn = ["#", "Con ID", "Name", "MRU/Zone", "Address", "Phone", "Device", "Class", "Due Date", "OSD", "Status", "Reading", "Remarks"];
       const tableRows = agencyConsumers.map((c, index) => [
         index + 1,
         c.consumerId || "-",
         c.name || "-",
-        c.address ? c.address.substring(0, 30) + (c.address.length > 30 ? "..." : "") : "-",
+        c.mru || "-",
+        c.address ? (c.address.length > 75 ? c.address.substring(0, 72) + "..." : c.address.trim()) : "-",
         {
           content: c.mobileNumber || "-",
           styles: { textColor: [0, 0, 255] },
@@ -784,32 +904,52 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         { content: (c.notes || "-").substring(0, 35), styles: { fontStyle: "italic" } },
       ]);
 
-      autoTable(doc, { startY: 25, head: [tableColumn], body: tableRows as any, styles: { fontSize: isAdmin ? 7 : 7, font: "helvetica" },
-      didDrawPage: function(data) {
-        doc.setFontSize(8);
-        doc.setTextColor(100);
-        if(isAdmin){
+      autoTable(doc, { 
+        startY: 25, 
+        head: [tableColumn], 
+        body: tableRows as any, 
+        styles: { fontSize: 6.5, font: "helvetica", overflow: "linebreak", cellPadding: 1.5 },
+        headStyles: { fillColor: [40, 53, 147], textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
+        columnStyles: {
+          0: { cellWidth: 8, halign: "center" },   // #
+          1: { cellWidth: 16 },                    // Con ID
+          2: { cellWidth: 26 },                    // Name
+          3: { cellWidth: 16, halign: "center" },  // MRU/Zone
+          4: { cellWidth: 44 },                    // Address (wraps into 2 lines)
+          5: { cellWidth: 18 },                    // Phone
+          6: { cellWidth: 12, halign: "center" },  // Device
+          7: { cellWidth: 10, halign: "center" },  // Class
+          8: { cellWidth: 16 },                    // Due Date
+          9: { cellWidth: 18, halign: "right" },   // OSD
+          10: { cellWidth: 22, halign: "center" }, // Status
+          11: { cellWidth: 12, halign: "center" }, // Reading
+          12: { cellWidth: 26 },                    // Remarks
+        },
+        didDrawPage: function(data) {
+          doc.setFontSize(8);
+          doc.setTextColor(100);
+          if(isAdmin){
+            doc.text(
+              `Page ${doc.getNumberOfPages()+1}`,
+              data.settings.margin.left,
+              doc.internal.pageSize.height - 10
+            );
+          } else {
+            doc.text(
+              `Page ${doc.getNumberOfPages()}`,
+              data.settings.margin.left,
+              doc.internal.pageSize.height - 10
+            );
+          }
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "italic");
           doc.text(
-            `Page ${doc.getNumberOfPages()+1}`,
-            data.settings.margin.left,
-            doc.internal.pageSize.height - 10
-          );
-        } else {
-          doc.text(
-            `Page ${doc.getNumberOfPages()}`,
-            data.settings.margin.left,
-            doc.internal.pageSize.height - 10
+            "For error reporting contact: je.kushidaccc@gmail.com",
+            doc.internal.pageSize.width - 10,
+            doc.internal.pageSize.height - 10,
+            { align: "right" }
           );
         }
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "italic");
-        doc.text(
-          "For error reporting contact: je.kushidaccc@gmail.com",
-          doc.internal.pageSize.width - 10,
-          doc.internal.pageSize.height - 10,
-          { align: "right" }
-        );
-      }
       });
     });
 
@@ -1107,7 +1247,8 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         activeView={activeView}
         setActiveView={setActiveView}
         onDownload={downloadPDF}
-        onDownloadDefaulters={openDownloadDialog}
+        onDownloadExcel={downloadExcel}
+        onDownloadDefaulters={() => openDownloadDialog("defaulters")}
         permissions={permissions}
       >
         {/* DOWNLOAD DIALOG */}
@@ -1126,9 +1267,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
                 <Label>Report Type</Label>
                 <RadioGroup
                   value={reportType}
-                  onValueChange={(v: "defaulters" | "status") => setReportType(v)}
+                  onValueChange={(v: "filtered" | "defaulters" | "status") => setReportType(v)}
                   className="flex flex-col gap-2"
                 >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="filtered" id="rt-filt" />
+                    <Label htmlFor="rt-filt">Current Filtered DC List ({consumerListRef.current?.getCurrentConsumers().length || 0} consumers)</Label>
+                  </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="defaulters" id="rt-def" />
                     <Label htmlFor="rt-def">Top Defaulters (by outstanding dues)</Label>
@@ -1197,8 +1342,15 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
                 Cancel
               </Button>
               <Button onClick={() => {
-                if (reportType === "status") generateStatusReport();
-                else handleDownloadConfirm();
+                if (reportType === "filtered") {
+                  if (downloadFormat === "excel") downloadExcel();
+                  else downloadPDF();
+                  setIsDownloadDialogOpen(false);
+                } else if (reportType === "status") {
+                  generateStatusReport();
+                } else {
+                  handleDownloadConfirm();
+                }
               }}>
                 Download
               </Button>
@@ -1223,7 +1375,8 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             showAdminPanel={showAdminPanel}
             onCloseAdminPanel={handleAdminClose}
             onDownload={downloadPDF}
-            onDownloadDefaulters={openDownloadDialog}
+            onDownloadExcel={downloadExcel}
+            onDownloadDefaulters={() => openDownloadDialog("defaulters")}
             onGoToReconnection={() => setActiveView("reconnection")}
             permissions={permissions}
           />

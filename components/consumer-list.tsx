@@ -89,6 +89,7 @@ interface ConsumerListProps {
   showAdminPanel: boolean
   onCloseAdminPanel: () => void
   onDownload: () => void
+  onDownloadExcel?: () => void
   onDownloadDefaulters: () => void
   onGoToReconnection?: () => void
   permissions?: Record<string, string[]>
