@@ -34,6 +34,8 @@ const HEADER_SYNONYMS: Record<string, string[]> = {
   "O/S Duedate Range": ["o/s duedate range", "o/s due date range", "os duedate range", "due date range", "duedate range"],
   "D2 Net O/S": ["d2 net o/s", "d2 net os", "net o/s", "net os", "outstanding"],
   "Mobile Number": ["mobile number", "mobile", "phone", "mobile no"],
+  "Latitude": ["latitude", "lat", "lat_coord", "lat coord"],
+  "Longitude": ["longitude", "long", "lng", "lon", "long_coord", "long coord"],
   "Class": ["class"],
   "Gov/Non-Gov": ["gov/non-gov", "gov non gov", "govnongov", "gov", "government"],
   "Discon Status": ["discon status", "disconnection status", "status"],
@@ -170,7 +172,9 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         "Device",
         "O/S Duedate Range",
         "D2 Net O/S",
-        "Mobile Number"
+        "Mobile Number",
+        "Latitude",
+        "Longitude"
         ] as const;
 
     const uploadToGoogleSheet = async () => {
@@ -333,7 +337,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     "O/S Duedate Range": /^\d{2}[./-]\d{2}[./-]\d{4}\s*-\s*\d{2}[./-]\d{2}[./-]\d{4}$/,
     "D2 Net O/S": /^-?\d{1,3}(?:,\d{3})*(?:\.\d+)?$/,
     "Mobile Number": /^[6-9]\d{9}$/,
-
+    "Latitude": /^-?\d+(\.\d+)?$/,
+    "Longitude": /^-?\d+(\.\d+)?$/,
     };
 
     const [parsedData, setParsedData] = useState<any[]>([]);
@@ -2110,9 +2115,9 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 const XLSX = await import("xlsx")
                 const wb = XLSX.utils.book_new()
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-                  ["off_code", "MRU", "Consumer Id", "Name", "Address", "Base Class", "Device", "O/S Duedate Range", "D2 Net O/S", "Mobile Number"],
-                  ["6612107", "AB01MR", "100000001", "CONSUMER NAME", "123 ROAD AREA DISTRICT", "L-1 PHASE", "METER001", "01-01-2024 - 31-03-2024", "5000", "9876543210"],
-                  ["6612107", "AB01MR", "100000002", "ANOTHER CONSUMER", "456 STREET TOWN", "L-1 PHASE", "METER002", "01-01-2024 - 31-03-2024", "12000", "9876543211"],
+                  ["off_code", "MRU", "Consumer Id", "Name", "Address", "Base Class", "Device", "O/S Duedate Range", "D2 Net O/S", "Mobile Number", "Latitude", "Longitude"],
+                  ["6612107", "AB01MR", "100000001", "CONSUMER NAME", "123 ROAD AREA DISTRICT", "L-1 PHASE", "METER001", "01-01-2024 - 31-03-2024", "5000", "9876543210", "24.791234", "85.001234"],
+                  ["6612107", "AB01MR", "100000002", "ANOTHER CONSUMER", "456 STREET TOWN", "L-1 PHASE", "METER002", "01-01-2024 - 31-03-2024", "12000", "9876543211", "24.795678", "85.005678"],
                 ]), "DC List")
                 XLSX.writeFile(wb, "DC_List_Template.xlsx")
               }}>
@@ -2124,18 +2129,19 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
             <p className="text-sm text-gray-600 mt-1">
               Upload a CSV or Excel DC list. New IDs are inserted; existing IDs are updated.
               Consumers removed from the new list are archived to <span className="font-mono">DC_History</span>.
-              Statuses like Disconnected/Paid are protected — only billing data is updated for them.
+              Statuses like Disconnected/Paid are protected — only billing data and coordinates are updated for them.
               <details className="mt-2">
                 <summary className="cursor-pointer text-blue-600 text-xs underline">Show file format guide</summary>
                 <div className="mt-2 bg-blue-50 rounded p-3 text-xs space-y-1">
-                  <p className="font-semibold text-blue-800">Required columns (must be present as headers):</p>
-                  <pre className="bg-white rounded p-2 overflow-auto text-[10px]">{`off_code | MRU      | Consumer Id | Name         | Address       | Base Class | Device    | O/S Duedate Range          | D2 Net O/S | Mobile Number
-6612107  | AB01MR   | 100000001   | CONSUMER NAME| 123 ROAD...   | L-1 PHASE  | METER001  | 01-01-2024 - 31-03-2024    | 5000       | 9876543210`}</pre>
+                  <p className="font-semibold text-blue-800">Required &amp; Optional columns:</p>
+                  <pre className="bg-white rounded p-2 overflow-auto text-[10px]">{`off_code | MRU      | Consumer Id | Name         | Address       | Base Class | Device    | O/S Duedate Range          | D2 Net O/S | Mobile Number | Latitude  | Longitude
+6612107  | AB01MR   | 100000001   | CONSUMER NAME| 123 ROAD...   | L-1 PHASE  | METER001  | 01-01-2024 - 31-03-2024    | 5000       | 9876543210    | 24.791234 | 85.001234`}</pre>
                   <ul className="list-disc pl-4 space-y-0.5 text-gray-600">
-                    <li>Columns are detected by regex pattern matching, not exact header name.</li>
+                    <li>Columns are detected by flexible header matching &amp; regex pattern matching.</li>
+                    <li>Latitude &amp; Longitude (optional) will be saved to Google Sheet &amp; browser cache for map routing.</li>
                     <li>Consumer ID, MRU, and D2 Net O/S are mandatory — rows without them are skipped.</li>
                     <li>Agency is auto-assigned from Zone Map based on MRU. Run Zone Map setup first.</li>
-                    <li><strong>Protected statuses</strong> (Disconnected, Paid, Visited, etc.): only OSD and base info are updated — status, date, notes, image are never overwritten.</li>
+                    <li><strong>Protected statuses</strong> (Disconnected, Paid, Visited, etc.): OSD, base info &amp; Lat/Long are updated — status, date, notes, image are preserved.</li>
                     <li>Consumers in the sheet but not in this file are marked as removed and logged to DC_History.</li>
                   </ul>
                 </div>

@@ -166,7 +166,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     // 4. Upload column → sheet column mapping.
     // Upload order: off_code, MRU, Consumer Id, Name, Address,
-    //               Base Class, Device, O/S Duedate Range, D2 Net O/S, Mobile Number
+    //               Base Class, Device, O/S Duedate Range, D2 Net O/S, Mobile Number,
+    //               Latitude, Longitude
     const uploadColCandidates: string[][] = [
       ["off_code","offcode"],
       ["mru"],
@@ -178,10 +179,12 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       ["o/s duedate range","os duedate range","due date range"],
       ["d2 net o/s","d2 net os","outstanding"],
       ["mobile number","mobile","phone"],
+      ["latitude","lat","lat_coord","lat coord"],
+      ["longitude","long","lng","lon","long_coord","long coord"],
     ]
     const uploadToSheetCol = uploadColCandidates.map(cands => findColumn(headers, cands))
-    // Base-only indices — safe to update even for protected statuses
-    const BASE_FIELD_UPLOAD_INDICES = [0, 1, 3, 4, 5, 6, 7, 8, 9] // skip 2 (ID)
+    // Base-only indices — safe to update even for protected statuses (includes 10=lat, 11=long)
+    const BASE_FIELD_UPLOAD_INDICES = [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11] // skip 2 (ID)
 
     const todayStr = today()
     const updateWrites: sheets_v4.Schema$ValueRange[] = []
