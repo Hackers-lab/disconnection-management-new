@@ -58,7 +58,7 @@
     "next-themes": "latest",
     "papaparse": "^5.5.3",
     "path": "latest",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "react": "^19",
     "react-day-picker": "latest",
     "react-dom": "^19",

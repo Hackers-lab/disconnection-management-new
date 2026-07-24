@@ -73,7 +73,17 @@ export function OsdDetailsDialog({ open, onOpenChange }: OsdDetailsDialogProps) 
 
     try {
       const res = await fetch(`/api/osd-details?consumerId=${encodeURIComponent(cleanId)}`)
-      const json = await res.json()
+      const responseText = await res.text()
+
+      let json: any = null
+      try {
+        json = JSON.parse(responseText)
+      } catch {
+        if (res.status === 401) {
+          throw new Error("Session expired or unauthorized. Please log in again.")
+        }
+        throw new Error(`Server returned HTTP status ${res.status}. Check Vercel server logs.`)
+      }
 
       if (!res.ok || !json.success) {
         throw new Error(json.error || "Failed to fetch consumer OSD details")

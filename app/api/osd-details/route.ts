@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { checkApiPermission } from "@/lib/permissions"
-import { PDFParse } from "pdf-parse"
+import pdf from "pdf-parse"
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -125,11 +126,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Parse PDF text using PDFParse class from pdf-parse v2
-    const parser = new PDFParse({ data: new Uint8Array(pdfBuffer) })
-    const textResult = await parser.getText()
-    const text = textResult.text || ""
-    await parser.destroy()
+    // Parse PDF text using standard pdf-parse
+    const pdfData = await pdf(pdfBuffer)
+    const text = pdfData.text || ""
 
     // Extract fields via Regex (porting logic from extract_pdf.py)
     let docType = "UNKNOWN"
