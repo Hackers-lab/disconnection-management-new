@@ -26,6 +26,7 @@ const DTRList = dynamic(() => import("@/components/dtr-list").then(m => ({ defau
 const DTRPaintingList = dynamic(() => import("@/components/dtr-painting-list").then(m => ({ default: m.DTRPaintingList })), { ssr: false })
 const MeterReplacementList = dynamic(() => import("@/components/meter-replacement-list").then(m => ({ default: m.MeterReplacementList })), { ssr: false })
 const MaterialList = dynamic(() => import("@/components/material-list").then(m => ({ default: m.MaterialList })), { ssr: false })
+const SafetyList = dynamic(() => import("@/components/safety-list").then(m => ({ default: m.SafetyList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
 
@@ -1460,6 +1461,15 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             userAgencies={agencies}
             username={agencies[0] || role}
             permissions={permissions}
+          />
+        )}
+
+        {activeView === "safety" && (
+          <SafetyList
+            userRole={role}
+            userAgencies={agencies}
+            permissions={permissions}
+            availableAgencies={agencies}
           />
         )}
 

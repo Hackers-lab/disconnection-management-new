@@ -23,6 +23,7 @@ export interface RolePermissions {
   dtr_painting: string[]
   material: string[]
   osd?: string[]
+  safety?: string[]
 }
 
 const MODULES = [
@@ -38,6 +39,7 @@ const MODULES = [
   "dtr_painting",
   "material",
   "osd",
+  "safety",
 ] as const
 
 const DEFAULT_ROLES: RolePermissions[] = [
@@ -55,6 +57,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     osd: ["read", "download"],
+    safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
   },
   {
     role: "viewer",
@@ -70,6 +73,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: ["read"],
     material: ["read", "stock"],
     osd: ["read", "download"],
+    safety: ["read"],
   },
   {
     role: "agency",
@@ -85,6 +89,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: ["read", "update"],
     material: ["read", "update", "receive", "issue", "stock"],
     osd: ["read", "download"],
+    safety: ["read", "create", "update"],
   },
   {
     role: "technical",
@@ -100,6 +105,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: [],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     osd: ["read", "download"],
+    safety: ["read", "create", "update"],
   },
   {
     role: "painter",
@@ -115,6 +121,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: ["read", "update"],
     material: [],
     osd: ["read", "download"],
+    safety: [],
   },
   {
     role: "executive",
@@ -130,6 +137,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     osd: ["read", "download"],
+    safety: ["read", "create", "update", "approve_notesheet", "issue_po", "finalize"],
   },
   {
     role: "division_viewer",
@@ -208,7 +216,7 @@ export class RoleStorage {
           headers,
           ...DEFAULT_ROLES.map((r) => [
             r.role,
-            ...MODULES.map((mod) => r[mod].join(",")),
+            ...MODULES.map((mod) => (r[mod] || []).join(",")),
           ]),
         ]
 

@@ -20,7 +20,8 @@ import {
   Brush,
   Phone,
   Package,
-  FileCheck2
+  FileCheck2,
+  ShieldAlert
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
@@ -42,9 +43,11 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [dtrPendingCount, setDtrPendingCount] = useState<number>(0)
   const [dtrPaintingPendingCount, setDtrPaintingPendingCount] = useState<number>(0)
   const [materialPendingCount, setMaterialPendingCount] = useState<number>(0)
+  const [safetyPendingCount, setSafetyPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
   const [showDevModal, setShowDevModal] = useState(false)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
+    safety: false,
     disconnection: false,
     reconnection: false,
     deemed: false,
@@ -111,6 +114,17 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       bgColor: "bg-orange-50",
       borderColor: "hover:border-orange-400 hover:shadow-orange-500/10",
       allowed: ["admin", "executive", "agency", "painter"],
+      status: "live"
+    },
+    {
+      id: "safety",
+      title: "Safety Inspection",
+      description: "Report site safety hazards, drawings, & PO approvals",
+      icon: ShieldAlert,
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
+      borderColor: "hover:border-amber-400 hover:shadow-amber-500/10",
+      allowed: ["all"],
       status: "live"
     },
     {
@@ -202,6 +216,22 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
   useEffect(() => {
     async function loadPendingCount() {
+      // Safety Inspection
+      if (hasReadPermission("safety")) {
+        try {
+          setLoadingModules(prev => ({ ...prev, safety: true }))
+          const res = await fetch("/api/safety/pending-count")
+          if (res.ok) {
+            const data = await res.json()
+            setSafetyPendingCount(data.pendingCount || 0)
+          }
+        } catch (e) {
+          console.error("Auto-fetch safety pending count failed", e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, safety: false }))
+        }
+      }
+
       // Disconnection
       if (hasReadPermission("disconnection")) {
         try {
@@ -506,6 +536,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     onSelect(module.id as ViewType)
                   }}
                 >
+                  {module.id === "safety" && (
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["safety"] ? "bg-blue-500 animate-pulse" : safetyPendingCount > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
+                      }`}>
+                      {loadingModules["safety"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : safetyPendingCount}
+                    </div>
+                  )}
                   {module.id === "disconnection" && (
                     <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-red-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["disconnection"] ? "bg-blue-500 animate-pulse" : pendingCount > 0 ? "bg-red-600 shadow-red-500/20" : "bg-gray-400 shadow-gray-400/20"
                       }`}>

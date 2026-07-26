@@ -87,6 +87,23 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
       }
     }
 
+    // Safety Module Auto-Expansion
+    if (mod === "safety") {
+      if (actSet.has("update")) {
+        actSet.add("create")
+        actSet.add("read")
+      }
+      if (isAdminOrExec) {
+        actSet.add("create")
+        actSet.add("read")
+        actSet.add("update")
+        actSet.add("delete")
+        actSet.add("approve_notesheet")
+        actSet.add("issue_po")
+        actSet.add("finalize")
+      }
+    }
+
     expanded[mod] = Array.from(actSet)
   }
 

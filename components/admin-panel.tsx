@@ -54,6 +54,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     meter_replacement: ["read", "create", "update", "delete", "issue", "install", "return", "finalize"],
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
+    safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
   },
   executive: {
     disconnection: ["read", "create", "update"],
@@ -67,6 +68,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     meter_replacement: ["read", "create", "update", "issue", "install", "return", "finalize"],
     dtr_painting: ["read", "create", "update"],
     material: ["read", "create", "update", "receive", "issue", "stock"],
+    safety: ["read", "create", "update", "approve_notesheet", "issue_po", "finalize"],
   },
   agency: {
     disconnection: ["read", "update"],
@@ -80,6 +82,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     meter_replacement: ["read", "install"],
     dtr_painting: ["read", "update"],
     material: ["read", "update", "receive", "issue", "stock"],
+    safety: ["read", "create", "update"],
   },
   store_keeper: {
     disconnection: ["read"],
@@ -2908,6 +2911,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     { id: "deemed", name: "Deemed Visit" },
                     { id: "dtr", name: "DTR Verification" },
                     { id: "dtr_painting", name: "DTR Painting" },
+                    { id: "safety", name: "Safety Inspection" },
                     { id: "meter", name: "Meter Management" },
                     { id: "meter_replacement", name: "Replacement List" },
                     { id: "nsc", name: "NSC Management" },

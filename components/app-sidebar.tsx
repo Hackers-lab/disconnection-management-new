@@ -14,7 +14,8 @@ import {
   Brush,            // For DTR Painting
   Package,
   FileCheck2,
-  Gauge
+  Gauge,
+  ShieldAlert
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -24,7 +25,7 @@ import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -40,11 +41,18 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const [ddPendingCount, setDdPendingCount] = useState(0)
   const [disconnectionPendingCount, setDisconnectionPendingCount] = useState(0)
   const [meterPendingCount, setMeterPendingCount] = useState(0)
+  const [safetyPendingCount, setSafetyPendingCount] = useState(0)
 
   // Fetch pending counts
   useEffect(() => {
     async function fetchCount() {
       try {
+        // Safety Count
+        fetch("/api/safety/pending-count")
+          .then(res => res.ok ? res.json() : { pendingCount: 0 })
+          .then(data => setSafetyPendingCount(data.pendingCount || 0))
+          .catch(() => {})
+
         // DD Count
         const data = await getFromCache<any[]>("dd_data_cache")
         if (data) {
@@ -152,6 +160,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       icon: Brush,
     },
     {
+      id: "safety",
+      label: "Safety Inspection",
+      icon: ShieldAlert,
+    },
+    {
       id: "meter-replacement",
       label: "Replacement List",
       icon: ClipboardCheck,
@@ -220,6 +233,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
             {item.id === "meter" && (
               <Badge variant={meterPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
                 {meterPendingCount}
+              </Badge>
+            )}
+            {item.id === "safety" && (
+              <Badge variant={safetyPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
+                {safetyPendingCount}
               </Badge>
             )}
           </Button>
