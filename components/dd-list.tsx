@@ -27,6 +27,12 @@ import {
 } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import dynamic from "next/dynamic"
+
+const NearbyConsumerMap = dynamic(
+  () => import("./nearby-consumer-map").then((mod) => mod.NearbyConsumerMap),
+  { ssr: false }
+)
 
 function useBackNavigation(isOpen: boolean, onClose: () => void) {
   const onCloseRef = useRef(onClose)
@@ -67,6 +73,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   const [selectedConsumer, setSelectedConsumer] = useState<DeemedVisitData | null>(null)
   const [baseClasses, setBaseClasses] = useState<string[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const [showNearbyMap, setShowNearbyMap] = useState(false)
   const [dateFilter, setDateFilter] = useState<{
     from: Date | null
     to: Date | null
@@ -213,6 +220,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
         c.name.toLowerCase().includes(searchLower) ||
         c.consumerId.toLowerCase().includes(searchLower) ||
         c.address.toLowerCase().includes(searchLower) ||
+        (c.device || "").toLowerCase().includes(searchLower) ||
         (c.agency || "").toLowerCase().includes(searchLower)
 
       const matchesAgency = filters.agency === "All Agencies" || c.agency === filters.agency
@@ -493,6 +501,21 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           </Button>
         </div>
 
+        {/* Nearby Consumer Radar button — full width below search row */}
+        <div className="mt-3">
+          <Button
+            type="button"
+            onClick={() => {
+              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+              setShowNearbyMap(v => !v)
+            }}
+            className="w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white"
+          >
+            <MapPin className="h-4.5 w-4.5 animate-bounce" />
+            {showNearbyMap ? "Hide Navigation Radar" : "Locate Nearby Consumers"}
+          </Button>
+        </div>
+
         <div className="mt-2 flex justify-start items-center gap-4 text-xs text-gray-500">
           <span>{filteredConsumers.length} records found</span>
 
@@ -716,6 +739,26 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
             Next <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
+        </div>
+      )}
+      {/* Nearby Radar Map Overlay */}
+      {showNearbyMap && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-6">
+          <div className="w-full max-w-4xl h-full max-h-[90vh]">
+            <NearbyConsumerMap
+              consumers={filteredConsumers as any}
+              onClose={() => setShowNearbyMap(false)}
+              onGoToConsumer={(consumer) => {
+                setShowNearbyMap(false)
+                setViewMode("card")
+                const idx = filteredConsumers.findIndex(c => c.consumerId === consumer.consumerId)
+                if (idx >= 0) {
+                  const page = Math.floor(idx / itemsPerPage) + 1
+                  setCurrentPage(page)
+                }
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

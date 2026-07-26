@@ -173,7 +173,7 @@ export function DashboardStats({ consumers, loading = false, onStatusSelect }: D
       case "paid": {
         const actualPaid = consumer.paidAmount && consumer.paidAmount.trim() !== ""
           ? Number.parseFloat(consumer.paidAmount)
-          : outstanding
+          : 0
         stats.paid++
         stats.paidAmount += actualPaid
         agencyReport[agency].paid++

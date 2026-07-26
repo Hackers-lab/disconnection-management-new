@@ -310,6 +310,44 @@ export function DDForm({ consumer, onSave, onCancel, userRole }: DDFormProps) {
         </CardContent>
       </Card>
 
+      {/* Location Details Card */}
+      <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden">
+        <CardHeader className="pb-2 p-4 border-b border-slate-100">
+          <CardTitle className="text-sm font-bold flex items-center text-slate-800">
+            <MapPin className="h-4 w-4 mr-1.5 text-blue-600" />
+            Location Details
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 space-y-4">
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between items-center py-1 border-b border-slate-100">
+              <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Address</span>
+              <span className="font-medium text-slate-800 text-xs text-right max-w-[220px] truncate">{consumer.address}</span>
+            </div>
+            {location && (
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Current GPS Coordinates</span>
+                <span className="font-mono text-slate-800 font-semibold">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</span>
+              </div>
+            )}
+          </div>
+          <Button
+            type="button"
+            className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
+            onClick={() => {
+              const query = location 
+                ? `${location.lat},${location.lng}` 
+                : encodeURIComponent(`${consumer.name}, ${consumer.address}`)
+              const url = `https://www.google.com/maps/search/?api=1&query=${query}`
+              window.open(url, "_blank")
+            }}
+          >
+            <MapPin className="h-4 w-4" />
+            <span>Open in Google Maps</span>
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Footer Actions */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <Button variant="outline" className="flex-1 h-12" onClick={onCancel}>Cancel</Button>

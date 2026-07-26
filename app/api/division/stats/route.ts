@@ -130,9 +130,9 @@ export async function GET(request: Request) {
 
           const status = (c.disconStatus || "").toLowerCase()
 
-          if (pd > 0 || status === "paid") {
+          if (pd > 0 || status === "paid" || status === "agency paid") {
             paidCount++
-            const actualPaid = pd > 0 ? pd : os
+            const actualPaid = pd
             paidAmount += actualPaid
             agencyMap[ag].paidCount++
             agencyMap[ag].paidAmount += actualPaid

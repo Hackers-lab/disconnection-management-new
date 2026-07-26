@@ -284,8 +284,11 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
     e.preventDefault();
 
     if (userRole !== "admin") {
-      if (formData.disconStatus === "agency paid") {
-        // Paid (Agency Paid): image and meter reading are optional.
+      if (formData.disconStatus === "agency paid" || formData.disconStatus === "paid") {
+        if (!formData.paidAmount || !formData.paidAmount.trim() || isNaN(Number(formData.paidAmount)) || Number(formData.paidAmount) <= 0) {
+          alert("Paid Amount (₹) is mandatory when status is Paid.")
+          return
+        }
       } else {
         if (!formData.imageUrl) {
           alert("Please upload the image first.")
@@ -299,6 +302,11 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
           alert("Remarks are required for Bill Dispute or Office Team status.")
           return
         }
+      }
+    } else {
+      if ((formData.disconStatus === "agency paid" || formData.disconStatus === "paid") && (!formData.paidAmount || !formData.paidAmount.trim())) {
+        alert("Please enter the Paid Amount (₹).")
+        return
       }
     }
 
@@ -717,6 +725,22 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
       {/* --- 3. INPUT FIELDS CARD --- */}
       <Card className="bg-white border-slate-100 shadow-sm rounded-2xl overflow-hidden">
         <CardContent className="p-5 space-y-4">
+            {(formData.disconStatus === "agency paid" || formData.disconStatus === "paid") && (
+              <div className="space-y-1.5 bg-emerald-50/60 p-3 rounded-xl border border-emerald-200">
+                <Label className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center justify-between">
+                  <span>Paid Amount (₹)</span>
+                  <span className="text-red-500 font-bold">* MANDATORY</span>
+                </Label>
+                <Input 
+                  type="number"
+                  placeholder="Enter actual paid amount (e.g. 5000)..." 
+                  value={formData.paidAmount || ""} 
+                  onChange={e => setFormData({...formData, paidAmount: e.target.value})}
+                  className="h-10 rounded-xl border-emerald-300 focus-visible:ring-emerald-600 text-sm font-bold text-emerald-900 bg-white"
+                  required
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                   Meter Reading {userRole !== "admin" && (formData.disconStatus === "disconnected" || formData.disconStatus === "bill dispute") && <span className="text-red-500 font-bold">*</span>}

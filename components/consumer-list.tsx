@@ -1505,15 +1505,29 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   </a>
                 )}
 
-                <div className="flex items-center space-x-2">
-                  <IndianRupee className="h-4 w-4 text-gray-400" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-red-600">
-                      ₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-500">Outstanding Dues</p>
+                {(consumer.disconStatus.toLowerCase() === "paid" || consumer.disconStatus.toLowerCase() === "agency paid" || (consumer.paidAmount && Number(consumer.paidAmount) > 0)) ? (
+                  <div className="flex items-center space-x-2 bg-emerald-50/70 p-2 rounded-lg border border-emerald-100">
+                    <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-emerald-700">
+                        ₹{Number.parseFloat(consumer.paidAmount || "0").toLocaleString()}
+                      </p>
+                      <p className="text-[11px] text-emerald-600/80 font-medium">
+                        Paid Amount (OSD: ₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()})
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <IndianRupee className="h-4 w-4 text-gray-400 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-red-600">
+                        ₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-500">Outstanding Dues</p>
+                    </div>
+                  </div>
+                )}
 
                 {consumer.osDuedateRange && (
                   <div className="flex items-center space-x-2">
@@ -1649,6 +1663,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="font-medium text-red-600">₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()}</div>
+                        {consumer.paidAmount && Number(consumer.paidAmount) > 0 && (
+                          <div className="text-xs font-bold text-emerald-600">Paid: ₹{Number.parseFloat(consumer.paidAmount).toLocaleString()}</div>
+                        )}
                         <div className="text-xs text-gray-500">{consumer.agency}</div>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
