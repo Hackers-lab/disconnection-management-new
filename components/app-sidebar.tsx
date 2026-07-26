@@ -79,19 +79,24 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
           const count = meterIssues.filter((i: any) => {
             if (isAgency) {
               if (i.status !== "issued") return false
-              return upper.includes((i.agency || "").toUpperCase())
+              return upper.includes((i.agency || "").trim().toUpperCase())
             } else {
-              return i.status === "installation_done"
+              return i.status === "installation_done" || (i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned")
             }
           }).length
           const mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
           const repCount = (mrCached || []).filter((r: any) => {
             if ((r.status || "").toLowerCase() !== "proposed") return false
-            if ((r.purpose || "") === "slow_fast") return false
-            if (userRole === "admin" || userRole === "executive") return true
-            return upper.includes((r.agency || "").toUpperCase())
+            if (isAgency) return false
+            return true
           }).length
           setMeterPendingCount(count + repCount)
+        } else {
+          // Live fallback when cache is cold
+          fetch("/api/meters/pending-count")
+            .then(res => res.ok ? res.json() : { pendingCount: 0 })
+            .then(data => setMeterPendingCount(data.pendingCount || 0))
+            .catch(() => {})
         }
       } catch (e) {
         console.error("Failed to load counts", e)

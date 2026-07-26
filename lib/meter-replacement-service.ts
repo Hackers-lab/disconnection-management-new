@@ -29,7 +29,7 @@ export interface MeterReplacement {
   oldMeterReturnRemarks?: string
 }
 
-const sheets = googleSheets({ version: "v4", auth })
+const sheets = googleSheets({ version: "v4", auth: auth as any })
 
 export const REPLACEMENT_TAB = "Meter_Replacement"
 
@@ -275,8 +275,18 @@ export async function syncStatusFromIssue(
   let updates = []
 
   if (newStatus === "installation_done") {
-    mappedStatus = "updated"
-    updates.push({ range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [[mappedStatus]] })
+    const currentRec = all[idx]
+    const existingWO = (currentRec.workOrderNo || completionRef || "").trim()
+    if (existingWO) {
+      mappedStatus = "replaced"
+      updates.push(
+        { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [[mappedStatus]] },
+        { range: `${REPLACEMENT_TAB}!O${rowNum}`, values: [[existingWO]] }
+      )
+    } else {
+      mappedStatus = "updated"
+      updates.push({ range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [[mappedStatus]] })
+    }
   } else if (newStatus === "installed") {
     mappedStatus = "replaced"
     updates.push(
@@ -304,6 +314,36 @@ export async function syncStatusFromIssue(
     })
     invalidateReplacementCache()
   }
+}
+
+export async function syncOldMeterReturnToReplacement(
+  issueId: string,
+  returnDate: string,
+  receivedBy: string,
+  condition: "working" | "faulty" | "burnt",
+  remarks?: string
+): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+  const idx = all.findIndex(r => r.issueId === issueId)
+  if (idx === -1) return // Not linked to any proposed replacement
+  const rowNum = idx + 2
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: [
+        { range: `${REPLACEMENT_TAB}!R${rowNum}`, values: [["returned"]] },
+        { range: `${REPLACEMENT_TAB}!S${rowNum}`, values: [[returnDate]] },
+        { range: `${REPLACEMENT_TAB}!T${rowNum}`, values: [[receivedBy]] },
+        { range: `${REPLACEMENT_TAB}!U${rowNum}`, values: [[condition]] },
+        { range: `${REPLACEMENT_TAB}!V${rowNum}`, values: [[remarks || ""]] },
+      ]
+    }
+  })
+  invalidateReplacementCache()
 }
 
 export async function closeReplacement(replacementId: string, remarks: string): Promise<void> {

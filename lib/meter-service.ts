@@ -7,7 +7,7 @@ import { getSpreadsheetId } from "./google-sheets-api"
 import { METER_TYPES } from "./meter-types"
 import { updateNSCMeterIssued, updateNSCConnectionEffected, updateNSCMeterReturned } from "./nsc-service"
 import { nowDate } from "./date-utils"
-import { issueReplacement, syncStatusFromIssue } from "./meter-replacement-service"
+import { issueReplacement, syncStatusFromIssue, syncOldMeterReturnToReplacement, updateReplacementNoteSheet } from "./meter-replacement-service"
 import type {
   MeterStock, MeterIssue, StockSummary,
   MeterTypeLabel, MeterCondition, IssuePurpose, IssueStatus,
@@ -17,7 +17,7 @@ import type {
 export { METER_TYPES }
 export type { MeterStock, MeterIssue, StockSummary, MeterTypeLabel, MeterCondition, IssuePurpose, IssueStatus }
 
-const sheets = googleSheets({ version: "v4", auth })
+const sheets = googleSheets({ version: "v4", auth: auth as any })
 
 // ─── Sheet names ──────────────────────────────────────────────────────────────
 export const STOCK_TAB  = "Meter_Stock"
@@ -182,6 +182,12 @@ export async function addMeterStock(meters: Array<{
 }>): Promise<number> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
+  const existingStock = await _fetchStockRaw(id)
+  const existingSerials = new Set(existingStock.map(s => (s.serialNo || "").trim().toUpperCase()))
+  const duplicates = meters.filter(m => existingSerials.has((m.serialNo || "").trim().toUpperCase()))
+  if (duplicates.length > 0) {
+    throw new Error(`Serial number(s) already exist in stock: ${duplicates.map(d => d.serialNo).slice(0, 5).join(", ")}${duplicates.length > 5 ? ` and ${duplicates.length - 5} more` : ""}`)
+  }
   const typeMap = new Map(METER_TYPES.map(t => [t.label, t]))
   const today = nowDate()
   const rows = meters.map(m => {
@@ -220,6 +226,9 @@ export async function issueMeter(req: {
   mobile?:      string
   replacementId?: string
   workOrderNo?:  string
+  existingMeterNo?: string
+  existingMeterStartReading?: string
+  noteSheetNo?:  string
 }): Promise<string> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
@@ -230,12 +239,13 @@ export async function issueMeter(req: {
   const issueId = await nextIssueId(id)
   const today = nowDate()
   await sheets.spreadsheets.values.append({
-    spreadsheetId: id, range: `${ISSUES_TAB}!A:U`,
+    spreadsheetId: id, range: `${ISSUES_TAB}!A:X`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[issueId, today, req.purpose, req.consumerId, req.nscReceiveNo || "",
         req.consumerName, req.agency, req.serialNo, stock[idx].typeLabel, "issued",
-        "", "", "", "", req.workOrderNo || "", "", "", req.remarks || "", "", req.address || "", req.mobile || ""]],
+        "", "", "", "", req.workOrderNo || "", "", "", req.remarks || "", "", req.address || "", req.mobile || "",
+        req.noteSheetNo || "", req.existingMeterNo || "", req.existingMeterStartReading || ""]],
     },
   })
   await sheets.spreadsheets.values.batchUpdate({
@@ -293,7 +303,7 @@ export async function completeMeterInstallation(req: {
     },
   })
   invalidateMeterCache()
-  await syncStatusFromIssue(req.issueId, "installation_done")
+  await syncStatusFromIssue(req.issueId, "installation_done", issues[issueIdx].completionRef)
 }
 
 // ─── Admin/Executive: finalize with completionRef ────────────────────────────
@@ -479,6 +489,7 @@ export async function updateIssueNoteSheet(issueId: string, noteSheetNo: string)
     }
   })
   invalidateMeterCache()
+  await updateReplacementNoteSheet(issueId, noteSheetNo).catch(() => {})
 }
 
 export async function saveCheckMeterCrossCheck(req: {
@@ -609,6 +620,7 @@ export async function receiveReturnedOldMeter(req: {
     }
   })
   invalidateMeterCache()
+  await syncOldMeterReturnToReplacement(req.issueId, req.returnDate, req.receivedBy, req.condition, req.remarks).catch(() => {})
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

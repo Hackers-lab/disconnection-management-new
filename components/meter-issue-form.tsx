@@ -186,7 +186,7 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
   const handleSubmit = () => {
     if (!serialNo)        { alert("Select a meter serial number."); return }
     if (!agency)          { alert("Select an agency."); return }
-    if (!workOrderNo.trim()) { alert("Work Order Number is mandatory to issue meter."); return }
+    if (purpose === "nsc" && !workOrderNo.trim()) { alert("Work Order Number is mandatory to issue NSC meter."); return }
     if (purpose !== "nsc" && !consumerId.trim()) { alert("Consumer ID is required."); return }
     if (purpose === "nsc" && !isLegacyNsc && !nscSelected) { alert("Please select an NSC application or switch to Legacy / Manual entry."); return }
     if (purpose === "nsc" && isLegacyNsc && !consumerName.trim()) { alert("Consumer / Applicant name is required for Legacy NSC."); return }
@@ -210,6 +210,8 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
           address: consumerAddress,
           mobile: consumerMobile,
           oldDevice: consumerDevice,
+          existingMeterNo: consumerDevice || "",
+          existingMeterStartReading: "",
           agency,
           workOrderNo: workOrderNo.trim(),
           remarks,
@@ -502,11 +504,13 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="font-bold text-gray-900">Work Order Number *</Label>
+            <Label className="font-bold text-gray-900">
+              Work Order Number {purpose === "nsc" ? "*" : "(Optional)"}
+            </Label>
             <Input
               value={workOrderNo}
               onChange={e => setWorkOrderNo(e.target.value)}
-              placeholder="Enter Work Order No (Mandatory)"
+              placeholder={purpose === "nsc" ? "Enter Work Order No (Mandatory for NSC)" : "Enter Work Order No (Optional)"}
               className="font-mono text-sm"
             />
           </div>

@@ -15,8 +15,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   const all = bypass ? await _fetchIssuesRaw(id) : await fetchIssues(id)
 
   if (session.role === "agency") {
-    const upper = session.agencies.map((a: string) => a.toUpperCase())
-    return NextResponse.json(all.filter(i => upper.includes(i.agency.toUpperCase())), {
+    const upper = (session.agencies || []).map((a: string) => String(a || "").trim().toUpperCase())
+    return NextResponse.json(all.filter(i => upper.includes((i.agency || "").trim().toUpperCase())), {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })
   }
@@ -43,6 +43,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       mobile:       body.mobile  || "",
       replacementId: body.replacementId || "",
       workOrderNo:   body.workOrderNo || body.completionRef || "",
+      existingMeterNo: body.existingMeterNo || body.oldDevice || "",
+      existingMeterStartReading: body.existingMeterStartReading || body.lastReading || "",
+      noteSheetNo:   body.noteSheetNo || "",
     })
     return NextResponse.json({ success: true, issueId })
   } catch (e: any) {

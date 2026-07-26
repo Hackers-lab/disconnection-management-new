@@ -126,8 +126,9 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
   const [prefill, setPrefill]                         = useState<any>(null)
   const [replacements, setReplacements]               = useState<MeterReplacement[]>([])
   const [loadingReplacements, setLoadingReplacements] = useState(false)
-  const [repSubTab, setRepSubTab]                     = useState<"pending" | "issued" | "installed" | "wo_done" | "completed" | "closed" | "all">("pending")
-  const [nscSubTab, setNscSubTab]                     = useState<"proposed" | "issued" | "installed" | "completed" | "withheld" | "all">("proposed")
+  const isAgencyRole = userRole === "agency"
+  const [repSubTab, setRepSubTab]                     = useState<"pending" | "issued" | "installed" | "wo_done" | "completed" | "closed" | "all">(isAgencyRole ? "issued" : "pending")
+  const [nscSubTab, setNscSubTab]                     = useState<"proposed" | "issued" | "installed" | "completed" | "withheld" | "all">(isAgencyRole ? "issued" : "proposed")
   const [nscApplications, setNscApplications]         = useState<NSCApplication[]>([])
   const [bulkNscModalOpen, setBulkNscModalOpen]         = useState(false)
   const [checkSubTab, setCheckSubTab]                 = useState<"proposed" | "issued" | "installed" | "check1_done" | "check2_done" | "finalized" | "all">("installed")
@@ -433,8 +434,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
     }
 
     if (!isAdmin) {
-      const upper = userAgencies.map(a => a.toUpperCase())
-      data = data.filter(i => upper.includes((i.agency || "").toUpperCase()))
+      const upper = (userAgencies || []).map(a => String(a || "").trim().toUpperCase())
+      data = data.filter(i => upper.includes((i.agency || "").trim().toUpperCase()))
     }
     if (search) {
       const q = search.toLowerCase()
@@ -450,11 +451,49 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
     return data
   }, [issues, replacements, view, nscSubTab, checkSubTab, search, purposeFilter, isAdmin, userAgencies])
 
+  const combinedReplacements = useMemo(() => {
+    const reps = replacements.filter(r => r.purpose !== "slow_fast")
+    const repIssueIds = new Set(reps.map(r => r.issueId).filter(Boolean))
+
+    const directReplacementIssues: MeterReplacement[] = issues
+      .filter(i => (i.purpose === "faulty_replacement" || i.purpose === "burnt_replacement") && !repIssueIds.has(i.issueId))
+      .map(i => {
+        let status: "proposed" | "issued" | "updated" | "replaced" | "closed" = "issued"
+        const hasWO = Boolean((i.completionRef || "").trim())
+        if (i.status === "installation_done") {
+          status = hasWO ? "replaced" : "updated"
+        }
+        else if (i.status === "installed") status = "replaced"
+        else if (i.status === "returned") status = "closed"
+
+        return {
+          replacementId: i.issueId,
+          consumerId: i.consumerId,
+          consumerName: i.consumerName,
+          address: i.address || "",
+          mobile: i.mobile || "",
+          agency: i.agency || "",
+          purpose: i.purpose,
+          proposedDate: i.issueDate || "",
+          status: status,
+          serialNo: i.serialNo || "",
+          issueId: i.issueId,
+          remarks: i.remarks || "",
+          attachmentUrl: "",
+          oldMeterNo: i.existingMeterNo || "",
+          workOrderNo: i.completionRef || "",
+          noteSheetNo: i.noteSheetNo || "",
+        }
+      })
+
+    return [...reps, ...directReplacementIssues]
+  }, [replacements, issues])
+
   const filteredReplacements = useMemo(() => {
-    let data = replacements.filter(r => r.purpose !== "slow_fast")
+    let data = combinedReplacements
     if (!isAdmin) {
-      const upper = userAgencies.map(a => a.toUpperCase())
-      data = data.filter(r => (r.status || "").toLowerCase() !== "proposed" && upper.includes((r.agency || "").toUpperCase()))
+      const upper = (userAgencies || []).map(a => String(a || "").trim().toUpperCase())
+      data = data.filter(r => (r.status || "").toLowerCase() !== "proposed" && upper.includes((r.agency || "").trim().toUpperCase()))
     }
     if (repSubTab === "pending" && isAdmin) {
       data = data.filter(r => (r.status || "").toLowerCase() === "proposed")
@@ -483,7 +522,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       )
     }
     return data
-  }, [replacements, repSubTab, search, isAdmin, userAgencies])
+  }, [combinedReplacements, repSubTab, search, isAdmin, userAgencies])
 
   const totalPages = Math.ceil(filteredIssues.length / PAGE)
   const paginated  = useMemo(() => filteredIssues.slice((page - 1) * PAGE, page * PAGE), [filteredIssues, page])
@@ -747,8 +786,16 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           <Card
             className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-amber-300 overflow-hidden"
             onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${replacements.filter((r: MeterReplacement) => (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
-              {replacements.filter((r: MeterReplacement) => (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length}
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${
+              (isAdmin
+                ? combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" || (r.status || "").toLowerCase() === "updated").length
+                : combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length
+              ) > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
+            }`}>
+              {isAdmin
+                ? combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" || (r.status || "").toLowerCase() === "updated").length
+                : combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length
+              }
             </div>
             <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
               <RotateCcw className="h-16 w-16 md:h-24 md:w-24 text-amber-600 transition-transform duration-500 group-hover:scale-110" />
@@ -772,8 +819,16 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           <Card
             className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-emerald-300 overflow-hidden"
             onClick={() => { setView("nsc"); setTab("nsc") }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-emerald-500/10 transition-all duration-300 group-hover:scale-105 ${issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length > 0 ? "bg-emerald-600 shadow-emerald-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
-              {issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length}
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-emerald-500/10 transition-all duration-300 group-hover:scale-105 ${
+              (isAdmin
+                ? nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length + issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done")).length
+                : issues.filter(i => i.purpose === "nsc" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
+              ) > 0 ? "bg-emerald-600 shadow-emerald-500/20" : "bg-gray-400 shadow-gray-400/20"
+            }`}>
+              {isAdmin
+                ? nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length + issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done")).length
+                : issues.filter(i => i.purpose === "nsc" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
+              }
             </div>
             <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
               <ClipboardCheck className="h-16 w-16 md:h-24 md:w-24 text-emerald-600 transition-transform duration-500 group-hover:scale-110" />
@@ -797,8 +852,16 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           <Card
             className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-purple-300 overflow-hidden"
             onClick={() => { setView("check"); setTab("check") }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length > 0 ? "bg-purple-600 shadow-purple-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
-              {issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length}
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${
+              (isAdmin
+                ? replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length + issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned").length
+                : issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
+              ) > 0 ? "bg-purple-600 shadow-purple-500/20" : "bg-gray-400 shadow-gray-400/20"
+            }`}>
+              {isAdmin
+                ? replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length + issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned").length
+                : issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
+              }
             </div>
             <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
               <Gauge className="h-16 w-16 md:h-24 md:w-24 text-purple-600 transition-transform duration-500 group-hover:scale-110" />
@@ -957,12 +1020,12 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           {view === "nsc" && (
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
               {[
-                { value: "proposed",  label: `📋 Proposed (${nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length})` },
-                { value: "issued",    label: `⚡ Issued (${issues.filter(i => i.purpose === "nsc" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "installed", label: `🔧 Installed (${issues.filter(i => i.purpose === "nsc" && i.status === "installation_done" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "completed", label: `✅ Connection Done (${issues.filter(i => i.purpose === "nsc" && i.status === "installed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "withheld",  label: `⚠️ Withheld (${issues.filter(i => i.purpose === "nsc" && (i.status === "returned" || i.status === "withheld") && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "all",       label: `All (${issues.filter(i => i.purpose === "nsc" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                ...(isAdmin ? [{ value: "proposed",  label: `📋 Proposed (${nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length})` }] : []),
+                { value: "issued",    label: `⚡ Issued (${issues.filter(i => i.purpose === "nsc" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "installed", label: `🔧 Installed (${issues.filter(i => i.purpose === "nsc" && i.status === "installation_done" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "completed", label: `✅ Connection Done (${issues.filter(i => i.purpose === "nsc" && i.status === "installed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "withheld",  label: `⚠️ Withheld (${issues.filter(i => i.purpose === "nsc" && (i.status === "returned" || i.status === "withheld") && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "all",       label: `All (${issues.filter(i => i.purpose === "nsc" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
               ].map(sub => (
                 <button key={sub.value} onClick={() => setNscSubTab(sub.value as any)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
@@ -978,13 +1041,13 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           {view === "check" && (
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
               {[
-                { value: "proposed",    label: `📋 Proposed (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-                { value: "issued",      label: `⚡ Issued (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length + issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "installed",   label: `🔧 Installed (${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && !i.crossCheckDate1 && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "check1_done", label: `1st Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate1 && !i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "check2_done", label: `2nd Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "finalized",   label: `🏁 Finalized (${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus === "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
-                { value: "all",         label: `All Check Meters (${issues.filter(i => i.purpose === "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                ...(isAdmin ? [{ value: "proposed",    label: `📋 Proposed (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length})` }] : []),
+                { value: "issued",      label: `⚡ Issued (${issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "installed",   label: `🔧 Installed (${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && !i.crossCheckDate1 && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "check1_done", label: `1st Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate1 && !i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "check2_done", label: `2nd Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "finalized",   label: `🏁 Finalized (${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus === "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                { value: "all",         label: `All Check Meters (${issues.filter(i => i.purpose === "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
               ].map(sub => (
                 <button key={sub.value} onClick={() => setCheckSubTab(sub.value as any)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
@@ -1786,7 +1849,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                     <Button size="sm" className="w-full h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
                       onClick={() => {
                         setSelectedForFinalize(new Set([issue.issueId]))
-                        setFinalizeRef(""); setFinalizeInstNo("")
+                        setFinalizeRef(issue.completionRef || "")
+                        setFinalizeInstNo("")
                         setShowFinalizeModal(true)
                       }}>
                       <ClipboardCheck className="h-3 w-3 mr-1" /> Finalize Installation
@@ -1838,13 +1902,13 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           {/* Sub-tab Selector */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {[
-              { value: "pending",   label: `Pending Issue (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "issued",    label: `Issued (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "installed", label: `Installed (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "updated" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "wo_done",   label: `WO Done (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "completed", label: `Completed (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "replaced" && r.noteSheetNo && r.noteSheetNo.trim() && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "closed",    label: `Closed (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "closed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "all",       label: `All (${replacements.filter(r => r.purpose !== "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              ...(isAdmin ? [{ value: "pending",   label: `Pending Issue (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length})` }] : []),
+              { value: "issued",    label: `Issued (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
+              { value: "installed", label: `Installed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
+              { value: "wo_done",   label: `WO Done (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
+              { value: "completed", label: `Completed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "replaced" && r.noteSheetNo && r.noteSheetNo.trim() && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
+              { value: "closed",    label: `Closed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "closed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
+              { value: "all",       label: `All (${combinedReplacements.filter(r => ((r.status || "").toLowerCase() !== "proposed" || isAdmin) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
             ].map(sub => (
               <button key={sub.value} onClick={() => setRepSubTab(sub.value as any)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
@@ -2155,7 +2219,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                                 onClick={() => {
                                   if (rep.issueId) {
                                     setSelectedForFinalize(new Set([rep.issueId]))
-                                    setFinalizeRef("")
+                                    setFinalizeRef(rep.workOrderNo || linkedIssue?.completionRef || "")
                                     setShowFinalizeModal(true)
                                   } else {
                                     toast({ title: "Issue record not linked for finalization" })
