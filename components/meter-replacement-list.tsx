@@ -218,7 +218,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let data = records.filter(r => r.purpose !== "slow_fast")
+    let data = [...records]
     if (tab === "proposed")       data = data.filter(r => r.status === "proposed")
     else if (tab === "issued")   data = data.filter(r => r.status === "issued")
     else if (tab === "updated")  data = data.filter(r => r.status === "updated")
@@ -347,10 +347,10 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Proposed", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "proposed").length, color: "text-amber-700", bg: "bg-amber-50 border-amber-100" },
-          { label: "Issued", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "issued").length, color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100" },
-          { label: "Installation Done", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "updated").length, color: "text-teal-700", bg: "bg-teal-50 border-teal-100" },
-          { label: "Replaced", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "replaced").length, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
+          { label: "Proposed", value: records.filter(r => r.status === "proposed").length, color: "text-amber-700", bg: "bg-amber-50 border-amber-100" },
+          { label: "Issued", value: records.filter(r => r.status === "issued").length, color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100" },
+          { label: "Installation Done", value: records.filter(r => r.status === "updated").length, color: "text-teal-700", bg: "bg-teal-50 border-teal-100" },
+          { label: "Replaced", value: records.filter(r => r.status === "replaced").length, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
         ].map(s => (
           <div key={s.label} className={`${s.bg} border rounded-2xl p-4 flex flex-col items-center shadow-sm`}>
             <span className={`text-3xl font-extrabold ${s.color} tabular-nums`}>{s.value}</span>
@@ -381,7 +381,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         {/* Tab Filters */}
         <div className="flex gap-1 overflow-x-auto pb-1">
           {(["all", "proposed", "issued", "updated", "replaced", "completed", "closed"] as Tab[]).map(t => {
-            const valid = records.filter(r => r.purpose !== "slow_fast")
+            const valid = records
             const count = t === "all" ? valid.length
               : t === "replaced" ? valid.filter(r => r.status === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim())).length
               : t === "completed" ? valid.filter(r => r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim()).length

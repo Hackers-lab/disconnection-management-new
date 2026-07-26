@@ -25,7 +25,7 @@ import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -42,11 +42,18 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const [disconnectionPendingCount, setDisconnectionPendingCount] = useState(0)
   const [meterPendingCount, setMeterPendingCount] = useState(0)
   const [safetyPendingCount, setSafetyPendingCount] = useState(0)
+  const [miscPendingCount, setMiscPendingCount] = useState(0)
 
   // Fetch pending counts
   useEffect(() => {
     async function fetchCount() {
       try {
+        // Misc Inspection Count
+        fetch("/api/misc-inspection/pending-count")
+          .then(res => res.ok ? res.json() : { pendingCount: 0 })
+          .then(data => setMiscPendingCount(data.pendingCount || 0))
+          .catch(() => {})
+
         // Safety Count
         fetch("/api/safety/pending-count")
           .then(res => res.ok ? res.json() : { pendingCount: 0 })
@@ -165,6 +172,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       icon: ShieldAlert,
     },
     {
+      id: "misc-inspection",
+      label: "Misc Inspections",
+      icon: ClipboardCheck,
+    },
+    {
       id: "meter-replacement",
       label: "Replacement List",
       icon: ClipboardCheck,
@@ -238,6 +250,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
             {item.id === "safety" && (
               <Badge variant={safetyPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
                 {safetyPendingCount}
+              </Badge>
+            )}
+            {item.id === "misc-inspection" && (
+              <Badge variant={miscPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
+                {miscPendingCount}
               </Badge>
             )}
           </Button>

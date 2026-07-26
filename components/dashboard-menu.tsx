@@ -128,6 +128,17 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       status: "live"
     },
     {
+      id: "misc-inspection",
+      title: "Misc Inspections",
+      description: "Log shifting, meter checks, network & custom site inspections",
+      icon: ClipboardCheck,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "hover:border-blue-400 hover:shadow-blue-500/10",
+      allowed: ["all"],
+      status: "live"
+    },
+    {
       id: "meter",
       title: userRole === "agency" ? "Meter Installation" : "Meter Management",
       description: userRole === "agency" ? "Report installations & view pending" : "Stock tracking, issue & installation",

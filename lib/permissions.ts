@@ -23,6 +23,9 @@ function getModulePermKeys(module: string): string[] {
   if (norm === "disconnection" || norm === "consumer_master") {
     keys.push("disconnection", "consumer_master")
   }
+  if (norm === "misc_inspection" || norm === "misc" || norm === "misc_inspections") {
+    keys.push("misc_inspection", "misc", "misc_inspections")
+  }
 
   return Array.from(new Set(keys))
 }
@@ -41,6 +44,29 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
 
   for (const [mod, list] of Object.entries(perms)) {
     const actSet = new Set(list || [])
+
+    // Misc Inspection Auto-Expansion
+    if (mod === "misc_inspection" || mod === "misc" || mod === "misc_inspections") {
+      if (actSet.has("update")) {
+        if (isAgency) {
+          actSet.add("inspect")
+          actSet.add("read")
+        } else {
+          actSet.add("create")
+          actSet.add("read")
+          actSet.add("inspect")
+          actSet.add("finalize")
+          actSet.add("delete")
+        }
+      }
+      if (isAdminOrExec) {
+        actSet.add("create")
+        actSet.add("read")
+        actSet.add("inspect")
+        actSet.add("finalize")
+        actSet.add("delete")
+      }
+    }
 
     // NSC Auto-Expansion
     if (mod === "nsc") {

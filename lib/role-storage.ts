@@ -24,6 +24,7 @@ export interface RolePermissions {
   material: string[]
   osd?: string[]
   safety?: string[]
+  misc_inspection?: string[]
 }
 
 const MODULES = [
@@ -40,6 +41,7 @@ const MODULES = [
   "material",
   "osd",
   "safety",
+  "misc_inspection",
 ] as const
 
 const DEFAULT_ROLES: RolePermissions[] = [
@@ -58,6 +60,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     osd: ["read", "download"],
     safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
+    misc_inspection: ["read", "create", "update", "delete", "inspect", "finalize"],
   },
   {
     role: "viewer",
