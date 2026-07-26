@@ -5,6 +5,8 @@ import { checkApiPermission } from "@/lib/permissions"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
+export const dynamic = "force-dynamic"
+
 export const GET = withTenant(async function GET(request: NextRequest) {
   const session = await verifySession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -59,3 +61,37 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     return NextResponse.json({ error: e.message || "Failed" }, { status: 500 })
   }
 })
+
+export const PATCH = withTenant(async function PATCH(request: NextRequest) {
+  const session = await verifySession()
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  try {
+    const body = await request.json()
+    const { action, replacementId, remarks, noteSheetNo } = body
+
+    if (action === "close") {
+      const { closeReplacement } = await import("@/lib/meter-replacement-service")
+      if (!replacementId || !remarks) {
+        return NextResponse.json({ error: "Replacement ID and remarks are required" }, { status: 400 })
+      }
+      await closeReplacement(replacementId, remarks)
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === "note_sheet") {
+      const { updateReplacementNoteSheet } = await import("@/lib/meter-replacement-service")
+      if (!replacementId || !noteSheetNo) {
+        return NextResponse.json({ error: "Replacement ID and Note Sheet No are required" }, { status: 400 })
+      }
+      await updateReplacementNoteSheet(replacementId, noteSheetNo)
+      return NextResponse.json({ success: true })
+    }
+
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+  } catch (e: any) {
+    console.error("Update replacement error:", e)
+    return NextResponse.json({ error: e.message || "Failed" }, { status: 500 })
+  }
+})
+

@@ -50,6 +50,26 @@ export interface MeterIssue {
   remarks:        string
   address:        string
   mobile:         string
+  noteSheetNo?:    string
+  // Slow/Fast check meter fields
+  existingMeterNo?:           string
+  existingMeterStartReading?: string
+  crossCheckDate1?:           string
+  existingMeterReading1?:     string
+  checkMeterReading1?:        string
+  crossCheckDate2?:           string
+  existingMeterReading2?:     string
+  checkMeterReading2?:        string
+  calculatedDiffUnits?:       string
+  accuracyPercentage?:        string
+  checkMeterOutcome?:         "removed_ok" | "replace_meter"
+  checkMeterStatus?:          "installed" | "check1_done" | "check2_done" | "finalized"
+  // Old meter return tracking
+  oldMeterReturnStatus?:      "pending" | "returned" | "overdue"
+  oldMeterReturnDate?:        string
+  oldMeterReturnReceivedBy?:  string
+  oldMeterReturnCondition?:   "working" | "faulty" | "burnt"
+  oldMeterReturnRemarks?:     string
 }
 
 export interface StockSummary {

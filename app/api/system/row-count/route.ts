@@ -5,6 +5,8 @@ import { getConsumerCountAndVersion } from "@/lib/google-sheets";
 import { getSpreadsheetId } from "@/lib/google-sheets-api";
 import { withTenant } from "@/lib/tenant-context";
 
+export const dynamic = "force-dynamic"
+
 const SERVER_CACHE_TTL_MS = 20_000
 const serverCache = new Map<string, { data: { count: number; version: string | null }; timestamp: number }>()
 

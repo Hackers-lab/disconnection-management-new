@@ -13,13 +13,20 @@ export interface MeterReplacement {
   agency: string
   purpose: string
   proposedDate: string
-  status: "proposed" | "issued" | "updated" | "replaced"
+  status: "proposed" | "issued" | "updated" | "replaced" | "closed"
   serialNo: string
   issueId: string
   remarks: string
   attachmentUrl: string
   oldMeterNo?: string
   workOrderNo?: string
+  noteSheetNo?: string
+  closedRemarks?: string
+  oldMeterReturnStatus?: "pending" | "returned" | "overdue"
+  oldMeterReturnDate?: string
+  oldMeterReturnReceivedBy?: string
+  oldMeterReturnCondition?: "working" | "faulty" | "burnt"
+  oldMeterReturnRemarks?: string
 }
 
 const sheets = googleSheets({ version: "v4", auth })
@@ -29,7 +36,8 @@ export const REPLACEMENT_TAB = "Meter_Replacement"
 const REPLACEMENT_HEADERS = [
   "Replacement ID", "Consumer ID", "Consumer Name", "Address", "Mobile",
   "Agency", "Purpose", "Proposed Date", "Status", "Serial No", "Issue ID", "Remarks", "Attachment URL",
-  "Old Meter No", "Work Order No"
+  "Old Meter No", "Work Order No", "Note Sheet No", "Closed Remarks",
+  "Old Meter Return Status", "Old Meter Return Date", "Old Meter Return Received By", "Old Meter Return Condition", "Old Meter Return Remarks"
 ]
 
 const REPLACEMENT_TAG = "meter-replacement"
@@ -60,7 +68,7 @@ async function ensureReplacementTab(id: string) {
   } else {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: id,
-      range: `${REPLACEMENT_TAB}!A1:O1`
+      range: `${REPLACEMENT_TAB}!A1:V1`
     })
     const currentHeaders = res.data.values?.[0] || []
     if (currentHeaders.length < REPLACEMENT_HEADERS.length) {
@@ -92,6 +100,13 @@ function parseReplacement(r: string[]): MeterReplacement {
     attachmentUrl: r[12] || "",
     oldMeterNo:    r[13] || "",
     workOrderNo:   r[14] || "",
+    noteSheetNo:   r[15] || "",
+    closedRemarks: r[16] || "",
+    oldMeterReturnStatus:     (r[17] || "") as any,
+    oldMeterReturnDate:       r[18] || "",
+    oldMeterReturnReceivedBy: r[19] || "",
+    oldMeterReturnCondition:  (r[20] || "") as any,
+    oldMeterReturnRemarks:    r[21] || "",
   }
 }
 
@@ -99,7 +114,7 @@ export async function _fetchReplacementsRaw(spreadsheetId: string): Promise<Mete
   await ensureReplacementTab(spreadsheetId)
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${REPLACEMENT_TAB}!A:O`
+    range: `${REPLACEMENT_TAB}!A:V`
   })
   return (res.data.values || [])
     .slice(1)
@@ -290,3 +305,50 @@ export async function syncStatusFromIssue(
     invalidateReplacementCache()
   }
 }
+
+export async function closeReplacement(replacementId: string, remarks: string): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+  const idx = all.findIndex(r => r.replacementId === replacementId)
+  if (idx === -1) throw new Error("Replacement record not found")
+  const rowNum = idx + 2
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: [
+        { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [["closed"]] },
+        { range: `${REPLACEMENT_TAB}!Q${rowNum}`, values: [[remarks]] },
+      ]
+    }
+  })
+  invalidateReplacementCache()
+}
+
+export async function updateReplacementNoteSheet(replacementId: string, noteSheetNo: string): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+  const idx = all.findIndex(r => r.replacementId === replacementId || r.issueId === replacementId)
+  if (idx === -1) throw new Error("Replacement record not found")
+  const rowNum = idx + 2
+  const rec = all[idx]
+
+  // Update status to 'replaced' if work order exists or status was updated/replaced
+  const newStatus = (rec.workOrderNo || rec.status === "updated" || rec.status === "replaced") ? "replaced" : rec.status
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: [
+        { range: `${REPLACEMENT_TAB}!P${rowNum}`, values: [[noteSheetNo]] },
+        { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [[newStatus]] },
+      ]
+    }
+  })
+  invalidateReplacementCache()
+}
+

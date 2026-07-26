@@ -13,9 +13,10 @@ import {
   Loader2, Download, RefreshCw, Check, ArrowLeft, RotateCcw, Package,
   MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet
 } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { MeterReplacement } from "@/lib/meter-replacement-service"
@@ -31,13 +32,13 @@ interface Props {
   permissions?: Record<string, string[]>
 }
 
-type Tab = "all" | "proposed" | "issued" | "updated" | "replaced"
+type Tab = "all" | "proposed" | "issued" | "updated" | "replaced" | "completed" | "closed"
 type SyncState = "idle" | "loading" | "updated"
 
 const PURPOSE_LABELS: Record<string, string> = {
-  faulty_replacement: "Faulty / Defective",
-  burnt_replacement:  "Burnt Meter",
-  slow_fast:          "Slow / Fast Meter",
+  faulty_replacement: "DEF",
+  burnt_replacement:  "BURNT",
+  slow_fast:          "CHECK",
 }
 
 const PURPOSE_COLORS: Record<string, string> = {
@@ -46,19 +47,31 @@ const PURPOSE_COLORS: Record<string, string> = {
   slow_fast:          "text-amber-600",
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  proposed: "bg-amber-50 text-amber-700 border border-amber-200",
-  issued:   "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  updated:  "bg-teal-50 text-teal-700 border border-teal-200",
-  replaced: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+function getReplacementStatusBadge(r: MeterReplacement) {
+  if (r.status === "replaced") {
+    if (r.noteSheetNo && r.noteSheetNo.trim()) {
+      return { label: "Completed", className: "bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold" }
+    }
+    return { label: "WO Done", className: "bg-teal-50 text-teal-700 border border-teal-200 font-semibold" }
+  }
+  if (r.status === "updated") return { label: "Installed", className: "bg-blue-50 text-blue-700 border border-blue-200 font-semibold" }
+  if (r.status === "proposed") return { label: "Proposed", className: "bg-amber-50 text-amber-700 border border-amber-200" }
+  if (r.status === "issued") return { label: "Issued", className: "bg-yellow-50 text-yellow-700 border border-yellow-200" }
+  if (r.status === "closed") return { label: "Closed / Cancelled", className: "bg-gray-100 text-gray-700 border border-gray-300" }
+  return { label: r.status, className: "bg-gray-100 text-gray-700 border border-gray-200" }
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  proposed: "Proposed",
-  issued:   "Issued",
-  updated:  "Installation Done",
-  replaced: "Replaced",
+  all:       "All",
+  proposed:  "Proposed",
+  issued:    "Issued",
+  updated:   "Installed",
+  replaced:  "WO Done",
+  completed: "Completed",
+  closed:    "Closed / Cancelled",
 }
+
+import { NoteSheetDialog } from "@/components/note-sheet-dialog"
 
 export function MeterReplacementList({ userRole, userAgencies, username, agencies, permissions }: Props) {
   const { toast } = useToast()
@@ -68,9 +81,46 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const [search, setSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useHashState<"list" | "create">("meter-replacement", "list")
+
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
+  const [selectedForClose, setSelectedForClose] = useState<MeterReplacement | null>(null)
+  const [closeRemarks, setCloseRemarks] = useState("")
+  const [closing, setClosing] = useState(false)
+
+  const [noteSheetDialogOpen, setNoteSheetDialogOpen] = useState(false)
+  const [selectedForNoteSheet, setSelectedForNoteSheet] = useState<MeterReplacement | null>(null)
   
   const isAdmin = userRole === "admin" || userRole === "executive"
   const [oldMeterMap, setOldMeterMap] = useState<Record<string, string>>({})
+
+  const handleCloseProposal = async () => {
+    if (!selectedForClose || !closeRemarks.trim()) {
+      toast({ title: "Please enter remarks for closing", variant: "destructive" })
+      return
+    }
+    setClosing(true)
+    try {
+      const res = await fetch("/api/meters/replacement", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "close",
+          replacementId: selectedForClose.replacementId,
+          remarks: closeRemarks.trim()
+        })
+      })
+      if (!res.ok) throw new Error((await res.json()).error || "Failed")
+      toast({ title: "Proposal closed successfully" })
+      setCloseDialogOpen(false)
+      setSelectedForClose(null)
+      setCloseRemarks("")
+      load(true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to close proposal", variant: "destructive" })
+    } finally {
+      setClosing(false)
+    }
+  }
 
   useEffect(() => {
     async function loadMasterMap() {
@@ -107,14 +157,49 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   const PAGE_SIZE = 15
 
-  const load = async (silent = false) => {
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set())
+
+  const toggleBulkSelect = (r: MeterReplacement) => {
+    setSelectedForBulk(prev => {
+      const next = new Set(prev)
+      if (next.has(r.replacementId)) {
+        next.delete(r.replacementId)
+      } else {
+        // Enforce same agency rule for bulk selection
+        const selectedItems = Array.from(prev).map(id => records.find(item => item.replacementId === id)).filter(Boolean) as MeterReplacement[]
+        if (selectedItems.length > 0) {
+          const firstAgency = (selectedItems[0].agency || "").trim().toUpperCase()
+          const currentAgency = (r.agency || "").trim().toUpperCase()
+          if (firstAgency && currentAgency && firstAgency !== currentAgency) {
+            toast({
+              title: "Same Agency Required",
+              description: `All selected meters must belong to the same agency (${selectedItems[0].agency}).`,
+              variant: "destructive"
+            })
+            return prev
+          }
+        }
+        next.add(r.replacementId)
+      }
+      return next
+    })
+  }
+
+  const load = async (silent = false, force = false) => {
     if (!silent) setSyncState("loading")
     try {
       const cached = await getFromCache<MeterReplacement[]>(CACHE_KEY)
+      const age = await getCacheAgeMs(CACHE_KEY)
+      const isFresh = age !== null && age < 2 * 60 * 1000 // 2 minutes freshness
+
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
+        if (isFresh && !force) {
+          return
+        }
       }
+
       const res = await fetch("/api/meters/replacement")
       if (!res.ok) throw new Error()
       const data: MeterReplacement[] = await res.json()
@@ -133,8 +218,19 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let data = records
-    if (tab !== "all") data = data.filter(r => r.status === tab)
+    let data = records.filter(r => r.purpose !== "slow_fast")
+    if (tab === "proposed")       data = data.filter(r => r.status === "proposed")
+    else if (tab === "issued")   data = data.filter(r => r.status === "issued")
+    else if (tab === "updated")  data = data.filter(r => r.status === "updated")
+    else if (tab === "replaced") data = data.filter(r => r.status === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()))
+    else if (tab === "completed") data = data.filter(r => r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim())
+    else if (tab === "closed")   data = data.filter(r => r.status === "closed")
+
+    if (!isAdmin) {
+      const upperAgencies = userAgencies.map(a => a.trim().toUpperCase())
+      data = data.filter(r => tab === "proposed" ? true : upperAgencies.includes((r.agency || "").trim().toUpperCase()))
+    }
+
     if (search) {
       const q = search.toLowerCase()
       data = data.filter(r =>
@@ -142,13 +238,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         r.consumerId.includes(q) ||
         r.consumerName.toLowerCase().includes(q) ||
         r.mobile.includes(q) ||
-        r.agency.toLowerCase().includes(q) ||
+        (r.agency || "").toLowerCase().includes(q) ||
         r.serialNo.toLowerCase().includes(q) ||
-        r.issueId.toLowerCase().includes(q)
+        r.issueId.toLowerCase().includes(q) ||
+        (r.workOrderNo || "").toLowerCase().includes(q) ||
+        (r.noteSheetNo || "").toLowerCase().includes(q)
       )
     }
     return data
-  }, [records, tab, search])
+  }, [records, tab, search, isAdmin, userAgencies])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -249,10 +347,10 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Proposed", value: records.filter(r => r.status === "proposed").length, color: "text-amber-700", bg: "bg-amber-50 border-amber-100" },
-          { label: "Issued", value: records.filter(r => r.status === "issued").length, color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100" },
-          { label: "Installation Done", value: records.filter(r => r.status === "updated").length, color: "text-teal-700", bg: "bg-teal-50 border-teal-100" },
-          { label: "Replaced", value: records.filter(r => r.status === "replaced").length, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
+          { label: "Proposed", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "proposed").length, color: "text-amber-700", bg: "bg-amber-50 border-amber-100" },
+          { label: "Issued", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "issued").length, color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100" },
+          { label: "Installation Done", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "updated").length, color: "text-teal-700", bg: "bg-teal-50 border-teal-100" },
+          { label: "Replaced", value: records.filter(r => r.purpose !== "slow_fast" && r.status === "replaced").length, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
         ].map(s => (
           <div key={s.label} className={`${s.bg} border rounded-2xl p-4 flex flex-col items-center shadow-sm`}>
             <span className={`text-3xl font-extrabold ${s.color} tabular-nums`}>{s.value}</span>
@@ -275,9 +373,6 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               <Download className="h-4 w-4" />
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={downloadProposalTemplate} className="shrink-0 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50" title="Download Excel Template for Proposals">
-            <FileSpreadsheet className="h-4 w-4 mr-1" /> <span className="hidden sm:inline">Template</span>
-          </Button>
           <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
             <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
           </Button>
@@ -285,12 +380,19 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
         {/* Tab Filters */}
         <div className="flex gap-1 overflow-x-auto pb-1">
-          {(["all", "proposed", "issued", "updated", "replaced"] as Tab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-              {t === "all" ? `All (${records.length})` : `${STATUS_LABELS[t]} (${records.filter(r => r.status === t).length})`}
-            </button>
-          ))}
+          {(["all", "proposed", "issued", "updated", "replaced", "completed", "closed"] as Tab[]).map(t => {
+            const valid = records.filter(r => r.purpose !== "slow_fast")
+            const count = t === "all" ? valid.length
+              : t === "replaced" ? valid.filter(r => r.status === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim())).length
+              : t === "completed" ? valid.filter(r => r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim()).length
+              : valid.filter(r => r.status === t).length
+            return (
+              <button key={t} onClick={() => setTab(t)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {`${STATUS_LABELS[t]} (${count})`}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -305,23 +407,36 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
           <Card key={r.replacementId} className="shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg">{r.consumerName || "No Name"}</CardTitle>
-                  <p className="text-sm text-gray-600 font-mono">{r.consumerId || "No ID"}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                      ID: {r.replacementId}
-                    </span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                      PURPOSE_COLORS[r.purpose] || "text-blue-700 border-blue-200"
-                    }`}>
-                      {PURPOSE_LABELS[r.purpose] || r.purpose}
-                    </span>
+                <div className="flex items-start gap-2">
+                  {tab !== "all" && (tab === "updated" || tab === "completed") && (
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 mt-1 accent-blue-600 cursor-pointer shrink-0"
+                      checked={selectedForBulk.has(r.replacementId)}
+                      onChange={() => toggleBulkSelect(r)}
+                    />
+                  )}
+                  <div>
+                    <CardTitle className="text-lg">{r.consumerName || "No Name"}</CardTitle>
+                    <p className="text-sm text-gray-600 font-mono">{r.consumerId || "No ID"}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                        ID: {r.replacementId}
+                      </span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                        PURPOSE_COLORS[r.purpose] || "text-blue-700 border-blue-200"
+                      }`}>
+                        {PURPOSE_LABELS[r.purpose] || r.purpose}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <Badge className={STATUS_COLORS[r.status] || ""}>{STATUS_LABELS[r.status] || r.status}</Badge>
-                  <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{r.agency}</Badge>
+                  {(() => {
+                    const st = getReplacementStatusBadge(r)
+                    return <Badge className={st.className}>{st.label}</Badge>
+                  })()}
+                  <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{r.agency || "Unassigned"}</Badge>
                 </div>
               </div>
             </CardHeader>
@@ -377,16 +492,108 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                 </div>
               )}
 
-              {(r.serialNo || r.issueId || r.workOrderNo) && (
-                <div className="pt-2 border-t mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                  {r.issueId && <p>Issue ID: <strong className="font-mono">{r.issueId}</strong></p>}
-                  {r.workOrderNo && <p>WO No: <strong className="text-slate-700 font-mono">{r.workOrderNo}</strong></p>}
+              {(r.serialNo || r.issueId || r.workOrderNo || r.noteSheetNo) && (
+                <div className="pt-2 border-t mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
+                    <span>WO: <strong className="text-slate-800">{r.workOrderNo || "—"}</strong></span>
+                    <span>Note Sheet: <strong className={r.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{r.noteSheetNo || "Pending"}</strong></span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200">
+                    <span>Issue ID: <strong className="font-mono text-gray-700">{r.issueId || "—"}</strong></span>
+                    <span>New Serial: <strong className="font-mono text-blue-800">{r.serialNo || "—"}</strong></span>
+                  </div>
+                </div>
+              )}
+
+              {r.status === "closed" && r.closedRemarks && (
+                <p className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-2">
+                  Closed Remarks: "{r.closedRemarks}"
+                </p>
+              )}
+
+              {tab !== "all" && r.status === "proposed" && (
+                <div className="flex gap-2 mt-3 pt-2 border-t">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => { setSelectedForClose(r); setCloseRemarks(""); setCloseDialogOpen(true) }}>
+                    Close Proposal
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      {tab !== "all" && selectedForBulk.size > 0 && (() => {
+        const selectedReps = Array.from(selectedForBulk).map(id => records.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
+        const agencyName = selectedReps[0]?.agency || "Selected"
+        return (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 flex-wrap justify-center">
+            <span className="text-xs font-bold text-blue-400 pl-2">
+              {selectedForBulk.size} selected ({agencyName})
+            </span>
+            {tab === "updated" && (
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold h-8"
+                onClick={async () => {
+                  const wo = prompt(`Enter Work Order Number for ${selectedForBulk.size} selected records of ${agencyName}:`)
+                  if (!wo || !wo.trim()) return
+                  try {
+                    const res = await fetch("/api/meters/finalize", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        issueIds: Array.from(selectedForBulk).map(id => {
+                          const r = records.find(item => item.replacementId === id)
+                          return r?.issueId || id
+                        }),
+                        completionRef: wo.trim(),
+                      })
+                    })
+                    if (!res.ok) throw new Error("Failed to add work order number")
+                    toast({ title: `Added Work Order "${wo.trim()}" to ${selectedForBulk.size} records` })
+                    setSelectedForBulk(new Set())
+                    load(true, true)
+                  } catch (err: any) {
+                    toast({ title: err.message || "Failed to update work order", variant: "destructive" })
+                  }
+                }}>
+                Add Work Order Number to Selected ({selectedForBulk.size})
+              </Button>
+            )}
+            {tab === "completed" && (
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8"
+                onClick={async () => {
+                  const remarks = prompt(`Enter Bulk Return remarks for ${selectedForBulk.size} selected completed meters:`)
+                  if (!remarks || !remarks.trim()) return
+                  try {
+                    let successCount = 0
+                    for (const id of Array.from(selectedForBulk)) {
+                      const rep = records.find(r => r.replacementId === id)
+                      const targetId = rep?.issueId || id
+                      const res = await fetch("/api/meters/return", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ issueId: targetId, remarks: remarks.trim() })
+                      })
+                      if (res.ok) successCount++
+                    }
+                    toast({ title: `Returned ${successCount} meter(s) to office/stock` })
+                    setSelectedForBulk(new Set())
+                    load(true, true)
+                  } catch (err: any) {
+                    toast({ title: err.message || "Failed to process bulk return", variant: "destructive" })
+                  }
+                }}>
+                Bulk Meter Return ({selectedForBulk.size})
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulk(new Set())} className="text-xs text-gray-300 hover:text-white h-8">
+              Clear Selection
+            </Button>
+          </div>
+        )
+      })()}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -412,6 +619,50 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
             </Button>
           </div>
         </div>
+      )}
+      {/* Close Proposal Modal */}
+      <Dialog open={closeDialogOpen} onOpenChange={open => !open && setCloseDialogOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 font-bold">Close / Cancel Proposal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 my-2">
+            {selectedForClose && (
+              <div className="bg-slate-50 p-2.5 rounded-lg text-xs space-y-1 border">
+                <p className="font-semibold text-gray-800">{selectedForClose.consumerName} ({selectedForClose.consumerId})</p>
+                <p className="text-gray-500 font-mono">Proposal ID: {selectedForClose.replacementId}</p>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Cancellation Reason / Remarks *</Label>
+              <Textarea
+                value={closeRemarks}
+                onChange={e => setCloseRemarks(e.target.value)}
+                placeholder="Reason for closing proposal (e.g., Meter tested OK, Consumer refused, Duplicate)..."
+                rows={3}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleCloseProposal} disabled={closing}>
+              {closing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null} Close Proposal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Note Sheet Modal */}
+      {selectedForNoteSheet && (
+        <NoteSheetDialog
+          replacementId={selectedForNoteSheet.replacementId}
+          currentNoteSheetNo={selectedForNoteSheet.noteSheetNo}
+          workOrderNo={selectedForNoteSheet.workOrderNo}
+          isOpen={noteSheetDialogOpen}
+          onClose={() => { setNoteSheetDialogOpen(false); setSelectedForNoteSheet(null) }}
+          onSuccess={() => { toast({ title: "Note Sheet updated" }); load(true) }}
+        />
       )}
     </div>
   )

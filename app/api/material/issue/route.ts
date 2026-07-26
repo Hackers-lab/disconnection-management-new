@@ -4,6 +4,8 @@ import { getIssueHistory, addIssues, deleteIssue } from "@/lib/material-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
+export const dynamic = "force-dynamic"
+
 export const GET = withTenant(async function GET(req: NextRequest) {
   const { authorized, error, status } = await checkApiPermission("material", ["read", "issue", "settings"])
   if (!authorized) return NextResponse.json({ error }, { status: status || 403 })

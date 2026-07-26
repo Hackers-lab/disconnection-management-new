@@ -13,7 +13,8 @@ import {
   RadioTower,      // For DTR Verification
   Brush,            // For DTR Painting
   Package,
-  FileCheck2
+  FileCheck2,
+  Gauge
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -38,6 +39,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const [open, setOpen] = useState(false)
   const [ddPendingCount, setDdPendingCount] = useState(0)
   const [disconnectionPendingCount, setDisconnectionPendingCount] = useState(0)
+  const [meterPendingCount, setMeterPendingCount] = useState(0)
 
   // Fetch pending counts
   useEffect(() => {
@@ -66,13 +68,37 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
           }).length
           setDisconnectionPendingCount(count)
         }
+
+        // Meter Pending Count (Aggregated Replacements + Active Installations + Check Meters)
+        const isAgency = userRole === "agency"
+        const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
+        const meterCached = await getFromCache<any>(cacheKey)
+        const upper = (agencies || []).map((a: string) => a.toUpperCase())
+        if (meterCached) {
+          const meterIssues: any[] = isAgency ? (Array.isArray(meterCached) ? meterCached : []) : (meterCached.issues || [])
+          const count = meterIssues.filter((i: any) => {
+            if (isAgency) {
+              if (i.status !== "issued") return false
+              return upper.includes((i.agency || "").toUpperCase())
+            } else {
+              return i.status === "installation_done"
+            }
+          }).length
+          const mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
+          const repCount = (mrCached || []).filter((r: any) => {
+            if ((r.status || "").toLowerCase() !== "proposed") return false
+            if ((r.purpose || "") === "slow_fast") return false
+            if (userRole === "admin" || userRole === "executive") return true
+            return upper.includes((r.agency || "").toUpperCase())
+          }).length
+          setMeterPendingCount(count + repCount)
+        }
       } catch (e) {
-        console.error("Failed to load DD count", e)
+        console.error("Failed to load counts", e)
       }
     }
     fetchCount()
-    // Optional: Set up an interval or listen to a custom event if real-time updates are critical
-  }, [activeView, userRole, agencies]) // Re-check when view changes
+  }, [activeView, userRole, agencies])
 
   const menuItems = [
     { 
@@ -94,6 +120,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       id: "deemed", 
       label: "Deemed Visit", 
       icon: UserX, 
+    },
+    {
+      id: "meter",
+      label: userRole === "agency" ? "Meter Installation" : "Meter Management",
+      icon: Gauge,
     },
     {
       id: "nsc",
@@ -179,6 +210,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
             {item.id === "deemed" && (
               <Badge variant={ddPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
                 {ddPendingCount}
+              </Badge>
+            )}
+            {item.id === "meter" && (
+              <Badge variant={meterPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
+                {meterPendingCount}
               </Badge>
             )}
           </Button>

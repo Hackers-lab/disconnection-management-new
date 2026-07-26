@@ -12,31 +12,36 @@ import {
   Search, X, Plus, RefreshCw, Loader2, Check, AlertCircle,
   Printer, ChevronLeft, ChevronRight, RotateCcw, Package,
   ArrowLeft, Upload, ChevronDown, ChevronUp, FileDown, ClipboardCheck,
-  MapPin, Phone, Building2, FileSpreadsheet, Monitor,
+  MapPin, Phone, Building2, FileSpreadsheet, Monitor, FileText, PackageCheck, Gauge, List
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import type { MeterStock, MeterIssue, StockSummary, MeterTypeLabel } from "@/lib/meter-types"
 import { METER_TYPES } from "@/lib/meter-types"
 import { MeterIssueForm } from "@/components/meter-issue-form"
 import { MeterCompleteForm } from "@/components/meter-complete-form"
+import { CheckMeterDialog } from "@/components/check-meter-dialog"
+import { NoteSheetDialog } from "@/components/note-sheet-dialog"
+import { ReturnOfficeDialog } from "@/components/return-office-dialog"
+import { BulkNscUploadModal } from "@/components/bulk-nsc-upload-modal"
 import { printMeterSlip } from "@/components/meter-slip"
 import { useHashState } from "@/hooks/use-hash-state"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
+import type { NSCApplication } from "@/lib/nsc-types"
 // xlsx loaded dynamically to reduce initial bundle size
 const loadXLSX = () => import("xlsx")
 
 const ADMIN_CACHE_KEY  = "meter_stock_cache"
 const AGENCY_CACHE_KEY = "meter_issues_cache"
 
-type Tab = "stock" | "active" | "history" | "reports" | "proposed"
-type View = "list" | "issue" | "complete" | "addstock"
+type Tab = "nsc" | "replacement" | "check" | "stock" | "history" | "active" | "reports" | "proposed"
+type View = "menu" | "stock" | "nsc" | "replacement" | "check" | "history" | "issue" | "complete" | "addstock"
 type SyncState = "idle" | "loading" | "updated"
 
 const PURPOSE_LABELS: Record<string, string> = {
-  faulty_replacement: "Faulty Replacement",
-  burnt_replacement:  "Burnt Replacement",
-  slow_fast:          "Slow/Fast",
+  faulty_replacement: "DEF",
+  burnt_replacement:  "BURNT",
+  slow_fast:          "CHECK",
   nsc:                "NSC",
 }
 
@@ -47,18 +52,17 @@ const PURPOSE_COLORS: Record<string, string> = {
   slow_fast:          "text-amber-600",
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  issued:            "bg-yellow-100 text-yellow-800",
-  installation_done: "bg-teal-100 text-teal-800",
-  installed:         "bg-green-100 text-green-800",
-  returned:          "bg-gray-100 text-gray-700",
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  issued:            "Issued",
-  installation_done: "Installation Done",
-  installed:         "Installed",
-  returned:          "Returned",
+function getIssueStatusBadge(issue: MeterIssue) {
+  if (issue.status === "installed") {
+    if (issue.noteSheetNo && issue.noteSheetNo.trim()) {
+      return { label: "Completed", className: "bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold" }
+    }
+    return { label: "WO Done", className: "bg-teal-100 text-teal-800 border border-teal-300 font-semibold" }
+  }
+  if (issue.status === "issued") return { label: "Issued", className: "bg-yellow-100 text-yellow-800 font-semibold" }
+  if (issue.status === "installation_done") return { label: "Installed", className: "bg-blue-100 text-blue-800 border border-blue-300 font-semibold" }
+  if (issue.status === "returned") return { label: "Returned", className: "bg-gray-100 text-gray-700 font-semibold" }
+  return { label: issue.status, className: "bg-slate-100 text-slate-700 font-semibold" }
 }
 
 interface Props {
@@ -86,7 +90,7 @@ interface MeterReplacement {
   workOrderNo?: string
 }
 
-export function MeterList({ userRole, userAgencies, username, agencies }: Props) {
+export function MeterList({ userRole, userAgencies, username, agencies, permissions }: Props) {
   const { toast } = useToast()
   const isAdmin = userRole === "admin" || userRole === "executive"
 
@@ -95,7 +99,19 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
   const [issues, setIssues]     = useState<MeterIssue[]>([])
   const [syncState, setSyncState] = useState<SyncState>("loading")
   const [tab, setTab]           = useState<Tab>("active")
-  const [view, setView]         = useHashState<View>("meter", "list")
+  const [view, setViewRaw]      = useHashState<View>("meter", "menu")
+  const [prevView, setPrevView] = useState<View>("menu")
+  const [showReportPanel, setShowReportPanel] = useState(false)
+  const setView = (v: View) => {
+    if (v === "issue" || v === "complete" || v === "addstock") {
+      setPrevView(view as View)
+    }
+    setShowReportPanel(false)
+    setSelectedForSlip(new Set())
+    setSelectedForBulkNoteSheet(new Set())
+    setSelectedForBulkRep(new Set())
+    setViewRaw(v)
+  }
   const [search, setSearch]         = useState("")
   const [purposeFilter, setPurposeFilter] = useState<string>("all")
   const [selected, setSelected] = useState<MeterIssue | null>(null)
@@ -110,10 +126,71 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
   const [prefill, setPrefill]                         = useState<any>(null)
   const [replacements, setReplacements]               = useState<MeterReplacement[]>([])
   const [loadingReplacements, setLoadingReplacements] = useState(false)
-  const [repSubTab, setRepSubTab]                     = useState<"pending" | "progress" | "replaced" | "all">("pending")
+  const [repSubTab, setRepSubTab]                     = useState<"pending" | "issued" | "installed" | "wo_done" | "completed" | "closed" | "all">("pending")
+  const [nscSubTab, setNscSubTab]                     = useState<"proposed" | "issued" | "installed" | "completed" | "withheld" | "all">("proposed")
+  const [nscApplications, setNscApplications]         = useState<NSCApplication[]>([])
+  const [bulkNscModalOpen, setBulkNscModalOpen]         = useState(false)
+  const [checkSubTab, setCheckSubTab]                 = useState<"proposed" | "issued" | "installed" | "check1_done" | "check2_done" | "finalized" | "all">("installed")
   // NSC quotation lookup — keyed by receiveNo → status
   const [nscStatusMap, setNscStatusMap]               = useState<Record<string, string>>({})
   const [oldMeterMap, setOldMeterMap]                 = useState<Record<string, string>>({})
+
+  // Dialog & selection state variables
+  const [checkMeterDialogOpen, setCheckMeterDialogOpen] = useState(false)
+  const [selectedForCheckMeter, setSelectedForCheckMeter] = useState<MeterIssue | null>(null)
+
+  const [noteSheetDialogOpen, setNoteSheetDialogOpen] = useState(false)
+  const [selectedForNoteSheet, setSelectedForNoteSheet] = useState<MeterIssue | null>(null)
+
+  const [returnOfficeDialogOpen, setReturnOfficeDialogOpen] = useState(false)
+  const [selectedForReturnOffice, setSelectedForReturnOffice] = useState<MeterIssue | null>(null)
+
+  const [selectedForBulkNoteSheet, setSelectedForBulkNoteSheet] = useState<Set<string>>(new Set())
+  const [bulkNoteSheetDialogOpen, setBulkNoteSheetDialogOpen]   = useState(false)
+
+  // Timeline dropdown & multi-select for replacement cards
+  const [expandedTimeline, setExpandedTimeline]   = useState<Set<string>>(new Set())
+  const [selectedForBulkRep, setSelectedForBulkRep] = useState<Set<string>>(new Set())
+
+  // Stock utilization drill-down & lookup state
+  const [stockDrillFilter, setStockDrillFilter]   = useState<"available" | "nsc" | "replacement" | "check" | null>(null)
+  const [meterLookupQuery, setMeterLookupQuery]   = useState("")
+
+  const toggleTimeline = (id: string) => {
+    setExpandedTimeline(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const toggleBulkRep = (rep: MeterReplacement) => {
+    setSelectedForBulkRep(prev => {
+      const next = new Set(prev)
+      if (next.has(rep.replacementId)) {
+        next.delete(rep.replacementId)
+      } else {
+        // Validation for Installed stage: ensure all selected items belong to the same agency
+        if (repSubTab === "installed" || rep.status === "updated") {
+          const selectedItems = Array.from(prev).map(id => replacements.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
+          if (selectedItems.length > 0) {
+            const firstAgency = (selectedItems[0].agency || "").trim().toUpperCase()
+            const currentAgency = (rep.agency || "").trim().toUpperCase()
+            if (firstAgency && currentAgency && firstAgency !== currentAgency) {
+              toast({
+                title: "Same Agency Required for Bulk Work Order",
+                description: `Bulk Work Order finalization requires all selected meters to belong to the same agency (${selectedItems[0].agency}).`,
+                variant: "destructive"
+              })
+              return prev
+            }
+          }
+        }
+        next.add(rep.replacementId)
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     async function loadMasterMap() {
@@ -148,20 +225,46 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
     loadMasterMap()
   }, [])
 
+  useEffect(() => {
+    async function loadNscApps() {
+      try {
+        const cached = await getFromCache<NSCApplication[]>("nsc_data_cache")
+        if (cached && Array.isArray(cached)) setNscApplications(cached)
+        const res = await fetch("/api/nsc")
+        if (res.ok) {
+          const data: NSCApplication[] = await res.json()
+          await saveToCache("nsc_data_cache", data)
+          setNscApplications(data)
+        }
+      } catch (e) {
+        console.error("Failed to load NSC applications", e)
+      }
+    }
+    if (view === "nsc") loadNscApps()
+  }, [view])
+
   const PAGE = 20
 
   // ── Load data ──────────────────────────────────────────────────────────────
-  const load = async (silent = false) => {
+  // ── Load data ──────────────────────────────────────────────────────────────
+  const load = async (silent = false, force = false) => {
     if (!silent) setSyncState("loading")
     try {
       if (isAdmin) {
-        // 1. Instant cache hit
+        // 1. Cache hit & freshness check
         const cached = await getFromCache<{ summary: StockSummary[]; stock: MeterStock[]; issues: MeterIssue[] }>(ADMIN_CACHE_KEY)
+        const age = await getCacheAgeMs(ADMIN_CACHE_KEY)
+        const isFresh = age !== null && age < 2 * 60 * 1000
+
         if (cached) {
           setSummary(cached.summary || [])
           setStock(cached.stock || [])
           setIssues(cached.issues || [])
           if (!silent) setSyncState("idle")
+          if (isFresh && !force) {
+            loadReplacements(force)
+            return
+          }
         }
         // 2. Fetch fresh
         const res = await fetch(`/api/meters/stock?t=${Date.now()}`, { cache: "no-store" })
@@ -173,11 +276,18 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
         setIssues(sorted)
         await saveToCache(ADMIN_CACHE_KEY, { summary: data.summary || [], stock: data.stock || [], issues: sorted })
       } else {
-        // 1. Instant cache hit
+        // 1. Cache hit & freshness check
         const cached = await getFromCache<MeterIssue[]>(AGENCY_CACHE_KEY)
+        const age = await getCacheAgeMs(AGENCY_CACHE_KEY)
+        const isFresh = age !== null && age < 2 * 60 * 1000
+
         if (cached) {
           setIssues(cached)
           if (!silent) setSyncState("idle")
+          if (isFresh && !force) {
+            loadReplacements(force)
+            return
+          }
         }
         // 2. Fetch fresh
         const res = await fetch(`/api/meters/issue?t=${Date.now()}`, { cache: "no-store" })
@@ -189,7 +299,7 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
       }
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
-      loadReplacements()
+      loadReplacements(force)
     } catch {
       setSyncState("idle")
       if (!silent) toast({ title: "Failed to load meter data", variant: "destructive" })
@@ -208,12 +318,19 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
       .catch(() => {})
   }, [])
 
-  const loadReplacements = async () => {
+  const loadReplacements = async (force = false) => {
     setLoadingReplacements(true)
     try {
       const cached = await getFromCache<MeterReplacement[]>("meter_replacement_data_cache")
+      const age = await getCacheAgeMs("meter_replacement_data_cache")
+      const isFresh = age !== null && age < 2 * 60 * 1000
+
       if (cached && cached.length > 0) {
         setReplacements(cached)
+        if (isFresh && !force) {
+          setLoadingReplacements(false)
+          return
+        }
       }
       const res = await fetch(`/api/meters/replacement?t=${Date.now()}`, { cache: "no-store" })
       if (res.ok) {
@@ -231,21 +348,94 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
   useEffect(() => { load() }, [])
 
   useEffect(() => {
-    if (tab === "proposed" || view === "issue") {
+    if (view === "replacement" || view === "issue") {
       loadReplacements()
     }
-  }, [tab, view])
+  }, [view])
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filteredIssues = useMemo(() => {
     let data = issues
-    if (tab === "active")  data = data.filter(i => i.status === "issued" || i.status === "installation_done")
-    if (tab === "history") data = data.filter(i => i.status === "installed" || i.status === "returned")
+
+    if (view === "nsc") {
+      if (nscSubTab === "proposed") {
+        const eligibleNsc = nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done")
+        const proposedList = eligibleNsc.map(app => ({
+          issueId: app.receiveNo || app.applicationNo,
+          issueDate: app.quotationDate || app.appliedDate || "",
+          purpose: "nsc" as const,
+          consumerId: app.applicationNo || app.receiveNo,
+          nscReceiveNo: app.receiveNo,
+          consumerName: app.applicantName,
+          agency: app.agency || "Unassigned",
+          serialNo: app.meterSerialNo || "Pending Meter Issue",
+          meterType: app.phase || "Standard",
+          status: "proposed" as any,
+          address: app.verifyAddress || app.address,
+          mobile: app.mobile,
+          remarks: app.remarks || "Quotation Issued — Awaiting Meter Issue",
+        } as MeterIssue))
+        data = proposedList
+      } else {
+        data = data.filter(i => i.purpose === "nsc")
+        if (nscSubTab === "issued")         data = data.filter(i => i.status === "issued")
+        else if (nscSubTab === "installed") data = data.filter(i => i.status === "installation_done")
+        else if (nscSubTab === "completed") data = data.filter(i => i.status === "installed")
+        else if (nscSubTab === "withheld")  data = data.filter(i => i.status === "returned" || i.status === "withheld")
+      }
+    } else if (view === "check") {
+      if (checkSubTab === "proposed") {
+        data = replacements
+          .filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed")
+          .map(r => ({
+            issueId: r.issueId || r.replacementId,
+            issueDate: r.proposedDate || "",
+            purpose: "slow_fast",
+            consumerId: r.consumerId,
+            consumerName: r.consumerName,
+            serialNo: r.serialNo || "",
+            meterType: "Standard",
+            agency: r.agency || "",
+            status: "proposed",
+            address: r.address,
+            mobile: r.mobile,
+            oldMeterNo: r.oldMeterNo
+          } as MeterIssue))
+      } else if (checkSubTab === "issued") {
+        const checkFromRep = replacements
+          .filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "issued")
+          .map(r => ({
+            issueId: r.issueId || r.replacementId,
+            issueDate: r.proposedDate || "",
+            purpose: "slow_fast",
+            consumerId: r.consumerId,
+            consumerName: r.consumerName,
+            serialNo: r.serialNo || "",
+            meterType: "Standard",
+            agency: r.agency || "",
+            status: "issued",
+            address: r.address,
+            mobile: r.mobile,
+            oldMeterNo: r.oldMeterNo
+          } as MeterIssue))
+        const checkFromIssues = issues.filter(i => i.purpose === "slow_fast" && i.status === "issued")
+        data = [...checkFromRep, ...checkFromIssues]
+      } else {
+        data = data.filter(i => i.purpose === "slow_fast")
+        if (checkSubTab === "installed")        data = data.filter(i => (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && !i.crossCheckDate1)
+        else if (checkSubTab === "check1_done") data = data.filter(i => i.crossCheckDate1 && !i.crossCheckDate2 && i.checkMeterStatus !== "finalized")
+        else if (checkSubTab === "check2_done") data = data.filter(i => i.crossCheckDate2 && i.checkMeterStatus !== "finalized")
+        else if (checkSubTab === "finalized")  data = data.filter(i => i.checkMeterStatus === "finalized")
+      }
+    } else if (view === "history") {
+      data = data.filter(i => i.status === "installed" || i.status === "returned")
+      if (purposeFilter !== "all") data = data.filter(i => i.purpose === purposeFilter)
+    }
+
     if (!isAdmin) {
       const upper = userAgencies.map(a => a.toUpperCase())
-      data = data.filter(i => upper.includes(i.agency.toUpperCase()))
+      data = data.filter(i => upper.includes((i.agency || "").toUpperCase()))
     }
-    if (purposeFilter !== "all") data = data.filter(i => i.purpose === purposeFilter)
     if (search) {
       const q = search.toLowerCase()
       data = data.filter(i =>
@@ -258,20 +448,26 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
       )
     }
     return data
-  }, [issues, tab, search, purposeFilter, isAdmin, userAgencies])
+  }, [issues, replacements, view, nscSubTab, checkSubTab, search, purposeFilter, isAdmin, userAgencies])
 
   const filteredReplacements = useMemo(() => {
-    let data = replacements
+    let data = replacements.filter(r => r.purpose !== "slow_fast")
     if (!isAdmin) {
       const upper = userAgencies.map(a => a.toUpperCase())
-      data = data.filter(r => upper.includes((r.agency || "").toUpperCase()))
+      data = data.filter(r => (r.status || "").toLowerCase() !== "proposed" && upper.includes((r.agency || "").toUpperCase()))
     }
-    if (repSubTab === "pending") {
+    if (repSubTab === "pending" && isAdmin) {
       data = data.filter(r => (r.status || "").toLowerCase() === "proposed")
-    } else if (repSubTab === "progress") {
-      data = data.filter(r => (r.status || "").toLowerCase() === "issued" || (r.status || "").toLowerCase() === "updated")
-    } else if (repSubTab === "replaced") {
-      data = data.filter(r => (r.status || "").toLowerCase() === "replaced")
+    } else if (repSubTab === "issued") {
+      data = data.filter(r => (r.status || "").toLowerCase() === "issued")
+    } else if (repSubTab === "installed") {
+      data = data.filter(r => (r.status || "").toLowerCase() === "updated")
+    } else if (repSubTab === "wo_done") {
+      data = data.filter(r => (r.status || "").toLowerCase() === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()))
+    } else if (repSubTab === "completed") {
+      data = data.filter(r => (r.status || "").toLowerCase() === "replaced" && r.noteSheetNo && r.noteSheetNo.trim())
+    } else if (repSubTab === "closed") {
+      data = data.filter(r => (r.status || "").toLowerCase() === "closed")
     }
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -281,7 +477,9 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
         r.consumerName.toLowerCase().includes(q) ||
         (r.serialNo || "").toLowerCase().includes(q) ||
         (r.issueId || "").toLowerCase().includes(q) ||
-        (r.agency || "").toLowerCase().includes(q)
+        (r.agency || "").toLowerCase().includes(q) ||
+        (r.workOrderNo || "").toLowerCase().includes(q) ||
+        (r.noteSheetNo || "").toLowerCase().includes(q)
       )
     }
     return data
@@ -292,8 +490,49 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
   useEffect(() => { setPage(1); setSelectedForFinalize(new Set()) }, [tab, search, purposeFilter])
 
   // ── Slip selection ────────────────────────────────────────────────────────
-  const toggleSlip = (id: string) =>
-    setSelectedForSlip(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleSlip = (targetIssue: MeterIssue) =>
+    setSelectedForSlip(prev => {
+      const n = new Set(prev)
+      const id = targetIssue.issueId
+      if (n.has(id)) {
+        n.delete(id)
+      } else {
+        // Enforce same-agency selection in Issued stage
+        const selectedItems = Array.from(prev).map(selId => {
+          return issues.find(i => i.issueId === selId) ||
+                 replacements.find(r => (r.issueId || r.replacementId) === selId)
+        }).filter(Boolean)
+
+        if (selectedItems.length > 0) {
+          const firstAgency = (selectedItems[0]?.agency || "").trim().toUpperCase()
+          const currentAgency = (targetIssue.agency || "").trim().toUpperCase()
+          if (firstAgency && currentAgency && firstAgency !== currentAgency) {
+            toast({
+              title: "Same Agency Required",
+              description: `Multi-selection in Issued tab requires all selected meters to belong to the same agency (${selectedItems[0]?.agency}).`,
+              variant: "destructive"
+            })
+            return prev
+          }
+        }
+
+        const issueDate = targetIssue.issueDate
+        if (targetIssue.status === "issued" && issueDate) {
+          const targetAgencyUpper = (targetIssue.agency || "").trim().toUpperCase()
+          const sameDateIssues = issues.filter(i =>
+            i.status === "issued" &&
+            i.issueDate === issueDate &&
+            (targetIssue.purpose ? i.purpose === targetIssue.purpose : true) &&
+            ((i.agency || "").trim().toUpperCase() === targetAgencyUpper)
+          )
+          sameDateIssues.forEach(i => n.add(i.issueId))
+          toast({ title: `Auto-selected ${sameDateIssues.length} meters for ${targetIssue.agency || "agency"} issued on ${issueDate}` })
+        } else {
+          n.add(id)
+        }
+      }
+      return n
+    })
 
   // ── Finalize selection ────────────────────────────────────────────────────
   const toggleFinalize = (id: string) =>
@@ -389,6 +628,86 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
     XLSX.writeFile(wb, `meter-issues-${tab}-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
+  // ── Stock Export ─────────────────────────────────────────────────────────
+  const exportStockExcel = async () => {
+    if (stock.length === 0) {
+      toast({ title: "No meter stock available to export", variant: "destructive" })
+      return
+    }
+    const XLSX = await loadXLSX()
+    const wb = XLSX.utils.book_new()
+
+    const rows = stock.map((s, idx) => ({
+      "S.No.": idx + 1,
+      "Serial No": s.serialNo,
+      "Meter Type": s.typeLabel,
+      "Phase": s.phase,
+      "Ampere": s.ampere,
+      "Smart Meter": s.smart ? "Yes" : "No",
+      "Condition": (s.condition || "").toUpperCase(),
+      "Received Date": s.receivedDate || "",
+      "Batch Remarks": s.batchRemarks || "",
+      "Last Updated": s.lastUpdated || ""
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    XLSX.utils.book_append_sheet(wb, ws, "Meter Stock")
+    XLSX.writeFile(wb, `meter-stock-list-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    toast({ title: "Meter Stock List exported successfully" })
+  }
+
+  // ── Cancel Proposal / Issue ────────────────────────────────────────────────
+  const handleCancelIssue = async (issue: MeterIssue) => {
+    const remarks = prompt(`Cancel proposal/issue for ${issue.consumerName || issue.consumerId}? Enter cancel remarks (required):`)
+    if (!remarks || !remarks.trim()) return
+
+    try {
+      // 1. Cancel in replacement sheet if proposal exists
+      const rep = replacements.find(r => r.issueId === issue.issueId || (r.consumerId === issue.consumerId && r.status !== "closed"))
+      if (rep) {
+        await fetch("/api/meters/replacement", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
+        })
+      }
+
+      // 2. Return issued meter back to stock if issued
+      if (issue.status === "issued") {
+        await fetch("/api/meters/return", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ issueId: issue.issueId, remarks: `Cancelled: ${remarks.trim()}`, faulty: false })
+        })
+      }
+
+      toast({ title: "Proposal / Issue cancelled successfully" })
+      load(true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to cancel proposal", variant: "destructive" })
+    }
+  }
+
+  const handleCancelProposal = async (rep: MeterReplacement) => {
+    const remarks = prompt(`Cancel proposal for ${rep.consumerName || rep.consumerId}? Enter cancel remarks (required):`)
+    if (!remarks || !remarks.trim()) return
+
+    try {
+      const res = await fetch("/api/meters/replacement", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
+      })
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to cancel proposal")
+
+      toast({ title: "Proposal cancelled successfully" })
+      loadReplacements()
+      load(true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to cancel proposal", variant: "destructive" })
+    }
+  }
+
   // ── Sub-views ─────────────────────────────────────────────────────────────
   if (view === "issue") return (
     <MeterIssueForm
@@ -396,44 +715,718 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
       agencies={agencies}
       prefill={prefill}
       onSave={apiCall => {
-        setView("list")
+        setViewRaw(prevView)
         setPrefill(null)
         toast({ title: "Issuing meter...", description: "Processing in background" })
         apiCall()
           .then(id => { toast({ title: "Meter issued", description: `Issue ID: ${id}` }); load(true) })
           .catch(err => { toast({ title: "Issue failed — please retry", description: err.message, variant: "destructive" }); load(true) })
       }}
-      onCancel={() => { setView("list"); setPrefill(null) }}
+      onCancel={() => { setViewRaw(prevView); setPrefill(null) }}
     />
   )
 
   if (view === "complete" && selected) return (
     <MeterCompleteForm
       issue={selected}
-      onSave={() => { toast({ title: "Installation completed" }); setSelected(null); setView("list"); load(true) }}
-      onCancel={() => { setSelected(null); setView("list") }}
+      onSave={() => { toast({ title: "Installation completed" }); setSelected(null); setViewRaw(prevView); load(true) }}
+      onCancel={() => { setSelected(null); setViewRaw(prevView) }}
     />
   )
 
-  if (view === "addstock") return <AddStockForm onSave={() => { setView("list"); load(true) }} onCancel={() => setView("list")} />
+  if (view === "addstock") return <AddStockForm onSave={() => { setViewRaw(prevView || "stock"); load(true) }} onCancel={() => setViewRaw(prevView || "stock")} />
 
   // ── Main list ─────────────────────────────────────────────────────────────
   return (
     <div className={`space-y-4 ${isAdmin ? (selectedForFinalize.size > 0 ? "pb-44" : "pb-28") : "pb-4"}`}>
 
-      {/* Stock summary — admin/executive only */}
-      {isAdmin && summary.length > 0 && (
-        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
-            <button className="font-semibold text-gray-800 flex items-center gap-2" onClick={() => setStockOpen(o => !o)}>
-              <Package className="h-4 w-4 text-blue-600" /> Stock Dashboard
-              {stockOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-            </button>
-            <Button size="sm" variant="outline" onClick={() => setView("addstock")}>
-              <Plus className="h-4 w-4 mr-1" /> Add Stock
+      {/* ── 1. SUBMODULES DASHBOARD MENU ── */}
+      {view === "menu" && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
+          {/* Replacements Card */}
+          <Card
+            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-amber-300 overflow-hidden"
+            onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${replacements.filter((r: MeterReplacement) => (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
+              {replacements.filter((r: MeterReplacement) => (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length}
+            </div>
+            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+              <RotateCcw className="h-16 w-16 md:h-24 md:w-24 text-amber-600 transition-transform duration-500 group-hover:scale-110" />
+            </div>
+            <CardHeader className="relative pb-2 p-3 md:p-6">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-amber-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                <RotateCcw className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
+              </div>
+              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
+                Meter Replacements
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                Defective & burnt meter proposals, issuance, WOs & Note Sheets
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* NSC Meters Card */}
+          <Card
+            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-emerald-300 overflow-hidden"
+            onClick={() => { setView("nsc"); setTab("nsc") }}>
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-emerald-500/10 transition-all duration-300 group-hover:scale-105 ${issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length > 0 ? "bg-emerald-600 shadow-emerald-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
+              {issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length}
+            </div>
+            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+              <ClipboardCheck className="h-16 w-16 md:h-24 md:w-24 text-emerald-600 transition-transform duration-500 group-hover:scale-110" />
+            </div>
+            <CardHeader className="relative pb-2 p-3 md:p-6">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                <ClipboardCheck className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />
+              </div>
+              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                NSC Meters
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                New connection meter issuance & legacy entries
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Check Meters Card */}
+          <Card
+            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-purple-300 overflow-hidden"
+            onClick={() => { setView("check"); setTab("check") }}>
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length > 0 ? "bg-purple-600 shadow-purple-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
+              {issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length}
+            </div>
+            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+              <Gauge className="h-16 w-16 md:h-24 md:w-24 text-purple-600 transition-transform duration-500 group-hover:scale-110" />
+            </div>
+            <CardHeader className="relative pb-2 p-3 md:p-6">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                <Gauge className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+              </div>
+              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
+                Check Meters
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                Slow/Fast testing & accuracy verification
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Stock Register Card */}
+          {(isAdmin || (permissions && (permissions.meter_stock || permissions.meter?.includes("read")))) && (
+            <Card
+              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-blue-300 overflow-hidden"
+              onClick={() => { setView("stock"); setTab("stock") }}>
+              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${summary.reduce((acc, s) => acc + s.available, 0) > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
+                {summary.reduce((acc, s) => acc + s.available, 0)}
+              </div>
+              <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                <Package className="h-16 w-16 md:h-24 md:w-24 text-blue-600 transition-transform duration-500 group-hover:scale-110" />
+              </div>
+              <CardHeader className="relative pb-2 p-3 md:p-6">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                  <Package className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                </div>
+                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                  Store Stock
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+                <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                  1P/3P/Smart meter balance & store ledgers
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* History & Archives Card */}
+          <Card
+            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-gray-300 overflow-hidden"
+            onClick={() => { setView("history"); setTab("history") }}>
+            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-gray-500/10 transition-all duration-300 group-hover:scale-105 bg-gray-500 shadow-gray-500/20`}>
+              {issues.filter(i => (i.status === "installed" || i.status === "returned") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length}
+            </div>
+            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+              <FileText className="h-16 w-16 md:h-24 md:w-24 text-gray-600 transition-transform duration-500 group-hover:scale-110" />
+            </div>
+            <CardHeader className="relative pb-2 p-3 md:p-6">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                <FileText className="h-5 w-5 md:h-6 md:w-6 text-gray-600" />
+              </div>
+              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-gray-700 transition-colors">
+                History & Archives
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                All completed installations & returned meters
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Submodule Header with Back Button */}
+      {view !== "menu" && (
+        <div className="flex items-center justify-between border-b pb-3 mb-2">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full hover:bg-gray-200"
+              onClick={() => {
+                if (showReportPanel) {
+                  setShowReportPanel(false)
+                } else {
+                  setView("menu")
+                }
+              }}>
+              <ArrowLeft className="h-4 w-4 text-gray-700" />
+            </Button>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 leading-none">
+                {view === "replacement" && "🔄 Meter Replacements"}
+                {view === "nsc" && "⚡ NSC Meters"}
+                {view === "check" && "🧪 Check Meters"}
+                {view === "stock" && "📦 Store Meter Stock"}
+                {view === "history" && "📜 History & Archives"}
+              </h2>
+              <p className="text-[11px] text-gray-500 mt-1">
+                {view === "replacement" && "Defective and burnt meter replacements, Work Orders, and Note Sheets."}
+                {view === "nsc" && "New Service Connection meter issuance, legacy entries, and connection effected status."}
+                {view === "check" && "Slow/Fast meter testing, cross-checks 1 & 2, accuracy calculation, and outcomes."}
+                {view === "stock" && "Store inventory balance, batch receipts, and stock availability."}
+                {view === "history" && "Completed installations and returned store records across all categories."}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Header stays clean without Reports button */}
+          </div>
+        </div>
+      )}
+
+      {/* Contextual Submodule Report Panel */}
+      {showReportPanel && view !== "menu" && (
+        <div className="mb-4">
+          <ReportsPanel
+            activeSubmodule={view}
+            issues={issues}
+            summary={summary}
+            onExport={exportIssues}
+            replacements={replacements}
+            oldMeterMap={oldMeterMap}
+            nscApplications={nscApplications}
+          />
+        </div>
+      )}
+
+      {/* ── Per-Submodule Search & Controls ── */}
+      {!showReportPanel && (view === "nsc" || view === "check" || view === "history") && (
+        <div className="bg-white p-4 rounded-lg shadow-sm border space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search issue ID, serial, consumer, agency..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
+              {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
+            </div>
+            {isAdmin && (() => {
+              const countInView = filteredIssues.filter(i => selectedForSlip.has(i.issueId)).length
+              return countInView > 0 ? (
+                <Button size="sm" variant="outline" onClick={printSelected} className="shrink-0 bg-blue-50 border-blue-200 text-blue-800 font-semibold hover:bg-blue-100">
+                  <Printer className="h-4 w-4 mr-1 text-blue-600" /> Print Store Requisition ({countInView})
+                </Button>
+              ) : null
+            })()}
+            <Button size="sm" variant="ghost" onClick={exportIssues} className="shrink-0" title="Export to Excel">
+              <FileDown className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
+              <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
             </Button>
           </div>
-          {stockOpen && <div className="overflow-x-auto">
+
+          {/* NSC Submodule Status Chips */}
+          {view === "nsc" && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {[
+                { value: "proposed",  label: `📋 Proposed (${nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length})` },
+                { value: "issued",    label: `⚡ Issued (${issues.filter(i => i.purpose === "nsc" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "installed", label: `🔧 Installed (${issues.filter(i => i.purpose === "nsc" && i.status === "installation_done" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "completed", label: `✅ Connection Done (${issues.filter(i => i.purpose === "nsc" && i.status === "installed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "withheld",  label: `⚠️ Withheld (${issues.filter(i => i.purpose === "nsc" && (i.status === "returned" || i.status === "withheld") && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "all",       label: `All (${issues.filter(i => i.purpose === "nsc" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+              ].map(sub => (
+                <button key={sub.value} onClick={() => setNscSubTab(sub.value as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
+                    nscSubTab === sub.value ? "bg-emerald-600 text-white border-emerald-600 shadow-sm" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  }`}>
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Check Meter Submodule Status Chips */}
+          {view === "check" && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {[
+                { value: "proposed",    label: `📋 Proposed (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+                { value: "issued",      label: `⚡ Issued (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length + issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "installed",   label: `🔧 Installed (${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && !i.crossCheckDate1 && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "check1_done", label: `1st Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate1 && !i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "check2_done", label: `2nd Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "finalized",   label: `🏁 Finalized (${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus === "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+                { value: "all",         label: `All Check Meters (${issues.filter(i => i.purpose === "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})` },
+              ].map(sub => (
+                <button key={sub.value} onClick={() => setCheckSubTab(sub.value as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
+                    checkSubTab === sub.value ? "bg-purple-600 text-white border-purple-600 shadow-sm" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                  }`}>
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Mobile View Dedicated Report Row */}
+          <div className="md:hidden pt-2 border-t">
+            <Button
+              size="sm"
+              variant={showReportPanel ? "default" : "outline"}
+              className={`w-full h-9 rounded-xl text-xs font-semibold transition ${
+                showReportPanel ? "bg-slate-950 text-white shadow-sm" : "border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
+              onClick={() => setShowReportPanel(p => !p)}>
+              {showReportPanel ? (
+                <>
+                  <List className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
+                  📋 Back to Records List
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  📊 Submodule Report
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* History-only purpose filter chips */}
+          {view === "history" && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {[
+                { value: "all",                label: "All Types",   active: "bg-blue-600 text-white border-blue-600",     inactive: "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700" },
+                { value: "nsc",                label: "NSC",         active: "bg-green-600 text-white border-green-600",   inactive: "bg-white text-green-700 border-green-200 hover:border-green-400 hover:bg-green-50" },
+                { value: "faulty_replacement", label: "Faulty",      active: "bg-orange-500 text-white border-orange-500", inactive: "bg-white text-orange-600 border-orange-200 hover:border-orange-400 hover:bg-orange-50" },
+                { value: "burnt_replacement",  label: "Burnt",       active: "bg-red-600 text-white border-red-600",       inactive: "bg-white text-red-600 border-red-200 hover:border-red-400 hover:bg-red-50" },
+                { value: "slow_fast",          label: "Slow/Fast",   active: "bg-amber-500 text-white border-amber-500",   inactive: "bg-white text-amber-600 border-amber-200 hover:border-amber-400 hover:bg-amber-50" },
+              ].map(p => (
+                <button key={p.value} onClick={() => setPurposeFilter(p.value)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap border transition ${
+                    purposeFilter === p.value ? p.active : p.inactive
+                  }`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Controls Footer with Dedicated Submodule Report Button (Desktop) */}
+          <div className="hidden md:flex items-center justify-between pt-2 border-t">
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>{filteredIssues.length} records</span>
+              {syncState === "updated" && <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Updated</span>}
+            </div>
+
+            <Button
+              size="sm"
+              variant={showReportPanel ? "default" : "outline"}
+              className={`rounded-xl text-xs font-semibold transition ${
+                showReportPanel ? "bg-slate-950 text-white shadow-sm" : "border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
+              onClick={() => setShowReportPanel(p => !p)}>
+              {showReportPanel ? (
+                <>
+                  <List className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
+                  📋 Back to Records List
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  📊 Submodule Report
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Replacement submodule: search bar & controls */}
+      {view === "replacement" && !showReportPanel && (
+        <div className="bg-white p-4 rounded-lg shadow-sm border space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search replacement ID, consumer, agency..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
+              {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
+            </div>
+            {isAdmin && (() => {
+              const selectedIssuedReps = filteredReplacements.filter(r => r.status === "issued" && (selectedForSlip.has(r.issueId) || selectedForSlip.has(r.replacementId)))
+              return selectedIssuedReps.length > 0 ? (
+                <Button size="sm" variant="outline" onClick={() => {
+                  const itemsToPrint = selectedIssuedReps.map(r => issues.find(i => i.issueId === r.issueId) || {
+                    issueId: r.issueId || r.replacementId,
+                    issueDate: r.proposedDate || "",
+                    purpose: r.purpose,
+                    consumerId: r.consumerId,
+                    consumerName: r.consumerName,
+                    serialNo: r.serialNo || "",
+                    meterType: "Standard",
+                    agency: r.agency,
+                    status: "issued"
+                  })
+                  printMeterSlip(itemsToPrint as any)
+                }} className="shrink-0 bg-blue-50 border-blue-200 text-blue-800 font-semibold hover:bg-blue-100">
+                  <Printer className="h-4 w-4 mr-1 text-blue-600" /> Print Store Requisition ({selectedIssuedReps.length})
+                </Button>
+              ) : null
+            })()}
+            <Button size="sm" variant="ghost" onClick={() => { load(); loadReplacements() }} className="shrink-0">
+              <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+          {/* Mobile View Dedicated Report Row */}
+          <div className="md:hidden pt-2 border-t">
+            <Button
+              size="sm"
+              variant={showReportPanel ? "default" : "outline"}
+              className={`w-full h-9 rounded-xl text-xs font-semibold transition ${
+                showReportPanel ? "bg-slate-950 text-white shadow-sm" : "border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
+              onClick={() => setShowReportPanel(p => !p)}>
+              {showReportPanel ? (
+                <>
+                  <List className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
+                  📋 Back to Records List
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  📊 Submodule Report
+                </>
+              )}
+            </Button>
+          </div>
+          <div className="hidden md:flex items-center justify-between pt-2 border-t text-xs text-gray-500">
+            <div className="flex items-center gap-3">
+              <span>{filteredReplacements.length} records</span>
+              {syncState === "updated" && <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Updated</span>}
+            </div>
+
+            <Button
+              size="sm"
+              variant={showReportPanel ? "default" : "outline"}
+              className={`rounded-xl text-xs font-semibold transition ${
+                showReportPanel ? "bg-slate-950 text-white shadow-sm" : "border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
+              onClick={() => setShowReportPanel(p => !p)}>
+              {showReportPanel ? (
+                <>
+                  <List className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
+                  📋 Back to Records List
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                  📊 Submodule Report
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Stock submodule: search, Add Stock, Export & Reports button below search bar */}
+      {view === "stock" && !showReportPanel && (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm border space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Search meter type or serial number..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
+                {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
+              </div>
+              {isAdmin && (
+                <Button
+                  size="sm"
+                  onClick={() => setView("addstock")}
+                  className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs flex items-center gap-1.5 shadow-sm">
+                  <Plus className="h-4 w-4" /> Add Stock
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={exportStockExcel} className="shrink-0 text-emerald-700 border-emerald-200 hover:bg-emerald-50 rounded-xl" title="Export Meter Stock List to Excel">
+                <FileSpreadsheet className="h-4 w-4 mr-1 text-emerald-600" /> <span className="hidden sm:inline">Export Stock</span>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
+                <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+
+            {/* Row below search bar for Reports Button (Requirement 2) */}
+            <div className="pt-2 border-t flex items-center justify-between">
+              <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                <Gauge className="h-3.5 w-3.5 text-blue-600" /> Meter Inventory & Submodule Analytics
+              </p>
+              <Button
+                size="sm"
+                variant={showReportPanel ? "default" : "outline"}
+                className={`rounded-xl text-xs font-semibold transition ${
+                  showReportPanel ? "bg-slate-900 text-white shadow-sm" : "border-slate-300 text-slate-700 hover:bg-slate-100"
+                }`}
+                onClick={() => setShowReportPanel(p => !p)}>
+                <FileSpreadsheet className="h-4 w-4 mr-1 text-emerald-600" />
+                <span>{showReportPanel ? "Close Reports Panel" : "View Reports Panel"}</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* On-screen Live Meter Lookup & Traceability Tool (Requirement 4) */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 rounded-xl shadow-lg space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm flex items-center gap-2 text-emerald-400">
+                <Search className="h-4 w-4 text-emerald-400" /> On-Screen Meter Lookup & Status Traceability
+              </h3>
+              <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">Instant Search</span>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
+              <Input
+                value={meterLookupQuery}
+                onChange={e => setMeterLookupQuery(e.target.value)}
+                placeholder="Enter Serial Number or Application/Consumer ID to check status..."
+                className="pl-10 pr-8 bg-slate-950/80 border-slate-700 text-white placeholder:text-slate-400 rounded-xl text-xs h-9 font-mono"
+              />
+              {meterLookupQuery && (
+                <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 hover:text-white cursor-pointer" onClick={() => setMeterLookupQuery("")} />
+              )}
+            </div>
+
+            {/* Instant Search Results Box */}
+            {meterLookupQuery.trim() && (() => {
+              const query = meterLookupQuery.trim().toLowerCase()
+              const foundStock = stock.filter(s => s.serialNo.toLowerCase().includes(query))
+              const foundIssues = issues.filter(i => (i.serialNo || "").toLowerCase().includes(query) || (i.consumerId || "").toLowerCase().includes(query) || (i.nscReceiveNo || "").toLowerCase().includes(query))
+
+              if (foundStock.length === 0 && foundIssues.length === 0) {
+                return (
+                  <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-700 text-center text-xs text-slate-400">
+                    No meter or issuance record matching &quot;{meterLookupQuery}&quot; found in database.
+                  </div>
+                )
+              }
+
+              return (
+                <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-700 space-y-2 max-h-60 overflow-y-auto">
+                  <p className="text-[11px] font-semibold text-slate-300">Matching Results ({foundStock.length + foundIssues.length}):</p>
+                  <div className="grid gap-2">
+                    {/* Issued / Utilised matches */}
+                    {foundIssues.map(issue => (
+                      <div key={issue.issueId} className="bg-slate-900 border border-slate-700 p-2.5 rounded-lg text-xs flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-emerald-400 font-mono text-sm">{issue.serialNo}</span>
+                            <Badge className={
+                              issue.purpose === "nsc" ? "bg-green-600 text-white" :
+                              issue.purpose === "slow_fast" ? "bg-purple-600 text-white" : "bg-orange-600 text-white"
+                            }>
+                              UTILISED ({issue.purpose === "nsc" ? "NSC" : issue.purpose === "slow_fast" ? "Check Meter" : "Replacement"})
+                            </Badge>
+                            <Badge variant="outline" className="text-slate-300 border-slate-600 text-[10px]">
+                              {issue.status.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-slate-300 text-[11px] mt-1">
+                            Issued to: <strong className="text-white">{issue.consumerName || "—"}</strong> ({issue.agency || "Agency"})
+                          </p>
+                          <p className="text-slate-400 text-[10px] font-mono">
+                            App/Consumer ID: {issue.consumerId || "—"} | Date: {issue.issueDate || "—"} | WO/Ref: {issue.completionRef || "Pending"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Available Stock matches */}
+                    {foundStock.filter(s => !foundIssues.some(i => i.serialNo === s.serialNo)).map(st => (
+                      <div key={st.serialNo} className="bg-slate-900 border border-slate-700 p-2.5 rounded-lg text-xs flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-blue-400 font-mono text-sm">{st.serialNo}</span>
+                            <Badge className="bg-emerald-600 text-white">STORE STOCK (AVAILABLE)</Badge>
+                          </div>
+                          <p className="text-slate-300 text-[11px] mt-0.5">
+                            Type: <strong>{st.typeLabel}</strong> | Phase: {st.phase} | Batch: {st.batchRemarks || "Initial"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Utilization Summary Cards & Drill-Down Filters (Requirement 4) */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              {/* Card 1: Available */}
+              <div
+                onClick={() => setStockDrillFilter(prev => prev === "available" ? null : "available")}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  stockDrillFilter === "available" ? "bg-emerald-600 text-white border-emerald-700 shadow-md scale-[1.02]" : "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100"
+                }`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Available in Store</p>
+                <p className="text-2xl font-black mt-1">{summary.reduce((acc, s) => acc + s.available, 0)}</p>
+                <p className="text-[10px] mt-1 opacity-90 font-medium">Click to view list ↗</p>
+              </div>
+
+              {/* Card 2: Utilised for NSC */}
+              <div
+                onClick={() => setStockDrillFilter(prev => prev === "nsc" ? null : "nsc")}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  stockDrillFilter === "nsc" ? "bg-green-700 text-white border-green-800 shadow-md scale-[1.02]" : "bg-green-50 text-green-900 border-green-200 hover:bg-green-100"
+                }`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Utilised (NSC)</p>
+                <p className="text-2xl font-black mt-1">{issues.filter(i => i.purpose === "nsc").length}</p>
+                <p className="text-[10px] mt-1 opacity-90 font-medium">Click to view list ↗</p>
+              </div>
+
+              {/* Card 3: Utilised for Replacement */}
+              <div
+                onClick={() => setStockDrillFilter(prev => prev === "replacement" ? null : "replacement")}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  stockDrillFilter === "replacement" ? "bg-orange-600 text-white border-orange-700 shadow-md scale-[1.02]" : "bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100"
+                }`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Utilised (Replacement)</p>
+                <p className="text-2xl font-black mt-1">{issues.filter(i => i.purpose === "faulty_replacement" || i.purpose === "burnt_replacement").length}</p>
+                <p className="text-[10px] mt-1 opacity-90 font-medium">Click to view list ↗</p>
+              </div>
+
+              {/* Card 4: Utilised for Check Meter */}
+              <div
+                onClick={() => setStockDrillFilter(prev => prev === "check" ? null : "check")}
+                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  stockDrillFilter === "check" ? "bg-purple-700 text-white border-purple-800 shadow-md scale-[1.02]" : "bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100"
+                }`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Utilised (Check Meter)</p>
+                <p className="text-2xl font-black mt-1">{issues.filter(i => i.purpose === "slow_fast").length}</p>
+                <p className="text-[10px] mt-1 opacity-90 font-medium">Click to view list ↗</p>
+              </div>
+            </div>
+
+            {/* Interactive Drill-down On-screen Table */}
+            {stockDrillFilter && (
+              <div className="bg-white rounded-xl border shadow-md p-4 space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <List className="h-4 w-4 text-blue-600" />
+                    On-Screen Details: {
+                      stockDrillFilter === "available" ? "Available Store Meters" :
+                      stockDrillFilter === "nsc" ? "Meters Utilised for NSC" :
+                      stockDrillFilter === "replacement" ? "Meters Utilised for Replacement" : "Meters Utilised for Check Meter"
+                    }
+                  </h4>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-500" onClick={() => setStockDrillFilter(null)}>
+                    <X className="h-3.5 w-3.5 mr-1" /> Close List
+                  </Button>
+                </div>
+
+                {stockDrillFilter === "available" ? (
+                  <div className="overflow-x-auto max-h-80">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 text-slate-700 font-semibold border-b sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left">#</th>
+                          <th className="px-3 py-2 text-left">Serial No</th>
+                          <th className="px-3 py-2 text-left">Meter Type</th>
+                          <th className="px-3 py-2 text-left">Phase</th>
+                          <th className="px-3 py-2 text-left">Batch / Remarks</th>
+                          <th className="px-3 py-2 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {stock.filter(s => s.condition === "available").slice(0, 100).map((st, idx) => (
+                          <tr key={st.serialNo} className="hover:bg-slate-50 font-mono">
+                            <td className="px-3 py-1.5 text-gray-400">{idx + 1}</td>
+                            <td className="px-3 py-1.5 font-bold text-blue-700">{st.serialNo}</td>
+                            <td className="px-3 py-1.5 font-sans font-medium text-gray-800">{st.typeLabel}</td>
+                            <td className="px-3 py-1.5">{st.phase}</td>
+                            <td className="px-3 py-1.5 font-sans text-gray-500">{st.batchRemarks || "—"}</td>
+                            <td className="px-3 py-1.5 text-center">
+                              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200">AVAILABLE</Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-80">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 text-slate-700 font-semibold border-b sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left">#</th>
+                          <th className="px-3 py-2 text-left">Serial No</th>
+                          <th className="px-3 py-2 text-left">Consumer / Applicant Name</th>
+                          <th className="px-3 py-2 text-left">App/Consumer ID</th>
+                          <th className="px-3 py-2 text-left">Agency</th>
+                          <th className="px-3 py-2 text-left">Issue Date</th>
+                          <th className="px-3 py-2 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {issues.filter(i => {
+                          if (stockDrillFilter === "nsc") return i.purpose === "nsc"
+                          if (stockDrillFilter === "replacement") return i.purpose === "faulty_replacement" || i.purpose === "burnt_replacement"
+                          if (stockDrillFilter === "check") return i.purpose === "slow_fast"
+                          return false
+                        }).slice(0, 100).map((issue, idx) => (
+                          <tr key={issue.issueId} className="hover:bg-slate-50 font-mono">
+                            <td className="px-3 py-1.5 text-gray-400">{idx + 1}</td>
+                            <td className="px-3 py-1.5 font-bold text-slate-900">{issue.serialNo}</td>
+                            <td className="px-3 py-1.5 font-sans font-medium text-gray-800">{issue.consumerName || "—"}</td>
+                            <td className="px-3 py-1.5 text-blue-700">{issue.consumerId || "—"}</td>
+                            <td className="px-3 py-1.5 font-sans text-gray-700">{issue.agency || "—"}</td>
+                            <td className="px-3 py-1.5 text-gray-500">{issue.issueDate || "—"}</td>
+                            <td className="px-3 py-1.5 text-center">
+                              <Badge variant="outline" className="text-slate-700 border-slate-300 font-sans uppercase">
+                                {issue.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Stock submodule: full summary table */}
+      {view === "stock" && !showReportPanel && summary.length > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 text-gray-600 font-semibold border-b">
                 <tr>
@@ -458,95 +1451,30 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                 ))}
               </tbody>
             </table>
-          </div>}
+          </div>
         </div>
       )}
 
-      {/* Controls */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search issue ID, serial, consumer, agency..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
-            {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
+      {/* Bulk Note Sheet Action Bar */}
+      {selectedForBulkNoteSheet.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex items-center justify-between shadow-sm mb-3">
+          <div className="text-xs font-semibold text-blue-900 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-blue-600" />
+            <span>{selectedForBulkNoteSheet.size} installed meter(s) selected for Note Sheet entry</span>
           </div>
-          {isAdmin && selectedForSlip.size > 0 && (
-            <Button size="sm" variant="outline" onClick={printSelected} className="shrink-0">
-              <Printer className="h-4 w-4 mr-1" /> Print ({selectedForSlip.size})
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulkNoteSheet(new Set())} className="text-xs h-8">
+              Clear Selection
             </Button>
-          )}
-          {tab !== "stock" && tab !== "proposed" && (
-            <Button size="sm" variant="ghost" onClick={exportIssues} className="shrink-0" title="Export to Excel">
-              <FileDown className="h-4 w-4" />
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8" onClick={() => setBulkNoteSheetDialogOpen(true)}>
+              <FileText className="h-3.5 w-3.5 mr-1" /> Set Note Sheet No ({selectedForBulkNoteSheet.size})
             </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
-            <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
-
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {(isAdmin ? ["stock", "active", "history", "proposed", "reports"] as Tab[] : ["active", "history", "proposed"] as Tab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-              {t === "stock" ? "All Stock"
-               : t === "active" ? `Active (${issues.filter(i => (i.status === "issued" || i.status === "installation_done") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length})`
-               : t === "history" ? "History"
-               : t === "proposed" ? `Replacements (${replacements.filter((r: MeterReplacement) => (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length} pending)`
-               : "Reports"}
-            </button>
-          ))}
-        </div>
-
-        {/* Purpose filter chips */}
-        {tab !== "stock" && tab !== "reports" && tab !== "proposed" && (
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            {[
-              { value: "all",                label: "All Types",   active: "bg-blue-600 text-white border-blue-600",     inactive: "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700" },
-              { value: "nsc",                label: "NSC",         active: "bg-green-600 text-white border-green-600",   inactive: "bg-white text-green-700 border-green-200 hover:border-green-400 hover:bg-green-50" },
-              { value: "faulty_replacement", label: "Faulty",      active: "bg-orange-500 text-white border-orange-500", inactive: "bg-white text-orange-600 border-orange-200 hover:border-orange-400 hover:bg-orange-50" },
-              { value: "burnt_replacement",  label: "Burnt",       active: "bg-red-600 text-white border-red-600",       inactive: "bg-white text-red-600 border-red-200 hover:border-red-400 hover:bg-red-50" },
-              { value: "slow_fast",          label: "Slow/Fast",   active: "bg-amber-500 text-white border-amber-500",   inactive: "bg-white text-amber-600 border-amber-200 hover:border-amber-400 hover:bg-amber-50" },
-            ].map(p => (
-              <button key={p.value} onClick={() => setPurposeFilter(p.value)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap border transition ${
-                  purposeFilter === p.value ? p.active : p.inactive
-                }`}>
-                {p.label}
-              </button>
-            ))}
           </div>
-        )}
-
-        <div className="flex items-center gap-3 text-xs text-gray-500">
-          <span>{tab === "proposed" ? filteredReplacements.length : filteredIssues.length} records</span>
-          {syncState === "updated" && <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Updated</span>}
         </div>
+      )}
 
-        {/* Select All / None — shown when ≥1 installation_done card is selected */}
-        {isAdmin && selectedForFinalize.size > 0 && (
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-xs text-teal-700 font-medium">{selectedForFinalize.size} selected</span>
-            <button
-              className="text-xs px-2 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100"
-              onClick={() => {
-                const allDone = filteredIssues.filter(i => i.status === "installation_done" && i.purpose !== "nsc")
-                setSelectedForFinalize(new Set(allDone.map(i => i.issueId)))
-              }}>
-              Select All ({filteredIssues.filter(i => i.status === "installation_done" && i.purpose !== "nsc").length})
-            </button>
-            <button
-              className="text-xs px-2 py-0.5 rounded bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
-              onClick={() => setSelectedForFinalize(new Set())}>
-              Select None
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Issue cards */}
-      {tab !== "stock" && tab !== "reports" && tab !== "proposed" && (
+      {/* Issue cards — only in NSC, Check, History submodules */}
+      {(view === "nsc" || view === "check" || view === "history") && !showReportPanel && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {paginated.length === 0 ? (
             <div className="col-span-full text-center py-16 text-gray-400 bg-white rounded-2xl border">
@@ -559,29 +1487,53 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg">{issue.consumerName || "No Name"}</CardTitle>
-                    <p className="text-sm text-gray-600 font-mono">{issue.consumerId || "No ID"}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {isAdmin && issue.status === "issued" && (
-                        <input type="checkbox" checked={selectedForSlip.has(issue.issueId)}
-                          onChange={(e) => { e.stopPropagation(); toggleSlip(issue.issueId) }} className="shrink-0 accent-blue-600" />
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {isAdmin && (issue.status === "issued" || issue.status === "installed") && (
+                        <input
+                          type="checkbox"
+                          checked={issue.status === "issued" ? selectedForSlip.has(issue.issueId) : selectedForBulkNoteSheet.has(issue.issueId)}
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            if (issue.status === "issued") toggleSlip(issue)
+                            else {
+                              const next = new Set(selectedForBulkNoteSheet)
+                              if (next.has(issue.issueId)) next.delete(issue.issueId)
+                              else next.add(issue.issueId)
+                              setSelectedForBulkNoteSheet(next)
+                            }
+                          }}
+                          className="shrink-0 accent-blue-600 h-4 w-4 rounded cursor-pointer"
+                        />
                       )}
-                      <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                        ID: {issue.issueId}
+                      <p className="text-sm text-gray-600 font-mono">{issue.consumerId || "No ID"}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-2 overflow-hidden whitespace-nowrap">
+                      <span className="font-mono text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border shrink-0">
+                        {issue.issueId}
+                      </span>
+                      <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border shrink-0 ${PURPOSE_COLORS[issue.purpose] ?? "text-blue-700 border-blue-200"}`}>
+                        {PURPOSE_LABELS[issue.purpose] || issue.purpose}
+                      </span>
+                      <span className="text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 truncate">
+                        {issue.meterType || "Standard"}
                       </span>
                       {issue.nscReceiveNo && (
-                        <Badge variant="outline" className="text-[10px] text-green-700 border-green-200">
+                        <Badge variant="outline" className="text-[10px] text-green-700 border-green-200 shrink-0">
                           NSC: {issue.nscReceiveNo}
                         </Badge>
                       )}
                       {issue.nscReceiveNo && nscStatusMap[issue.nscReceiveNo] === "quotation_issued" && (
-                        <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">
+                        <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 shrink-0">
                           ✓ Quotation
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge className={STATUS_COLORS[issue.status] || ""}>{STATUS_LABELS[issue.status] || issue.status}</Badge>
+                    {(() => {
+                      const st = getIssueStatusBadge(issue)
+                      return <Badge className={st.className}>{st.label}</Badge>
+                    })()}
                     <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{issue.agency}</Badge>
                   </div>
                 </div>
@@ -624,11 +1576,6 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                  <div><span className="font-medium">Purpose:</span> <span className={`font-semibold ${PURPOSE_COLORS[issue.purpose] ?? "text-blue-700"}`}>{PURPOSE_LABELS[issue.purpose] || issue.purpose}</span></div>
-                  <div><span className="font-medium">Type:</span> {issue.meterType || "—"}</div>
-                </div>
-
                 <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
                   <div>Issued: {issue.issueDate || "—"}</div>
                   {issue.status !== "issued" && issue.completedAt && (
@@ -639,7 +1586,7 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                   )}
                 </div>
 
-                {issue.status !== "issued" && (issue.completionRef || issue.installationNo) && (
+                {issue.status !== "issued" && (issue.completionRef || issue.installationNo || issue.noteSheetNo) && (
                   <div className="pt-2 border-t mt-2 flex flex-col gap-1 text-xs text-gray-500">
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                       {issue.completionRef && (
@@ -648,7 +1595,146 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                       {issue.installationNo && (
                         <p>Inst No: <strong className="text-slate-700 font-mono">{issue.installationNo}</strong></p>
                       )}
+                      {issue.noteSheetNo && (
+                        <p>Note Sheet: <strong className="text-blue-700 font-mono">{issue.noteSheetNo}</strong></p>
+                      )}
                     </div>
+                  </div>
+                )}
+
+                {/* Slow/Fast Check Meter Full Readings History & Status */}
+                {issue.purpose === "slow_fast" && issue.status !== "issued" && (
+                  <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3 space-y-2 mt-2 text-xs">
+                    <div className="flex justify-between items-center font-bold text-purple-900 border-b border-purple-200 pb-1.5">
+                      <span className="flex items-center gap-1">
+                        <Gauge className="h-3.5 w-3.5 text-purple-700" /> Check Meter Readings History
+                      </span>
+                      <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 bg-white border-purple-300 text-purple-900 hover:bg-purple-100 shrink-0 font-semibold shadow-xs"
+                        onClick={() => { setSelectedForCheckMeter(issue); setCheckMeterDialogOpen(true) }}>
+                        Record / Verify Test
+                      </Button>
+                    </div>
+
+                    {/* Readings History Breakdown */}
+                    <div className="bg-white rounded-lg border border-purple-100 p-2 space-y-1.5 text-[11px] font-mono">
+                      {/* Initial Readings at Installation */}
+                      <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded">
+                        <div>
+                          <p className="font-bold text-slate-800 text-[10px] uppercase font-sans">1. Initial Installation Reading</p>
+                          <p className="text-slate-600 text-[10px] font-sans">Date: {issue.issueDate || "—"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-slate-700">Existing ({issue.existingMeterNo || "Old"}): <strong>{issue.existingMeterStartReading || issue.lastReading || "0"}</strong></p>
+                          <p className="text-purple-700">Check ({issue.serialNo}): <strong>{issue.newReading || "0"}</strong></p>
+                        </div>
+                      </div>
+
+                      {/* 1st Check Reading */}
+                      {issue.crossCheckDate1 && (
+                        <div className="flex justify-between items-center bg-purple-50/60 p-1.5 rounded border border-purple-100">
+                          <div>
+                            <p className="font-bold text-purple-900 text-[10px] uppercase font-sans">2. 1st Check Reading</p>
+                            <p className="text-purple-700 text-[10px] font-sans">Date: {issue.crossCheckDate1}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-slate-700">Existing: <strong>{issue.existingMeterReading1 || "—"}</strong></p>
+                            <p className="text-purple-800 font-bold">Check: <strong>{issue.checkMeterReading1 || "—"}</strong></p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2nd Check Reading */}
+                      {issue.crossCheckDate2 && (
+                        <div className="flex justify-between items-center bg-purple-100/60 p-1.5 rounded border border-purple-200">
+                          <div>
+                            <p className="font-bold text-purple-900 text-[10px] uppercase font-sans">3. 2nd Check Reading</p>
+                            <p className="text-purple-700 text-[10px] font-sans">Date: {issue.crossCheckDate2}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-slate-700">Existing: <strong>{issue.existingMeterReading2 || "—"}</strong></p>
+                            <p className="text-purple-900 font-bold">Check: <strong>{issue.checkMeterReading2 || "—"}</strong></p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Accuracy & Difference Summary */}
+                      {issue.accuracyPercentage && (
+                        <div className="pt-1.5 border-t border-purple-100 flex items-center justify-between font-sans">
+                          <p className="text-purple-900 font-bold text-xs">
+                            Accuracy: <span className="font-mono text-purple-700">{issue.accuracyPercentage}</span>
+                          </p>
+                          <p className="text-slate-700 text-[11px] font-medium">
+                            Diff: <span className="font-mono text-slate-900">{issue.calculatedDiffUnits}</span> units
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Old Meter Return Tracking System */}
+                {issue.purpose !== "nsc" && (issue.status === "installation_done" || issue.status === "installed") && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 flex items-center justify-between text-xs gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-gray-600 shrink-0 font-medium">Office Return:</span>
+                      {issue.oldMeterReturnStatus === "returned" ? (
+                        <span className="text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded text-[10px] truncate">
+                          ✓ Returned ({issue.oldMeterReturnDate})
+                        </span>
+                      ) : (() => {
+                        let isOverdue = false
+                        if (issue.completedAt) {
+                          try {
+                            const [d, m, yTime] = issue.completedAt.split("/")
+                            const [y] = (yTime || "").split(" ")
+                            const inst = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+                            if (!isNaN(inst.getTime())) {
+                              const diffDays = Math.floor((Date.now() - inst.getTime()) / (1000 * 60 * 60 * 24))
+                              if (diffDays > 3) isOverdue = true
+                            }
+                          } catch { /* ignored */ }
+                        }
+                        return isOverdue ? (
+                          <span className="text-red-700 font-bold bg-red-100 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                            ⚠ Overdue (&gt; 3 Days)
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 font-bold bg-amber-100 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                            Pending (Due: 3 Days)
+                          </span>
+                        )
+                      })()}
+                    </div>
+                    {issue.oldMeterReturnStatus !== "returned" && isAdmin && (
+                      <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 bg-white border-slate-300 text-slate-800 hover:bg-slate-100 shrink-0 flex items-center"
+                        onClick={() => { setSelectedForReturnOffice(issue); setReturnOfficeDialogOpen(true) }}>
+                        <PackageCheck className="h-3 w-3 mr-1 text-emerald-600" /> Meter Return
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {issue.status === "proposed" && (
+                  <div className="flex gap-2 mt-3 pt-3 border-t">
+                    <Button
+                      size="sm"
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold h-9 rounded-lg shadow-sm transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPrefill({
+                          replacementId: "",
+                          consumerId: issue.consumerId,
+                          consumerName: issue.consumerName,
+                          address: issue.address || "",
+                          mobile: issue.mobile || "",
+                          purpose: "nsc",
+                          agency: issue.agency !== "Unassigned" ? issue.agency : ""
+                        })
+                        setView("issue")
+                      }}>
+                      <Package className="h-3.5 w-3.5 mr-1.5" />
+                      Issue Meter to Agency
+                    </Button>
                   </div>
                 )}
 
@@ -696,7 +1782,7 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                       {issue.afterImage && <a href={issue.afterImage} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">After ↗</a>}
                       {issue.beforeImage && <a href={issue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">Before ↗</a>}
                     </div>
-                    {issue.newReading && <p className="text-xs text-gray-500">New reading: <strong>{issue.newReading}</strong></p>}
+                    {issue.newReading && <p className="text-xs text-gray-500 font-mono">Reading: <strong>{issue.newReading}</strong></p>}
                     <Button size="sm" className="w-full h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
                       onClick={() => {
                         setSelectedForFinalize(new Set([issue.issueId]))
@@ -716,10 +1802,28 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
                 )}
 
                 {(issue.status === "installed") && (
-                  <div className="flex gap-3 mt-2 pt-2 border-t text-xs text-gray-500">
-                    {issue.afterImage && <a href={issue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After ↗</a>}
-                    {issue.beforeImage && <a href={issue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before ↗</a>}
-                    {issue.newReading && <span>New reading: <strong>{issue.newReading}</strong></span>}
+                  <div className="space-y-1.5 mt-2 pt-2 border-t text-xs text-gray-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
+                      <span>WO: <strong className="text-slate-800">{issue.completionRef || "—"}</strong></span>
+                      <span>Note Sheet: <strong className={issue.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{issue.noteSheetNo || "Pending"}</strong></span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200 mt-1">
+                      <span>Old Meter: <strong className="font-mono text-amber-700">{oldMeterMap[issue.consumerId] || "—"}</strong></span>
+                      <span>Return: <strong className={issue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{issue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"}</strong></span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-1 mt-1 border-t border-slate-200">
+                      <div className="flex gap-2 items-center text-xs">
+                        {issue.afterImage && <a href={issue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After ↗</a>}
+                        {issue.beforeImage && <a href={issue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before ↗</a>}
+                        {issue.newReading && <span className="font-mono text-[11px]">Reading: <strong>{issue.newReading}</strong></span>}
+                      </div>
+                      {isAdmin && (
+                        <Button size="sm" variant="outline" className="h-6 text-[11px] text-blue-700 border-blue-200 hover:bg-blue-50 px-2 shrink-0 flex items-center"
+                          onClick={() => { setSelectedForNoteSheet(issue); setNoteSheetDialogOpen(true) }}>
+                          <FileText className="h-3 w-3 mr-1" /> {issue.noteSheetNo ? "Note Sheet" : "+ Note Sheet"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -728,16 +1832,19 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
         </div>
       )}
 
-      {/* Proposed replacements list */}
-      {tab === "proposed" && (
+      {/* Replacement submodule pipeline */}
+      {view === "replacement" && !showReportPanel && (
         <div className="space-y-4">
           {/* Sub-tab Selector */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {[
-              { value: "pending",  label: `Pending Issue (${replacements.filter(r => (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "progress", label: `Issued / In Progress (${replacements.filter(r => ((r.status || "").toLowerCase() === "issued" || (r.status || "").toLowerCase() === "updated") && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "replaced", label: `Replaced / Completed (${replacements.filter(r => (r.status || "").toLowerCase() === "replaced" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
-              { value: "all",      label: `All (${replacements.filter(r => (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "pending",   label: `Pending Issue (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "issued",    label: `Issued (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "installed", label: `Installed (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "updated" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "wo_done",   label: `WO Done (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "completed", label: `Completed (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "replaced" && r.noteSheetNo && r.noteSheetNo.trim() && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "closed",    label: `Closed (${replacements.filter(r => r.purpose !== "slow_fast" && (r.status || "").toLowerCase() === "closed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
+              { value: "all",       label: `All (${replacements.filter(r => r.purpose !== "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").toUpperCase()))).length})` },
             ].map(sub => (
               <button key={sub.value} onClick={() => setRepSubTab(sub.value as any)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
@@ -757,140 +1864,430 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredReplacements.map(rep => (
-                <Card key={rep.replacementId} className="shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{rep.consumerName || "No Name"}</CardTitle>
-                        <p className="text-sm text-gray-600 font-mono">{rep.consumerId || "No ID"}</p>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                            ID: {rep.replacementId}
-                          </span>
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                            PURPOSE_COLORS[rep.purpose] || "text-blue-700 border-blue-200"
-                          }`}>
-                            {PURPOSE_LABELS[rep.purpose] || rep.purpose}
-                          </span>
+              {filteredReplacements.map(rep => {
+                const linkedIssue = issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
+                const isCompleted = rep.status === "replaced" && rep.noteSheetNo && rep.noteSheetNo.trim()
+                const isWODone = rep.status === "replaced" && (!rep.noteSheetNo || !rep.noteSheetNo.trim())
+                const isExpanded = expandedTimeline.has(rep.replacementId)
+                const isSelected = selectedForBulkRep.has(rep.replacementId)
+
+                return (
+                  <Card key={rep.replacementId} className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-2 min-w-0">
+                          {/* Multi-select Checkbox by Stage */}
+                          {/* Multi-select Checkbox by Stage (Disabled in ALL tab) */}
+                          {repSubTab !== "all" && isAdmin && rep.status === "issued" && (
+                            <input
+                              type="checkbox"
+                              className="mt-1 shrink-0 accent-blue-600 h-4 w-4 rounded cursor-pointer"
+                              checked={selectedForSlip.has(rep.issueId || rep.replacementId)}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                const item = linkedIssue || {
+                                  issueId: rep.issueId || rep.replacementId,
+                                  issueDate: rep.proposedDate || "",
+                                  purpose: rep.purpose,
+                                  consumerId: rep.consumerId,
+                                  consumerName: rep.consumerName,
+                                  serialNo: rep.serialNo || "",
+                                  meterType: "Standard",
+                                  agency: rep.agency,
+                                  status: "issued"
+                                }
+                                toggleSlip(item as any)
+                              }}
+                            />
+                          )}
+
+                          {/* Stage B: Installed -> Bulk Work Order Checkbox */}
+                          {repSubTab !== "all" && isAdmin && rep.status === "updated" && (
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 mt-1 accent-blue-600 cursor-pointer shrink-0"
+                              checked={isSelected}
+                              onChange={() => toggleBulkRep(rep)}
+                            />
+                          )}
+
+                          {/* Stage C: WO Done / Completed -> Bulk Note Sheet Checkbox */}
+                          {repSubTab !== "all" && isAdmin && rep.status === "replaced" && (
+                            <input
+                              type="checkbox"
+                              className="mt-1 shrink-0 accent-blue-600 h-4 w-4 rounded cursor-pointer"
+                              checked={selectedForBulkNoteSheet.has(rep.replacementId) || (rep.issueId ? selectedForBulkNoteSheet.has(rep.issueId) : false)}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                const idToToggle = rep.issueId || rep.replacementId
+                                const next = new Set(selectedForBulkNoteSheet)
+                                if (next.has(idToToggle)) next.delete(idToToggle)
+                                else next.add(idToToggle)
+                                setSelectedForBulkNoteSheet(next)
+                              }}
+                            />
+                          )}
+                          <div>
+                            <CardTitle className="text-lg leading-tight">{rep.consumerName || "No Name"}</CardTitle>
+                            <p className="text-sm text-gray-600 font-mono">{rep.consumerId || "No ID"}</p>
+                            <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                              <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                ID: {rep.replacementId}
+                              </span>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                PURPOSE_COLORS[rep.purpose] || "text-blue-700 border-blue-200"
+                              }`}>
+                                {PURPOSE_LABELS[rep.purpose] || rep.purpose}
+                              </span>
+                              {(linkedIssue?.meterType || rep.meterType) && (
+                                <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  {linkedIssue?.meterType || rep.meterType}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                              rep.status === "proposed" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                              rep.status === "issued" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                              rep.status === "updated" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              rep.status === "closed" ? "bg-gray-100 text-gray-700 border-gray-300" :
+                              isCompleted ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                              "bg-teal-50 text-teal-700 border-teal-200"
+                            }`}>
+                              {rep.status === "proposed" ? "Proposed" :
+                               rep.status === "issued" ? "Issued" :
+                               rep.status === "updated" ? "Installed" :
+                               rep.status === "closed" ? "Closed / Cancelled" :
+                               isCompleted ? "Completed" : "WO Done"}
+                            </span>
+                            {repSubTab !== "all" && isAdmin && (rep.status || "").toLowerCase() === "proposed" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Cancel / Close Proposal"
+                                className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCancelProposal(rep)
+                                }}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{rep.agency || linkedIssue?.agency || "Unassigned"}</Badge>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className={`text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                          rep.status === "proposed" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                          rep.status === "issued" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                          rep.status === "updated" ? "bg-teal-50 text-teal-700 border-teal-200" :
-                          "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        }`}>
-                          {rep.status === "proposed" ? "Proposed" :
-                           rep.status === "issued" ? "Issued" :
-                           rep.status === "updated" ? "Installed" :
-                           "Completed"}
-                        </span>
-                        <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{rep.agency}</Badge>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {rep.address && (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                        <p className="text-sm text-gray-600 line-clamp-2">{rep.address}</p>
-                      </div>
-                    )}
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {rep.address && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                          <p className="text-sm text-gray-600 line-clamp-2">{rep.address}</p>
+                        </div>
+                      )}
 
-                    {rep.mobile && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-gray-400" />
-                        <a href={`tel:${rep.mobile}`} className="text-sm text-blue-600 hover:underline">
-                          {rep.mobile}
-                        </a>
-                      </div>
-                    )}
+                      {rep.mobile && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <a href={`tel:${rep.mobile}`} className="text-sm text-blue-600 hover:underline">
+                            {rep.mobile}
+                          </a>
+                        </div>
+                      )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-2">
-                        <Monitor className="h-4 w-4 text-gray-400 shrink-0" />
-                        <div>
-                          <p className="text-sm font-semibold text-amber-700 font-mono">
-                            {rep.oldMeterNo || oldMeterMap[rep.consumerId] || "—"}
-                          </p>
-                          <p className="text-[10px] text-gray-500 uppercase font-bold">Old Meter No</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="h-4 w-4 text-gray-400 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-700 font-mono">
+                              {rep.oldMeterNo || oldMeterMap[rep.consumerId] || "—"}
+                            </p>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">Old Meter No</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-blue-800 font-mono">
+                              {rep.serialNo || linkedIssue?.serialNo || "—"}
+                            </p>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">New Meter Serial</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 text-gray-400 shrink-0" />
-                        <div>
-                          <p className="text-sm font-semibold text-blue-800 font-mono">
-                            {rep.serialNo || "—"}
-                          </p>
-                          <p className="text-[10px] text-gray-500 uppercase font-bold">New Meter Serial</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {rep.remarks && (
-                      <p className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
-                        Remarks: "{rep.remarks}"
-                      </p>
-                    )}
-
-                    {rep.attachmentUrl && (
-                      <div className="pt-1">
-                        <a href={rep.attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 underline font-medium hover:text-blue-800">
-                          View Attachment ↗
-                        </a>
-                      </div>
-                    )}
-
-                    {rep.status !== "proposed" && (
-                      <div className="pt-2 border-t flex flex-col gap-1.5">
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                          {rep.issueId && <p>Issue ID: <strong className="font-mono">{rep.issueId}</strong></p>}
-                          {rep.workOrderNo && <p>WO No: <strong className="text-slate-700 font-mono">{rep.workOrderNo}</strong></p>}
-                        </div>
+                      {/* Stage-specific primary timestamps & info */}
+                      <div className="pt-2 border-t text-xs space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        {rep.status === "proposed" && (
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Proposed Date:</span>
+                            <strong className="font-mono text-amber-800">{rep.proposedDate || "—"}</strong>
+                          </div>
+                        )}
                         {rep.status === "issued" && (
-                          <p className="text-xs text-yellow-700 font-medium bg-yellow-50/50 border border-yellow-100 rounded px-2 py-0.5 w-fit">
-                            Pending installation by agency
-                          </p>
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Issued Date:</span>
+                            <strong className="font-mono text-yellow-800">{linkedIssue?.issueDate || "—"}</strong>
+                          </div>
                         )}
                         {rep.status === "updated" && (
-                          <p className="text-xs text-teal-700 font-medium bg-teal-50/50 border border-teal-100 rounded px-2 py-0.5 w-fit">
-                            Installation done — awaiting admin finalization
-                          </p>
+                          <>
+                            <div className="flex justify-between items-center text-gray-600">
+                              <span>Installed Date:</span>
+                              <strong className="font-mono text-blue-800">{linkedIssue?.completedAt || "—"}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-600 pt-1 border-t border-slate-200">
+                              <span>Readings:</span>
+                              <span className="font-mono">Last: <strong>{linkedIssue?.lastReading || "0"}</strong> | New: <strong className="text-blue-700">{linkedIssue?.newReading || "—"}</strong></span>
+                            </div>
+                            {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
+                              <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
+                                {linkedIssue?.beforeImage && <a href={linkedIssue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {linkedIssue?.afterImage && <a href={linkedIssue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                              </div>
+                            )}
+                          </>
                         )}
-                        {rep.status === "replaced" && (
-                          <p className="text-xs text-emerald-700 font-medium bg-emerald-50/50 border border-emerald-100 rounded px-2 py-0.5 w-fit">
-                            Replacement completed & finalized
-                          </p>
+                        {(isWODone || isCompleted) && (
+                          <>
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
+                              <span>WO: <strong className="text-slate-800">{rep.workOrderNo || linkedIssue?.completionRef || "—"}</strong></span>
+                              <span>Note Sheet: <strong className={rep.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{rep.noteSheetNo || "Pending"}</strong></span>
+                            </div>
+                            {linkedIssue && (
+                              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200">
+                                <span>Issue ID: <strong className="font-mono text-gray-700">{linkedIssue.issueId}</strong></span>
+                                <span>Return: <strong className={linkedIssue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{linkedIssue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"}</strong></span>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
-                    )}
 
-                    {rep.status === "proposed" && (
-                      <Button size="sm" className="w-full bg-slate-950 hover:bg-slate-900 text-white mt-2"
-                        onClick={() => {
-                          setPrefill({
-                            replacementId: rep.replacementId,
-                            consumerId: rep.consumerId,
-                            consumerName: rep.consumerName,
-                            address: rep.address,
-                            mobile: rep.mobile,
-                            purpose: rep.purpose,
-                            agency: rep.agency,
-                          })
-                          setView("issue")
-                        }}>
-                        Issue Meter
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                      {/* Collapsible Timeline Dropdown Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => toggleTimeline(rep.replacementId)}
+                        className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-800 py-1 bg-blue-50/50 hover:bg-blue-50 rounded border border-blue-100 flex items-center justify-center gap-1">
+                        <span>{isExpanded ? "Hide Full Tracking Details" : "View Full Tracking Details"}</span>
+                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+
+                      {/* Expanded Collapsible Tracking Details */}
+                      {isExpanded && (
+                        <div className="bg-slate-100/80 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 text-slate-700 animate-in fade-in duration-200">
+                          <p className="font-bold text-slate-900 border-b pb-1 text-[11px] uppercase tracking-wider">Full Tracking Details & History</p>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] pt-1">
+                            <p><span className="text-gray-500">Proposed Date:</span> {rep.proposedDate || "—"}</p>
+                            <p><span className="text-gray-500">Issued Date:</span> {linkedIssue?.issueDate || "—"}</p>
+                            <p><span className="text-gray-500">Installed Date:</span> {linkedIssue?.completedAt || "—"}</p>
+                            <p><span className="text-gray-500">WO Finalized:</span> {linkedIssue?.completedAt || "—"}</p>
+                            <p><span className="text-gray-500">WO Number:</span> {rep.workOrderNo || "—"}</p>
+                            <p><span className="text-gray-500">Note Sheet No:</span> {rep.noteSheetNo || "—"}</p>
+                            <p><span className="text-gray-500">Initial Reading:</span> {linkedIssue?.lastReading || "0"}</p>
+                            <p><span className="text-gray-500">Final Reading:</span> {linkedIssue?.newReading || "—"}</p>
+                            <p><span className="text-gray-500">Old Meter Return:</span> {linkedIssue?.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
+                            <p><span className="text-gray-500">Agency:</span> {rep.agency || "—"}</p>
+                          </div>
+                          {rep.remarks && <p className="text-[11px] italic text-gray-600 pt-1 border-t">Remarks: "{rep.remarks}"</p>}
+                        </div>
+                      )}
+
+                      {/* Action buttons designated by stage */}
+                      {rep.status === "proposed" && (isAdmin || (permissions && permissions.meter_stock?.includes("issue"))) && (
+                        <Button size="sm" className="w-full bg-slate-950 hover:bg-slate-900 text-white mt-2 font-semibold text-xs h-9"
+                          onClick={() => {
+                            setPrefill({
+                              replacementId: rep.replacementId,
+                              consumerId: rep.consumerId,
+                              consumerName: rep.consumerName,
+                              address: rep.address,
+                              mobile: rep.mobile,
+                              purpose: rep.purpose,
+                              agency: rep.agency,
+                            })
+                            setView("issue")
+                          }}>
+                          Issue Meter
+                        </Button>
+                      )}
+
+                      {rep.status === "issued" && (
+                        <div className="flex items-center gap-2">
+                          <p className="flex-1 text-xs text-yellow-700 font-medium bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1 text-center">
+                            Pending installation by agency
+                          </p>
+                          {isAdmin && (
+                            <Button size="sm" variant="outline" className="h-8 text-xs font-semibold px-2 border-yellow-300 text-yellow-800 hover:bg-yellow-100 shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const item = linkedIssue || {
+                                  issueId: rep.issueId || rep.replacementId,
+                                  issueDate: rep.proposedDate || "",
+                                  purpose: rep.purpose,
+                                  consumerId: rep.consumerId,
+                                  consumerName: rep.consumerName,
+                                  serialNo: rep.serialNo || "",
+                                  meterType: "Standard",
+                                  agency: rep.agency,
+                                  status: "issued"
+                                }
+                                printMeterSlip([item as any])
+                              }}>
+                              <Printer className="h-3.5 w-3.5 mr-1" /> Requisition
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {rep.status === "updated" && (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs text-blue-700 font-medium bg-blue-50 border border-blue-100 rounded px-2.5 py-1 text-center">
+                            Installation done — awaiting WO finalization
+                          </p>
+                          {isAdmin && (
+                            <div className="flex gap-2">
+                              <Button size="sm" className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs h-8"
+                                onClick={() => {
+                                  if (rep.issueId) {
+                                    setSelectedForFinalize(new Set([rep.issueId]))
+                                    setFinalizeRef("")
+                                    setShowFinalizeModal(true)
+                                  } else {
+                                    toast({ title: "Issue record not linked for finalization" })
+                                  }
+                                }}>
+                                <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Finalize & Add WO
+                              </Button>
+                              {linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
+                                <Button size="sm" variant="outline" className="text-xs h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                  onClick={() => {
+                                    setSelectedForReturnOffice(linkedIssue)
+                                    setReturnOfficeDialogOpen(true)
+                                  }}>
+                                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> Meter Return
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(isWODone || isCompleted) && (
+                        <div className="flex gap-2 pt-1">
+                          {isAdmin && (
+                            <Button size="sm" variant="outline" className="flex-1 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 h-8"
+                              onClick={() => {
+                                if (linkedIssue) {
+                                  setSelectedForNoteSheet(linkedIssue)
+                                  setNoteSheetDialogOpen(true)
+                                } else {
+                                  toast({ title: "Issue record not found to attach Note Sheet" })
+                                }
+                              }}>
+                              <FileText className="h-3.5 w-3.5 mr-1" /> {rep.noteSheetNo ? "Edit Note Sheet" : "+ Note Sheet"}
+                            </Button>
+                          )}
+                          {linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
+                            <Button size="sm" variant="outline" className="text-xs h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                              onClick={() => {
+                                setSelectedForReturnOffice(linkedIssue)
+                                setReturnOfficeDialogOpen(true)
+                              }}>
+                              <PackageCheck className="h-3.5 w-3.5 mr-1" /> Meter Return
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </div>
       )}
+
+      {/* Floating Bulk Actions Bar for Replacements */}
+      {(view === "replacement" || tab === "proposed") && repSubTab !== "all" && selectedForBulkRep.size > 0 && (() => {
+        const selectedReps = Array.from(selectedForBulkRep).map(id => replacements.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
+        const hasInstalled = selectedReps.some(r => r.status === "updated")
+        const hasWODone = selectedReps.some(r => r.status === "replaced")
+        const currentAgency = selectedReps[0]?.agency || ""
+
+        return (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 flex-wrap justify-center">
+            <span className="text-xs font-bold text-blue-400 pl-2">
+              {selectedForBulkRep.size} selected {currentAgency ? `(${currentAgency})` : ""}
+            </span>
+
+            {/* In Installed tab or when installed items selected: show Bulk WO Finalize */}
+            {(repSubTab === "installed" || (repSubTab !== "wo_done" && repSubTab !== "completed" && hasInstalled)) && (
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold h-8"
+                onClick={() => {
+                  const targetIssueIds = new Set<string>()
+                  selectedForBulkRep.forEach(id => {
+                    const rep = replacements.find(r => r.replacementId === id)
+                    if (rep?.issueId) targetIssueIds.add(rep.issueId)
+                  })
+                  if (targetIssueIds.size > 0) {
+                    setSelectedForFinalize(targetIssueIds)
+                    setShowFinalizeModal(true)
+                  } else {
+                    toast({ title: "No linked issue records found for bulk WO finalization", variant: "destructive" })
+                  }
+                }}>
+                <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Bulk Finalize & Add WO
+              </Button>
+            )}
+
+            {/* In WO Done tab: show Bulk Note Sheet */}
+            {(repSubTab === "wo_done" || (repSubTab !== "installed" && repSubTab !== "completed" && hasWODone)) && (
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold h-8"
+                onClick={() => {
+                  const targetIssueIds = new Set<string>()
+                  selectedForBulkRep.forEach(id => {
+                    const rep = replacements.find(r => r.replacementId === id)
+                    if (rep?.issueId) targetIssueIds.add(rep.issueId)
+                  })
+                  if (targetIssueIds.size > 0) {
+                    setSelectedForBulkNoteSheet(targetIssueIds)
+                    setBulkNoteSheetDialogOpen(true)
+                  } else {
+                    toast({ title: "No linked issue records found for bulk Note Sheet", variant: "destructive" })
+                  }
+                }}>
+                <FileText className="h-3.5 w-3.5 mr-1" /> Bulk Note Sheet No
+              </Button>
+            )}
+
+            {/* In Completed tab: show Bulk Meter Return */}
+            {repSubTab === "completed" && (
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8"
+                onClick={() => {
+                  const selectedReps = Array.from(selectedForBulkRep).map(id => replacements.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
+                  const firstIssue = issues.find(i => selectedReps.some(r => r.issueId === i.issueId || r.replacementId === i.issueId)) || null
+                  if (firstIssue) {
+                    setSelectedForReturnOffice(firstIssue)
+                    setReturnOfficeDialogOpen(true)
+                  } else {
+                    toast({ title: "Select completed items to return to office", variant: "destructive" })
+                  }
+                }}>
+                <PackageCheck className="h-3.5 w-3.5 mr-1" /> Bulk Meter Return
+              </Button>
+            )}
+
+            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulkRep(new Set())} className="text-xs text-gray-300 hover:text-white h-8">
+              Clear Selection
+            </Button>
+          </div>
+        )
+      })()}
 
       {/* Pagination */}
       {tab !== "proposed" && totalPages > 1 && (
@@ -910,22 +2307,69 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
         <ReportsPanel issues={issues} summary={summary} onExport={exportIssues} replacements={replacements} oldMeterMap={oldMeterMap} />
       )}
 
-      {/* Sticky bottom — bulk finalize + Issue Meter */}
-      {isAdmin && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
-          <div className="max-w-xl mx-auto pointer-events-auto space-y-2">
-            {selectedForFinalize.size > 0 && (
+      {/* Sticky bottom — bulk finalize + Black-themed Issue Meter buttons */}
+      {view !== "menu" && (
+        <div className="fixed bottom-4 left-0 right-0 z-40 px-4 pointer-events-none">
+          <div className="max-w-md mx-auto pointer-events-auto space-y-2">
+            {isAdmin && selectedForFinalize.size > 0 && (
               <Button
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white shadow-lg rounded-2xl text-base font-semibold flex items-center justify-center gap-2 py-3"
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white shadow-xl rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 py-3"
                 onClick={() => setShowFinalizeModal(true)}>
                 <ClipboardCheck className="h-5 w-5" /> Finalize {selectedForFinalize.size} Selected
               </Button>
             )}
-            <Button
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg rounded-2xl text-base font-semibold flex items-center justify-center gap-2 py-3"
-              onClick={() => setView("issue")}>
-              <Plus className="h-5 w-5" /> Issue Meter
-            </Button>
+            {view === "nsc" && (isAdmin || (permissions && (permissions.meter?.includes("create") || permissions.meter?.includes("issue") || permissions.meter_stock?.includes("issue")))) && (
+              <div className="space-y-2">
+                <Button
+                  className="w-full bg-slate-950 hover:bg-slate-900 text-white shadow-2xl rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 py-3.5 border border-slate-800 transition-all hover:scale-[1.01]"
+                  onClick={() => {
+                    setPrefill({ purpose: "nsc", consumerId: "", consumerName: "", address: "", mobile: "", agency: "", replacementId: "" })
+                    setView("issue")
+                  }}>
+                  <Plus className="h-5 w-5 text-emerald-400" /> Issue NSC Meter
+                </Button>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBulkNscModalOpen(true)}
+                    className="w-full bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold hover:bg-emerald-100 shadow-md rounded-xl py-2.5 text-xs flex items-center justify-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                    Bulk Upload NSC Issue
+                  </Button>
+                )}
+              </div>
+            )}
+            {view === "check" && (isAdmin || (permissions && (permissions.meter?.includes("create") || permissions.meter?.includes("issue") || permissions.meter_stock?.includes("issue")))) && (
+              <Button
+                className="w-full bg-slate-950 hover:bg-slate-900 text-white shadow-2xl rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 py-3.5 border border-slate-800 transition-all hover:scale-[1.01]"
+                onClick={() => {
+                  setPrefill(null)
+                  setView("issue")
+                }}>
+                <Plus className="h-5 w-5 text-purple-400" /> Issue Check Meter
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bulk Note Sheet Bar */}
+      {selectedForBulkNoteSheet.size > 0 && (
+        <div className="fixed bottom-20 left-0 right-0 z-50 px-4 pointer-events-none">
+          <div className="max-w-lg mx-auto pointer-events-auto bg-slate-950 text-white p-3 rounded-2xl shadow-2xl border border-slate-800 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <FileText className="h-4 w-4 text-blue-400" />
+              <span>{selectedForBulkNoteSheet.size} meter(s) selected for Note Sheet</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelectedForBulkNoteSheet(new Set())} className="text-xs text-slate-400 hover:text-white px-2 py-1">
+                Clear
+              </button>
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs h-8 rounded-xl" onClick={() => setBulkNoteSheetDialogOpen(true)}>
+                <FileText className="h-3.5 w-3.5 mr-1" /> Set Note Sheet No
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -993,23 +2437,96 @@ export function MeterList({ userRole, userAgencies, username, agencies }: Props)
           </div>
         )
       })()}
+
+      {/* Check Meter Dialog */}
+      {selectedForCheckMeter && (
+        <CheckMeterDialog
+          issue={selectedForCheckMeter}
+          isOpen={checkMeterDialogOpen}
+          onClose={() => { setCheckMeterDialogOpen(false); setSelectedForCheckMeter(null) }}
+          onSuccess={() => { toast({ title: "Check meter updated" }); load(true) }}
+        />
+      )}
+
+      {/* Note Sheet Dialog */}
+      {selectedForNoteSheet && (
+        <NoteSheetDialog
+          issueId={selectedForNoteSheet.issueId}
+          replacementId={(selectedForNoteSheet as any).replacementId}
+          currentNoteSheetNo={selectedForNoteSheet.noteSheetNo}
+          workOrderNo={selectedForNoteSheet.completionRef || (selectedForNoteSheet as any).workOrderNo}
+          isOpen={noteSheetDialogOpen}
+          onClose={() => { setNoteSheetDialogOpen(false); setSelectedForNoteSheet(null) }}
+          onSuccess={() => {
+            toast({ title: "Note Sheet updated" })
+            load(true)
+            loadReplacements()
+          }}
+        />
+      )}
+
+      {/* Return to Office Dialog */}
+      {selectedForReturnOffice && (
+        <ReturnOfficeDialog
+          issueId={selectedForReturnOffice.issueId}
+          consumerName={selectedForReturnOffice.consumerName}
+          consumerId={selectedForReturnOffice.consumerId}
+          oldMeterNo={oldMeterMap[selectedForReturnOffice.consumerId] || ""}
+          completedAt={selectedForReturnOffice.completedAt}
+          isOpen={returnOfficeDialogOpen}
+          onClose={() => { setReturnOfficeDialogOpen(false); setSelectedForReturnOffice(null) }}
+          onSuccess={() => { toast({ title: "Returned meter logged at office" }); load(true) }}
+        />
+      )}
+
+      {/* Bulk Note Sheet Dialog */}
+      {bulkNoteSheetDialogOpen && (
+        <NoteSheetDialog
+          issueIds={Array.from(selectedForBulkNoteSheet)}
+          replacementIds={Array.from(selectedForBulkNoteSheet)}
+          isOpen={bulkNoteSheetDialogOpen}
+          onClose={() => setBulkNoteSheetDialogOpen(false)}
+          onSuccess={() => {
+            toast({ title: `Note Sheet updated for ${selectedForBulkNoteSheet.size} meters` })
+            setSelectedForBulkNoteSheet(new Set())
+            load(true)
+            loadReplacements()
+          }}
+        />
+      )}
+      {/* Bulk NSC Upload Modal */}
+      <BulkNscUploadModal
+        open={bulkNscModalOpen}
+        onClose={() => setBulkNscModalOpen(false)}
+        onSuccess={() => {
+          load(true)
+          fetch("/api/nsc")
+            .then(res => res.json())
+            .then(data => { if (Array.isArray(data)) setNscApplications(data) })
+            .catch(() => {})
+        }}
+      />
     </div>
   )
 }
 
 // ── Reports Panel ─────────────────────────────────────────────────────────────
 function ReportsPanel({ 
+  activeSubmodule,
   issues, 
   summary, 
   onExport,
   replacements,
-  oldMeterMap
+  oldMeterMap,
+  nscApplications = []
 }: { 
+  activeSubmodule?: View;
   issues: MeterIssue[]; 
   summary: StockSummary[]; 
   onExport: () => void;
   replacements: MeterReplacement[];
   oldMeterMap: Record<string, string>;
+  nscApplications?: NSCApplication[];
 }) {
   const { toast } = useToast()
 
@@ -1019,15 +2536,38 @@ function ReportsPanel({
   const [rptPurpose, setRptPurpose]     = useState("all")
   const [rptStatus, setRptStatus]       = useState("all")
 
-  const reportAgencies = useMemo(() => {
-    return Array.from(new Set(issues.filter(i => i.purpose !== "nsc").map(i => i.agency).filter(Boolean))).sort()
-  }, [issues])
+  // Filter issues strictly by active submodule context when present
+  const targetIssuesForSubmodule = useMemo(() => {
+    if (activeSubmodule === "replacement") {
+      return issues.filter(i => i.purpose === "faulty_replacement" || i.purpose === "burnt_replacement")
+    }
+    if (activeSubmodule === "nsc") {
+      return issues.filter(i => i.purpose === "nsc")
+    }
+    if (activeSubmodule === "check") {
+      return issues.filter(i => i.purpose === "slow_fast")
+    }
+    return issues
+  }, [issues, activeSubmodule])
 
-  const reportPurposes = [
-    { value: "faulty_replacement", label: "Faulty / Defective" },
-    { value: "burnt_replacement",  label: "Burnt Meter" },
-    { value: "slow_fast",          label: "Slow / Fast" },
-  ]
+  const reportAgencies = useMemo(() => {
+    return Array.from(new Set(targetIssuesForSubmodule.map(i => i.agency).filter(Boolean))).sort()
+  }, [targetIssuesForSubmodule])
+
+  const reportPurposes = useMemo(() => {
+    if (activeSubmodule === "replacement") {
+      return [
+        { value: "faulty_replacement", label: "Faulty / Defective" },
+        { value: "burnt_replacement",  label: "Burnt Meter" },
+      ]
+    }
+    return [
+      { value: "faulty_replacement", label: "Faulty / Defective" },
+      { value: "burnt_replacement",  label: "Burnt Meter" },
+      { value: "slow_fast",          label: "Slow / Fast" },
+      { value: "nsc",                label: "NSC" },
+    ]
+  }, [activeSubmodule])
 
   const parseDateInput = (val: string) => {
     if (!val) return null
@@ -1044,9 +2584,7 @@ function ReportsPanel({
   }
 
   const filteredReportIssues = useMemo(() => {
-    return issues.filter(i => {
-      if (i.purpose === "nsc") return false
-      if (i.status !== "installed" && i.status !== "installation_done") return false
+    return targetIssuesForSubmodule.filter(i => {
       if (rptStatus === "installed" && i.status !== "installed") return false
       if (rptStatus === "installation_done" && i.status !== "installation_done") return false
       if (rptAgency !== "all" && i.agency?.toUpperCase() !== rptAgency.toUpperCase()) return false
@@ -1065,15 +2603,11 @@ function ReportsPanel({
               if (replacementDate > end) return false
             }
           }
-        } else if (rptStartDate || rptEndDate) {
-          return false
         }
-      } else if (rptStartDate || rptEndDate) {
-        return false
       }
       return true
     })
-  }, [issues, rptStartDate, rptEndDate, rptAgency, rptPurpose, rptStatus])
+  }, [targetIssuesForSubmodule, rptStartDate, rptEndDate, rptAgency, rptPurpose, rptStatus])
 
   const exportNonNscReplacementReport = async () => {
     if (filteredReportIssues.length === 0) {
@@ -1110,16 +2644,16 @@ function ReportsPanel({
     toast({ title: "Replacement Report exported successfully" })
   }
 
-  const totalIssued          = issues.filter(i => i.status === "issued").length
-  const totalPendingFinal    = issues.filter(i => i.status === "installation_done").length
-  const totalInstalled       = issues.filter(i => i.status === "installed").length
-  const totalReturned        = issues.filter(i => i.status === "returned").length
+  const totalIssued          = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "issued").length, [targetIssuesForSubmodule])
+  const totalPendingFinal    = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installation_done").length, [targetIssuesForSubmodule])
+  const totalInstalled       = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installed").length, [targetIssuesForSubmodule])
+  const totalReturned        = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "returned").length, [targetIssuesForSubmodule])
 
   const exportAgencyPendingPDF = async () => {
     const { default: jsPDF } = await import("jspdf")
     const { default: autoTable } = await import("jspdf-autotable")
 
-    const pendingIssues = issues.filter(i => i.status === "issued" || i.status === "installation_done")
+    const pendingIssues = targetIssuesForSubmodule.filter(i => i.status === "issued" || i.status === "installation_done")
     
     // Sort pending issues by agency then issueDate
     const sortedIssues = [...pendingIssues].sort((a, b) => {
@@ -1244,7 +2778,7 @@ function ReportsPanel({
     const XLSX = await loadXLSX()
     const wb = XLSX.utils.book_new()
 
-    const pendingIssues = issues.filter(i => i.status === "issued" || i.status === "installation_done")
+    const pendingIssues = targetIssuesForSubmodule.filter(i => i.status === "issued" || i.status === "installation_done")
 
     const agencies = Array.from(new Set(pendingIssues.map(i => i.agency).filter(Boolean))).sort()
     const summaryRows = [
@@ -1304,37 +2838,198 @@ function ReportsPanel({
     toast({ title: "Excel Report downloaded" })
   }
 
-  const purposeBreakdown = [
-    { label: "Faulty Replacement",  key: "faulty_replacement" },
-    { label: "Burnt Replacement",   key: "burnt_replacement" },
-    { label: "Slow/Fast",           key: "slow_fast" },
-    { label: "NSC",                 key: "nsc" },
-  ].map(p => ({
+  const installPendingCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "issued").length, [targetIssuesForSubmodule])
+  const woPendingCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installation_done").length, [targetIssuesForSubmodule])
+  const woCompletedCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installed").length, [targetIssuesForSubmodule])
+  const meterReturnPendingCount = useMemo(() => targetIssuesForSubmodule.filter(i => (i.status === "installed" || i.status === "installation_done") && i.oldMeterReturnStatus !== "returned").length, [targetIssuesForSubmodule])
+  const noteSheetPendingCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installed" && (!i.noteSheetNo || !i.noteSheetNo.trim())).length, [targetIssuesForSubmodule])
+  const noteSheetCompletedCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installed" && i.noteSheetNo && i.noteSheetNo.trim()).length, [targetIssuesForSubmodule])
+  const completedCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installed" && i.noteSheetNo && i.noteSheetNo.trim() && i.oldMeterReturnStatus === "returned").length, [targetIssuesForSubmodule])
+
+  const nscProposedCount = useMemo(() => nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length, [nscApplications])
+  const nscIssuedCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "issued").length, [targetIssuesForSubmodule])
+  const nscInstalledCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installation_done").length, [targetIssuesForSubmodule])
+  const nscCompletedCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "installed").length, [targetIssuesForSubmodule])
+  const nscWithheldCount = useMemo(() => targetIssuesForSubmodule.filter(i => i.status === "returned" || i.status === "withheld").length, [targetIssuesForSubmodule])
+
+  const getCategoryFilteredIssues = (category: string) => {
+    if (activeSubmodule === "nsc") {
+      if (category === "nsc_proposed") {
+        return nscApplications
+          .filter(a => a.status === "quotation_issued" || a.status === "project_done")
+          .map(app => ({
+            issueId: app.receiveNo || app.applicationNo,
+            issueDate: app.quotationDate || app.appliedDate || "",
+            purpose: "nsc" as const,
+            consumerId: app.applicationNo || app.receiveNo,
+            nscReceiveNo: app.receiveNo,
+            consumerName: app.applicantName,
+            agency: app.agency || "Unassigned",
+            serialNo: app.meterSerialNo || "Pending Meter Issue",
+            meterType: app.phase || "Standard",
+            status: "proposed" as any,
+            address: app.verifyAddress || app.address,
+            mobile: app.mobile,
+            remarks: app.remarks || "Quotation Issued",
+          } as MeterIssue))
+      }
+      if (category === "nsc_issued") return targetIssuesForSubmodule.filter(i => i.status === "issued")
+      if (category === "nsc_installed") return targetIssuesForSubmodule.filter(i => i.status === "installation_done")
+      if (category === "nsc_completed") return targetIssuesForSubmodule.filter(i => i.status === "installed")
+      if (category === "nsc_withheld") return targetIssuesForSubmodule.filter(i => i.status === "returned" || i.status === "withheld")
+      if (category === "nsc_all") return targetIssuesForSubmodule
+    }
+    let target = targetIssuesForSubmodule
+    if (category === "install_pending") return target.filter(i => i.status === "issued")
+    if (category === "wo_pending") return target.filter(i => i.status === "installation_done")
+    if (category === "wo_completed") return target.filter(i => i.status === "installed")
+    if (category === "meter_return_pending") return target.filter(i => (i.status === "installed" || i.status === "installation_done") && i.oldMeterReturnStatus !== "returned")
+    if (category === "note_sheet_pending") return target.filter(i => i.status === "installed" && (!i.noteSheetNo || !i.noteSheetNo.trim()))
+    if (category === "note_sheet_completed") return target.filter(i => i.status === "installed" && i.noteSheetNo && i.noteSheetNo.trim())
+    if (category === "completed") return target.filter(i => i.status === "installed" && i.noteSheetNo && i.noteSheetNo.trim() && i.oldMeterReturnStatus === "returned")
+    return target
+  }
+
+  const exportCategoryExcel = async (category: string, title: string) => {
+    const XLSX = await loadXLSX()
+    const wb = XLSX.utils.book_new()
+    const targetIssues = getCategoryFilteredIssues(category)
+
+    if (targetIssues.length === 0) {
+      toast({ title: "No records found for this report", variant: "destructive" })
+      return
+    }
+
+    const rows = targetIssues.map((i, idx) => {
+      const rep = replacements.find(r => r.issueId === i.issueId || (r.consumerId === i.consumerId && r.status !== "proposed"))
+      const oldMeter = rep?.oldMeterNo || oldMeterMap[i.consumerId] || ""
+
+      let currentStage = "Installation Pending"
+      if (i.status === "installation_done") currentStage = "WO Pending"
+      else if (i.status === "installed") {
+        if (i.noteSheetNo && i.noteSheetNo.trim() && i.oldMeterReturnStatus === "returned") currentStage = "Completed"
+        else if (!i.noteSheetNo || !i.noteSheetNo.trim()) currentStage = "Note Sheet Pending"
+        else if (i.oldMeterReturnStatus !== "returned") currentStage = "Meter Return Pending"
+      }
+
+      return {
+        "S.No.": idx + 1,
+        "Issue ID": i.issueId,
+        "Consumer ID": i.consumerId,
+        "Consumer Name": i.consumerName,
+        "Mobile": i.mobile || "",
+        "Address": i.address || "",
+        "Agency Name": i.agency || "",
+        "Purpose": PURPOSE_LABELS[i.purpose] || i.purpose,
+        "Meter Type": i.meterType || "",
+        "New Meter Serial": i.serialNo || "",
+        "Old Meter No": oldMeter,
+        "Work Order No": i.completionRef || "Pending",
+        "Note Sheet No": i.noteSheetNo || "Pending",
+        "Meter Return Status": i.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return",
+        "Current Stage": currentStage,
+        "Issue Date": i.issueDate || "",
+        "Completion Date": i.completedAt || "",
+        "Remarks": i.remarks || ""
+      }
+    })
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    XLSX.utils.book_append_sheet(wb, ws, "Report")
+    XLSX.writeFile(wb, `${category}-full-details-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    toast({ title: `${title} Excel exported successfully` })
+  }
+
+  const exportCategoryPDF = async (category: string, title: string) => {
+    const { default: jsPDF } = await import("jspdf")
+    const { default: autoTable } = await import("jspdf-autotable")
+    const targetIssues = getCategoryFilteredIssues(category)
+
+    if (targetIssues.length === 0) {
+      toast({ title: "No records found for this report", variant: "destructive" })
+      return
+    }
+
+    const doc = new jsPDF({ orientation: "landscape" })
+    const pw = doc.internal.pageSize.width
+
+    doc.setFontSize(14)
+    doc.setTextColor(15, 23, 42)
+    doc.text(`${title} (${targetIssues.length})`, pw / 2, 12, { align: "center" })
+
+    doc.setFontSize(8)
+    doc.setTextColor(100)
+    doc.text(`Generated on: ${new Date().toLocaleDateString("en-IN")} | Total Records: ${targetIssues.length}`, pw / 2, 17, { align: "center" })
+
+    const cols = ["#", "Issue ID", "Consumer ID", "Consumer Name", "Mobile", "Agency", "Purpose", "Meter Type", "New Serial", "Old Meter", "WO No", "Note Sheet", "Return Status"]
+
+    const body = targetIssues.map((i, idx) => {
+      const rep = replacements.find(r => r.issueId === i.issueId || (r.consumerId === i.consumerId && r.status !== "proposed"))
+      const oldMeter = rep?.oldMeterNo || oldMeterMap[i.consumerId] || "—"
+      return [
+        idx + 1,
+        i.issueId || "—",
+        i.consumerId || "—",
+        i.consumerName || "—",
+        i.mobile || "—",
+        i.agency || "—",
+        PURPOSE_LABELS[i.purpose] || i.purpose,
+        i.meterType || "—",
+        i.serialNo || "—",
+        oldMeter,
+        i.completionRef || "Pending",
+        i.noteSheetNo || "Pending",
+        i.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"
+      ]
+    })
+
+    autoTable(doc, {
+      startY: 22,
+      head: [cols],
+      body: body,
+      styles: { fontSize: 7, font: "helvetica", cellPadding: 2, halign: "center" },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+      columnStyles: {
+        3: { halign: "left" },
+        5: { halign: "left" },
+      },
+      theme: "grid"
+    })
+
+    doc.save(`${category}-report-${new Date().toISOString().slice(0, 10)}.pdf`)
+    toast({ title: `${title} PDF exported successfully` })
+  }
+
+  const purposeBreakdown = reportPurposes.map(p => ({
     ...p,
-    issued:    issues.filter(i => i.purpose === p.key && i.status === "issued").length,
-    pending:   issues.filter(i => i.purpose === p.key && i.status === "installation_done").length,
-    installed: issues.filter(i => i.purpose === p.key && i.status === "installed").length,
-    returned:  issues.filter(i => i.purpose === p.key && i.status === "returned").length,
-    total:     issues.filter(i => i.purpose === p.key).length,
+    issued:    targetIssuesForSubmodule.filter(i => i.purpose === p.value && i.status === "issued").length,
+    pending:   targetIssuesForSubmodule.filter(i => i.purpose === p.value && i.status === "installation_done").length,
+    installed: targetIssuesForSubmodule.filter(i => i.purpose === p.value && i.status === "installed").length,
+    returned:  targetIssuesForSubmodule.filter(i => i.purpose === p.value && i.status === "returned").length,
+    total:     targetIssuesForSubmodule.filter(i => i.purpose === p.value).length,
   }))
 
-  const meterTypeBreakdown = Array.from(new Set(issues.map(i => i.meterType).filter(Boolean))).map(type => ({
+  const meterTypeBreakdown = Array.from(new Set(targetIssuesForSubmodule.map(i => i.meterType).filter(Boolean))).map(type => ({
     type,
-    issued:    issues.filter(i => i.meterType === type && i.status === "issued").length,
-    pending:   issues.filter(i => i.meterType === type && i.status === "installation_done").length,
-    installed: issues.filter(i => i.meterType === type && i.status === "installed").length,
-    returned:  issues.filter(i => i.meterType === type && i.status === "returned").length,
-    total:     issues.filter(i => i.meterType === type).length,
+    issued:    targetIssuesForSubmodule.filter(i => i.meterType === type && i.status === "issued").length,
+    pending:   targetIssuesForSubmodule.filter(i => i.meterType === type && i.status === "installation_done").length,
+    installed: targetIssuesForSubmodule.filter(i => i.meterType === type && i.status === "installed").length,
+    returned:  targetIssuesForSubmodule.filter(i => i.meterType === type && i.status === "returned").length,
+    total:     targetIssuesForSubmodule.filter(i => i.meterType === type).length,
   })).sort((a, b) => b.total - a.total)
 
-  const agencyBreakdown = Array.from(new Set(issues.map(i => i.agency).filter(Boolean))).map(agency => ({
-    agency,
-    issued:    issues.filter(i => i.agency === agency && i.status === "issued").length,
-    pending:   issues.filter(i => i.agency === agency && i.status === "installation_done").length,
-    installed: issues.filter(i => i.agency === agency && i.status === "installed").length,
-    returned:  issues.filter(i => i.agency === agency && i.status === "returned").length,
-    total:     issues.filter(i => i.agency === agency).length,
-  })).sort((a, b) => b.total - a.total)
+  const agencyBreakdown = Array.from(new Set(targetIssuesForSubmodule.map(i => i.agency).filter(Boolean))).map(agency => {
+    const agIssues = targetIssuesForSubmodule.filter(i => i.agency === agency)
+    return {
+      agency,
+      totalIssued: agIssues.length,
+      issued: agIssues.filter(i => i.status === "issued" || i.status === "installation_done" || i.status === "installed").length,
+      pendingInstall: agIssues.filter(i => i.status === "issued").length,
+      installed: agIssues.filter(i => i.status === "installation_done" || i.status === "installed").length,
+      woDone: agIssues.filter(i => i.status === "installed" || Boolean(i.completionRef)).length,
+      noteSheetDone: agIssues.filter(i => i.status === "installed" && i.noteSheetNo && i.noteSheetNo.trim()).length,
+    }
+  }).sort((a, b) => b.totalIssued - a.totalIssued)
 
   const exportReport = async () => {
     const XLSX = await loadXLSX()
@@ -1346,27 +3041,19 @@ function ReportsPanel({
       ["Installation Done (Pending Finalization)", totalPendingFinal],
       ["Fully Installed (Finalized)", totalInstalled],
       ["Returned to Stock", totalReturned],
-      ["Total Issues Ever", issues.length],
+      ["Total Issues Ever", targetIssuesForSubmodule.length],
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), "Summary")
-    // Issue type sheet
-    const ptRows = [["Issue Type", "Issued", "Pending Final.", "Installed", "Returned", "Total"],
-      ...purposeBreakdown.map(p => [p.label, p.issued, p.pending, p.installed, p.returned, p.total])]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ptRows), "By Issue Type")
     // Meter type sheet
     const mtRows = [["Meter Type", "Issued", "Pending Final.", "Installed", "Returned", "Total"],
       ...meterTypeBreakdown.map(m => [m.type, m.issued, m.pending, m.installed, m.returned, m.total])]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(mtRows), "By Meter Type")
     // Agency sheet
-    const agRows = [["Agency", "Issued", "Pending Final.", "Installed", "Returned", "Total"],
-      ...agencyBreakdown.map(a => [a.agency, a.issued, a.pending, a.installed, a.returned, a.total])]
+    const agRows = [["Agency", "Total Assigned", "Pending Installation", "Installed", "Work Order Done", "Note Sheet Done"],
+      ...agencyBreakdown.map(a => [a.agency, a.totalIssued, a.pendingInstall, a.installed, a.woDone, a.noteSheetDone])]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(agRows), "By Agency")
-    // Stock utilization sheet
-    const stRows = [["Meter Type", "Available", "Issued", "Installed", "Faulty", "Total"],
-      ...summary.map(s => [s.label, s.available, s.issued, s.installed, s.faulty, s.total])]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stRows), "Stock Utilization")
     // Raw issues sheet
-    const rawRows = issues.map(i => ({
+    const rawRows = targetIssuesForSubmodule.map(i => ({
       "Issue ID": i.issueId, "Date": i.issueDate, "Purpose": i.purpose,
       "Consumer ID": i.consumerId, "Old Meter No": oldMeterMap[i.consumerId] || "", "NSC No": i.nscReceiveNo, "Consumer Name": i.consumerName,
       "Agency": i.agency, "Serial No": i.serialNo, "Meter Type": i.meterType,
@@ -1417,38 +3104,46 @@ function ReportsPanel({
         <StatCard label="Returned" value={totalReturned} color="bg-gray-50 border-gray-200" />
       </div>
 
-      {/* Stock utilization */}
-      {summary.length > 0 && (
-        <BreakdownTable
-          title="Stock Utilization"
-          cols={[
-            { key: "label",     label: "Meter Type" },
-            { key: "available", label: "Available",  className: "text-green-700 font-semibold" },
-            { key: "issued",    label: "Issued",     className: "text-yellow-700" },
-            { key: "installed", label: "Installed",  className: "text-blue-700" },
-            { key: "faulty",    label: "Faulty",     className: "text-red-700" },
-            { key: "total",     label: "Total",      className: "text-gray-500" },
-          ]}
-          rows={summary}
-        />
-      )}
+      {/* Agency Wise Pending Report Card (Primary Report) */}
+      <div className="bg-white rounded-xl border-2 border-amber-300 shadow-md overflow-hidden p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-amber-100 text-amber-800">
+            <Building2 className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 text-base">Agency Pending Report</h3>
+            <p className="text-xs text-gray-600 mt-0.5">Generate PDF or Excel containing full details of all pending meter installations & finalizations grouped by agency.</p>
+          </div>
+        </div>
 
-      {/* Issue type breakdown */}
-      <BreakdownTable
-        title="By Issue Type"
-        cols={[
-          { key: "label",     label: "Type" },
-          { key: "issued",    label: "Issued",   className: "text-yellow-700" },
-          { key: "pending",   label: "Pending",  className: "text-teal-700" },
-          { key: "installed", label: "Done",     className: "text-green-700" },
-          { key: "returned",  label: "Returned", className: "text-gray-500" },
-          { key: "total",     label: "Total",    className: "font-semibold" },
-        ]}
-        rows={purposeBreakdown}
-      />
+        {/* Mini stats preview */}
+        <div className="grid grid-cols-3 gap-2 text-center bg-amber-50 rounded-lg p-3 border border-amber-200 text-xs">
+          <div>
+            <p className="text-gray-600 font-medium">Pending Install</p>
+            <p className="font-bold text-amber-700 text-xl mt-0.5">{totalIssued}</p>
+          </div>
+          <div>
+            <p className="text-gray-600 font-medium">Pending Finalization</p>
+            <p className="font-bold text-teal-700 text-xl mt-0.5">{totalPendingFinal}</p>
+          </div>
+          <div>
+            <p className="text-gray-600 font-medium">Total Pending</p>
+            <p className="font-bold text-slate-900 text-xl mt-0.5">{totalIssued + totalPendingFinal}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <Button size="sm" variant="outline" className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold w-full py-2.5" onClick={exportAgencyPendingPDF}>
+            <FileDown className="h-4 w-4 mr-1.5 text-red-600" /> Export PDF
+          </Button>
+          <Button size="sm" variant="outline" className="border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold w-full py-2.5" onClick={exportAgencyPendingExcel}>
+            <FileSpreadsheet className="h-4 w-4 mr-1.5 text-green-600" /> Export Excel
+          </Button>
+        </div>
+      </div>
 
       {/* Meter type breakdown */}
-      {meterTypeBreakdown.length > 0 && (
+      {activeSubmodule !== "replacement" && meterTypeBreakdown.length > 0 && (
         <BreakdownTable
           title="By Meter Type"
           cols={[
@@ -1466,133 +3161,361 @@ function ReportsPanel({
       {/* Agency breakdown */}
       {agencyBreakdown.length > 0 && (
         <BreakdownTable
-          title="By Agency"
+          title="By Agency Breakdown"
           cols={[
-            { key: "agency",    label: "Agency" },
-            { key: "issued",    label: "Issued",   className: "text-yellow-700" },
-            { key: "pending",   label: "Pending",  className: "text-teal-700" },
-            { key: "installed", label: "Done",     className: "text-green-700" },
-            { key: "returned",  label: "Returned", className: "text-gray-500" },
-            { key: "total",     label: "Total",    className: "font-semibold" },
+            { key: "agency",         label: "Agency Name" },
+            { key: "totalIssued",    label: "Total Assigned", className: "font-bold text-slate-900" },
+            { key: "pendingInstall", label: "Pending Inst.", className: "text-amber-700 font-medium" },
+            { key: "installed",      label: "Installed",     className: "text-blue-700 font-medium" },
+            { key: "woDone",         label: "WO Done",       className: "text-teal-700 font-medium" },
+            { key: "noteSheetDone",  label: "Note Sheet Done", className: "text-green-700 font-medium" },
           ]}
           rows={agencyBreakdown}
         />
       )}
 
-      {/* Agency Wise Pending Report Card */}
-      <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden p-4 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700">
-            <Building2 className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 text-sm">Agency-wise Pending Report</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Generate PDF or Excel containing details of all pending meter installations & finalizations grouped by agency.</p>
-          </div>
+      {/* ── Status Stage Detailed Reports Section ───────────────────────────────────── */}
+      <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3">
+        <div className="border-b pb-2">
+          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            Stage-wise Detailed Status Reports ({activeSubmodule === "nsc" ? "NSC Submodule" : "Full Details-wise"})
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {activeSubmodule === "nsc"
+              ? "Quick shareable PDF reports and full details Excel exports for every NSC stage."
+              : "Quick shareable PDF reports and full details Excel exports for every stage of meter replacement."}
+          </p>
         </div>
 
-        {/* Mini stats preview */}
-        <div className="grid grid-cols-3 gap-2 text-center bg-amber-50/50 rounded-lg p-2.5 border border-amber-100 text-xs">
-          <div>
-            <p className="text-gray-500 font-medium">Pending Install</p>
-            <p className="font-bold text-amber-700 text-lg mt-0.5">{totalIssued}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 font-medium">Pending Finalization</p>
-            <p className="font-bold text-teal-700 text-lg mt-0.5">{totalPendingFinal}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 font-medium">Total Pending</p>
-            <p className="font-bold text-slate-900 text-lg mt-0.5">{totalIssued + totalPendingFinal}</p>
-          </div>
-        </div>
+        {activeSubmodule === "nsc" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {/* 1. Proposed NSC Applications */}
+            <div className="bg-purple-50/70 border border-purple-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-purple-900">1. Proposed NSC Applications ({nscProposedCount})</p>
+                <p className="text-[11px] text-purple-700 mt-0.5">Quotation issued, awaiting meter issue</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-purple-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("nsc_proposed", "Proposed NSC Applications Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-purple-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("nsc_proposed", "Proposed NSC Applications Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button size="sm" variant="outline" className="border-amber-200 hover:bg-amber-50 text-amber-800 w-full" onClick={exportAgencyPendingPDF}>
-            <FileDown className="h-4 w-4 mr-1 text-red-600" /> Export PDF
-          </Button>
-          <Button size="sm" variant="outline" className="border-amber-200 hover:bg-amber-50 text-amber-800 w-full" onClick={exportAgencyPendingExcel}>
-            <FileSpreadsheet className="h-4 w-4 mr-1 text-green-600" /> Export Excel
-          </Button>
-        </div>
+            {/* 2. Issued NSC Meters */}
+            <div className="bg-yellow-50/70 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-yellow-900">2. Issued NSC Meters ({nscIssuedCount})</p>
+                <p className="text-[11px] text-yellow-700 mt-0.5">Issued to agency, pending installation</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-yellow-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("nsc_issued", "Issued NSC Meters Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-yellow-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("nsc_issued", "Issued NSC Meters Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 3. Installed NSC Meters */}
+            <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-blue-900">3. Installed NSC Meters ({nscInstalledCount})</p>
+                <p className="text-[11px] text-blue-700 mt-0.5">Installed by agency, pending connection effect</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-blue-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("nsc_installed", "Installed NSC Meters Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-blue-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("nsc_installed", "Installed NSC Meters Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 4. Connection Effected */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-900">4. Connection Effected ({nscCompletedCount})</p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">Fully completed NSC connection</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-emerald-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("nsc_completed", "Connection Effected Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-emerald-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("nsc_completed", "Connection Effected Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 5. Withheld / Returned NSC Meters */}
+            <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-3 flex items-center justify-between md:col-span-2">
+              <div>
+                <p className="text-xs font-bold text-amber-900">5. Withheld / Returned NSC Meters ({nscWithheldCount})</p>
+                <p className="text-[11px] text-amber-700 mt-0.5">Meters returned to stock or withheld</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-amber-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("nsc_withheld", "Withheld NSC Meters Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-amber-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("nsc_withheld", "Withheld NSC Meters Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {/* 1. Installation Pending Card */}
+            <div className="bg-yellow-50/70 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-yellow-900">1. Installation Pending ({installPendingCount})</p>
+                <p className="text-[11px] text-yellow-700 mt-0.5">Issued to agency, awaiting installation</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-yellow-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("install_pending", "Installation Pending Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-yellow-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("install_pending", "Installation Pending Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 2. WO Pending Card */}
+            <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-amber-900">2. Work Order (WO) Pending ({woPendingCount})</p>
+                <p className="text-[11px] text-amber-700 mt-0.5">Installation done, awaiting WO finalization</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-amber-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("wo_pending", "Work Order Pending Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-amber-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("wo_pending", "Work Order Pending Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 3. Work Order (WO) Completed Card */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-900">3. Work Order (WO) Completed ({woCompletedCount})</p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">WO finalized & added</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-emerald-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("wo_completed", "Work Order Completed Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-emerald-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("wo_completed", "Work Order Completed Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 4. Meter Return Pending Card */}
+            <div className="bg-orange-50/70 border border-orange-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-orange-900">4. Meter Return Pending ({meterReturnPendingCount})</p>
+                <p className="text-[11px] text-orange-700 mt-0.5">Installed, old meter not returned to office</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-orange-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("meter_return_pending", "Meter Return Pending Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-orange-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("meter_return_pending", "Meter Return Pending Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 5. Note Sheet Pending Card */}
+            <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-blue-900">5. Note Sheet Pending ({noteSheetPendingCount})</p>
+                <p className="text-[11px] text-blue-700 mt-0.5">WO finalized, awaiting Note Sheet No entry</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-blue-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("note_sheet_pending", "Note Sheet Pending Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-blue-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("note_sheet_pending", "Note Sheet Pending Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 6. Note Sheet Completed Card */}
+            <div className="bg-cyan-50/70 border border-cyan-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-cyan-900">6. Note Sheet Completed ({noteSheetCompletedCount})</p>
+                <p className="text-[11px] text-cyan-700 mt-0.5">Note Sheet attached & completed</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-cyan-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("note_sheet_completed", "Note Sheet Completed Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-cyan-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("note_sheet_completed", "Note Sheet Completed Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 7. Fully Completed Card */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3 flex items-center justify-between md:col-span-2">
+              <div>
+                <p className="text-xs font-bold text-emerald-900">7. Fully Completed ({completedCount})</p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">Both WO & Note Sheet done, old meter returned</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Shareable PDF"
+                  className="h-8 w-8 p-0 bg-white border-emerald-300 hover:bg-red-50 hover:border-red-300"
+                  onClick={() => exportCategoryPDF("completed", "Completed Meters Report")}>
+                  <FileDown className="h-4 w-4 text-red-600" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  title="Download Excel Sheet"
+                  className="h-8 w-8 p-0 bg-white border-emerald-300 hover:bg-green-50 hover:border-green-300"
+                  onClick={() => exportCategoryExcel("completed", "Completed Meters Report")}>
+                  <FileSpreadsheet className="h-4 w-4 text-green-700" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Non-NSC Meter Replacement Report Card */}
-      <div className="bg-white rounded-xl border border-indigo-200 shadow-sm overflow-hidden p-4 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-700">
-            <FileSpreadsheet className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 text-sm">Meter Replacement Sheet Report</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Excel export for non-NSC meter replacements with date and criteria filters.</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-gray-500 font-semibold uppercase">Start Date</Label>
-            <Input type="date" value={rptStartDate} onChange={e => setRptStartDate(e.target.value)} className="h-8 rounded" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-gray-500 font-semibold uppercase">End Date</Label>
-            <Input type="date" value={rptEndDate} onChange={e => setRptEndDate(e.target.value)} className="h-8 rounded" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-gray-500 font-semibold uppercase">Agency</Label>
-            <Select value={rptAgency} onValueChange={setRptAgency}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Agencies</SelectItem>
-                {reportAgencies.map(ag => (
-                  <SelectItem key={ag} value={ag}>{ag}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[10px] text-gray-500 font-semibold uppercase">Purpose</Label>
-            <Select value={rptPurpose} onValueChange={setRptPurpose}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Purposes</SelectItem>
-                {reportPurposes.map(p => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-[10px] text-gray-500 font-semibold uppercase">Status</Label>
-            <Select value={rptStatus} onValueChange={setRptStatus}>
-              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Completed</SelectItem>
-                <SelectItem value="installed">Finalized (Installed)</SelectItem>
-                <SelectItem value="installation_done">Pending Finalization</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t pt-3 mt-1 text-xs">
-          <span className="text-gray-500">Matching Records: <strong className="text-slate-900">{filteredReportIssues.length}</strong></span>
-          <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={exportNonNscReplacementReport} disabled={filteredReportIssues.length === 0}>
-            <FileDown className="h-4 w-4 mr-1" /> Download Excel
-          </Button>
-        </div>
+      {/* Export All Master */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-full">
+        <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-10 font-semibold text-xs truncate" onClick={() => exportCategoryPDF(activeSubmodule === "nsc" ? "nsc_all" : "all_full", activeSubmodule === "nsc" ? "NSC Master Report" : "All Meters Master Report")}>
+          <FileDown className="h-4 w-4 mr-1.5 shrink-0" /> Master Report (PDF)
+        </Button>
+        <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-10 font-semibold text-xs truncate" onClick={() => exportCategoryExcel(activeSubmodule === "nsc" ? "nsc_all" : "all_full", activeSubmodule === "nsc" ? "NSC Master Report" : "All Meters Master Report")}>
+          <FileSpreadsheet className="h-4 w-4 mr-1.5 shrink-0" /> Master Report (Excel)
+        </Button>
       </div>
-
-      {/* Export */}
-      <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-11" onClick={exportReport}>
-        <FileDown className="h-4 w-4 mr-2" /> Export Full Report (Excel)
-      </Button>
     </div>
   )
 }

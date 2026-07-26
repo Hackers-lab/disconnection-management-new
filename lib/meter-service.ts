@@ -32,7 +32,11 @@ const ISSUES_HEADERS = [
   "Consumer Name", "Agency", "Serial No", "Meter Type", "Status",
   "Before Image", "After Image", "Last Reading", "New Reading",
   "Completion Ref", "Completed At", "Completed By", "Remarks", "Installation No",
-  "Address", "Mobile",
+  "Address", "Mobile", "Note Sheet No", "Existing Meter No", "Existing Meter Start Reading",
+  "Cross Check Date 1", "Existing Meter Reading 1", "Check Meter Reading 1",
+  "Cross Check Date 2", "Existing Meter Reading 2", "Check Meter Reading 2",
+  "Calculated Diff Units", "Accuracy Percentage", "Check Meter Outcome", "Check Meter Status",
+  "Old Meter Return Status", "Old Meter Return Date", "Old Meter Return Received By", "Old Meter Return Condition", "Old Meter Return Remarks",
 ]
 
 // ─── Shared cross-instance cache (Next.js Data Cache) ─────────────────────────
@@ -55,15 +59,19 @@ async function ensureTabs(id: string) {
       spreadsheetId: id,
       requestBody: { requests: toCreate.map(t => ({ addSheet: { properties: { title: t } } })) },
     })
-    for (const tab of toCreate) {
-      const headers = tab === STOCK_TAB ? STOCK_HEADERS : ISSUES_HEADERS
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: id, range: `${tab}!A1`,
-        valueInputOption: "RAW",
-        requestBody: { values: [headers] },
-      })
-    }
   }
+
+  // Always update header rows to guarantee all headers (including Note Sheet No at Column V) are present
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: id, range: `${ISSUES_TAB}!A1:AM1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [ISSUES_HEADERS] },
+  })
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: id, range: `${STOCK_TAB}!A1:I1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [STOCK_HEADERS] },
+  })
   tabsReady = true
 }
 
@@ -104,6 +112,24 @@ function parseIssue(r: string[]): MeterIssue {
     installationNo: r[18] || "",
     address:        r[19] || "",
     mobile:         r[20] || "",
+    noteSheetNo:    r[21] || "",
+    existingMeterNo:           r[22] || "",
+    existingMeterStartReading: r[23] || "",
+    crossCheckDate1:           r[24] || "",
+    existingMeterReading1:     r[25] || "",
+    checkMeterReading1:        r[26] || "",
+    crossCheckDate2:           r[27] || "",
+    existingMeterReading2:     r[28] || "",
+    checkMeterReading2:        r[29] || "",
+    calculatedDiffUnits:       r[30] || "",
+    accuracyPercentage:        r[31] || "",
+    checkMeterOutcome:         (r[32] || "") as any,
+    checkMeterStatus:          (r[33] || "") as any,
+    oldMeterReturnStatus:      (r[34] || "") as any,
+    oldMeterReturnDate:        r[35] || "",
+    oldMeterReturnReceivedBy:  r[36] || "",
+    oldMeterReturnCondition:   (r[37] || "") as any,
+    oldMeterReturnRemarks:     r[38] || "",
   }
 }
 
@@ -116,7 +142,7 @@ export async function _fetchStockRaw(spreadsheetId: string): Promise<MeterStock[
 
 export async function _fetchIssuesRaw(spreadsheetId: string): Promise<MeterIssue[]> {
   await ensureTabs(spreadsheetId)
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${ISSUES_TAB}!A:U` })
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${ISSUES_TAB}!A:AM` })
   return (res.data.values || []).slice(1).filter(r => r[0]).map(r => parseIssue(r.map(String)))
 }
 
@@ -193,6 +219,7 @@ export async function issueMeter(req: {
   address?:     string
   mobile?:      string
   replacementId?: string
+  workOrderNo?:  string
 }): Promise<string> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
@@ -208,7 +235,7 @@ export async function issueMeter(req: {
     requestBody: {
       values: [[issueId, today, req.purpose, req.consumerId, req.nscReceiveNo || "",
         req.consumerName, req.agency, req.serialNo, stock[idx].typeLabel, "issued",
-        "", "", "", "", "", "", "", req.remarks || "", "", req.address || "", req.mobile || ""]],
+        "", "", "", "", req.workOrderNo || "", "", "", req.remarks || "", "", req.address || "", req.mobile || ""]],
     },
   })
   await sheets.spreadsheets.values.batchUpdate({
@@ -435,6 +462,155 @@ export async function returnMeterToStock(req: {
   await syncStatusFromIssue(req.issueId, "returned")
 }
 
+// ─── New functions for Note Sheet, Check Meter, Returned Meters ─────────────
+export async function updateIssueNoteSheet(issueId: string, noteSheetNo: string): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureTabs(id)
+  const issues = await _fetchIssuesRaw(id)
+  const idx = issues.findIndex(i => i.issueId === issueId)
+  if (idx === -1) throw new Error("Issue not found")
+  const row = idx + 2
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: [{ range: `${ISSUES_TAB}!V${row}`, values: [[noteSheetNo]] }]
+    }
+  })
+  invalidateMeterCache()
+}
+
+export async function saveCheckMeterCrossCheck(req: {
+  issueId: string
+  checkNum: 1 | 2
+  crossCheckDate: string
+  existingMeterReading: string
+  checkMeterReading: string
+  nextCheckDate?: string
+  diffUnits?: string
+  accuracyPct?: string
+}): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureTabs(id)
+  const issues = await _fetchIssuesRaw(id)
+  const idx = issues.findIndex(i => i.issueId === req.issueId)
+  if (idx === -1) throw new Error("Issue not found")
+  const row = idx + 2
+
+  const updates: any[] = []
+
+  if (req.checkNum === 1) {
+    updates.push(
+      { range: `${ISSUES_TAB}!Y${row}`, values: [[req.crossCheckDate]] },
+      { range: `${ISSUES_TAB}!Z${row}`, values: [[req.existingMeterReading]] },
+      { range: `${ISSUES_TAB}!AA${row}`, values: [[req.checkMeterReading]] },
+      { range: `${ISSUES_TAB}!AH${row}`, values: [["check1_done"]] },
+    )
+    if (req.nextCheckDate) {
+      updates.push({ range: `${ISSUES_TAB}!AB${row}`, values: [[req.nextCheckDate]] })
+    }
+  } else {
+    updates.push(
+      { range: `${ISSUES_TAB}!AB${row}`, values: [[req.crossCheckDate]] },
+      { range: `${ISSUES_TAB}!AC${row}`, values: [[req.existingMeterReading]] },
+      { range: `${ISSUES_TAB}!AD${row}`, values: [[req.checkMeterReading]] },
+      { range: `${ISSUES_TAB}!AH${row}`, values: [["check2_done"]] },
+    )
+  }
+
+  if (req.diffUnits !== undefined) {
+    updates.push({ range: `${ISSUES_TAB}!AE${row}`, values: [[req.diffUnits]] })
+  }
+  if (req.accuracyPct !== undefined) {
+    updates.push({ range: `${ISSUES_TAB}!AF${row}`, values: [[req.accuracyPct]] })
+  }
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: { valueInputOption: "RAW", data: updates }
+  })
+  invalidateMeterCache()
+}
+
+export async function finalizeCheckMeter(req: {
+  issueId: string
+  outcome: "removed_ok" | "replace_meter"
+  remarks?: string
+  finalizedBy: string
+}): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureTabs(id)
+  const issues = await _fetchIssuesRaw(id)
+  const idx = issues.findIndex(i => i.issueId === req.issueId)
+  if (idx === -1) throw new Error("Issue not found")
+  const issue = issues[idx]
+  const row = idx + 2
+  const now = nowDate()
+
+  const updates: any[] = [
+    { range: `${ISSUES_TAB}!AG${row}`, values: [[req.outcome]] },
+    { range: `${ISSUES_TAB}!AH${row}`, values: [["finalized"]] },
+    { range: `${ISSUES_TAB}!R${row}`, values: [[req.remarks || issue.remarks]] },
+  ]
+
+  if (req.outcome === "removed_ok") {
+    // Check meter removed and returned to stock as available
+    updates.push({ range: `${ISSUES_TAB}!J${row}`, values: [["returned"]] })
+    const stock = await _fetchStockRaw(id)
+    const si = stock.findIndex(m => m.serialNo === issue.serialNo)
+    if (si !== -1) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: id,
+        requestBody: {
+          valueInputOption: "RAW",
+          data: [
+            { range: `${STOCK_TAB}!F${si + 2}`, values: [["available"]] },
+            { range: `${STOCK_TAB}!H${si + 2}`, values: [["Check meter removed - meter accurate"]] },
+            { range: `${STOCK_TAB}!I${si + 2}`, values: [[now]] },
+          ]
+        }
+      })
+    }
+  }
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: { valueInputOption: "RAW", data: updates }
+  })
+  invalidateMeterCache()
+}
+
+export async function receiveReturnedOldMeter(req: {
+  issueId: string
+  returnDate: string
+  receivedBy: string
+  condition: "working" | "faulty" | "burnt"
+  remarks?: string
+}): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureTabs(id)
+  const issues = await _fetchIssuesRaw(id)
+  const idx = issues.findIndex(i => i.issueId === req.issueId)
+  if (idx === -1) throw new Error("Issue not found")
+  const row = idx + 2
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: id,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: [
+        { range: `${ISSUES_TAB}!AI${row}`, values: [["returned"]] },
+        { range: `${ISSUES_TAB}!AJ${row}`, values: [[req.returnDate]] },
+        { range: `${ISSUES_TAB}!AK${row}`, values: [[req.receivedBy]] },
+        { range: `${ISSUES_TAB}!AL${row}`, values: [[req.condition]] },
+        { range: `${ISSUES_TAB}!AM${row}`, values: [[req.remarks || ""]] },
+      ]
+    }
+  })
+  invalidateMeterCache()
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export function expandSerialRange(prefix: string, start: string, end: string): string[] {
@@ -445,3 +621,4 @@ export function expandSerialRange(prefix: string, start: string, end: string): s
   for (let i = s; i <= e; i++) result.push(prefix + String(i).padStart(pad, "0"))
   return result
 }
+

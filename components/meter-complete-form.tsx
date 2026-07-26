@@ -39,6 +39,9 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
     })
   }, [issue.consumerId])
 
+  const is3Phase = (issue.meterType || "").includes("3P") || (issue.meterType || "").includes("3-Phase")
+  const isSlowFast = issue.purpose === "slow_fast"
+
   const [installationDate, setInstallationDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [beforeImageUrl, setBeforeImageUrl] = useState("")
   const [afterImageUrl, setAfterImageUrl]   = useState("")
@@ -46,6 +49,63 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
   const [afterPreview, setAfterPreview]     = useState<string | null>(null)
   const [lastReading, setLastReading]       = useState("")
   const [newReading, setNewReading]         = useState("")
+
+  // 3-Phase TOD readings (N, P, O, CU)
+  const [lastN, setLastN]   = useState("")
+  const [lastP, setLastP]   = useState("")
+  const [lastO, setLastO]   = useState("")
+  const [lastCU, setLastCU] = useState("")
+
+  const [newN, setNewN]     = useState("")
+  const [newP, setNewP]     = useState("")
+  const [newO, setNewO]     = useState("")
+  const [newCU, setNewCU]   = useState("")
+
+  // Check meter fields
+  const [crossCheckDate1, setCrossCheckDate1] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7) // default 7 days from now
+    return d.toISOString().slice(0, 10)
+  })
+
+  // Auto-calculate CU = N + P + O for Last Reading if numbers
+  const handleLastTODChange = (field: "n" | "p" | "o" | "cu", val: string) => {
+    let n = field === "n" ? val : lastN
+    let p = field === "p" ? val : lastP
+    let o = field === "o" ? val : lastO
+    if (field === "n") setLastN(val)
+    if (field === "p") setLastP(val)
+    if (field === "o") setLastO(val)
+    if (field === "cu") { setLastCU(val); return }
+
+    const numN = parseFloat(n)
+    const numP = parseFloat(p)
+    const numO = parseFloat(o)
+    if (!isNaN(numN) || !isNaN(numP) || !isNaN(numO)) {
+      const sum = (isNaN(numN) ? 0 : numN) + (isNaN(numP) ? 0 : numP) + (isNaN(numO) ? 0 : numO)
+      setLastCU(String(Math.round(sum * 100) / 100))
+    }
+  }
+
+  // Auto-calculate CU = N + P + O for New Reading if numbers
+  const handleNewTODChange = (field: "n" | "p" | "o" | "cu", val: string) => {
+    let n = field === "n" ? val : newN
+    let p = field === "p" ? val : newP
+    let o = field === "o" ? val : newO
+    if (field === "n") setNewN(val)
+    if (field === "p") setNewP(val)
+    if (field === "o") setNewO(val)
+    if (field === "cu") { setNewCU(val); return }
+
+    const numN = parseFloat(n)
+    const numP = parseFloat(p)
+    const numO = parseFloat(o)
+    if (!isNaN(numN) || !isNaN(numP) || !isNaN(numO)) {
+      const sum = (isNaN(numN) ? 0 : numN) + (isNaN(numP) ? 0 : numP) + (isNaN(numO) ? 0 : numO)
+      setNewCU(String(Math.round(sum * 100) / 100))
+    }
+  }
+
   const [remarks, setRemarks]               = useState("")
   const [uploading, setUploading]           = useState<"before" | "after" | null>(null)
   const [submitting, setSubmitting]         = useState(false)
@@ -108,8 +168,24 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
   const handleSubmit = async () => {
     if (!afterImageUrl) { alert("After-installation image is required."); return }
     if (isReplacement && !beforeImageUrl) { alert("Before image is required for replacements."); return }
-    if (isReplacement && !lastReading.trim()) { alert("Last meter reading is required."); return }
-    if (!newReading.trim()) { alert("New meter initial reading is required."); return }
+
+    let finalLastReading = lastReading.trim()
+    let finalNewReading  = newReading.trim()
+
+    if (is3Phase) {
+      if (isReplacement && (!lastCU.trim() && !lastN.trim())) {
+        alert("3-Phase Old Meter Readings (N, P, O, CU) are required."); return
+      }
+      if (!newCU.trim() && !newN.trim()) {
+        alert("3-Phase New Meter Initial Readings (N, P, O, CU) are required."); return
+      }
+      finalLastReading = `N:${lastN.trim()} | P:${lastP.trim()} | O:${lastO.trim()} | CU:${lastCU.trim()}`
+      finalNewReading  = `N:${newN.trim()} | P:${newP.trim()} | O:${newO.trim()} | CU:${newCU.trim()}`
+    } else {
+      if (isReplacement && !finalLastReading) { alert("Last meter reading is required."); return }
+      if (!finalNewReading) { alert("New meter initial reading is required."); return }
+    }
+
     if (!installationDate) { alert("Installation date is required."); return }
 
     let formattedInstDate = ""
@@ -132,13 +208,30 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
           issueId:          issue.issueId,
           afterImage:       afterImageUrl,
           beforeImage:      beforeImageUrl,
-          lastReading:      lastReading.trim(),
-          newReading:       newReading.trim(),
+          lastReading:      finalLastReading,
+          newReading:       finalNewReading,
           installationDate: formattedInstDate,
           remarks:          remarks.trim(),
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
+
+      // If slow_fast check meter, save crossCheckDate1
+      if (isSlowFast && crossCheckDate1) {
+        await fetch("/api/meters/check-meter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "cross_check",
+            issueId: issue.issueId,
+            checkNum: 1,
+            crossCheckDate: crossCheckDate1,
+            existingMeterReading: finalLastReading,
+            checkMeterReading: finalNewReading,
+          })
+        })
+      }
+
       window.dispatchEvent(new Event("notif-refresh"))
       onSave()
     } catch (e: any) { alert(e.message) }
@@ -259,16 +352,83 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
               required
             />
           </div>
-          {isReplacement && (
-            <div className="space-y-2">
-              <Label>Last Reading (Old Meter) *</Label>
-              <Input value={lastReading} onChange={e => setLastReading(e.target.value)} placeholder="Reading at removal" />
+
+          {isSlowFast && (
+            <div className="space-y-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <Label className="text-amber-900 font-semibold">Scheduled 1st Cross-Check Date *</Label>
+              <Input
+                type="date"
+                value={crossCheckDate1}
+                onChange={e => setCrossCheckDate1(e.target.value)}
+                className="bg-white"
+              />
+              <p className="text-xs text-amber-700">Set the expected date to perform the 1st reading cross-check.</p>
             </div>
           )}
-          <div className="space-y-2">
-            <Label>New Meter Initial Reading *</Label>
-            <Input value={newReading} onChange={e => setNewReading(e.target.value)} placeholder="Reading at installation" />
-          </div>
+
+          {is3Phase ? (
+            <div className="space-y-4">
+              {isReplacement && (
+                <div className="space-y-2 border p-3 rounded-lg bg-slate-50">
+                  <Label className="font-bold text-xs uppercase text-slate-700">3-Phase Old Meter Readings (N, P, O, CU) *</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-gray-500">N (Normal)</Label>
+                      <Input value={lastN} onChange={e => handleLastTODChange("n", e.target.value)} placeholder="Normal" className="font-mono text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-gray-500">P (Peak)</Label>
+                      <Input value={lastP} onChange={e => handleLastTODChange("p", e.target.value)} placeholder="Peak" className="font-mono text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-gray-500">O (Off-Peak)</Label>
+                      <Input value={lastO} onChange={e => handleLastTODChange("o", e.target.value)} placeholder="Off-Peak" className="font-mono text-xs" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-gray-500 font-bold">CU (Cumulative Total)</Label>
+                      <Input value={lastCU} onChange={e => handleLastTODChange("cu", e.target.value)} placeholder="Cumulative" className="font-mono text-xs font-bold bg-white" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 border p-3 rounded-lg bg-blue-50/40 border-blue-200">
+                <Label className="font-bold text-xs uppercase text-blue-900">3-Phase New Meter Initial Readings (N, P, O, CU) *</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[10px] text-gray-500">N (Normal)</Label>
+                    <Input value={newN} onChange={e => handleNewTODChange("n", e.target.value)} placeholder="Normal" className="font-mono text-xs bg-white" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-gray-500">P (Peak)</Label>
+                    <Input value={newP} onChange={e => handleNewTODChange("p", e.target.value)} placeholder="Peak" className="font-mono text-xs bg-white" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-gray-500">O (Off-Peak)</Label>
+                    <Input value={newO} onChange={e => handleNewTODChange("o", e.target.value)} placeholder="Off-Peak" className="font-mono text-xs bg-white" />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-gray-500 font-bold">CU (Cumulative Total)</Label>
+                    <Input value={newCU} onChange={e => handleNewTODChange("cu", e.target.value)} placeholder="Cumulative" className="font-mono text-xs font-bold bg-white" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {isReplacement && (
+                <div className="space-y-2">
+                  <Label>Last Reading (Old Meter) *</Label>
+                  <Input value={lastReading} onChange={e => setLastReading(e.target.value)} placeholder="Reading at removal" />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>New Meter Initial Reading *</Label>
+                <Input value={newReading} onChange={e => setNewReading(e.target.value)} placeholder="Reading at installation" />
+              </div>
+            </>
+          )}
+
           <div className="space-y-2">
             <Label>Remarks</Label>
             <Textarea value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes..." rows={2} />

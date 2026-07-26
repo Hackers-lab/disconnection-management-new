@@ -4,6 +4,8 @@ import { fetchIssues, _fetchIssuesRaw, issueMeter } from "@/lib/meter-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
+export const dynamic = "force-dynamic"
+
 export const GET = withTenant(async function GET(request: NextRequest) {
   const session = await verifySession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -40,6 +42,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       address:      body.address || "",
       mobile:       body.mobile  || "",
       replacementId: body.replacementId || "",
+      workOrderNo:   body.workOrderNo || body.completionRef || "",
     })
     return NextResponse.json({ success: true, issueId })
   } catch (e: any) {

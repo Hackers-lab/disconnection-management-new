@@ -419,7 +419,7 @@ export async function updateNSCMeterIssued(receiveNo: string, serialNo: string, 
   const id = getSpreadsheetId()
   const headers = await ensureHeaders(id, NSC_TAB, NSC_HEADERS)
   const all = await _fetchApplicationsRaw(id)
-  const idx = all.findIndex(a => a.receiveNo === receiveNo)
+  const idx = all.findIndex(a => a.receiveNo === receiveNo || (a.applicationNo && a.applicationNo === receiveNo))
   if (idx === -1) return
   const row = idx + 2
 
