@@ -162,11 +162,16 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
     if (!confirm(`Are you sure you want to delete inspection record ${id}?`)) return
     try {
       const res = await fetch(`/api/misc-inspection/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Failed to delete record")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || "Failed to delete record")
+      }
       toast.success("Inspection record deleted successfully")
-      fetchRecords()
     } catch (err: any) {
       toast.error(err.message || "Failed to delete record")
+    } finally {
+      // Always refresh list to clear phantom/stale cached records
+      fetchRecords()
     }
   }
 

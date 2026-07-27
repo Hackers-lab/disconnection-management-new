@@ -441,11 +441,18 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
   })
 
   const rows = res.data.values || []
-  if (rows.length < 2) return false
+  if (rows.length < 2) {
+    // No data rows — still invalidate cache to clear any phantom records
+    invalidateMiscInspectionCache()
+    return false
+  }
 
   const headers = rows[0].map(h => String(h || "").trim())
   const idColIdx = findColumn(headers, ["ID"])
-  if (idColIdx === -1) return false
+  if (idColIdx === -1) {
+    invalidateMiscInspectionCache()
+    return false
+  }
 
   let rowIndex = -1
   for (let i = 1; i < rows.length; i++) {
@@ -455,7 +462,11 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
     }
   }
 
-  if (rowIndex === -1) return false
+  if (rowIndex === -1) {
+    // Record not in sheet but may exist in cache — invalidate so phantom disappears
+    invalidateMiscInspectionCache()
+    return false
+  }
 
   // Clear row content
   await sheets.spreadsheets.values.clear({

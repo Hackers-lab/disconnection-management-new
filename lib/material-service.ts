@@ -347,8 +347,8 @@ export async function getStock(spreadsheetId: string): Promise<MaterialStock[]> 
 }
 
 // ─── Next ID helpers ──────────────────────────────────────────────────────────
-async function nextCatalogueId(): Promise<string> {
-  const catalogue = await rawCatalogue()
+async function nextCatalogueId(spreadsheetId: string): Promise<string> {
+  const catalogue = await rawCatalogue(spreadsheetId)
   let maxNum = catalogue.length
   for (const m of catalogue) {
     const match = m.materialId.match(/MAT-(\d+)/)
@@ -357,8 +357,8 @@ async function nextCatalogueId(): Promise<string> {
   return `MAT-${String(maxNum + 1).padStart(4, "0")}`
 }
 
-async function nextReceiveId(): Promise<string> {
-  const receives = await rawReceives()
+async function nextReceiveId(spreadsheetId: string): Promise<string> {
+  const receives = await rawReceives(spreadsheetId)
   let maxNum = receives.length
   for (const r of receives) {
     const match = r.receiveId.match(/MAT-R-(\d+)/)
@@ -367,8 +367,8 @@ async function nextReceiveId(): Promise<string> {
   return `MAT-R-${String(maxNum + 1).padStart(4, "0")}`
 }
 
-async function nextIssueId(): Promise<string> {
-  const issues = await rawIssues()
+async function nextIssueId(spreadsheetId: string): Promise<string> {
+  const issues = await rawIssues(spreadsheetId)
   let maxNum = issues.length
   for (const i of issues) {
     const match = i.issueId.match(/MAT-I-(\d+)/)
@@ -391,7 +391,7 @@ export async function addMaterial(data: {
 }): Promise<Material> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
-  const materialId = await nextCatalogueId()
+  const materialId = await nextCatalogueId(id)
 
   const row = [
     materialId,
@@ -430,8 +430,8 @@ export async function addReceives(data: {
   const id = getSpreadsheetId()
   await ensureTabs(id)
 
-  const catalogue = await rawCatalogue()
-  const receiveId = await nextReceiveId()
+  const catalogue = await rawCatalogue(id)
+  const receiveId = await nextReceiveId(id)
 
   // Upload photo if provided
   let photoUrl = ""
@@ -519,9 +519,9 @@ export async function addIssues(data: {
   const id = getSpreadsheetId()
   await ensureTabs(id)
 
-  const catalogue = await rawCatalogue()
-  const [receives, issues] = await Promise.all([rawReceives(), rawIssues()])
-  const issueId = await nextIssueId()
+  const catalogue = await rawCatalogue(id)
+  const [receives, issues] = await Promise.all([rawReceives(id), rawIssues(id)])
+  const issueId = await nextIssueId(id)
 
   // Upload photo if provided
   let photoUrl = ""

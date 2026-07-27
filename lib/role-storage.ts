@@ -77,6 +77,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     material: ["read", "stock"],
     osd: ["read", "download"],
     safety: ["read"],
+    misc_inspection: ["read"],
   },
   {
     role: "agency",
@@ -93,6 +94,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     material: ["read", "update", "receive", "issue", "stock"],
     osd: ["read", "download"],
     safety: ["read", "create", "update"],
+    misc_inspection: ["read", "inspect", "update"],
   },
   {
     role: "technical",
@@ -109,6 +111,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     osd: ["read", "download"],
     safety: ["read", "create", "update"],
+    misc_inspection: ["read", "inspect", "update"],
   },
   {
     role: "painter",
@@ -141,6 +144,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     osd: ["read", "download"],
     safety: ["read", "create", "update", "approve_notesheet", "issue_po", "finalize"],
+    misc_inspection: ["read", "create", "update", "delete", "inspect", "finalize"],
   },
   {
     role: "division_viewer",
