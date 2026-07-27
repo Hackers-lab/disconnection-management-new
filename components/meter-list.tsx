@@ -788,13 +788,13 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
             onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
             <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${
               (isAdmin
-                ? combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" || (r.status || "").toLowerCase() === "updated").length
-                : combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length
+                ? (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length)
+                : (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length)
               ) > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
             }`}>
               {isAdmin
-                ? combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" || (r.status || "").toLowerCase() === "updated").length
-                : combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length
+                ? `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length}`
+                : `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}`
               }
             </div>
             <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
@@ -854,13 +854,13 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
             onClick={() => { setView("check"); setTab("check") }}>
             <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${
               (isAdmin
-                ? replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length + issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned").length
-                : issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
+                ? (replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length + issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized").length)
+                : (issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length + issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length)
               ) > 0 ? "bg-purple-600 shadow-purple-500/20" : "bg-gray-400 shadow-gray-400/20"
             }`}>
               {isAdmin
-                ? replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length + issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned").length
-                : issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
+                ? `${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length}/${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized").length}`
+                : `${issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length}/${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length}`
               }
             </div>
             <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
@@ -1666,7 +1666,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                 )}
 
                 {/* Slow/Fast Check Meter Full Readings History & Status */}
-                {issue.purpose === "slow_fast" && issue.status !== "issued" && (
+                {issue.purpose === "slow_fast" && issue.status !== "issued" && issue.status !== "proposed" && (
                   <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3 space-y-2 mt-2 text-xs">
                     <div className="flex justify-between items-center font-bold text-purple-900 border-b border-purple-200 pb-1.5">
                       <span className="flex items-center gap-1">
@@ -2106,7 +2106,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                             </div>
                             <div className="flex justify-between items-center text-gray-600 pt-1 border-t border-slate-200">
                               <span>Readings:</span>
-                              <span className="font-mono">Last: <strong>{linkedIssue?.lastReading || "0"}</strong> | New: <strong className="text-blue-700">{linkedIssue?.newReading || "—"}</strong></span>
+                              <span className="font-mono">Old Meter Last: <strong>{linkedIssue?.lastReading || "0"}</strong> | New Meter Initial: <strong className="text-blue-700">{linkedIssue?.newReading || "—"}</strong></span>
                             </div>
                             {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
                               <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
@@ -2126,6 +2126,12 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200">
                                 <span>Issue ID: <strong className="font-mono text-gray-700">{linkedIssue.issueId}</strong></span>
                                 <span>Return: <strong className={linkedIssue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{linkedIssue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"}</strong></span>
+                              </div>
+                            )}
+                            {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
+                              <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
+                                {linkedIssue?.beforeImage && <a href={linkedIssue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {linkedIssue?.afterImage && <a href={linkedIssue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
                               </div>
                             )}
                           </>
@@ -2152,8 +2158,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                             <p><span className="text-gray-500">WO Finalized:</span> {linkedIssue?.completedAt || "—"}</p>
                             <p><span className="text-gray-500">WO Number:</span> {rep.workOrderNo || "—"}</p>
                             <p><span className="text-gray-500">Note Sheet No:</span> {rep.noteSheetNo || "—"}</p>
-                            <p><span className="text-gray-500">Initial Reading:</span> {linkedIssue?.lastReading || "0"}</p>
-                            <p><span className="text-gray-500">Final Reading:</span> {linkedIssue?.newReading || "—"}</p>
+                            <p><span className="text-gray-500">Old Meter Last Reading:</span> {linkedIssue?.lastReading || "0"}</p>
+                            <p><span className="text-gray-500">New Meter Initial Reading:</span> {linkedIssue?.newReading || "—"}</p>
                             <p><span className="text-gray-500">Old Meter Return:</span> {linkedIssue?.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
                             <p><span className="text-gray-500">Agency:</span> {rep.agency || "—"}</p>
                           </div>
