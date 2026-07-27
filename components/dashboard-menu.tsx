@@ -44,10 +44,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [dtrPaintingPendingCount, setDtrPaintingPendingCount] = useState<number>(0)
   const [materialPendingCount, setMaterialPendingCount] = useState<number>(0)
   const [safetyPendingCount, setSafetyPendingCount] = useState<number>(0)
+  const [miscPendingCount, setMiscPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
   const [showDevModal, setShowDevModal] = useState(false)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
     safety: false,
+    "misc-inspection": false,
     disconnection: false,
     reconnection: false,
     deemed: false,
@@ -240,6 +242,22 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           console.error("Auto-fetch safety pending count failed", e)
         } finally {
           setLoadingModules(prev => ({ ...prev, safety: false }))
+        }
+      }
+
+      // Misc Inspection
+      if (hasReadPermission("misc_inspection")) {
+        try {
+          setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
+          const res = await fetch("/api/misc-inspection/pending-count")
+          if (res.ok) {
+            const data = await res.json()
+            setMiscPendingCount(data.pendingCount || 0)
+          }
+        } catch (e) {
+          console.error("Auto-fetch misc inspection pending count failed", e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
         }
       }
 
@@ -551,6 +569,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["safety"] ? "bg-blue-500 animate-pulse" : safetyPendingCount > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
                       }`}>
                       {loadingModules["safety"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : safetyPendingCount}
+                    </div>
+                  )}
+                  {module.id === "misc-inspection" && (
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["misc-inspection"] ? "bg-blue-500 animate-pulse" : miscPendingCount > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"
+                      }`}>
+                      {loadingModules["misc-inspection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : miscPendingCount}
                     </div>
                   )}
                   {module.id === "disconnection" && (

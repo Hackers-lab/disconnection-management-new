@@ -379,6 +379,9 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
         </span>
         {CATEGORY_CHIPS.map((chip) => {
           const isActive = selectedCategory === chip.id
+          const count = chip.id === "all"
+            ? records.length
+            : records.filter(r => r.category === chip.id).length
           return (
             <button
               key={chip.id}
@@ -389,7 +392,7 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                   : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
               }`}
             >
-              {chip.label}
+              {chip.label} ({count})
             </button>
           )
         })}
