@@ -75,8 +75,11 @@ class DynamicAuth extends GoogleAuth {
       try {
         return await active.request(opts)
       } catch (err: any) {
+        const errMsg = String(err?.message || err?.cause?.message || err?.response?.data?.error?.message || "").toLowerCase()
+        const isQuotaError = errMsg.includes("quota") || errMsg.includes("storage")
+
         const statusCode = err?.status || err?.code || err?.response?.status
-        const isPermissionOrNotFound = statusCode === 403 || statusCode === 404 || statusCode === 401
+        const isPermissionOrNotFound = (statusCode === 403 || statusCode === 404 || statusCode === 401) && !isQuotaError
 
         if (active !== this.defaultAuth && isPermissionOrNotFound && typeof this.defaultAuth.request === "function") {
           console.warn(
@@ -84,6 +87,10 @@ class DynamicAuth extends GoogleAuth {
             opts?.url
           )
           return await this.defaultAuth.request(opts)
+        }
+
+        if (isQuotaError) {
+          throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
         }
         throw err
       }
@@ -254,20 +261,11 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
     // Return a direct view URL instead of the webViewLink (which is a HTML page)
     return `https://drive.google.com/uc?export=view&id=${fileId}`
-  } catch (error) {
+  } catch (error: any) {
     console.error("Drive upload failed:", error)
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      try {
-        console.log("Attempting Vercel Blob upload fallback...")
-        const { put } = await import("@vercel/blob")
-        const ext = file.name ? (file.name.split(".").pop() || "jpg") : "jpg"
-        const blob = await put(`${consumerId}_${Date.now()}.${ext}`, file, {
-          access: "public",
-        })
-        return blob.url
-      } catch (blobErr) {
-        console.error("Vercel Blob fallback also failed:", blobErr)
-      }
+    const errMsg = String(error?.message || error?.cause?.message || "").toLowerCase()
+    if (errMsg.includes("quota") || errMsg.includes("storage")) {
+      throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive.")
     }
     throw error
   }
