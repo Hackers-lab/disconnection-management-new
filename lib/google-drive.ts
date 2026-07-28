@@ -129,6 +129,24 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   return "disconnection"
 }
 
+class BufferStream extends Readable {
+  private buffer: Buffer
+  private sent = false
+
+  constructor(buffer: Buffer) {
+    super()
+    this.buffer = buffer
+  }
+
+  override _read() {
+    if (!this.sent) {
+      this.sent = true
+      this.push(this.buffer)
+      this.push(null)
+    }
+  }
+}
+
 export async function uploadImageToDrive(file: File, consumerId: string, moduleName?: string): Promise<string> {
   try {
     const hasServiceAccount = client_email && private_key
@@ -148,8 +166,7 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     }
 
     const buffer = Buffer.from(arrayBuffer)
-    const stream = new PassThrough()
-    stream.end(buffer)
+    const stream = new BufferStream(buffer)
 
     const ext = file.name ? (file.name.split(".").pop() || "jpg") : (file.type === "application/pdf" ? "pdf" : "jpg")
     const fileName = `${consumerId}_${Date.now()}.${ext}`
@@ -239,6 +256,19 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     return `https://drive.google.com/uc?export=view&id=${fileId}`
   } catch (error) {
     console.error("Drive upload failed:", error)
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        console.log("Attempting Vercel Blob upload fallback...")
+        const { put } = await import("@vercel/blob")
+        const ext = file.name ? (file.name.split(".").pop() || "jpg") : "jpg"
+        const blob = await put(`${consumerId}_${Date.now()}.${ext}`, file, {
+          access: "public",
+        })
+        return blob.url
+      } catch (blobErr) {
+        console.error("Vercel Blob fallback also failed:", blobErr)
+      }
+    }
     throw error
   }
 }
