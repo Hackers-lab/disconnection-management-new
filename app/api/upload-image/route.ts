@@ -13,8 +13,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const consumerId = formData.get("consumerId") as string
     const moduleName = (formData.get("module") || formData.get("moduleName")) as string
 
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 })
+    if (!file || file.size === 0) {
+      return NextResponse.json({ error: "No valid file provided or file is 0 bytes" }, { status: 400 })
     }
 
     if (!consumerId) {

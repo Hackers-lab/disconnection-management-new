@@ -1,6 +1,6 @@
 import { GoogleAuth, OAuth2Client } from "google-auth-library"
 import { drive as googleDrive } from "@googleapis/drive"
-import { Readable } from "stream"
+import { Readable, PassThrough } from "stream"
 import { getTenantContext } from "./tenant-context"
 
 // Shared Auth client configuration
@@ -143,8 +143,13 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
     // Convert File to Buffer/Stream
     const arrayBuffer = await file.arrayBuffer()
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      throw new Error("Uploaded image file is empty (0 bytes). Please select a valid photo.")
+    }
+
     const buffer = Buffer.from(arrayBuffer)
-    const stream = Readable.from(buffer)
+    const stream = new PassThrough()
+    stream.end(buffer)
 
     const ext = file.name ? (file.name.split(".").pop() || "jpg") : (file.type === "application/pdf" ? "pdf" : "jpg")
     const fileName = `${consumerId}_${Date.now()}.${ext}`
