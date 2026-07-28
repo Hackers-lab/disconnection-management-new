@@ -241,12 +241,17 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       })
       const uploadData = new FormData()
       uploadData.append("file", processed)
-      uploadData.append("consumerId", "SAFETY_DRAWING")
+      uploadData.append("consumerId", selectedForEdit?.safetyId || "SAFETY_DRAWING")
+      uploadData.append("module", "safety")
       const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
       const result = await res.json()
-      if (result.success) setRectifyDrawingUrl(result.url)
-    } catch (err) {
-      alert("Drawing upload failed")
+      if (res.ok && result.success) {
+        setRectifyDrawingUrl(result.url)
+      } else {
+        alert(result.error || "Drawing upload failed")
+      }
+    } catch (err: any) {
+      alert(err?.message || "Drawing upload failed")
     } finally {
       setUploadingDrawing(false)
     }
@@ -782,7 +787,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                           alt="Safety Hazard Photo"
                           className="w-full max-h-40 object-cover cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => setPreviewImage({
-                            url: rawImage,
+                            url: rawImage || "",
                             title: `${ticket.safetyId} — ${ticket.afterImageUrl ? "Rectified Photo" : "Before Hazard Photo"}`,
                             ticketId: ticket.safetyId,
                             type: ticket.afterImageUrl ? "Rectified" : "Before"
@@ -790,7 +795,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                         />
                         <div
                           onClick={() => setPreviewImage({
-                            url: rawImage,
+                            url: rawImage || "",
                             title: `${ticket.safetyId} — ${ticket.afterImageUrl ? "Rectified Photo" : "Before Hazard Photo"}`,
                             ticketId: ticket.safetyId,
                             type: ticket.afterImageUrl ? "Rectified" : "Before"
@@ -1178,12 +1183,17 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                           })
                           const uploadData = new FormData()
                           uploadData.append("file", processed)
-                          uploadData.append("consumerId", "SAFETY_AFTER")
+                          uploadData.append("consumerId", selectedForEdit.safetyId || "SAFETY_AFTER")
+                          uploadData.append("module", "safety")
                           const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
                           const result = await res.json()
-                          if (result.success) setAfterImageUrl(result.url)
-                        } catch (err) {
-                          alert("Upload failed")
+                          if (res.ok && result.success) {
+                            setAfterImageUrl(result.url)
+                          } else {
+                            alert(result.error || "Upload failed")
+                          }
+                        } catch (err: any) {
+                          alert(err?.message || "Upload failed")
                         } finally {
                           setUploadingAfterImage(false)
                         }

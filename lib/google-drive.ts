@@ -100,6 +100,9 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   if (moduleName) return moduleName.trim().toLowerCase()
 
   const id = String(consumerId).toUpperCase()
+  if (id.startsWith("SAF-") || id.startsWith("SAFETY") || id.includes("SAFETY")) {
+    return "safety"
+  }
   if (id.includes("MAT-RECV-") || id.includes("MAT-ISSUE-") || id.includes("MAT-CAT-")) {
     return "material"
   }
@@ -200,7 +203,7 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     }
 
     const media = {
-      mimeType: file.type,
+      mimeType: file.type || "image/jpeg",
       body: stream,
     }
 
@@ -215,13 +218,17 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     if (!fileId) throw new Error("No file ID returned from Drive")
 
     // Make the file publicly readable so it can be displayed in the app
-    await drive.permissions.create({
-      fileId: fileId,
-      requestBody: {
-        role: "reader",
-        type: "anyone",
-      },
-    })
+    try {
+      await drive.permissions.create({
+        fileId: fileId,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+      })
+    } catch (permError) {
+      console.warn("Failed to set public permission on uploaded Drive file:", permError)
+    }
 
     // Return a direct view URL instead of the webViewLink (which is a HTML page)
     return `https://drive.google.com/uc?export=view&id=${fileId}`

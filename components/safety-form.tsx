@@ -127,15 +127,18 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
       const uploadData = new FormData()
       uploadData.append("file", processedFile)
       uploadData.append("consumerId", "SAFETY_BEFORE")
+      uploadData.append("module", "safety")
 
       const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
       const result = await res.json()
-      if (result.success) {
+      if (res.ok && result.success) {
         setBeforeImageUrl(result.url)
+      } else {
+        alert(result.error || "Before photo upload failed. Please try again.")
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      alert("Before photo upload failed. Please try again.")
+      alert(e?.message || "Before photo upload failed. Please try again.")
     } finally {
       setUploadingImage(false)
     }
@@ -148,15 +151,18 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
       const uploadData = new FormData()
       uploadData.append("file", processedFile)
       uploadData.append("consumerId", "SAFETY_DRAWING")
+      uploadData.append("module", "safety")
 
       const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
       const result = await res.json()
-      if (result.success) {
+      if (res.ok && result.success) {
         setDrawingUrl(result.url)
+      } else {
+        alert(result.error || "Drawing image upload failed.")
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      alert("Drawing image upload failed.")
+      alert(e?.message || "Drawing image upload failed.")
     } finally {
       setUploadingDrawing(false)
     }

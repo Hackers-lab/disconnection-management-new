@@ -29,8 +29,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       url: publicUrl,
       message: "Image uploaded successfully to Google Drive",
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Image upload error:", error)
-    return NextResponse.json({ error: "Failed to upload image" }, { status: 500 })
+    return NextResponse.json({ error: error?.message || "Failed to upload image" }, { status: 500 })
   }
 })
