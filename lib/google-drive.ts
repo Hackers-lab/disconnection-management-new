@@ -2,6 +2,7 @@ import { GoogleAuth, OAuth2Client } from "google-auth-library"
 import { drive as googleDrive } from "@googleapis/drive"
 import { Readable, PassThrough } from "stream"
 import { getTenantContext } from "./tenant-context"
+import { invalidateTenantCache } from "./tenant-resolver"
 
 // Shared Auth client configuration
 const client_email = process.env.GOOGLE_SHEETS_CLIENT_EMAIL
@@ -90,6 +91,7 @@ class DynamicAuth extends GoogleAuth {
         }
 
         if (isQuotaError) {
+          invalidateTenantCache()
           throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
         }
         throw err
@@ -263,9 +265,10 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     return `https://drive.google.com/uc?export=view&id=${fileId}`
   } catch (error: any) {
     console.error("Drive upload failed:", error)
+    invalidateTenantCache()
     const errMsg = String(error?.message || error?.cause?.message || "").toLowerCase()
     if (errMsg.includes("quota") || errMsg.includes("storage")) {
-      throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive.")
+      throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
     }
     throw error
   }
