@@ -66,6 +66,7 @@ export interface DynamicCategoryFields {
 export interface MiscInspectionRecord {
   id: string // Unique inspection ID e.g. MISC-2026-0001
   referenceNo: string // Consumer ID, File No, Application No, or Ref ID
+  referenceDocUrl?: string // Uploaded Reference Document PDF or Image URL
   category: InspectionCategory
   categoryLabel?: string
   title: string
@@ -117,6 +118,7 @@ export interface MiscInspectionRecord {
 
 export interface CreateMiscInspectionInput {
   referenceNo: string
+  referenceDocUrl?: string
   category: InspectionCategory
   title: string
   description: string
@@ -138,6 +140,7 @@ export interface AgencyInspectionUpdateInput {
   sitePhotoUrl?: string
   meterReadingPhotoUrl?: string
   sketchDrawingUrl?: string
+  referenceDocUrl?: string
   geoCoordinates?: string
   existingMeterNo?: string
   meterReading?: string

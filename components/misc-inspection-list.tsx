@@ -451,6 +451,20 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                 <div className="space-y-1 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
                   <p className="truncate"><strong>Consumer / Applicant:</strong> {r.applicantName || r.referenceNo}</p>
                   <p className="truncate">📍 <strong>Address:</strong> {r.address || "No address provided"}</p>
+                  {(r.referenceDocUrl || (r.referenceNo && (r.referenceNo.startsWith("http") || r.referenceNo.includes("drive.google.com")))) && (
+                    <div className="pt-1">
+                      <a
+                        href={r.referenceDocUrl || r.referenceNo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md"
+                      >
+                        <FileText className="h-3 w-3" />
+                        <span>View Reference Doc ↗</span>
+                      </a>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center text-[11px] pt-0.5 border-t border-slate-200 mt-1">
                     <span>Agency: <strong>{r.agency}</strong></span>
                     <span>Priority: <strong>{r.priority}</strong></span>

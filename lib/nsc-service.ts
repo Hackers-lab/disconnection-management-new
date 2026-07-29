@@ -87,6 +87,9 @@ const NSC_FIELD_MAP: Record<keyof NSCApplication, string[]> = {
   isLegacy:             ["Is Legacy", "isLegacy", "is_legacy"],
   existingConsumerId:   ["Existing Consumer ID", "existingConsumerId", "existing_consumer_id", "existingconsumerid"],
   applicationFormUrl:   ["Application Form URL", "applicationFormUrl", "application_form_url"],
+  remarks:              ["Remarks", "agencyRemarks", "adminRemarks", "remarks"],
+  quotationDate:        ["Quotation Date", "quotationDate", "quotation_date"],
+  appliedDate:          ["Applied Date", "receivedDate", "appliedDate"],
 }
 
 // ─── Shared cross-instance cache (Next.js Data Cache) ─────────────────────────

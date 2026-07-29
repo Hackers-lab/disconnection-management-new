@@ -24,6 +24,7 @@ export const MISC_INSPECTION_TAG = "misc_inspections"
 export const MISC_INSPECTION_HEADERS = [
   "ID",
   "Reference No",
+  "Reference Doc URL",
   "Category",
   "Title",
   "Description",
@@ -106,6 +107,7 @@ function parseRecordFromRow(headers: string[], row: any[]): MiscInspectionRecord
   return {
     id: getVal("ID"),
     referenceNo: getVal("Reference No"),
+    referenceDocUrl: getVal("Reference Doc URL") || undefined,
     category: (getVal("Category") || "GENERAL") as InspectionCategory,
     title: getVal("Title"),
     description: getVal("Description"),
@@ -205,6 +207,7 @@ export async function createMiscInspection(
   const record: MiscInspectionRecord = {
     id,
     referenceNo: input.referenceNo || id,
+    referenceDocUrl: input.referenceDocUrl,
     category: input.category,
     title: input.title,
     description: input.description,
@@ -251,6 +254,7 @@ export async function createMiscInspection(
 
   setVal("ID", record.id)
   setVal("Reference No", record.referenceNo)
+  setVal("Reference Doc URL", record.referenceDocUrl)
   setVal("Category", record.category)
   setVal("Title", record.title)
   setVal("Description", record.description)
@@ -340,6 +344,9 @@ export async function updateMiscInspectionByAgency(
   pushUpdate("Site Photo URL", input.sitePhotoUrl || "")
   pushUpdate("Meter Reading Photo URL", input.meterReadingPhotoUrl || "")
   pushUpdate("Sketch Drawing URL", input.sketchDrawingUrl || "")
+  if (input.referenceDocUrl) {
+    pushUpdate("Reference Doc URL", input.referenceDocUrl)
+  }
   pushUpdate("Geo Coordinates", input.geoCoordinates || "")
   pushUpdate("Existing Meter No", input.existingMeterNo || "")
   pushUpdate("Meter Reading", input.meterReading || "")

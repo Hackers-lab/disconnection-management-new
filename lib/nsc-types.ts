@@ -104,6 +104,9 @@ export interface NSCApplication {
   existingConsumerId:   string
   // Application Form PDF URL
   applicationFormUrl?:  string
+  quotationDate?:       string
+  appliedDate?:         string
+  remarks?:             string
 }
 
 // ── NSC Project ───────────────────────────────────────────────────────────────

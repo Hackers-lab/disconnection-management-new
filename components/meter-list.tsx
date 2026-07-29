@@ -65,6 +65,19 @@ function getIssueStatusBadge(issue: MeterIssue) {
   return { label: issue.status, className: "bg-slate-100 text-slate-700 font-semibold" }
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  issued: "Issued",
+  installation_done: "Installed",
+  installed: "Completed",
+  returned: "Returned",
+  proposed: "Proposed",
+  updated: "Installed",
+  replaced: "WO Done",
+  completed: "Completed",
+  closed: "Closed / Cancelled",
+  withheld: "Withheld",
+}
+
 interface Props {
   userRole: string
   userAgencies: string[]
@@ -82,12 +95,16 @@ interface MeterReplacement {
   agency: string
   purpose: string
   proposedDate: string
-  status: "proposed" | "issued" | "updated" | "replaced"
+  status: "proposed" | "issued" | "updated" | "replaced" | "closed"
   serialNo: string
   issueId: string
   remarks: string
+  attachmentUrl?: string
   oldMeterNo?: string
   workOrderNo?: string
+  noteSheetNo?: string
+  closedRemarks?: string
+  meterType?: string
 }
 
 export function MeterList({ userRole, userAgencies, username, agencies, permissions }: Props) {

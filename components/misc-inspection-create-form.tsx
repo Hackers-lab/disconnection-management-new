@@ -106,6 +106,8 @@ export function MiscInspectionCreateForm({
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [referenceNo, setReferenceNo] = useState("")
+  const [referenceDocUrl, setReferenceDocUrl] = useState("")
+  const [uploadingDoc, setUploadingDoc] = useState(false)
   const [priority, setPriority] = useState<InspectionPriority>("MEDIUM")
   const [agency, setAgency] = useState<string>(userAgencies.length > 0 ? userAgencies[0] : "")
   const [targetCompletionDate, setTargetCompletionDate] = useState("")
@@ -128,7 +130,7 @@ export function MiscInspectionCreateForm({
   const [nscApplicationNo, setNscApplicationNo] = useState("")
   const [customCategoryTag, setCustomCategoryTag] = useState("")
 
-  // Image Upload State
+  // Image & Document Upload State
   const [initialImageUrl, setInitialImageUrl] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
 
@@ -143,6 +145,7 @@ export function MiscInspectionCreateForm({
     const reader = new FileReader()
     reader.onload = () => {
       setInitialImageUrl(reader.result as string)
+      if (!referenceDocUrl) setReferenceDocUrl(reader.result as string)
       setUploadingImage(false)
       toast.success("Inspection reference image uploaded!")
     }
@@ -151,6 +154,37 @@ export function MiscInspectionCreateForm({
       toast.error("Failed to read image file")
     }
     reader.readAsDataURL(file)
+  }
+
+  const handleDocFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingDoc(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      })
+      if (!res.ok) throw new Error("Failed to upload document")
+      const data = await res.json()
+      const url = data.url || data.fileUrl
+      setReferenceDocUrl(url)
+      setInitialImageUrl(url)
+      toast.success("Reference document uploaded successfully!")
+    } catch (err: any) {
+      // Fallback to Data URL for client-side preview
+      const reader = new FileReader()
+      reader.onload = () => {
+        setReferenceDocUrl(reader.result as string)
+        setInitialImageUrl(reader.result as string)
+        toast.success("Reference document attached!")
+      }
+      reader.readAsDataURL(file)
+    } finally {
+      setUploadingDoc(false)
+    }
   }
 
   // Fetch active agencies on mount
@@ -210,6 +244,7 @@ export function MiscInspectionCreateForm({
 
       const input: CreateMiscInspectionInput & { initialImageUrl?: string } = {
         referenceNo: referenceNo.trim(),
+        referenceDocUrl: referenceDocUrl.trim() || undefined,
         category,
         title: title.trim(),
         description: description.trim(),
@@ -511,6 +546,45 @@ export function MiscInspectionCreateForm({
                 onChange={(e) => setAddress(e.target.value)}
                 className="h-9 text-xs rounded-lg"
               />
+            </div>
+
+            {/* Reference Document File / URL */}
+            <div className="space-y-1 pt-1 border-t border-slate-100">
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-blue-600" /> Reference Document / Office Notice (PDF or Photo)
+              </Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="https://... (or upload file)"
+                    value={referenceDocUrl}
+                    onChange={(e) => setReferenceDocUrl(e.target.value)}
+                    className="h-9 text-xs rounded-lg flex-1"
+                  />
+                  {referenceDocUrl && (
+                    <a
+                      href={referenceDocUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-blue-600 hover:underline shrink-0 bg-blue-50 px-2 py-1.5 rounded-lg border border-blue-200"
+                    >
+                      View Document ↗
+                    </a>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 border border-dashed rounded-lg px-3 py-1.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-50 transition text-xs font-medium text-slate-600">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <span>{uploadingDoc ? "Uploading..." : referenceDocUrl ? "Change Document" : "Upload Reference PDF/Photo"}</span>
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleDocFileUpload} disabled={uploadingDoc} />
+                  </label>
+                  {referenceDocUrl && (
+                    <Button type="button" variant="ghost" size="sm" className="h-8 text-xs text-red-500 hover:text-red-700" onClick={() => setReferenceDocUrl("")}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -204,6 +204,27 @@ export function MiscInspectionViewDialog({
             </div>
           </div>
 
+          {/* Reference Document Box */}
+          {(record.referenceDocUrl || (record.referenceNo && (record.referenceNo.startsWith("http") || record.referenceNo.includes("drive")))) && (
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-blue-600" />
+                <div>
+                  <span className="font-bold text-xs text-slate-800 block">Uploaded Reference Document</span>
+                  <span className="text-[10px] text-slate-500">Official instruction / office notice PDF or photo</span>
+                </div>
+              </div>
+              <a
+                href={record.referenceDocUrl || record.referenceNo}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm"
+              >
+                Open Document ↗
+              </a>
+            </div>
+          )}
+
           {/* Agency Inspection Findings */}
           <div className="border rounded-lg p-3 bg-blue-500/5 border-blue-500/20 space-y-2">
             <h5 className="font-bold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
