@@ -229,7 +229,40 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
   useEffect(() => {
     async function loadPendingCount() {
-      // Consolidated System Counts (Single Edge-cached Request)
+      // Read local IndexedDB caches first for instant 0ms counts
+      try {
+        const [miscCached, safetyCached] = await Promise.all([
+          getFromCache<any[]>("misc_inspection_cache"),
+          getFromCache<any[]>("safety_tickets_cache"),
+        ])
+
+        const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
+
+        if (miscCached && Array.isArray(miscCached)) {
+          const count = miscCached.filter(r => {
+            if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive" && r.agency) {
+              if (!upperAgencies.includes((r.agency || "").trim().toUpperCase())) return false
+            }
+            return r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS"
+          }).length
+          setMiscPendingCount(count)
+        }
+
+        if (safetyCached && Array.isArray(safetyCached)) {
+          const isAgency = userRole === "agency"
+          const count = safetyCached.filter(t => {
+            if (isAgency) {
+              return t.physicalStatus === "pending" && upperAgencies.includes((t.agency || "").trim().toUpperCase())
+            }
+            return t.physicalStatus === "pending" || (t.physicalStatus === "rectified" && t.adminStatus !== "po_done" && t.adminStatus !== "not_required")
+          }).length
+          setSafetyPendingCount(count)
+        }
+      } catch (e) {
+        console.error("Local cache count calculation failed", e)
+      }
+
+      // Consolidated System Counts Backup (Single Edge-cached Request)
       try {
         const res = await fetch("/api/system/dashboard-counts")
         if (res.ok) {
@@ -244,6 +277,15 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         }
       } catch (e) {
         console.error("Auto-fetch consolidated counts failed", e)
+      } finally {
+        setLoadingModules(prev => ({
+          ...prev,
+          safety: false,
+          "misc-inspection": false,
+          "meter-replacement": false,
+          dtr: false,
+          "dtr-painting": false,
+        }))
       }
 
       // Disconnection

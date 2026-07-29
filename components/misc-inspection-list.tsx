@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
+import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { MiscInspectionRecord, InspectionCategory, InspectionPriority, InspectionStatus } from "@/lib/misc-inspection-types"
 import { MiscInspectionStats } from "@/components/misc-inspection-stats"
 import { MiscInspectionCreateForm } from "@/components/misc-inspection-create-form"
@@ -98,6 +99,12 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const fetchRecords = async () => {
     setLoading(true)
     try {
+      const cached = await getFromCache<MiscInspectionRecord[]>("misc_inspection_cache")
+      if (cached && cached.length > 0) {
+        setRecords(cached)
+        setLoading(false)
+      }
+
       const res = await fetch("/api/misc-inspection", { cache: "no-store" })
       if (!res.ok) {
         throw new Error("Failed to fetch misc inspection records")
@@ -105,9 +112,10 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       const data = await res.json()
       if (Array.isArray(data)) {
         setRecords(data)
+        await saveToCache("misc_inspection_cache", data)
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to load inspections")
+      if (records.length === 0) toast.error(err.message || "Failed to load inspections")
     } finally {
       setLoading(false)
     }
