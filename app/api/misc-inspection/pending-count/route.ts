@@ -23,7 +23,14 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       return rec.status === "PENDING_AGENCY" || rec.status === "IN_PROGRESS"
     })
 
-    return NextResponse.json({ pendingCount: pending.length })
+    return NextResponse.json(
+      { pendingCount: pending.length },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
+      }
+    )
   } catch (error) {
     return NextResponse.json({ pendingCount: 0 })
   }

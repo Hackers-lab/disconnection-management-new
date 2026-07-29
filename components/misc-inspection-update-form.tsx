@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { compressAndWatermarkImage } from "@/lib/image-processor"
 import {
   MiscInspectionRecord,
   AgencyDecision,
@@ -94,8 +95,19 @@ export function MiscInspectionUpdateForm({
 
     setUploadingImage(targetField)
     try {
+      const processedFile = await compressAndWatermarkImage(file, {
+        targetKb: 85,
+        watermarkLines: [
+          `Inspection: ${record?.id || "MISC"}`,
+          `GPS: ${geoCoordinates || "N/A"}`,
+          `Date: ${new Date().toLocaleString("en-IN")}`
+        ]
+      })
+
       const formData = new FormData()
-      formData.append("file", file)
+      formData.append("file", processedFile)
+      formData.append("consumerId", record?.id || "MISC")
+      formData.append("moduleName", "misc-inspection")
 
       const res = await fetch("/api/upload-image", {
         method: "POST",

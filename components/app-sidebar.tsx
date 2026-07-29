@@ -57,16 +57,15 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     let active = true
     async function fetchCount() {
       try {
-        // Misc Inspection Count
-        fetch("/api/misc-inspection/pending-count")
-          .then(res => res.ok ? res.json() : { pendingCount: 0 })
-          .then(data => { if (active) setMiscPendingCount(data.pendingCount || 0) })
-          .catch(() => {})
-
-        // Safety Count
-        fetch("/api/safety/pending-count")
-          .then(res => res.ok ? res.json() : { pendingCount: 0 })
-          .then(data => { if (active) setSafetyPendingCount(data.pendingCount || 0) })
+        // Consolidated System Counts (Single Edge-cached Request)
+        fetch("/api/system/dashboard-counts")
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (active && data) {
+              if (typeof data.miscPending === "number") setMiscPendingCount(data.miscPending)
+              if (typeof data.safetyPending === "number") setSafetyPendingCount(data.safetyPending)
+            }
+          })
           .catch(() => {})
 
         // DD Count

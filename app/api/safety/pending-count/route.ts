@@ -34,7 +34,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ pendingCount }, {
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
     })
   } catch (error: any) {
     console.error("Safety pending count error:", error)

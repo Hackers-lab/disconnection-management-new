@@ -21,7 +21,7 @@ export async function compressAndWatermarkImage(
   const {
     maxDim = 800,
     watermarkLines = [],
-    targetKb = 95 // target 95KB for safety margin under 100KB
+    targetKb = 85 // target 85KB for strict safety margin under 100KB
   } = options;
 
   return new Promise((resolve) => {

@@ -229,35 +229,21 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
   useEffect(() => {
     async function loadPendingCount() {
-      // Safety Inspection
-      if (hasReadPermission("safety")) {
-        try {
-          setLoadingModules(prev => ({ ...prev, safety: true }))
-          const res = await fetch("/api/safety/pending-count")
-          if (res.ok) {
-            const data = await res.json()
-            setSafetyPendingCount(data.pendingCount || 0)
+      // Consolidated System Counts (Single Edge-cached Request)
+      try {
+        const res = await fetch("/api/system/dashboard-counts")
+        if (res.ok) {
+          const counts = await res.json()
+          if (counts) {
+            if (typeof counts.miscPending === "number") setMiscPendingCount(counts.miscPending)
+            if (typeof counts.safetyPending === "number") setSafetyPendingCount(counts.safetyPending)
+            if (typeof counts.meterPending === "number") setReplacementPendingCount(counts.meterPending)
+            if (typeof counts.dtrPaintingPending === "number") setDtrPaintingPendingCount(counts.dtrPaintingPending)
+            if (typeof counts.dtrPending === "number") setDtrPendingCount(counts.dtrPending)
           }
-        } catch (e) {
-          console.error("Auto-fetch safety pending count failed", e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, safety: false }))
         }
-      }
-
-      // Misc Inspection
-      if (hasReadPermission("misc-inspection") || hasReadPermission("misc_inspection")) {
-        try {
-          const res = await fetch("/api/misc-inspection/pending-count")
-          if (res.ok) {
-            const data = await res.json()
-            setMiscPendingCount(data.pendingCount || 0)
-          }
-        } catch (e) {
-          console.error("Auto-fetch misc inspection pending count failed", e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
-        }
+      } catch (e) {
+        console.error("Auto-fetch consolidated counts failed", e)
       }
 
       // Disconnection
