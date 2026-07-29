@@ -2228,7 +2228,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                               </Button>
                             )}
                           </div>
-                          {!isAdmin && (
+                          {isAdmin && (
                             <Button size="sm" variant="outline" className="w-full h-8 text-xs font-semibold border-amber-300 text-amber-800 hover:bg-amber-50"
                               onClick={(e) => {
                                 e.stopPropagation()
