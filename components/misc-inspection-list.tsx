@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { MiscInspectionRecord, InspectionCategory, InspectionPriority, InspectionStatus } from "@/lib/misc-inspection-types"
 import { MiscInspectionStats } from "@/components/misc-inspection-stats"
 import { MiscInspectionCreateForm } from "@/components/misc-inspection-create-form"
@@ -100,19 +100,21 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
     setLoading(true)
     try {
       const cached = await getFromCache<MiscInspectionRecord[]>("misc_inspection_cache")
+      let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         setLoading(false)
+        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
+        if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
-      const res = await fetch("/api/misc-inspection", { cache: "no-store" })
-      if (!res.ok) {
-        throw new Error("Failed to fetch misc inspection records")
-      }
-      const data = await res.json()
-      if (Array.isArray(data)) {
-        setRecords(data)
-        await saveToCache("misc_inspection_cache", data)
+      const patchUrl = lastTs ? `/api/misc-inspection/patch?since_ts=${lastTs}` : "/api/misc-inspection"
+      const res = await fetch(patchUrl)
+      if (res.ok) {
+        const result = await res.json()
+        const patchItems = Array.isArray(result) ? result : (result.patchData || [])
+        const merged = await mergePatchToCache("misc_inspection_cache", patchItems, "id")
+        setRecords(merged)
       }
     } catch (err: any) {
       if (records.length === 0) toast.error(err.message || "Failed to load inspections")

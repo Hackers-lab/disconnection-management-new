@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { DTRPaintingForm } from "@/components/dtr-painting-form"
 import { NearbyDtrMap } from "@/components/nearby-dtr-map"
 import type { DTRRecord } from "@/lib/dtr-service"
@@ -124,19 +124,22 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
   const load = async (silent = false) => {
     if (!silent) setSyncState("loading")
     try {
-      // Try cache
       const cached = await getFromCache<DTRRecord[]>(CACHE_KEY)
+      let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
+        const tsList = cached.map(r => new Date(r.updatedAt || r.verifiedAt || 0).getTime()).filter(Boolean)
+        if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
       
-      // Fetch fresh
-      const res = await fetch("/api/dtr")
+      const patchUrl = lastTs ? `/api/dtr/patch?since_ts=${lastTs}` : "/api/dtr"
+      const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
-      const data: DTRRecord[] = await res.json()
-      setRecords(data)
-      await saveToCache(CACHE_KEY, data)
+      const result = await res.json()
+      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
+      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "dtrCode")
+      setRecords(merged)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 2500)
     } catch (e) {

@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getFromCache, saveToCache, clearAllCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, clearAllCache, mergePatchToCache } from "@/lib/indexed-db"
 import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"
 import { SafetyForm } from "./safety-form"
@@ -150,16 +150,21 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       setError(null)
       try {
         const cached = await getFromCache<SafetyTicket[]>("safety_data_cache")
+        let lastTs = 0
         if (cached && cached.length > 0) {
           setTickets(cached)
           setLoading(false)
+          const tsList = cached.map(t => new Date(t.updatedAt || t.createdAt || 0).getTime()).filter(Boolean)
+          if (tsList.length > 0) lastTs = Math.max(...tsList)
         }
         setSyncStatus('checking')
-        const res = await fetch("/api/safety/base")
+        const patchUrl = lastTs ? `/api/safety/patch?since_ts=${lastTs}` : "/api/safety/base"
+        const res = await fetch(patchUrl)
         if (!res.ok) throw new Error("Failed to fetch safety tickets")
-        const data: SafetyTicket[] = await res.json()
-        await saveToCache("safety_data_cache", data)
-        setTickets(data)
+        const result = await res.json()
+        const patchItems = Array.isArray(result) ? result : (result.patchData || [])
+        const merged = await mergePatchToCache("safety_data_cache", patchItems, "id")
+        setTickets(merged)
         setSyncStatus('updated')
       } catch (err: any) {
         console.error(err)

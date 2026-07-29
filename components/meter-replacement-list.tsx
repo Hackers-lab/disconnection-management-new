@@ -16,7 +16,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
-import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCacheAgeMs, mergePatchToCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { MeterReplacement } from "@/lib/meter-replacement-service"
@@ -250,23 +250,22 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     if (!silent) setSyncState("loading")
     try {
       const cached = await getFromCache<MeterReplacement[]>(CACHE_KEY)
-      const age = await getCacheAgeMs(CACHE_KEY)
-      const isFresh = age !== null && age < 2 * 60 * 1000 // 2 minutes freshness
-
+      let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        if (isFresh && !force) {
-          return
-        }
+        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
+        if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
-      const res = await fetch("/api/meters/replacement")
+      const patchUrl = lastTs ? `/api/meters/replacement/patch?since_ts=${lastTs}` : "/api/meters/replacement"
+      const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
-      const data: MeterReplacement[] = await res.json()
-      const sorted = [...data].reverse() // Newest proposed first
+      const result = await res.json()
+      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
+      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "replacementId")
+      const sorted = [...merged].reverse()
       setRecords(sorted)
-      await saveToCache(CACHE_KEY, sorted)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
     } catch {

@@ -16,7 +16,7 @@ import type { ReconnectionRequest } from "@/lib/reconnection-service"
 import { ReconnectionCreateForm } from "@/components/reconnection-create-form"
 import { ReconnectionUpdateForm } from "@/components/reconnection-update-form"
 import { useHashState } from "@/hooks/use-hash-state"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -96,19 +96,23 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const load = async (silent = false) => {
     if (!silent) setSyncState("loading")
     try {
-      // 1. Show cached data instantly
       const cached = await getFromCache<ReconnectionRequest[]>(CACHE_KEY)
+      let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
+        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
+        if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
-      // 2. Fetch fresh from server
-      const res = await fetch("/api/reconnection")
+
+      const patchUrl = lastTs ? `/api/reconnection/patch?since_ts=${lastTs}` : "/api/reconnection"
+      const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
-      const data: ReconnectionRequest[] = await res.json()
-      const sorted = [...data].reverse() // newest first
+      const result = await res.json()
+      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
+      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "consumerId")
+      const sorted = [...merged].reverse()
       setRecords(sorted)
-      await saveToCache(CACHE_KEY, sorted)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
     } catch {

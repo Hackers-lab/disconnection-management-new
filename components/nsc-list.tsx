@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/popover"
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, NSC_CLASSES } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { NscApplicationForm } from "@/components/nsc-application-form"
@@ -126,13 +126,22 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     if (!silent) setSyncState("loading")
     try {
       const cached = await getFromCache<NSCApplication[]>(CACHE_KEY)
-      if (cached) { setApps(cached); if (!silent) setSyncState("idle") }
-      const res = await fetch("/api/nsc")
+      let lastTs = 0
+      if (cached && cached.length > 0) {
+        setApps(cached)
+        if (!silent) setSyncState("idle")
+        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
+        if (tsList.length > 0) lastTs = Math.max(...tsList)
+      }
+
+      const patchUrl = lastTs ? `/api/nsc/patch?since_ts=${lastTs}` : "/api/nsc"
+      const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
-      const data: NSCApplication[] = await res.json()
-      const sorted = [...data].reverse()
+      const result = await res.json()
+      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
+      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "applicationNo")
+      const sorted = [...merged].reverse()
       setApps(sorted)
-      await saveToCache(CACHE_KEY, sorted)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
       window.dispatchEvent(new Event("notif-refresh"))

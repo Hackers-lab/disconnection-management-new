@@ -102,3 +102,35 @@ export async function clearAllCache(): Promise<void> {
     throw error
   }
 }
+
+/**
+ * Merges a patch array of updated/new records into an existing IndexedDB cache key by unique ID,
+ * then saves the updated merged list back to IndexedDB.
+ */
+export async function mergePatchToCache<T>(
+  cacheKey: string,
+  patchData: T[],
+  idKey: keyof T
+): Promise<T[]> {
+  if (!Array.isArray(patchData) || patchData.length === 0) {
+    const existing = (await getFromCache<T[]>(cacheKey)) || []
+    return existing
+  }
+
+  const existing = (await getFromCache<T[]>(cacheKey)) || []
+  const map = new Map<string, T>()
+
+  existing.forEach((item) => {
+    const keyVal = String((item && item[idKey]) || "").trim()
+    if (keyVal) map.set(keyVal, item)
+  })
+
+  patchData.forEach((item) => {
+    const keyVal = String((item && item[idKey]) || "").trim()
+    if (keyVal) map.set(keyVal, item)
+  })
+
+  const merged = Array.from(map.values())
+  await saveToCache(cacheKey, merged)
+  return merged
+}
