@@ -567,7 +567,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                 </p>
               )}
 
-              {tab !== "all" && r.status === "issued" && (
+              {r.status === "issued" && (isAdmin || (permissions && (permissions.meter_replacement?.includes("return") || permissions.meter_stock?.includes("return")))) && (
                 <div className="flex gap-2 mt-3 pt-2 border-t">
                   <Button size="sm" variant="outline" className="w-full text-xs font-semibold text-amber-700 border-amber-300 hover:bg-amber-50"
                     onClick={() => { setSelectedForReturn(r); setReturnRemarks(""); setReturnDialogOpen(true) }}>
@@ -576,7 +576,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                 </div>
               )}
 
-              {tab !== "all" && r.status === "proposed" && (
+              {r.status === "proposed" && (
                 <div className="flex gap-2 mt-3 pt-2 border-t">
                   {isAdmin && (
                     <Button size="sm" variant="outline" className="flex-1 text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
