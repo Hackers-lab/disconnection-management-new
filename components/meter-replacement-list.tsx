@@ -87,10 +87,36 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const [closeRemarks, setCloseRemarks] = useState("")
   const [closing, setClosing] = useState(false)
 
-  const [reassignDialogOpen, setReassignDialogOpen] = useState(false)
-  const [selectedForReassign, setSelectedForReassign] = useState<MeterReplacement | null>(null)
-  const [newAgency, setNewAgency] = useState("")
-  const [reassigning, setReassigning] = useState(false)
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false)
+  const [selectedForReturn, setSelectedForReturn] = useState<MeterReplacement | null>(null)
+  const [returnRemarks, setReturnRemarks] = useState("")
+  const [returning, setReturning] = useState(false)
+
+  const handleReturnIssuedMeter = async () => {
+    if (!selectedForReturn) return
+    const targetId = selectedForReturn.issueId || selectedForReturn.replacementId
+    setReturning(true)
+    try {
+      const res = await fetch("/api/meters/return", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issueId: targetId,
+          remarks: returnRemarks.trim() || "Returned without installation"
+        })
+      })
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to return meter")
+      toast({ title: `Meter ${selectedForReturn.serialNo || ""} returned to stock`, description: "Proposal reset to proposed status." })
+      setReturnDialogOpen(false)
+      setSelectedForReturn(null)
+      setReturnRemarks("")
+      load(true, true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to return meter", variant: "destructive" })
+    } finally {
+      setReturning(false)
+    }
+  }
 
   const [noteSheetDialogOpen, setNoteSheetDialogOpen] = useState(false)
   const [selectedForNoteSheet, setSelectedForNoteSheet] = useState<MeterReplacement | null>(null)
@@ -541,6 +567,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                 </p>
               )}
 
+              {tab !== "all" && r.status === "issued" && (
+                <div className="flex gap-2 mt-3 pt-2 border-t">
+                  <Button size="sm" variant="outline" className="w-full text-xs font-semibold text-amber-700 border-amber-300 hover:bg-amber-50"
+                    onClick={() => { setSelectedForReturn(r); setReturnRemarks(""); setReturnDialogOpen(true) }}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Return Meter (Not Installed)
+                  </Button>
+                </div>
+              )}
+
               {tab !== "all" && r.status === "proposed" && (
                 <div className="flex gap-2 mt-3 pt-2 border-t">
                   {isAdmin && (
@@ -728,6 +763,45 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
             <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleReassignAgency} disabled={reassigning}>
               {reassigning ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               Save Agency Change
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return Issued Meter Modal */}
+      <Dialog open={returnDialogOpen} onOpenChange={open => !open && setReturnDialogOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-700 font-bold flex items-center gap-1.5">
+              <RotateCcw className="h-4 w-4" /> Return Issued Meter to Stock
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 my-2">
+            {selectedForReturn && (
+              <div className="bg-amber-50/60 p-2.5 rounded-lg text-xs space-y-1 border border-amber-200">
+                <p className="font-semibold text-slate-800">{selectedForReturn.consumerName} ({selectedForReturn.consumerId})</p>
+                <p className="text-slate-600 font-mono">Issued Meter Serial: <strong className="text-blue-800 font-bold">{selectedForReturn.serialNo || "—"}</strong></p>
+                <p className="text-slate-500 font-mono">Issue ID: {selectedForReturn.issueId || selectedForReturn.replacementId}</p>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Return Reason / Remarks</Label>
+              <Textarea
+                value={returnRemarks}
+                onChange={e => setReturnRemarks(e.target.value)}
+                placeholder="Reason meter could not be installed (e.g. Premises locked, Consumer refused, Wrong meter type)..."
+                rows={3}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setReturnDialogOpen(false)} disabled={returning}>
+              Cancel
+            </Button>
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white font-semibold" onClick={handleReturnIssuedMeter} disabled={returning}>
+              {returning ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Confirm Return Meter
             </Button>
           </DialogFooter>
         </DialogContent>
