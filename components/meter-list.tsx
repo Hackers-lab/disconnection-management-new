@@ -2187,43 +2187,59 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                       )}
 
                       {rep.status === "issued" && (
-                        <div className="flex items-center gap-2">
-                          {!isAdmin ? (
-                            <Button size="sm" className="w-full bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
-                              onClick={() => {
-                                const targetIssue = linkedIssue || issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
-                                if (targetIssue) {
-                                  setSelected(targetIssue)
-                                  setView("complete")
-                                } else {
-                                  toast({ title: "Issue record not found for completion", variant: "destructive" })
-                                }
-                              }}>
-                              Mark Installed
-                            </Button>
-                          ) : (
-                            <p className="flex-1 text-xs text-yellow-700 font-medium bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1 text-center">
-                              Pending installation by agency
-                            </p>
-                          )}
-                          {isAdmin && (
-                            <Button size="sm" variant="outline" className="h-8 text-xs font-semibold px-2 border-yellow-300 text-yellow-800 hover:bg-yellow-100 shrink-0"
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-2">
+                            {!isAdmin ? (
+                              <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
+                                onClick={() => {
+                                  const targetIssue = linkedIssue || issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
+                                  if (targetIssue) {
+                                    setSelected(targetIssue)
+                                    setView("complete")
+                                  } else {
+                                    toast({ title: "Issue record not found for completion", variant: "destructive" })
+                                  }
+                                }}>
+                                Mark Installed
+                              </Button>
+                            ) : (
+                              <p className="flex-1 text-xs text-yellow-700 font-medium bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1 text-center">
+                                Pending installation by agency
+                              </p>
+                            )}
+                            {isAdmin && (
+                              <Button size="sm" variant="outline" className="h-8 text-xs font-semibold px-2 border-yellow-300 text-yellow-800 hover:bg-yellow-100 shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const item = linkedIssue || {
+                                    issueId: rep.issueId || rep.replacementId,
+                                    issueDate: rep.proposedDate || "",
+                                    purpose: rep.purpose,
+                                    consumerId: rep.consumerId,
+                                    consumerName: rep.consumerName,
+                                    serialNo: rep.serialNo || "",
+                                    meterType: "Standard",
+                                    agency: rep.agency,
+                                    status: "issued"
+                                  }
+                                  printMeterSlip([item as any])
+                                }}>
+                                <Printer className="h-3.5 w-3.5 mr-1" /> Requisition
+                              </Button>
+                            )}
+                          </div>
+                          {!isAdmin && (
+                            <Button size="sm" variant="outline" className="w-full h-8 text-xs font-semibold border-amber-300 text-amber-800 hover:bg-amber-50"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                const item = linkedIssue || {
-                                  issueId: rep.issueId || rep.replacementId,
-                                  issueDate: rep.proposedDate || "",
-                                  purpose: rep.purpose,
-                                  consumerId: rep.consumerId,
-                                  consumerName: rep.consumerName,
-                                  serialNo: rep.serialNo || "",
-                                  meterType: "Standard",
-                                  agency: rep.agency,
-                                  status: "issued"
+                                const targetIssue = linkedIssue || issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
+                                if (targetIssue) {
+                                  handleReturn(targetIssue)
+                                } else {
+                                  toast({ title: "Issue record not found to return meter", variant: "destructive" })
                                 }
-                                printMeterSlip([item as any])
                               }}>
-                              <Printer className="h-3.5 w-3.5 mr-1" /> Requisition
+                              <RotateCcw className="h-3 w-3 mr-1" /> Return Meter (Not Installed)
                             </Button>
                           )}
                         </div>
