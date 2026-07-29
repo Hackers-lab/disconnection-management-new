@@ -129,7 +129,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.updatedAt || r.verifiedAt || 0).getTime()).filter(Boolean)
+        const tsList = cached.map(r => new Date(r.verifiedAt || (r as any).createdAt || 0).getTime()).filter(Boolean)
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
       
@@ -137,8 +137,8 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
       const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
       const result = await res.json()
-      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
-      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "dtrCode")
+      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as DTRRecord[]
+      const merged = await mergePatchToCache<DTRRecord>(CACHE_KEY, patchItems, "dtrCode")
       setRecords(merged)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 2500)

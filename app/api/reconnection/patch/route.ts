@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
-import { fetchReconnections } from "@/lib/reconnection-service"
+import { fetchReconnectionData } from "@/lib/reconnection-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
@@ -17,7 +17,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
   try {
     const spreadsheetId = getSpreadsheetId()
-    const allRecords = await fetchReconnections(spreadsheetId)
+    const allRecords = await fetchReconnectionData(spreadsheetId)
     const session = authRes.session
 
     const modified = allRecords.filter((rec: any) => {

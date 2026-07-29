@@ -254,7 +254,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
+        const tsList = cached.map(r => new Date(r.proposedDate || 0).getTime()).filter(Boolean)
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
@@ -262,8 +262,8 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
       const result = await res.json()
-      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
-      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "replacementId")
+      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
+      const merged = await mergePatchToCache<MeterReplacement>(CACHE_KEY, patchItems, "replacementId")
       const sorted = [...merged].reverse()
       setRecords(sorted)
       setSyncState("updated")

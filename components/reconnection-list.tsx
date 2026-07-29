@@ -109,8 +109,8 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
       const res = await fetch(patchUrl)
       if (!res.ok) throw new Error()
       const result = await res.json()
-      const patchItems = Array.isArray(result) ? result : (result.patchData || [])
-      const merged = await mergePatchToCache(CACHE_KEY, patchItems, "consumerId")
+      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as ReconnectionRequest[]
+      const merged = await mergePatchToCache<ReconnectionRequest>(CACHE_KEY, patchItems, "consumerId")
       const sorted = [...merged].reverse()
       setRecords(sorted)
       setSyncState("updated")

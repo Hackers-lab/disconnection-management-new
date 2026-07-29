@@ -154,7 +154,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         if (cached && cached.length > 0) {
           setTickets(cached)
           setLoading(false)
-          const tsList = cached.map(t => new Date(t.updatedAt || t.createdAt || 0).getTime()).filter(Boolean)
+          const tsList = cached.map(t => new Date(t.reportedDate || (t as any).physicalRectifiedDate || 0).getTime()).filter(Boolean)
           if (tsList.length > 0) lastTs = Math.max(...tsList)
         }
         setSyncStatus('checking')
@@ -162,8 +162,8 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         const res = await fetch(patchUrl)
         if (!res.ok) throw new Error("Failed to fetch safety tickets")
         const result = await res.json()
-        const patchItems = Array.isArray(result) ? result : (result.patchData || [])
-        const merged = await mergePatchToCache("safety_data_cache", patchItems, "id")
+        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as SafetyTicket[]
+        const merged = await mergePatchToCache<SafetyTicket>("safety_data_cache", patchItems, "safetyId")
         setTickets(merged)
         setSyncStatus('updated')
       } catch (err: any) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
-import { fetchNSCRecords } from "@/lib/nsc-service"
+import { fetchApplications } from "@/lib/nsc-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
@@ -17,13 +17,13 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
   try {
     const spreadsheetId = getSpreadsheetId()
-    const allRecords = await fetchNSCRecords(spreadsheetId)
+    const allRecords = await fetchApplications(spreadsheetId)
     const session = authRes.session
 
     const modified = allRecords.filter((rec: any) => {
       if (isAgencyScopeRestricted(session, rec.agency)) return false
       if (!sinceTs) return true
-      const recTs = new Date(rec.updatedAt || rec.createdAt || 0).getTime()
+      const recTs = new Date(rec.updatedAt || rec.receivedDate || 0).getTime()
       return recTs >= sinceTs
     })
 

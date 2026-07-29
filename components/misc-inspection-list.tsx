@@ -104,7 +104,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       if (cached && cached.length > 0) {
         setRecords(cached)
         setLoading(false)
-        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
+        const tsList = cached.map(r => new Date(r.createdAt || r.inspectedAt || 0).getTime()).filter(Boolean)
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
@@ -112,8 +112,8 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       const res = await fetch(patchUrl)
       if (res.ok) {
         const result = await res.json()
-        const patchItems = Array.isArray(result) ? result : (result.patchData || [])
-        const merged = await mergePatchToCache("misc_inspection_cache", patchItems, "id")
+        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
+        const merged = await mergePatchToCache<MiscInspectionRecord>("misc_inspection_cache", patchItems, "id")
         setRecords(merged)
       }
     } catch (err: any) {
