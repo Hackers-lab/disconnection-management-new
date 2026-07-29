@@ -31,6 +31,7 @@ import {
   RadioTower,
   FileText,
   FileCheck2,
+  Camera,
 } from "lucide-react"
 
 export const CATEGORY_OPTIONS: { id: InspectionCategory; label: string; description: string; icon: any; color: string; bgColor: string }[] = [
@@ -127,6 +128,31 @@ export function MiscInspectionCreateForm({
   const [nscApplicationNo, setNscApplicationNo] = useState("")
   const [customCategoryTag, setCustomCategoryTag] = useState("")
 
+  // Image Upload State
+  const [initialImageUrl, setInitialImageUrl] = useState("")
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image file size should be less than 8MB")
+      return
+    }
+    setUploadingImage(true)
+    const reader = new FileReader()
+    reader.onload = () => {
+      setInitialImageUrl(reader.result as string)
+      setUploadingImage(false)
+      toast.success("Inspection reference image uploaded!")
+    }
+    reader.onerror = () => {
+      setUploadingImage(false)
+      toast.error("Failed to read image file")
+    }
+    reader.readAsDataURL(file)
+  }
+
   // Fetch active agencies on mount
   useEffect(() => {
     async function loadAgencies() {
@@ -182,7 +208,7 @@ export function MiscInspectionCreateForm({
         customCategoryTag: category === "GENERAL" ? customCategoryTag : undefined,
       }
 
-      const input: CreateMiscInspectionInput = {
+      const input: CreateMiscInspectionInput & { initialImageUrl?: string } = {
         referenceNo: referenceNo.trim(),
         category,
         title: title.trim(),
@@ -196,6 +222,7 @@ export function MiscInspectionCreateForm({
         agency: finalAgency,
         targetCompletionDate: targetCompletionDate || undefined,
         categoryFields,
+        initialImageUrl: initialImageUrl || undefined,
       }
 
       const res = await fetch("/api/misc-inspection", {
@@ -488,11 +515,58 @@ export function MiscInspectionCreateForm({
           </CardContent>
         </Card>
 
+        {/* Step 4B: Image / Photo Reference Upload */}
+        <Card className="shadow-sm">
+          <CardHeader className="py-3 px-4 bg-slate-50 border-b">
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+              <Camera className="h-4 w-4 text-blue-600" /> 5. Reference Site Photo (Optional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <label className="flex items-center justify-center h-20 w-32 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-blue-500 bg-slate-50 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageFileChange}
+                  className="hidden"
+                  disabled={uploadingImage}
+                />
+                {uploadingImage ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                ) : initialImageUrl ? (
+                  <img src={initialImageUrl} alt="Preview" className="h-full w-full object-cover rounded-xl" />
+                ) : (
+                  <div className="text-center p-2">
+                    <Camera className="h-5 w-5 mx-auto text-slate-400 mb-1" />
+                    <span className="text-[10px] text-slate-500 font-semibold">Upload Photo</span>
+                  </div>
+                )}
+              </label>
+              <div className="text-xs text-slate-500 space-y-1">
+                <p className="font-semibold text-slate-800">Attach site, meter, pole or DTR reference photo</p>
+                <p className="text-[11px]">Upload an initial site picture to guide field inspection staff (Max 8MB).</p>
+                {initialImageUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-500 h-6 px-2 text-[11px]"
+                    onClick={() => setInitialImageUrl("")}
+                  >
+                    Remove Photo
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Step 5: Agency Assignment & Urgency Priority */}
         <Card className="shadow-sm">
           <CardHeader className="py-3 px-4 bg-slate-50 border-b">
             <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-blue-600" /> 5. Agency Assignment & Priority *
+              <Building2 className="h-4 w-4 text-blue-600" /> 6. Agency Assignment & Priority *
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">

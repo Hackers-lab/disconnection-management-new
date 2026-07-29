@@ -21,18 +21,19 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     } catch (e: any) {
       console.warn("Failed to retrieve custom role permissions (likely sheet not linked yet):", e.message || e)
       // Fallback: If they are an admin, give them access to the admin module so they can link Google account
-      if (session.role === "admin") {
+      const userRoleLower = (session.role || "").toLowerCase()
+      if (userRoleLower === "admin" || userRoleLower === "superuser" || userRoleLower === "executive") {
         permissions = {
-          disconnection: [],
-          reconnection: [],
-          deemed: [],
-          dtr: [],
-          meter: [],
-          nsc: [],
-          consumer_master: [],
+          disconnection: ["read", "create", "update", "delete"],
+          reconnection: ["read", "create", "update", "delete"],
+          deemed: ["read", "create", "update", "delete"],
+          dtr: ["read", "create", "update", "delete"],
+          meter: ["read", "create", "update", "delete"],
+          nsc: ["read", "create", "update", "delete"],
+          consumer_master: ["read", "create", "update", "delete"],
           admin: ["read", "create", "update", "delete"],
-          meter_replacement: [],
-          material: [],
+          meter_replacement: ["read", "create", "update", "delete"],
+          material: ["read", "create", "update", "delete"],
         }
       } else {
         permissions = null

@@ -171,9 +171,9 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
     loadData()
   }, [refreshKey])
 
-  // Filtering
+  // Filtering and Sorting (Last to first order - newest first)
   const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
+    const list = tickets.filter(t => {
       // Role filtering
       if (!isAdmin) {
         const myAgencies = userAgencies.map(a => a.toUpperCase())
@@ -205,6 +205,9 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
 
       return matchesSearch && matchesTab
     })
+
+    // Show last to first (newest tickets first)
+    return [...list].reverse()
   }, [tickets, searchTerm, subTab, isAdmin, userAgencies])
 
   const itemsPerPage = viewMode === "list" ? 50 : 12
@@ -317,29 +320,75 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
     }
   }
 
-  // ── EXPORT TO PDF ──
-  const exportSafetyPDF = async () => {
+  // ── EXPORT AGENCY-WISE PENDING PDF REPORT ──
+  const exportAgencyPendingPDF = async () => {
     try {
       const { default: jsPDF } = await import("jspdf")
       const { default: autoTable } = await import("jspdf-autotable")
 
+      const pendingTickets = tickets.filter(t => t.physicalStatus === "pending")
+
+      // Aggregate counts agency-wise
+      const agencyMap: Record<string, { pending: number; noteSheetDone: number; total: number }> = {}
+      pendingTickets.forEach(t => {
+        const ag = t.agency ? t.agency.trim() : "Unassigned"
+        if (!agencyMap[ag]) {
+          agencyMap[ag] = { pending: 0, noteSheetDone: 0, total: 0 }
+        }
+        agencyMap[ag].pending++
+        agencyMap[ag].total++
+        if (t.adminStatus === "notesheet_done") {
+          agencyMap[ag].noteSheetDone++
+        }
+      })
+
+      const summaryRows = Object.entries(agencyMap)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([ag, stats], idx) => [
+          idx + 1,
+          ag,
+          stats.pending,
+          stats.noteSheetDone,
+          stats.total
+        ])
+
       const doc = new jsPDF({ orientation: "landscape" })
       const pw = doc.internal.pageSize.width
 
-      // Header
       doc.setFontSize(16)
       doc.setTextColor(30, 41, 59)
-      doc.text("WBSEDCL Site Safety Inspection & Hazard Report", pw / 2, 14, { align: "center" })
+      doc.text("Agency-wise Pending Safety Hazards Summary Report", pw / 2, 14, { align: "center" })
 
       doc.setFontSize(9)
       doc.setTextColor(100)
       doc.text(
-        `Generated on: ${new Date().toLocaleDateString("en-IN")} | Total Records: ${filteredTickets.length} | Category Filter: ${subTab.toUpperCase()}`,
+        `Generated on: ${new Date().toLocaleDateString("en-IN")} | Total Pending Hazards: ${pendingTickets.length}`,
         pw / 2, 20, { align: "center" }
       )
 
-      // Detailed Table
-      const tableBody = filteredTickets.map((t, idx) => [
+      autoTable(doc, {
+        startY: 25,
+        head: [["#", "Agency Name", "Pending Site Work", "Note Sheet Done", "Total Pending"]],
+        body: summaryRows,
+        styles: { fontSize: 8.5, font: "helvetica", halign: "center", cellPadding: 3 },
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+        columnStyles: { 1: { halign: "left", fontStyle: "bold" } },
+        theme: "grid"
+      })
+
+      const nextY = (doc as any).lastAutoTable.finalY + 10
+      let startY = nextY
+      if (startY > doc.internal.pageSize.height - 40) {
+        doc.addPage()
+        startY = 15
+      }
+
+      doc.setFontSize(11)
+      doc.setTextColor(15, 23, 42)
+      doc.text("Detailed Pending Safety Hazards List (Grouped by Agency)", 14, startY)
+
+      const sortedPending = [...pendingTickets].sort((a, b) => (a.agency || "").localeCompare(b.agency || ""))
+      const detailBody = sortedPending.map((t, idx) => [
         idx + 1,
         t.safetyId,
         t.reportedDate,
@@ -347,35 +396,33 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         t.address,
         t.dtrCode || "-",
         t.agency || "Unassigned",
-        t.physicalStatus === "rectified" ? "Rectified" : "Pending",
-        t.poNumber ? `PO: ${t.poNumber}` : t.adminStatus === "not_required" ? "PO Not Req." : t.noteSheetNo ? `NS: ${t.noteSheetNo}` : "Pending"
+        t.adminStatus === "notesheet_done" ? "Note Sheet Done" : "Pending Site"
       ])
 
       autoTable(doc, {
-        startY: 26,
-        head: [["#", "Ticket ID", "Date", "Hazard Types", "Location Address", "DTR", "Agency", "Site Status", "PO / Note Sheet"]],
-        body: tableBody,
+        startY: startY + 3,
+        head: [["#", "Safety ID", "Reported Date", "Hazard Types", "Location Address", "DTR", "Agency", "Admin Status"]],
+        body: detailBody,
         styles: { fontSize: 8, font: "helvetica", cellPadding: 2.5 },
-        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold", halign: "center" },
+        headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold", halign: "center" },
         columnStyles: {
           0: { halign: "center", cellWidth: 10 },
-          1: { fontStyle: "bold", cellWidth: 28 },
-          2: { cellWidth: 22 },
-          3: { cellWidth: 45 },
-          4: { cellWidth: 60 },
+          1: { fontStyle: "bold", cellWidth: 30 },
+          2: { cellWidth: 24 },
+          3: { cellWidth: 50 },
+          4: { cellWidth: 70 },
           5: { cellWidth: 25 },
-          6: { cellWidth: 30 },
-          7: { halign: "center", cellWidth: 22 },
-          8: { halign: "center", cellWidth: 28 },
+          6: { cellWidth: 35 },
+          7: { halign: "center", cellWidth: 30 },
         },
         theme: "grid"
       })
 
-      doc.save(`safety-hazard-report-${new Date().toISOString().slice(0, 10)}.pdf`)
-      toast({ title: "PDF Report Downloaded" })
+      doc.save(`agency-wise-pending-safety-report-${new Date().toISOString().slice(0, 10)}.pdf`)
+      toast({ title: "Agency Pending Report Downloaded", description: `Exported ${pendingTickets.length} pending safety hazards.` })
     } catch (err: any) {
       console.error(err)
-      alert("PDF export failed: " + err.message)
+      alert("Agency pending report export failed: " + err.message)
     }
   }
 
@@ -602,7 +649,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       <SafetyStats tickets={tickets} loading={loading} />
 
       {/* Control Header */}
-      <div className="bg-white p-3 rounded-xl shadow-sm border sticky top-[64px] z-30 space-y-2">
+      <div className="bg-white p-3 rounded-xl shadow-sm border space-y-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5" />
@@ -629,7 +676,10 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                 <ChevronDown className="h-3 w-3 text-slate-400" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => exportAgencyPendingPDF()} className="cursor-pointer text-xs font-semibold">
+                <FileDown className="h-4 w-4 mr-2 text-amber-600" /> Agency Pending Report (PDF)
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportSafetyPDF()} className="cursor-pointer text-xs font-semibold">
                 <FileDown className="h-4 w-4 mr-2 text-red-600" /> Export PDF Report
               </DropdownMenuItem>

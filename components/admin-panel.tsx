@@ -55,6 +55,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     dtr_painting: ["read", "create", "update", "delete"],
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
+    misc_inspection: ["read", "create", "update", "delete"],
   },
   executive: {
     disconnection: ["read", "create", "update"],
@@ -69,6 +70,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     dtr_painting: ["read", "create", "update"],
     material: ["read", "create", "update", "receive", "issue", "stock"],
     safety: ["read", "create", "update", "approve_notesheet", "issue_po", "finalize"],
+    misc_inspection: ["read", "create", "update"],
   },
   agency: {
     disconnection: ["read", "update"],
@@ -83,6 +85,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     dtr_painting: ["read", "update"],
     material: ["read", "update", "receive", "issue", "stock"],
     safety: ["read", "create", "update"],
+    misc_inspection: ["read", "create", "update"],
   },
   store_keeper: {
     disconnection: ["read"],
@@ -96,6 +99,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     meter_replacement: ["read", "create", "issue", "return"],
     dtr_painting: ["read"],
     material: ["read", "create", "update", "receive", "issue", "stock"],
+    misc_inspection: ["read"],
   },
   reader: {
     disconnection: ["read"],
@@ -109,6 +113,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     meter_replacement: ["read", "create"],
     dtr_painting: ["read"],
     material: ["read"],
+    misc_inspection: ["read"],
   },
   viewer: {
     disconnection: ["read"],
@@ -122,6 +127,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     meter_replacement: ["read"],
     dtr_painting: ["read"],
     material: ["read"],
+    misc_inspection: ["read"],
   },
 }
 
@@ -2912,6 +2918,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     { id: "dtr", name: "DTR Verification" },
                     { id: "dtr_painting", name: "DTR Painting" },
                     { id: "safety", name: "Safety Inspection" },
+                    { id: "misc_inspection", name: "Misc Inspections" },
                     { id: "meter", name: "Meter Management" },
                     { id: "meter_replacement", name: "Replacement List" },
                     { id: "nsc", name: "NSC Management" },

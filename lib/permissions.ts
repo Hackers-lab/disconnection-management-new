@@ -48,6 +48,7 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     // Misc Inspection Auto-Expansion
     if (mod === "misc_inspection" || mod === "misc" || mod === "misc_inspections") {
       if (actSet.has("update")) {
+        actSet.add("update")
         if (isAgency) {
           actSet.add("inspect")
           actSet.add("read")
@@ -60,6 +61,7 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
         }
       }
       if (isAdminOrExec) {
+        actSet.add("update")
         actSet.add("create")
         actSet.add("read")
         actSet.add("inspect")

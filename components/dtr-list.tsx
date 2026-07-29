@@ -110,6 +110,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
   const [search, setSearch] = useState("")
   const [selectedFeeder, setSelectedFeeder] = useState<string>("all")
   const [selectedPainting, setSelectedPainting] = useState<string>("all")
+  const [selectedAgency, setSelectedAgency] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
   const [showMap, setShowMap] = useState(false)
   
@@ -609,6 +610,16 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
     return Array.from(set).sort()
   }, [records])
 
+  // Unique list of audit agencies for filtering
+  const auditAgencies = useMemo(() => {
+    const set = new Set<string>()
+    records.forEach(r => {
+      const ag = r.auditAgency || r.paintingAgency
+      if (ag) set.add(ag.trim())
+    })
+    return Array.from(set).sort()
+  }, [records])
+
   // Stats computation
   const stats = useMemo(() => {
     let list = records
@@ -645,6 +656,11 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
       result = result.filter(r => (r.status || "").toUpperCase() !== "EXIST")
     } else if (tab === "completed") {
       result = result.filter(r => (r.status || "").toUpperCase() === "EXIST")
+    }
+
+    // Agency Filter
+    if (selectedAgency !== "all") {
+      result = result.filter(r => ((r.auditAgency || r.paintingAgency || "").trim().toLowerCase()) === selectedAgency.toLowerCase())
     }
 
     // Feeder Filter
@@ -908,6 +924,24 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
               </Select>
             </div>
 
+            {/* Agency Select (shown for non-restricted users) */}
+            {!isRestricted && auditAgencies.length > 0 && (
+              <div className="flex flex-col gap-1 w-full sm:w-48">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Audit Agency</span>
+                <Select value={selectedAgency} onValueChange={setSelectedAgency}>
+                  <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200 text-xs font-semibold">
+                    <SelectValue placeholder="All Agencies" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Agencies</SelectItem>
+                    {auditAgencies.map(ag => (
+                      <SelectItem key={ag} value={ag}>{ag}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Feeder Select */}
             <div className="flex flex-col gap-1 w-full sm:w-48">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Feeder Name</span>
@@ -1000,15 +1034,20 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                       <p className="text-xs text-gray-500 mt-1 truncate">{r.feederName}</p>
                     </div>
                     
-                    {isVerified ? (
-                      <Badge className="bg-green-50 text-green-700 hover:bg-green-50 border border-green-200 font-medium rounded-lg">
-                        Verified
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border border-red-200 font-medium rounded-lg">
-                        Pending Audit
-                      </Badge>
-                    )}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {isVerified ? (
+                        <Badge className="bg-green-50 text-green-700 hover:bg-green-50 border border-green-200 font-medium rounded-lg">
+                          Verified
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border border-red-200 font-medium rounded-lg">
+                          Pending Audit
+                        </Badge>
+                      )}
+                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded max-w-[110px] truncate" title={r.auditAgency || r.paintingAgency || "Unassigned"}>
+                        {r.auditAgency || r.paintingAgency || "Unassigned"}
+                      </span>
+                    </div>
                   </CardHeader>
 
                   <CardContent className="px-5 pb-5 pt-0 space-y-3 text-xs">

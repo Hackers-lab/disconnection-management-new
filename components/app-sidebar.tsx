@@ -15,7 +15,8 @@ import {
   Package,
   FileCheck2,
   Gauge,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -43,26 +44,34 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const [meterPendingCount, setMeterPendingCount] = useState(0)
   const [safetyPendingCount, setSafetyPendingCount] = useState(0)
   const [miscPendingCount, setMiscPendingCount] = useState(0)
+  const [loadingCounts, setLoadingCounts] = useState<Record<string, boolean>>({
+    disconnection: true,
+    deemed: true,
+    meter: true,
+    safety: true,
+    "misc-inspection": true,
+  })
 
   // Fetch pending counts
   useEffect(() => {
+    let active = true
     async function fetchCount() {
       try {
         // Misc Inspection Count
         fetch("/api/misc-inspection/pending-count")
           .then(res => res.ok ? res.json() : { pendingCount: 0 })
-          .then(data => setMiscPendingCount(data.pendingCount || 0))
+          .then(data => { if (active) setMiscPendingCount(data.pendingCount || 0) })
           .catch(() => {})
 
         // Safety Count
         fetch("/api/safety/pending-count")
           .then(res => res.ok ? res.json() : { pendingCount: 0 })
-          .then(data => setSafetyPendingCount(data.pendingCount || 0))
+          .then(data => { if (active) setSafetyPendingCount(data.pendingCount || 0) })
           .catch(() => {})
 
         // DD Count
         const data = await getFromCache<any[]>("dd_data_cache")
-        if (data) {
+        if (data && active) {
           const count = data.filter(d => {
             const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
             if (!isPending) return false
@@ -74,7 +83,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
 
         // Disconnection Count
         const consumerData = await getFromCache<ConsumerData[]>("consumers_data_cache")
-        if (consumerData) {
+        if (consumerData && active) {
           const count = consumerData.filter(c => {
             const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
             if (!isConnected) return false
@@ -89,7 +98,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
         const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
         const meterCached = await getFromCache<any>(cacheKey)
         const upper = (agencies || []).map((a: string) => a.toUpperCase())
-        if (meterCached) {
+        if (meterCached && active) {
           const meterIssues: any[] = isAgency ? (Array.isArray(meterCached) ? meterCached : []) : (meterCached.issues || [])
           const count = meterIssues.filter((i: any) => {
             if (isAgency) {
@@ -106,11 +115,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
             return true
           }).length
           setMeterPendingCount(count + repCount)
-        } else {
+        } else if (active) {
           // Live fallback when cache is cold
           fetch("/api/meters/pending-count")
             .then(res => res.ok ? res.json() : { pendingCount: 0 })
-            .then(data => setMeterPendingCount(data.pendingCount || 0))
+            .then(data => { if (active) setMeterPendingCount(data.pendingCount || 0) })
             .catch(() => {})
         }
       } catch (e) {
@@ -118,7 +127,8 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       }
     }
     fetchCount()
-  }, [activeView, userRole, agencies])
+    return () => { active = false }
+  }, [userRole, JSON.stringify(agencies)])
 
   const menuItems = [
     { 
@@ -208,7 +218,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     <div className="flex flex-col space-y-2 py-4">
       {menuItems.map((item) => {
         const permKey = item.id.replace(/-/g, "_")
-        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || item.id === "osd" || (permissions && (
+        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || (permissions && (
           permissions[item.id]?.includes("read") || 
           permissions[permKey]?.includes("read") ||
           (item.id === "material" && permissions[item.id]?.length > 0) ||

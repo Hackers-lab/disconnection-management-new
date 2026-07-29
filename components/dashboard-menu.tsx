@@ -44,20 +44,22 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [dtrPaintingPendingCount, setDtrPaintingPendingCount] = useState<number>(0)
   const [materialPendingCount, setMaterialPendingCount] = useState<number>(0)
   const [safetyPendingCount, setSafetyPendingCount] = useState<number>(0)
+  const [miscPendingCount, setMiscPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
   const [showDevModal, setShowDevModal] = useState(false)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
-    safety: false,
-    disconnection: false,
-    reconnection: false,
-    deemed: false,
-    dtr: false,
-    "dtr-painting": false,
-    meter: false,
-    nsc: false,
-    "meter-replacement": false,
-    material: false,
-    "consumer-master": false,
+    safety: true,
+    "misc-inspection": true,
+    disconnection: true,
+    reconnection: true,
+    deemed: true,
+    dtr: true,
+    "dtr-painting": true,
+    meter: true,
+    nsc: true,
+    "meter-replacement": true,
+    material: true,
+    "consumer-master": true,
   })
 
   const modules = [
@@ -243,6 +245,19 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         }
       }
 
+      // Misc Inspection
+      if (hasReadPermission("misc-inspection")) {
+        try {
+          const res = await fetch("/api/misc-inspection/pending-count")
+          if (res.ok) {
+            const data = await res.json()
+            setMiscPendingCount(data.pendingCount || 0)
+          }
+        } catch (e) {
+          console.error("Auto-fetch misc inspection pending count failed", e)
+        }
+      }
+
       // Disconnection
       if (hasReadPermission("disconnection")) {
         try {
@@ -313,28 +328,43 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       // Reconnection
       if (hasReadPermission("reconnection")) {
         try {
-          let rcCached = await getFromCache<any[]>("reconnection_data_cache")
-          if (!rcCached || rcCached.length === 0) {
-            setLoadingModules(prev => ({ ...prev, reconnection: true }))
-            try {
-              const res = await fetch("/api/reconnection")
-              if (res.ok) {
-                rcCached = await res.json()
-                if (rcCached) await saveToCache("reconnection_data_cache", rcCached)
+          // Show cached count immediately if available
+          const rcCached = await getFromCache<any[]>("reconnection_data_cache")
+          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+          const calculatePending = (list: any[]) => {
+            const now = Date.now()
+            return list.filter((r: any) => {
+              let effectiveStatus = r.status
+              if (r.status === "door_locked") {
+                const updatedTime = new Date(r.updatedAt || r.createdAt).getTime()
+                const hrsLocked = Math.floor((now - updatedTime) / (1000 * 60 * 60))
+                if (hrsLocked >= 72) {
+                  effectiveStatus = "pending"
+                }
               }
-            } catch (err) { console.error("Auto-fetch reconnection failed", err) }
-          }
-          if (rcCached) {
-            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-            const rcPending = rcCached.filter((r: any) => {
-              if (r.status !== "pending") return false
+              if (effectiveStatus !== "pending") return false
               if (userRole === "admin" || userRole === "viewer" || userRole === "executive") return true
               return upper.includes((r.agency || "").toUpperCase())
             }).length
-            setReconnectionPendingCount(rcPending)
+          }
+
+          if (rcCached && rcCached.length > 0) {
+            setReconnectionPendingCount(calculatePending(rcCached))
+          }
+
+          // Fetch fresh from server to update badge & cache
+          setLoadingModules(prev => ({ ...prev, reconnection: true }))
+          const res = await fetch("/api/reconnection")
+          if (res.ok) {
+            const freshData = await res.json()
+            if (freshData) {
+              const sorted = [...freshData].reverse()
+              await saveToCache("reconnection_data_cache", sorted)
+              setReconnectionPendingCount(calculatePending(sorted))
+            }
           }
         } catch (e) {
-          console.error(e)
+          console.error("Auto-fetch reconnection failed", e)
         } finally {
           setLoadingModules(prev => ({ ...prev, reconnection: false }))
         }
@@ -521,7 +551,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       }
     }
     loadPendingCount()
-  }, [userRole, userAgencies, permissions])
+  }, [userRole, JSON.stringify(userAgencies), Boolean(permissions)])
 
   return (
     <>
@@ -530,7 +560,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
             {modules.map((module) => {
               const permKey = module.id.replace(/-/g, "_")
-              const hasAccess = userRole === "admin" || userRole === "superuser" || module.id === "home" || module.id === "osd" || (permissions && (
+              const hasAccess = userRole === "admin" || userRole === "superuser" || module.id === "home" || (permissions && (
                 permissions[module.id]?.includes("read") || 
                 permissions[permKey]?.includes("read") ||
                 (module.id === "material" && permissions[module.id]?.length > 0) ||
@@ -551,6 +581,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["safety"] ? "bg-blue-500 animate-pulse" : safetyPendingCount > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
                       }`}>
                       {loadingModules["safety"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : safetyPendingCount}
+                    </div>
+                  )}
+                  {module.id === "misc-inspection" && (
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${miscPendingCount > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"
+                      }`}>
+                      {miscPendingCount}
                     </div>
                   )}
                   {module.id === "disconnection" && (
