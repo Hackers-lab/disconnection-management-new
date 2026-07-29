@@ -120,6 +120,11 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   const [noteSheetDialogOpen, setNoteSheetDialogOpen] = useState(false)
   const [selectedForNoteSheet, setSelectedForNoteSheet] = useState<MeterReplacement | null>(null)
+
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false)
+  const [selectedForReassign, setSelectedForReassign] = useState<MeterReplacement | null>(null)
+  const [newAgency, setNewAgency] = useState("")
+  const [reassigning, setReassigning] = useState(false)
   
   const isAdmin = userRole === "admin" || userRole === "executive"
   const [oldMeterMap, setOldMeterMap] = useState<Record<string, string>>({})

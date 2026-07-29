@@ -431,6 +431,8 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
     }
   }
 
+  const exportSafetyPDF = exportAgencyPendingPDF
+
   // Handle Edit Modal Actions
   const handleAssignAgencyAction = async () => {
     if (!selectedForEdit) return
