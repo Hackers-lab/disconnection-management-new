@@ -1475,7 +1475,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         )}
 
         {activeView === "misc-inspection" && (
-          <MiscInspectionList role={role} agencies={agencies} />
+          <MiscInspectionList role={role} agencies={agencies} permissions={permissions} />
         )}
 
         {activeView === "osd" && (

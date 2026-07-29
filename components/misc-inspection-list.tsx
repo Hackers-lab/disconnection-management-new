@@ -47,11 +47,13 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
+  Building2,
 } from "lucide-react"
 
 interface MiscInspectionListProps {
   role: string
   agencies?: string[]
+  permissions?: Record<string, string[]>
 }
 
 const CATEGORY_CHIPS = [
@@ -64,7 +66,7 @@ const CATEGORY_CHIPS = [
   { id: "GENERAL", label: "General Office", icon: FileText },
 ]
 
-export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListProps) {
+export function MiscInspectionList({ role, agencies = [], permissions }: MiscInspectionListProps) {
   const [records, setRecords] = useState<MiscInspectionRecord[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -87,6 +89,11 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
     role.toLowerCase() === "admin" ||
     role.toLowerCase() === "executive" ||
     role.toLowerCase() === "superuser"
+
+  const canCreate = isAdminOrExec || !!(permissions?.misc_inspection?.includes("create"))
+  const canInspect = isAgencyRole || isAdminOrExec || !!(permissions?.misc_inspection?.includes("inspect") || permissions?.misc_inspection?.includes("update"))
+  const canFinalize = isAdminOrExec || !!(permissions?.misc_inspection?.includes("finalize"))
+  const canDelete = isAdminOrExec || !!(permissions?.misc_inspection?.includes("delete"))
 
   const fetchRecords = async () => {
     setLoading(true)
@@ -411,35 +418,37 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
           <p className="text-xs text-slate-500">Try selecting a different tab or filter category.</p>
         </div>
       ) : viewMode === "card" ? (
-        /* Grid Cards View (Safety Module Style) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        /* Grid Cards View */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {filteredRecords.map((r) => (
-            <Card key={r.id} className="overflow-hidden hover:shadow-md transition border border-slate-200 rounded-xl bg-white">
-              <CardContent className="p-3.5 space-y-3">
-                {/* Header Row */}
-                <div className="flex items-center justify-between border-b pb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs font-bold text-blue-600 bg-blue-50 border-blue-200">
-                      {r.id}
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px] py-0 font-medium">
-                      {r.category}
+            <Card key={r.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 border border-slate-200/90 rounded-2xl bg-white flex flex-col justify-between">
+              <CardContent className="p-4 space-y-3">
+                {/* Header Row: ID & Category on Left, Agency Name Prominently on TOP RIGHT */}
+                <div className="flex items-start justify-between border-b pb-2.5 gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border-blue-200">
+                        {r.id}
+                      </Badge>
+                      <Badge variant="secondary" className="text-[10px] py-0.5 px-2 font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        {r.category}
+                      </Badge>
+                      <Badge
+                        variant={r.priority === "CRITICAL" || r.priority === "HIGH" ? "destructive" : "outline"}
+                        className="text-[10px] py-0 px-1.5 font-bold"
+                      >
+                        {r.priority}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* TOP RIGHT: Agency Name Badge */}
+                  <div className="shrink-0 text-right">
+                    <Badge className="bg-slate-900 text-white font-bold px-2.5 py-1 text-[11px] rounded-lg shadow-sm border border-slate-700 flex items-center gap-1">
+                      <Building2 className="h-3 w-3 text-amber-400" />
+                      <span>{r.agency || "Unassigned"}</span>
                     </Badge>
                   </div>
-                  <Badge
-                    variant={
-                      r.status === "FINALIZED"
-                        ? "default"
-                        : r.status === "INSPECTED"
-                        ? "secondary"
-                        : r.status === "REJECTED"
-                        ? "destructive"
-                        : "outline"
-                    }
-                    className="text-[10px] font-bold"
-                  >
-                    {r.status}
-                  </Badge>
                 </div>
 
                 {/* Body Details */}
@@ -448,9 +457,15 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                   {r.description && <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{r.description}</p>}
                 </div>
 
-                <div className="space-y-1 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                  <p className="truncate"><strong>Consumer / Applicant:</strong> {r.applicantName || r.referenceNo}</p>
-                  <p className="truncate">📍 <strong>Address:</strong> {r.address || "No address provided"}</p>
+                <div className="space-y-1 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <p className="truncate flex items-center gap-1.5 font-medium text-slate-800">
+                    <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                    <span><strong>Applicant:</strong> {r.applicantName || r.referenceNo}</span>
+                  </p>
+                  <p className="truncate flex items-center gap-1.5 text-slate-600">
+                    <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                    <span><strong>Address:</strong> {r.address || "No address provided"}</span>
+                  </p>
                   {(r.referenceDocUrl || (r.referenceNo && (r.referenceNo.startsWith("http") || r.referenceNo.includes("drive.google.com")))) && (
                     <div className="pt-1">
                       <a
@@ -465,31 +480,48 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                       </a>
                     </div>
                   )}
-                  <div className="flex justify-between items-center text-[11px] pt-0.5 border-t border-slate-200 mt-1">
-                    <span>Agency: <strong>{r.agency}</strong></span>
-                    <span>Priority: <strong>{r.priority}</strong></span>
-                  </div>
                 </div>
 
-                {/* Site Decision Summary */}
-                {r.agencyDecision ? (
-                  <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs space-y-0.5">
-                    <div className="flex justify-between font-bold text-emerald-800 text-[11px]">
-                      <span>Findings: {r.agencyDecision}</span>
-                      <span>By: {r.inspectedBy}</span>
-                    </div>
-                    {r.agencyRemarks && <p className="text-[11px] text-emerald-700 truncate">{r.agencyRemarks}</p>}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-slate-400 italic">Site inspection pending</p>
+                {/* Status & Site Decision Summary */}
+                <div className="flex items-center justify-between pt-1">
+                  <Badge
+                    variant={
+                      r.status === "FINALIZED"
+                        ? "default"
+                        : r.status === "INSPECTED"
+                        ? "secondary"
+                        : r.status === "REJECTED"
+                        ? "destructive"
+                        : "outline"
+                    }
+                    className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5"
+                  >
+                    {r.status}
+                  </Badge>
+
+                  {r.agencyDecision ? (
+                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      ✓ {r.agencyDecision}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-amber-600 font-medium italic">
+                      ⏳ Pending Inspection
+                    </span>
+                  )}
+                </div>
+
+                {r.agencyRemarks && (
+                  <p className="text-[11px] text-slate-600 bg-emerald-50/50 p-2 rounded-lg border border-emerald-100 italic line-clamp-2">
+                    "{r.agencyRemarks}"
+                  </p>
                 )}
 
                 {/* Card Action Buttons */}
-                <div className="flex items-center justify-between border-t pt-2 gap-1">
+                <div className="flex items-center justify-between border-t pt-2.5 gap-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs font-bold text-slate-600 gap-1"
+                    className="h-8 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 gap-1 rounded-lg"
                     onClick={() => {
                       setSelectedRecord(r)
                       setShowViewModal(true)
@@ -498,12 +530,12 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                     <Eye className="h-3.5 w-3.5" /> Details
                   </Button>
 
-                  <div className="flex gap-1">
-                    {(isAgencyRole || isAdminOrExec) && (r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS") && (
+                  <div className="flex gap-1.5">
+                    {canInspect && (r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS") && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 text-xs font-bold gap-1 border-blue-300 text-blue-600 hover:bg-blue-50"
+                        className="h-8 text-xs font-bold gap-1 border-blue-400 text-blue-700 bg-blue-50/50 hover:bg-blue-600 hover:text-white transition-all rounded-lg shadow-sm"
                         onClick={() => {
                           setSelectedRecord(r)
                           setShowUpdateModal(true)
@@ -513,11 +545,11 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                       </Button>
                     )}
 
-                    {isAdminOrExec && r.status === "INSPECTED" && (
+                    {canFinalize && r.status === "INSPECTED" && (
                       <Button
                         variant="default"
                         size="sm"
-                        className="h-7 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        className="h-8 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm"
                         onClick={() => {
                           setSelectedRecord(r)
                           setShowViewModal(true)
@@ -527,11 +559,11 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                       </Button>
                     )}
 
-                    {isAdminOrExec && (
+                    {canDelete && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-slate-400 hover:text-red-600"
+                        className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                         onClick={() => handleDelete(r.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -589,12 +621,12 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSelectedRecord(r); setShowViewModal(true) }}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
-                      {(isAgencyRole || isAdminOrExec) && (r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS") && (
+                      {canInspect && (r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS") && (
                         <Button variant="outline" size="sm" className="h-7 text-xs text-blue-600" onClick={() => { setSelectedRecord(r); setShowUpdateModal(true) }}>
                           <Camera className="h-3.5 w-3.5 mr-1" /> Inspect
                         </Button>
                       )}
-                      {isAdminOrExec && r.status === "INSPECTED" && (
+                      {canFinalize && r.status === "INSPECTED" && (
                         <Button variant="default" size="sm" className="h-7 text-xs bg-emerald-600" onClick={() => { setSelectedRecord(r); setShowViewModal(true) }}>
                           <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Finalize
                         </Button>
@@ -609,7 +641,7 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
       )}
 
       {/* Floating Action Button — Safety Module Style (Bottom Right / Floating) */}
-      {!isAgencyRole && (
+      {canCreate && (
         <Button
           onClick={() => setShowCreateForm(true)}
           className="fixed bottom-6 right-6 z-40 rounded-full shadow-xl h-12 px-5 font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 border-2 border-white"

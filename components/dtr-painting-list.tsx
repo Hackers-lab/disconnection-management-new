@@ -119,6 +119,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
   const isExecutive = userRole === "executive"
   const isViewer = userRole === "viewer"
   const isRestricted = !isAdmin && !isExecutive && !isViewer
+  const canUpdate = isAdmin || isExecutive || isPainter || isAgency || !!(permissions && (permissions.dtr_painting?.includes("update") || permissions.dtr?.includes("update")))
 
   const load = async (silent = false) => {
     if (!silent) setSyncState("loading")
@@ -855,7 +856,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
                     <Eye className="h-3.5 w-3.5" /> View Details
                   </Button>
                   
-                  {isAdmin || !isPainted ? (
+                  {canUpdate && (isAdmin || !isPainted) ? (
                     <Button 
                       onClick={() => setSelectedDtr(r)} 
                       className="flex-[1.2] h-9 rounded-xl transition text-xs font-semibold bg-slate-950 hover:bg-slate-900 text-white shadow-sm"

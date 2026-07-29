@@ -84,6 +84,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
   // Role Normalization (Case-insensitive)
   const roleLower = (userRole || "").toLowerCase().trim()
   const isAdmin = roleLower === "admin" || roleLower === "superuser" || roleLower === "executive"
+  const canCreateSafety = isAdmin || roleLower === "agency" || !!(permissions?.safety?.includes("create") || permissions?.safety?.includes("update"))
 
   // Dynamic Agency list
   const [fetchedAgencies, setFetchedAgencies] = useState<string[]>([])
@@ -1011,13 +1012,15 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       )}
 
       {/* ── CENTERED BLACK FLOATING ACTION BUTTON (FAB) FOR REPORTING HAZARD ── */}
-      <button
-        onClick={() => setShowCreateForm(true)}
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all shrink-0"
-      >
-        <Plus className="h-4 w-4 text-amber-400" />
-        <span>Report Safety Hazard</span>
-      </button>
+      {canCreateSafety && (
+        <button
+          onClick={() => setShowCreateForm(true)}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all shrink-0"
+        >
+          <Plus className="h-4 w-4 text-amber-400" />
+          <span>Report Safety Hazard</span>
+        </button>
+      )}
 
       {/* ── MODAL 1: VIEW DETAILS & DATE-WISE TIMELINE ── */}
       {selectedForView && (

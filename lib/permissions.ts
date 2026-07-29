@@ -47,18 +47,10 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
 
     // Misc Inspection Auto-Expansion
     if (mod === "misc_inspection" || mod === "misc" || mod === "misc_inspections") {
-      if (actSet.has("update")) {
+      if (actSet.has("update") || actSet.has("inspect")) {
         actSet.add("update")
-        if (isAgency) {
-          actSet.add("inspect")
-          actSet.add("read")
-        } else {
-          actSet.add("create")
-          actSet.add("read")
-          actSet.add("inspect")
-          actSet.add("finalize")
-          actSet.add("delete")
-        }
+        actSet.add("inspect")
+        actSet.add("read")
       }
       if (isAdminOrExec) {
         actSet.add("update")
@@ -154,8 +146,6 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
       expanded.meter_replacement = ["read", "create", "update", "delete", "issue", "install", "return", "finalize"]
     } else if (roleLower === "viewer") {
       expanded.meter_replacement = ["read"]
-    } else {
-      expanded.meter_replacement = ["read", "create"]
     }
   }
 
