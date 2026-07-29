@@ -30,7 +30,7 @@ type CachedRegistry = {
 }
 
 let registryCache: CachedRegistry | null = null
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes cache
+const CACHE_TTL_MS = 15 * 1000 // 15 seconds cache
 
 export function invalidateTenantCache() {
   registryCache = null

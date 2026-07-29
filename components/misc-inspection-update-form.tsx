@@ -295,7 +295,7 @@ export function MiscInspectionUpdateForm({
                 {sitePhotoUrl ? (
                   <div className="relative group">
                     <img src={sitePhotoUrl} alt="Site" className="h-24 w-full object-cover rounded" />
-                    <Button type="button" variant="destructive" size="xs" className="mt-1 text-[10px]" onClick={() => setSitePhotoUrl("")}>Remove</Button>
+                    <Button type="button" variant="destructive" size="sm" className="mt-1 text-[10px]" onClick={() => setSitePhotoUrl("")}>Remove</Button>
                   </div>
                 ) : (
                   <label className="border border-dashed rounded p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition">
@@ -313,7 +313,7 @@ export function MiscInspectionUpdateForm({
                 {meterReadingPhotoUrl ? (
                   <div className="relative group">
                     <img src={meterReadingPhotoUrl} alt="Meter" className="h-24 w-full object-cover rounded" />
-                    <Button type="button" variant="destructive" size="xs" className="mt-1 text-[10px]" onClick={() => setMeterReadingPhotoUrl("")}>Remove</Button>
+                    <Button type="button" variant="destructive" size="sm" className="mt-1 text-[10px]" onClick={() => setMeterReadingPhotoUrl("")}>Remove</Button>
                   </div>
                 ) : (
                   <label className="border border-dashed rounded p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition">
@@ -331,7 +331,7 @@ export function MiscInspectionUpdateForm({
                 {sketchDrawingUrl ? (
                   <div className="relative group">
                     <img src={sketchDrawingUrl} alt="Sketch" className="h-24 w-full object-cover rounded" />
-                    <Button type="button" variant="destructive" size="xs" className="mt-1 text-[10px]" onClick={() => setSketchDrawingUrl("")}>Remove</Button>
+                    <Button type="button" variant="destructive" size="sm" className="mt-1 text-[10px]" onClick={() => setSketchDrawingUrl("")}>Remove</Button>
                   </div>
                 ) : (
                   <label className="border border-dashed rounded p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition">

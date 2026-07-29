@@ -162,11 +162,16 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
     if (!confirm(`Are you sure you want to delete inspection record ${id}?`)) return
     try {
       const res = await fetch(`/api/misc-inspection/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Failed to delete record")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || "Failed to delete record")
+      }
       toast.success("Inspection record deleted successfully")
-      fetchRecords()
     } catch (err: any) {
       toast.error(err.message || "Failed to delete record")
+    } finally {
+      // Always refresh list to clear phantom/stale cached records
+      fetchRecords()
     }
   }
 
@@ -374,6 +379,9 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
         </span>
         {CATEGORY_CHIPS.map((chip) => {
           const isActive = selectedCategory === chip.id
+          const count = chip.id === "all"
+            ? records.length
+            : records.filter(r => r.category === chip.id).length
           return (
             <button
               key={chip.id}
@@ -384,7 +392,7 @@ export function MiscInspectionList({ role, agencies = [] }: MiscInspectionListPr
                   : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
               }`}
             >
-              {chip.label}
+              {chip.label} ({count})
             </button>
           )
         })}

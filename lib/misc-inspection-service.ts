@@ -58,10 +58,10 @@ export const MISC_INSPECTION_HEADERS = [
   "Finalized At",
 ] as const
 
-let tabReady = false
+let tabReady = new Set<string>()
 
 async function initTab(spreadsheetId: string) {
-  if (tabReady) return
+  if (tabReady.has(spreadsheetId)) return
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
   const existingTabs = (meta.data.sheets || []).map(s => s.properties?.title)
   if (!existingTabs.includes(MISC_INSPECTION_TAB)) {
@@ -80,7 +80,7 @@ async function initTab(spreadsheetId: string) {
   } else {
     await ensureHeaders(spreadsheetId, MISC_INSPECTION_TAB, MISC_INSPECTION_HEADERS)
   }
-  tabReady = true
+  tabReady.add(spreadsheetId)
 }
 
 export function invalidateMiscInspectionCache() {
@@ -141,12 +141,12 @@ function parseRecordFromRow(headers: string[], row: any[]): MiscInspectionRecord
   }
 }
 
-export async function fetchAllMiscInspectionsRaw(): Promise<MiscInspectionRecord[]> {
-  const spreadsheetId = getSpreadsheetId()
-  await initTab(spreadsheetId)
+export async function fetchAllMiscInspectionsRaw(spreadsheetId?: string): Promise<MiscInspectionRecord[]> {
+  const id = spreadsheetId || getSpreadsheetId()
+  await initTab(id)
 
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
+    spreadsheetId: id,
     range: `${MISC_INSPECTION_TAB}!A1:ZZ`,
   })
 
@@ -161,14 +161,17 @@ export async function fetchAllMiscInspectionsRaw(): Promise<MiscInspectionRecord
     .filter(r => Boolean(r.id))
 }
 
-export const getMiscInspections = unstable_cache(
-  async () => fetchAllMiscInspectionsRaw(),
-  ["misc_inspections_list"],
-  { tags: [MISC_INSPECTION_TAG], revalidate: 30 * 24 * 60 * 60 }
-)
+export const getMiscInspections = (spreadsheetId?: string) => {
+  const id = spreadsheetId || getSpreadsheetId()
+  return unstable_cache(
+    async () => fetchAllMiscInspectionsRaw(id),
+    ["misc_inspections_list", id],
+    { tags: [MISC_INSPECTION_TAG], revalidate: 30 * 24 * 60 * 60 }
+  )()
+}
 
-export async function getMiscInspectionById(id: string): Promise<MiscInspectionRecord | null> {
-  const records = await fetchAllMiscInspectionsRaw()
+export async function getMiscInspectionById(id: string, spreadsheetId?: string): Promise<MiscInspectionRecord | null> {
+  const records = await getMiscInspections(spreadsheetId)
   return records.find(r => r.id.toLowerCase() === id.toLowerCase()) || null
 }
 
@@ -441,11 +444,18 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
   })
 
   const rows = res.data.values || []
-  if (rows.length < 2) return false
+  if (rows.length < 2) {
+    // No data rows — still invalidate cache to clear any phantom records
+    invalidateMiscInspectionCache()
+    return false
+  }
 
   const headers = rows[0].map(h => String(h || "").trim())
   const idColIdx = findColumn(headers, ["ID"])
-  if (idColIdx === -1) return false
+  if (idColIdx === -1) {
+    invalidateMiscInspectionCache()
+    return false
+  }
 
   let rowIndex = -1
   for (let i = 1; i < rows.length; i++) {
@@ -455,7 +465,11 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
     }
   }
 
-  if (rowIndex === -1) return false
+  if (rowIndex === -1) {
+    // Record not in sheet but may exist in cache — invalidate so phantom disappears
+    invalidateMiscInspectionCache()
+    return false
+  }
 
   // Clear row content
   await sheets.spreadsheets.values.clear({

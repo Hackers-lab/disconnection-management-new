@@ -246,8 +246,14 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       }
 
       // Misc Inspection
+<<<<<<< HEAD
       if (hasReadPermission("misc-inspection")) {
         try {
+=======
+      if (hasReadPermission("misc_inspection")) {
+        try {
+          setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
+>>>>>>> 9a01e37dbe524e92ab1a4df5cc63631d7f6de6b6
           const res = await fetch("/api/misc-inspection/pending-count")
           if (res.ok) {
             const data = await res.json()
@@ -255,6 +261,11 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           }
         } catch (e) {
           console.error("Auto-fetch misc inspection pending count failed", e)
+<<<<<<< HEAD
+=======
+        } finally {
+          setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
+>>>>>>> 9a01e37dbe524e92ab1a4df5cc63631d7f6de6b6
         }
       }
 
@@ -584,9 +595,15 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     </div>
                   )}
                   {module.id === "misc-inspection" && (
+<<<<<<< HEAD
                     <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${miscPendingCount > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"
                       }`}>
                       {miscPendingCount}
+=======
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["misc-inspection"] ? "bg-blue-500 animate-pulse" : miscPendingCount > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"
+                      }`}>
+                      {loadingModules["misc-inspection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : miscPendingCount}
+>>>>>>> 9a01e37dbe524e92ab1a4df5cc63631d7f6de6b6
                     </div>
                   )}
                   {module.id === "disconnection" && (

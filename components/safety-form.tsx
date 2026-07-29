@@ -127,15 +127,18 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
       const uploadData = new FormData()
       uploadData.append("file", processedFile)
       uploadData.append("consumerId", "SAFETY_BEFORE")
+      uploadData.append("module", "safety")
 
       const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
       const result = await res.json()
-      if (result.success) {
+      if (res.ok && result.success) {
         setBeforeImageUrl(result.url)
+      } else {
+        alert(result.error || "Before photo upload failed. Please try again.")
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      alert("Before photo upload failed. Please try again.")
+      alert(e?.message || "Before photo upload failed. Please try again.")
     } finally {
       setUploadingImage(false)
     }
@@ -148,15 +151,18 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
       const uploadData = new FormData()
       uploadData.append("file", processedFile)
       uploadData.append("consumerId", "SAFETY_DRAWING")
+      uploadData.append("module", "safety")
 
       const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
       const result = await res.json()
-      if (result.success) {
+      if (res.ok && result.success) {
         setDrawingUrl(result.url)
+      } else {
+        alert(result.error || "Drawing image upload failed.")
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      alert("Drawing image upload failed.")
+      alert(e?.message || "Drawing image upload failed.")
     } finally {
       setUploadingDrawing(false)
     }
@@ -260,6 +266,10 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
     }
     if (!address.trim()) {
       alert("Site address / landmark is required.")
+      return
+    }
+    if (!beforeImageUrl) {
+      alert("Site Before Photo is MANDATORY. Please upload or capture a site hazard photo before submitting.")
       return
     }
 
@@ -450,8 +460,11 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
           )}
 
           {/* Site Before Photo */}
-          <div className="space-y-2 pt-2 border-t">
-            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Site Before Photo (Watermarked)</Label>
+          <div className="space-y-2 pt-2 border-t border-slate-200">
+            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center justify-between">
+              <span>Site Before Photo * (Watermarked)</span>
+              <span className="text-red-500 font-bold text-[10px]">MANDATORY</span>
+            </Label>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0])} />
 
             {!cameraActive ? (

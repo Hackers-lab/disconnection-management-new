@@ -135,6 +135,17 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     expanded[mod] = Array.from(actSet)
   }
 
+  // Ensure misc_inspection default fallback if not explicitly defined in perms
+  if (!expanded.misc_inspection || expanded.misc_inspection.length === 0) {
+    if (isAgency) {
+      expanded.misc_inspection = ["read", "inspect", "update"]
+    } else if (isAdminOrExec) {
+      expanded.misc_inspection = ["read", "create", "update", "delete", "inspect", "finalize"]
+    } else if (roleLower === "viewer") {
+      expanded.misc_inspection = ["read"]
+    }
+  }
+
   return expanded
 }
 

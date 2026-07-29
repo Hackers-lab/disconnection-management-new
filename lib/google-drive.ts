@@ -1,7 +1,8 @@
 import { GoogleAuth, OAuth2Client } from "google-auth-library"
 import { drive as googleDrive } from "@googleapis/drive"
-import { Readable } from "stream"
+import { Readable, PassThrough } from "stream"
 import { getTenantContext } from "./tenant-context"
+import { invalidateTenantCache } from "./tenant-resolver"
 
 // Shared Auth client configuration
 const client_email = process.env.GOOGLE_SHEETS_CLIENT_EMAIL
@@ -75,8 +76,11 @@ class DynamicAuth extends GoogleAuth {
       try {
         return await active.request(opts)
       } catch (err: any) {
+        const errMsg = String(err?.message || err?.cause?.message || err?.response?.data?.error?.message || "").toLowerCase()
+        const isQuotaError = errMsg.includes("quota") || errMsg.includes("storage")
+
         const statusCode = err?.status || err?.code || err?.response?.status
-        const isPermissionOrNotFound = statusCode === 403 || statusCode === 404 || statusCode === 401
+        const isPermissionOrNotFound = (statusCode === 403 || statusCode === 404 || statusCode === 401) && !isQuotaError
 
         if (active !== this.defaultAuth && isPermissionOrNotFound && typeof this.defaultAuth.request === "function") {
           console.warn(
@@ -84,6 +88,11 @@ class DynamicAuth extends GoogleAuth {
             opts?.url
           )
           return await this.defaultAuth.request(opts)
+        }
+
+        if (isQuotaError) {
+          invalidateTenantCache()
+          throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
         }
         throw err
       }
@@ -100,6 +109,9 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   if (moduleName) return moduleName.trim().toLowerCase()
 
   const id = String(consumerId).toUpperCase()
+  if (id.startsWith("SAF-") || id.startsWith("SAFETY") || id.includes("SAFETY")) {
+    return "safety"
+  }
   if (id.includes("MAT-RECV-") || id.includes("MAT-ISSUE-") || id.includes("MAT-CAT-")) {
     return "material"
   }
@@ -126,6 +138,24 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   return "disconnection"
 }
 
+class BufferStream extends Readable {
+  private buffer: Buffer
+  private sent = false
+
+  constructor(buffer: Buffer) {
+    super()
+    this.buffer = buffer
+  }
+
+  override _read() {
+    if (!this.sent) {
+      this.sent = true
+      this.push(this.buffer)
+      this.push(null)
+    }
+  }
+}
+
 export async function uploadImageToDrive(file: File, consumerId: string, moduleName?: string): Promise<string> {
   try {
     const hasServiceAccount = client_email && private_key
@@ -140,8 +170,12 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
     // Convert File to Buffer/Stream
     const arrayBuffer = await file.arrayBuffer()
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      throw new Error("Uploaded image file is empty (0 bytes). Please select a valid photo.")
+    }
+
     const buffer = Buffer.from(arrayBuffer)
-    const stream = Readable.from(buffer)
+    const stream = new BufferStream(buffer)
 
     const ext = file.name ? (file.name.split(".").pop() || "jpg") : (file.type === "application/pdf" ? "pdf" : "jpg")
     const fileName = `${consumerId}_${Date.now()}.${ext}`
@@ -200,7 +234,7 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     }
 
     const media = {
-      mimeType: file.type,
+      mimeType: file.type || "image/jpeg",
       body: stream,
     }
 
@@ -215,18 +249,27 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     if (!fileId) throw new Error("No file ID returned from Drive")
 
     // Make the file publicly readable so it can be displayed in the app
-    await drive.permissions.create({
-      fileId: fileId,
-      requestBody: {
-        role: "reader",
-        type: "anyone",
-      },
-    })
+    try {
+      await drive.permissions.create({
+        fileId: fileId,
+        requestBody: {
+          role: "reader",
+          type: "anyone",
+        },
+      })
+    } catch (permError) {
+      console.warn("Failed to set public permission on uploaded Drive file:", permError)
+    }
 
     // Return a direct view URL instead of the webViewLink (which is a HTML page)
     return `https://drive.google.com/uc?export=view&id=${fileId}`
-  } catch (error) {
+  } catch (error: any) {
     console.error("Drive upload failed:", error)
+    invalidateTenantCache()
+    const errMsg = String(error?.message || error?.cause?.message || "").toLowerCase()
+    if (errMsg.includes("quota") || errMsg.includes("storage")) {
+      throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
+    }
     throw error
   }
 }
