@@ -88,6 +88,16 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
+    if (action === "reassign_agency") {
+      const { reassignAgency } = await import("@/lib/meter-replacement-service")
+      const { agency } = body
+      if (!replacementId || agency === undefined) {
+        return NextResponse.json({ error: "Replacement ID and agency are required" }, { status: 400 })
+      }
+      await reassignAgency(replacementId, agency)
+      return NextResponse.json({ success: true })
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (e: any) {
     console.error("Update replacement error:", e)

@@ -87,11 +87,41 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const [closeRemarks, setCloseRemarks] = useState("")
   const [closing, setClosing] = useState(false)
 
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false)
+  const [selectedForReassign, setSelectedForReassign] = useState<MeterReplacement | null>(null)
+  const [newAgency, setNewAgency] = useState("")
+  const [reassigning, setReassigning] = useState(false)
+
   const [noteSheetDialogOpen, setNoteSheetDialogOpen] = useState(false)
   const [selectedForNoteSheet, setSelectedForNoteSheet] = useState<MeterReplacement | null>(null)
   
   const isAdmin = userRole === "admin" || userRole === "executive"
   const [oldMeterMap, setOldMeterMap] = useState<Record<string, string>>({})
+
+  const handleReassignAgency = async () => {
+    if (!selectedForReassign) return
+    setReassigning(true)
+    try {
+      const res = await fetch("/api/meters/replacement", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reassign_agency",
+          replacementId: selectedForReassign.replacementId,
+          agency: newAgency
+        })
+      })
+      if (!res.ok) throw new Error((await res.json()).error || "Failed to reassign agency")
+      toast({ title: `Agency updated to "${newAgency || "Unassigned"}"` })
+      setReassignDialogOpen(false)
+      setSelectedForReassign(null)
+      load(true, true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to reassign agency", variant: "destructive" })
+    } finally {
+      setReassigning(false)
+    }
+  }
 
   const handleCloseProposal = async () => {
     if (!selectedForClose || !closeRemarks.trim()) {
@@ -513,6 +543,12 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
               {tab !== "all" && r.status === "proposed" && (
                 <div className="flex gap-2 mt-3 pt-2 border-t">
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" className="flex-1 text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
+                      onClick={() => { setSelectedForReassign(r); setNewAgency(r.agency || ""); setReassignDialogOpen(true) }}>
+                      Change Agency
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" className="flex-1 text-xs text-red-600 border-red-200 hover:bg-red-50"
                     onClick={() => { setSelectedForClose(r); setCloseRemarks(""); setCloseDialogOpen(true) }}>
                     Close Proposal
@@ -644,10 +680,54 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleCloseProposal} disabled={closing}>
-              {closing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null} Close Proposal
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setCloseDialogOpen(false)} disabled={closing}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="destructive" onClick={handleCloseProposal} disabled={closing || !closeRemarks.trim()}>
+              {closing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Confirm Close Proposal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reassign Agency Modal */}
+      <Dialog open={reassignDialogOpen} onOpenChange={open => !open && setReassignDialogOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-blue-700 font-bold">Change Assigned Agency</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 my-2">
+            {selectedForReassign && (
+              <div className="bg-slate-50 p-2.5 rounded-lg text-xs space-y-1 border">
+                <p className="font-semibold text-gray-800">{selectedForReassign.consumerName} ({selectedForReassign.consumerId})</p>
+                <p className="text-gray-500 font-mono">Proposal ID: {selectedForReassign.replacementId}</p>
+                <p className="text-slate-600">Current Agency: <strong className="text-slate-900">{selectedForReassign.agency || "Unassigned"}</strong></p>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Select New Agency</Label>
+              <Select value={newAgency} onValueChange={setNewAgency}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select Agency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Unassigned</SelectItem>
+                  {agencies.map(ag => (
+                    <SelectItem key={ag} value={ag}>{ag}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setReassignDialogOpen(false)} disabled={reassigning}>
+              Cancel
+            </Button>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleReassignAgency} disabled={reassigning}>
+              {reassigning ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Save Agency Change
             </Button>
           </DialogFooter>
         </DialogContent>

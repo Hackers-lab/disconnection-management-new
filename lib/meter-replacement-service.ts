@@ -392,3 +392,20 @@ export async function updateReplacementNoteSheet(replacementId: string, noteShee
   invalidateReplacementCache()
 }
 
+export async function reassignAgency(replacementId: string, agency: string): Promise<void> {
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+  const idx = all.findIndex(r => r.replacementId === replacementId)
+  if (idx === -1) throw new Error("Replacement record not found")
+  const rowNum = idx + 2
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: id,
+    range: `${REPLACEMENT_TAB}!F${rowNum}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[agency]] }
+  })
+  invalidateReplacementCache()
+}
+
