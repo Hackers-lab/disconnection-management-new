@@ -24,6 +24,7 @@ import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, NSC_CLASSES, normalizeNSCStatus } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
+import { parseTs } from "@/lib/date-utils"
 import { NscApplicationForm } from "@/components/nsc-application-form"
 import { NscInspectForm } from "@/components/nsc-inspect-form"
 import { NscProcessForm } from "@/components/nsc-process-form"
@@ -99,7 +100,11 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
   const [apps, setApps]         = useState<NSCApplication[]>([])
   const [syncState, setSyncState] = useState<SyncState>("loading")
-  const [tab, setTab]           = useState<Tab>("all")
+  const defaultTab: Tab = isAgency ? "pending" : "all"
+  const [tab, setTab]           = useState<Tab>(defaultTab)
+
+  // Clear
+  const resetFilters = () => { setFilters(DEFAULT_FILTERS); setTab(defaultTab) }
   const [view, setView]         = useHashState<View>("nsc", "list")
   const [search, setSearch]     = useState("")
   const [selected, setSelected] = useState<NSCApplication | null>(null)
@@ -130,8 +135,27 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       if (cached && cached.length > 0) {
         setApps(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.receivedDate || r.inspectedAt || 0).getTime()).filter(Boolean)
+        const tsList = cached.map(r =>
+          Math.max(
+            parseTs(r.createdAt || ""),
+            parseTs(r.inspectedAt || ""),
+            parseTs(r.finalizedAt || ""),
+            parseTs(r.meterIssuedAt || ""),
+            parseTs(r.connectionEffectedAt || ""),
+            parseTs(r.receivedDate || "")
+          )
+        ).filter(Boolean)
         if (tsList.length > 0) lastTs = Math.max(...tsList)
+
+        // Self-repair: check if cache is corrupted with only completed items
+        const hasUncompleted = cached.some(a => {
+          const s = normalizeNSCStatus(a.status)
+          return s === "pending" || s === "inspected" || s === "project_required" || s === "project_ongoing"
+        })
+        if (!hasUncompleted) {
+          // Force full refresh from Google Sheet
+          lastTs = 0
+        }
       }
 
       const patchUrl = lastTs ? `/api/nsc/patch?since_ts=${lastTs}` : "/api/nsc"
@@ -139,7 +163,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       if (!res.ok) throw new Error()
       const result = await res.json()
       const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as NSCApplication[]
-      const merged = await mergePatchToCache<NSCApplication>(CACHE_KEY, patchItems, "applicationNo")
+      const merged = await mergePatchToCache<NSCApplication>(CACHE_KEY, patchItems, "receiveNo")
       const sorted = [...merged].reverse()
       setApps(sorted)
       setSyncState("updated")
@@ -415,8 +439,8 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       </div>
 
       {/* Clear */}
-      {(activeFilterCount > 0 || tab !== "all") && (
-        <button onClick={() => { setFilters(DEFAULT_FILTERS); setTab("all") }}
+      {(activeFilterCount > 0 || tab !== defaultTab) && (
+        <button onClick={resetFilters}
           className="text-xs font-semibold text-red-500 hover:text-red-700 w-full text-center py-1">
           ✕ Reset all filters
         </button>

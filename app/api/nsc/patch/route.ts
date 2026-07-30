@@ -4,6 +4,8 @@ import { fetchApplications } from "@/lib/nsc-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
+import { parseTs } from "@/lib/date-utils"
+
 export const dynamic = "force-dynamic"
 
 export const GET = withTenant(async function GET(req: NextRequest) {
@@ -23,7 +25,14 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const modified = allRecords.filter((rec: any) => {
       if (isAgencyScopeRestricted(session, rec.agency)) return false
       if (!sinceTs) return true
-      const recTs = new Date(rec.updatedAt || rec.receivedDate || 0).getTime()
+      const recTs = Math.max(
+        parseTs(rec.createdAt || ""),
+        parseTs(rec.inspectedAt || ""),
+        parseTs(rec.finalizedAt || ""),
+        parseTs(rec.meterIssuedAt || ""),
+        parseTs(rec.connectionEffectedAt || ""),
+        parseTs(rec.receivedDate || "")
+      )
       return recTs >= sinceTs
     })
 

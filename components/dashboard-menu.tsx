@@ -449,7 +449,11 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       if (hasReadPermission("nsc")) {
         try {
           let nscCached = await getFromCache<any[]>("nsc_data_cache")
-          if (!nscCached || nscCached.length === 0) {
+          const hasUncompleted = nscCached && nscCached.some((a: any) => {
+            const s = (a.status || "").toLowerCase()
+            return s === "pending" || s === "inspected"
+          })
+          if (!nscCached || nscCached.length === 0 || !hasUncompleted) {
             setLoadingModules(prev => ({ ...prev, nsc: true }))
             try {
               const res = await fetch("/api/nsc")
