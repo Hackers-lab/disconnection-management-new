@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, mergePatchToCache } from "@/lib/indexed-db"
 import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"
+import { SafetyAgencyDrawer } from "./safety-agency-drawer"
 import { SafetyForm } from "./safety-form"
 import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
@@ -133,6 +134,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
   const [uploadingAfterImage, setUploadingAfterImage] = useState(false)
   const [uploadingDrawing, setUploadingDrawing] = useState(false)
   const afterInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const drawingInputRef = useRef<HTMLInputElement>(null)
 
   const [nsNo, setNsNo] = useState("")
@@ -660,6 +662,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
   return (
     <div className="space-y-3 pb-24">
       <SafetyStats tickets={tickets} loading={loading} />
+      <SafetyAgencyDrawer tickets={tickets} />
 
       {/* Control Header */}
       <div className="bg-white p-3 rounded-xl shadow-sm border space-y-2">
@@ -1230,7 +1233,9 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                     {/* Rectified GPS Photo Upload */}
                     <div className="space-y-1.5">
                       <Label className="text-[11px] font-bold text-slate-700">Rectified GPS Photo *</Label>
-                      <input ref={afterInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      
+                      {/* Live Camera Capture */}
+                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={async (e) => {
                         const file = e.target.files?.[0]
                         if (!file) return
                         setUploadingAfterImage(true)
@@ -1239,7 +1244,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                           const processed = await compressAndWatermarkImage(file, {
                             maxDim: 800,
                             watermarkLines: [`Rectified Date: ${dateStr}`, `Safety Ticket: ${selectedForEdit.safetyId}`],
-                            targetKb: 95
+                            targetKb: 85
                           })
                           const uploadData = new FormData()
                           uploadData.append("file", processed)
@@ -1259,10 +1264,57 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                         }
                       }} />
 
-                      <Button type="button" variant="outline" className="w-full h-9 text-xs rounded-lg border-dashed border-slate-400" onClick={() => afterInputRef.current?.click()} disabled={uploadingAfterImage}>
-                        {uploadingAfterImage ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Camera className="h-3.5 w-3.5 mr-1.5" />}
-                        <span className="truncate">{afterImageUrl ? "Rectified Photo Attached ✓ (Click to change)" : "Upload Rectified GPS Photo *"}</span>
-                      </Button>
+                      {/* Gallery Pick */}
+                      <input ref={afterInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        setUploadingAfterImage(true)
+                        try {
+                          const dateStr = new Date().toLocaleString("en-IN")
+                          const processed = await compressAndWatermarkImage(file, {
+                            maxDim: 800,
+                            watermarkLines: [`Rectified Date: ${dateStr}`, `Safety Ticket: ${selectedForEdit.safetyId}`],
+                            targetKb: 85
+                          })
+                          const uploadData = new FormData()
+                          uploadData.append("file", processed)
+                          uploadData.append("consumerId", selectedForEdit.safetyId || "SAFETY_AFTER")
+                          uploadData.append("module", "safety")
+                          const res = await fetch("/api/upload-image", { method: "POST", body: uploadData })
+                          const result = await res.json()
+                          if (res.ok && result.success) {
+                            setAfterImageUrl(result.url)
+                          } else {
+                            alert(result.error || "Upload failed")
+                          }
+                        } catch (err: any) {
+                          alert(err?.message || "Upload failed")
+                        } finally {
+                          setUploadingAfterImage(false)
+                        }
+                      }} />
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button type="button" variant="outline" className="h-9 text-xs rounded-lg border-blue-300 bg-blue-50/60 hover:bg-blue-100/80 text-blue-700 font-bold" onClick={() => cameraInputRef.current?.click()} disabled={uploadingAfterImage}>
+                          {uploadingAfterImage ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Camera className="h-3.5 w-3.5 mr-1 text-blue-600" />}
+                          <span>Take Photo (Camera)</span>
+                        </Button>
+
+                        <Button type="button" variant="outline" className="h-9 text-xs rounded-lg border-slate-300 bg-slate-50/60 hover:bg-slate-100/80 text-slate-700 font-bold" onClick={() => afterInputRef.current?.click()} disabled={uploadingAfterImage}>
+                          {uploadingAfterImage ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1 text-slate-600" />}
+                          <span>Gallery Upload</span>
+                        </Button>
+                      </div>
+
+                      {afterImageUrl && (
+                        <div className="flex items-center justify-between text-xs text-emerald-800 font-bold bg-emerald-50 border border-emerald-300 px-2.5 py-1.5 rounded-lg mt-1">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                            <span className="truncate text-[11px]">Rectified Photo Attached & Watermarked ✓</span>
+                          </div>
+                          <Button type="button" variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] text-emerald-700 hover:text-emerald-900" onClick={() => setAfterImageUrl("")}>Change</Button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Work Drawing Image (Attached / Optional Upload) */}
