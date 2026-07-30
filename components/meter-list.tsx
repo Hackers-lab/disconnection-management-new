@@ -2407,8 +2407,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
         )
       })()}
 
-      {/* Pagination */}
-      {tab !== "proposed" && totalPages > 1 && (
+      {/* Pagination — only for paginated sub-modules */}
+      {(view === "nsc" || view === "check" || view === "history") && !showReportPanel && totalPages > 1 && (
         <div className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border">
           <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             <ChevronLeft className="h-4 w-4 mr-1" /> Previous

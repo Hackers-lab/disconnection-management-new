@@ -5,6 +5,22 @@ export type NSCPhase        = "1P" | "3P"
 export type NSCStatus       = "pending" | "inspected" | "quotation_issued" | "dispute_issued" | "project_required" | "project_ongoing" | "project_done" | "meter_issued" | "meter_returned" | "connection_effected"
 export type NSCDecision     = "accepted" | "rejected" | ""
 
+export function normalizeNSCStatus(rawStatus?: string): string {
+  if (!rawStatus) return "pending"
+  const s = rawStatus.trim().toLowerCase()
+  if (s === "pending" || s === "pending inspection" || s === "pending_inspection") return "pending"
+  if (s === "inspected" || s === "inspection completed" || s === "inspection_completed" || s === "inspected completed") return "inspected"
+  if (s === "quotation_issued" || s === "quotation issued" || s === "quotation") return "quotation_issued"
+  if (s === "dispute_issued" || s === "dispute letter" || s === "dispute issued" || s === "dispute") return "dispute_issued"
+  if (s === "project_required" || s === "erection pending" || s === "project required") return "project_required"
+  if (s === "project_ongoing" || s === "erection done" || s === "project ongoing") return "project_ongoing"
+  if (s === "project_done" || s === "project approved" || s === "project done") return "project_done"
+  if (s === "meter_issued" || s === "meter issued") return "meter_issued"
+  if (s === "meter_returned" || s === "meter returned") return "meter_returned"
+  if (s === "connection_effected" || s === "connection effected" || s === "connection done") return "connection_effected"
+  return s
+}
+
 export const NSC_CLASSES: { value: NSCAppliedClass; label: string }[] = [
   { value: "domestic",   label: "LT Domestic" },
   { value: "commercial", label: "LT Commercial" },

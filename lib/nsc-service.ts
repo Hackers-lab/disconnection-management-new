@@ -4,6 +4,7 @@ import { unstable_cache, revalidateTag } from "next/cache"
 import { auth, renameDriveFile } from "./google-drive"
 import { getSpreadsheetId, ensureHeaders, findColumn, colLetter } from "./google-sheets-api"
 import type { NSCApplication } from "./nsc-types"
+import { normalizeNSCStatus } from "./nsc-types"
 import { nowTs, currentFY } from "./date-utils"
 
 export type { NSCApplication }
@@ -140,7 +141,7 @@ function parseRow(r: string[], headers: string[]): NSCApplication {
     appliedClass:         getVal("appliedClass"),
     phase:                getVal("phase"),
     agency:               getVal("agency"),
-    status:               getVal("status") || "pending",
+    status:               normalizeNSCStatus(getVal("status")),
     createdBy:            getVal("createdBy"),
     createdAt:            getVal("createdAt"),
     verifyName:           getVal("verifyName"),
