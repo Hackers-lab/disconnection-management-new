@@ -30,7 +30,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       patchCount: modified.length,
       patchData: modified,
     }, {
-      headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" },
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })
   } catch (error: any) {
     return NextResponse.json({ patchCount: 0, patchData: [] }, { status: 500 })
