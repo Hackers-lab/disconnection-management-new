@@ -59,6 +59,12 @@ export async function getFromCache<T>(key: string): Promise<T | null> {
   }
 }
 
+export function notifyCacheUpdate(key: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("badge_cache_updated", { detail: { key } }))
+  }
+}
+
 // Saves data AND a `{key}_ts` timestamp in a single transaction so
 // staleness can be checked without extra reads.
 export async function saveToCache(key: string, data: any): Promise<void> {
@@ -75,6 +81,7 @@ export async function saveToCache(key: string, data: any): Promise<void> {
       tx.oncomplete = () => resolve()
       tx.onerror    = () => reject(tx.error)
     })
+    notifyCacheUpdate(key)
   } catch (error) {
     console.warn(`Error saving ${prefixedKey} to cache:`, error)
   }

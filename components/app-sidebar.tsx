@@ -52,81 +52,152 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     "misc-inspection": true,
   })
 
+  // Helper calculators for module counts from IndexedDB
+  const upperAgencies = (agencies || []).map(a => a.trim().toUpperCase())
+
+  const loadSafetyFromCache = async () => {
+    const cached = await getFromCache<any[]>("safety_data_cache")
+    if (cached && Array.isArray(cached)) {
+      const isAgency = userRole === "agency"
+      const count = cached.filter(t => {
+        if (isAgency) {
+          return t.physicalStatus === "pending" && upperAgencies.includes((t.agency || "").trim().toUpperCase())
+        }
+        return t.physicalStatus === "pending" || (t.physicalStatus === "rectified" && t.adminStatus !== "po_done" && t.adminStatus !== "not_required")
+      }).length
+      setSafetyPendingCount(count)
+      return true
+    }
+    return false
+  }
+
+  const loadMiscFromCache = async () => {
+    const cached = await getFromCache<any[]>("misc_inspection_cache")
+    if (cached && Array.isArray(cached)) {
+      const count = cached.filter(r => {
+        if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive" && r.agency) {
+          if (!upperAgencies.includes((r.agency || "").trim().toUpperCase())) return false
+        }
+        return r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS"
+      }).length
+      setMiscPendingCount(count)
+      return true
+    }
+    return false
+  }
+
+  const loadDdFromCache = async () => {
+    const data = await getFromCache<any[]>("dd_data_cache")
+    if (data && Array.isArray(data)) {
+      const count = data.filter(d => {
+        const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
+        if (!isPending) return false
+        if (userRole === "admin" || userRole === "viewer") return true
+        return upperAgencies.includes((d.agency || "").toUpperCase())
+      }).length
+      setDdPendingCount(count)
+      return true
+    }
+    return false
+  }
+
+  const loadDisconnectionFromCache = async () => {
+    const consumerData = await getFromCache<ConsumerData[]>("consumers_data_cache")
+    if (consumerData && Array.isArray(consumerData)) {
+      const count = consumerData.filter(c => {
+        const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
+        if (!isConnected) return false
+        if (userRole === "admin" || userRole === "viewer") return true
+        return upperAgencies.includes((c.agency || "").toUpperCase())
+      }).length
+      setDisconnectionPendingCount(count)
+      return true
+    }
+    return false
+  }
+
+  const loadMeterFromCache = async () => {
+    const isAgency = userRole === "agency"
+    const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
+    const meterCached = await getFromCache<any>(cacheKey)
+    if (meterCached) {
+      const meterIssues: any[] = isAgency ? (Array.isArray(meterCached) ? meterCached : []) : (meterCached.issues || [])
+      const count = meterIssues.filter((i: any) => {
+        if (isAgency) {
+          if (i.status !== "issued") return false
+          return upperAgencies.includes((i.agency || "").trim().toUpperCase())
+        } else {
+          return i.status === "installation_done" || (i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned")
+        }
+      }).length
+      const mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
+      const repCount = (mrCached || []).filter((r: any) => {
+        if ((r.status || "").toLowerCase() !== "proposed") return false
+        if (isAgency) return false
+        return true
+      }).length
+      setMeterPendingCount(count + repCount)
+      return true
+    }
+    return false
+  }
+
   // Fetch pending counts
   useEffect(() => {
     let active = true
-    async function fetchCount() {
+    async function initCounts() {
       try {
-        // Consolidated System Counts (Single Edge-cached Request)
-        fetch("/api/system/dashboard-counts")
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
-            if (active && data) {
-              if (typeof data.miscPending === "number") setMiscPendingCount(data.miscPending)
-              if (typeof data.safetyPending === "number") setSafetyPendingCount(data.safetyPending)
-            }
-          })
-          .catch(() => {})
+        const [hasSafety, hasMisc] = await Promise.all([
+          loadSafetyFromCache(),
+          loadMiscFromCache(),
+          loadDdFromCache(),
+          loadDisconnectionFromCache(),
+          loadMeterFromCache(),
+        ])
 
-        // DD Count
-        const data = await getFromCache<any[]>("dd_data_cache")
-        if (data && active) {
-          const count = data.filter(d => {
-            const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
-            if (!isPending) return false
-            if (userRole === "admin" || userRole === "viewer") return true
-            return agencies.map(a => a.toUpperCase()).includes((d.agency || "").toUpperCase())
-          }).length
-          setDdPendingCount(count)
-        }
-
-        // Disconnection Count
-        const consumerData = await getFromCache<ConsumerData[]>("consumers_data_cache")
-        if (consumerData && active) {
-          const count = consumerData.filter(c => {
-            const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
-            if (!isConnected) return false
-            if (userRole === "admin" || userRole === "viewer") return true
-            return agencies.map(a => a.toUpperCase()).includes((c.agency || "").toUpperCase())
-          }).length
-          setDisconnectionPendingCount(count)
-        }
-
-        // Meter Pending Count (Aggregated Replacements + Active Installations + Check Meters)
-        const isAgency = userRole === "agency"
-        const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
-        const meterCached = await getFromCache<any>(cacheKey)
-        const upper = (agencies || []).map((a: string) => a.toUpperCase())
-        if (meterCached && active) {
-          const meterIssues: any[] = isAgency ? (Array.isArray(meterCached) ? meterCached : []) : (meterCached.issues || [])
-          const count = meterIssues.filter((i: any) => {
-            if (isAgency) {
-              if (i.status !== "issued") return false
-              return upper.includes((i.agency || "").trim().toUpperCase())
-            } else {
-              return i.status === "installation_done" || (i.purpose === "slow_fast" && i.checkMeterStatus !== "finalized" && i.status !== "returned")
-            }
-          }).length
-          const mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
-          const repCount = (mrCached || []).filter((r: any) => {
-            if ((r.status || "").toLowerCase() !== "proposed") return false
-            if (isAgency) return false
-            return true
-          }).length
-          setMeterPendingCount(count + repCount)
-        } else if (active) {
-          // Live fallback when cache is cold
-          fetch("/api/meters/pending-count")
-            .then(res => res.ok ? res.json() : { pendingCount: 0 })
-            .then(data => { if (active) setMeterPendingCount(data.pendingCount || 0) })
+        // Only fetch system counts if local cache is cold
+        if (!hasSafety || !hasMisc) {
+          fetch("/api/system/dashboard-counts")
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (active && data) {
+                if (!hasMisc && typeof data.miscPending === "number") setMiscPendingCount(data.miscPending)
+                if (!hasSafety && typeof data.safetyPending === "number") setSafetyPendingCount(data.safetyPending)
+              }
+            })
             .catch(() => {})
         }
       } catch (e) {
         console.error("Failed to load counts", e)
       }
     }
-    fetchCount()
-    return () => { active = false }
+
+    initCounts()
+
+    // Listen for module-specific cache updates to update only the changed module's badge
+    const handleCacheUpdate = (e: Event) => {
+      if (!active) return
+      const key = (e as CustomEvent).detail?.key
+      if (!key) return
+
+      if (key === "safety_data_cache") {
+        loadSafetyFromCache()
+      } else if (key === "misc_inspection_cache") {
+        loadMiscFromCache()
+      } else if (key === "dd_data_cache") {
+        loadDdFromCache()
+      } else if (key === "consumers_data_cache") {
+        loadDisconnectionFromCache()
+      } else if (key === "meter_stock_cache" || key === "meter_issues_cache" || key === "meter_replacement_data_cache") {
+        loadMeterFromCache()
+      }
+    }
+
+    window.addEventListener("badge_cache_updated", handleCacheUpdate)
+    return () => {
+      active = false
+      window.removeEventListener("badge_cache_updated", handleCacheUpdate)
+    }
   }, [userRole, JSON.stringify(agencies)])
 
   const menuItems = [

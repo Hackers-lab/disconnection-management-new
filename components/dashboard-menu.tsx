@@ -229,16 +229,20 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
   useEffect(() => {
     async function loadPendingCount() {
+      let hasLocalSafety = false
+      let hasLocalMisc = false
+
       // Read local IndexedDB caches first for instant 0ms counts
       try {
         const [miscCached, safetyCached] = await Promise.all([
           getFromCache<any[]>("misc_inspection_cache"),
-          getFromCache<any[]>("safety_tickets_cache"),
+          getFromCache<any[]>("safety_data_cache"),
         ])
 
         const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
 
         if (miscCached && Array.isArray(miscCached)) {
+          hasLocalMisc = true
           const count = miscCached.filter(r => {
             if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive" && r.agency) {
               if (!upperAgencies.includes((r.agency || "").trim().toUpperCase())) return false
@@ -249,6 +253,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         }
 
         if (safetyCached && Array.isArray(safetyCached)) {
+          hasLocalSafety = true
           const isAgency = userRole === "agency"
           const count = safetyCached.filter(t => {
             if (isAgency) {
@@ -262,31 +267,33 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         console.error("Local cache count calculation failed", e)
       }
 
-      // Consolidated System Counts Backup (Single Edge-cached Request)
-      try {
-        const res = await fetch("/api/system/dashboard-counts")
-        if (res.ok) {
-          const counts = await res.json()
-          if (counts) {
-            if (typeof counts.miscPending === "number") setMiscPendingCount(counts.miscPending)
-            if (typeof counts.safetyPending === "number") setSafetyPendingCount(counts.safetyPending)
-            if (typeof counts.meterPending === "number") setReplacementPendingCount(counts.meterPending)
-            if (typeof counts.dtrPaintingPending === "number") setDtrPaintingPendingCount(counts.dtrPaintingPending)
-            if (typeof counts.dtrPending === "number") setDtrPendingCount(counts.dtrPending)
+      // Consolidated System Counts Backup if local cache is cold
+      if (!hasLocalSafety || !hasLocalMisc) {
+        try {
+          const res = await fetch("/api/system/dashboard-counts")
+          if (res.ok) {
+            const counts = await res.json()
+            if (counts) {
+              if (!hasLocalMisc && typeof counts.miscPending === "number") setMiscPendingCount(counts.miscPending)
+              if (!hasLocalSafety && typeof counts.safetyPending === "number") setSafetyPendingCount(counts.safetyPending)
+              if (typeof counts.meterPending === "number") setReplacementPendingCount(counts.meterPending)
+              if (typeof counts.dtrPaintingPending === "number") setDtrPaintingPendingCount(counts.dtrPaintingPending)
+              if (typeof counts.dtrPending === "number") setDtrPendingCount(counts.dtrPending)
+            }
           }
+        } catch (e) {
+          console.error("Auto-fetch consolidated counts failed", e)
         }
-      } catch (e) {
-        console.error("Auto-fetch consolidated counts failed", e)
-      } finally {
-        setLoadingModules(prev => ({
-          ...prev,
-          safety: false,
-          "misc-inspection": false,
-          "meter-replacement": false,
-          dtr: false,
-          "dtr-painting": false,
-        }))
       }
+
+      setLoadingModules(prev => ({
+        ...prev,
+        safety: false,
+        "misc-inspection": false,
+        "meter-replacement": false,
+        dtr: false,
+        "dtr-painting": false,
+      }))
 
       // Disconnection
       if (hasReadPermission("disconnection")) {
@@ -582,6 +589,90 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         } finally {
           setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
         }
+      // Listener for module-specific badge cache updates
+      const handleCacheUpdate = async (e: Event) => {
+        const key = (e as CustomEvent).detail?.key
+        if (!key) return
+        const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
+
+        if (key === "safety_data_cache") {
+          const cached = await getFromCache<any[]>("safety_data_cache")
+          if (cached && Array.isArray(cached)) {
+            const isAgency = userRole === "agency"
+            const count = cached.filter(t => {
+              if (isAgency) {
+                return t.physicalStatus === "pending" && upperAgencies.includes((t.agency || "").trim().toUpperCase())
+              }
+              return t.physicalStatus === "pending" || (t.physicalStatus === "rectified" && t.adminStatus !== "po_done" && t.adminStatus !== "not_required")
+            }).length
+            setSafetyPendingCount(count)
+          }
+        } else if (key === "misc_inspection_cache") {
+          const cached = await getFromCache<any[]>("misc_inspection_cache")
+          if (cached && Array.isArray(cached)) {
+            const count = cached.filter(r => {
+              if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive" && r.agency) {
+                if (!upperAgencies.includes((r.agency || "").trim().toUpperCase())) return false
+              }
+              return r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS"
+            }).length
+            setMiscPendingCount(count)
+          }
+        } else if (key === "consumers_data_cache") {
+          const data = await getFromCache<ConsumerData[]>("consumers_data_cache")
+          if (data && Array.isArray(data)) {
+            const upper = (userAgencies || []).map(a => a.toUpperCase())
+            const count = data.filter(c => {
+              const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
+              if (!isConnected) return false
+              if (userRole === "admin" || userRole === "viewer") return true
+              return upper.includes((c.agency || "").toUpperCase())
+            }).length
+            setDisconnectionPendingCount(count)
+          }
+        } else if (key === "dd_data_cache") {
+          const data = await getFromCache<DeemedVisitData[]>("dd_data_cache")
+          if (data && Array.isArray(data)) {
+            const upper = (userAgencies || []).map(a => a.toUpperCase())
+            const count = data.filter(d => {
+              const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
+              if (!isPending) return false
+              if (userRole === "admin" || userRole === "viewer") return true
+              return upper.includes((d.agency || "").toUpperCase())
+            }).length
+            setDdPendingCount(count)
+          }
+        } else if (key === "meter_replacement_data_cache" || key === "meter_stock_cache" || key === "meter_issues_cache") {
+          const mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
+          if (mrCached && Array.isArray(mrCached)) {
+            const upper = (userAgencies || []).map(a => a.toUpperCase())
+            const count = mrCached.filter(r => {
+              if ((r.status || "").toLowerCase() !== "proposed") return false
+              if ((r.purpose || "") === "slow_fast") return false
+              if (userRole === "admin" || userRole === "executive") return true
+              return upper.includes((r.agency || "").toUpperCase())
+            }).length
+            setReplacementPendingCount(count)
+          }
+        } else if (key === "dtr_data_cache") {
+          const dtrCached = await getFromCache<any[]>("dtr_data_cache")
+          if (dtrCached && Array.isArray(dtrCached)) {
+            const count = dtrCached.filter(r => (r.status || "").toUpperCase() !== "EXIST").length
+            setDtrPendingCount(count)
+            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
+            const paintingPending = dtrCached.filter(r => {
+              const isAssigned = userRole === "admin" || userRole === "viewer" || userRole === "executive" || 
+                (r.paintingAgency && upper.includes(r.paintingAgency.trim().toUpperCase()))
+              return isAssigned && (r.painting || "").toLowerCase() !== "done"
+            }).length
+            setDtrPaintingPendingCount(paintingPending)
+          }
+        }
+      }
+
+      window.addEventListener("badge_cache_updated", handleCacheUpdate)
+      return () => {
+        window.removeEventListener("badge_cache_updated", handleCacheUpdate)
       }
     }
     loadPendingCount()
