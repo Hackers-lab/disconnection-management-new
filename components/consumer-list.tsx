@@ -70,6 +70,7 @@ import {
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ConsumerData } from "@/lib/google-sheets"
+import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"

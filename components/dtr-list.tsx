@@ -541,7 +541,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["verifiedAt", "createdAt"])
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["verifiedAt", "createdAt" as any])
       }
       
       if (lastTs > 0) {
