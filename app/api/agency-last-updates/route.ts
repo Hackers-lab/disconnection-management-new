@@ -21,7 +21,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     return NextResponse.json(updates, {
       headers: {
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=300',
       },
     });
   } catch (error) {

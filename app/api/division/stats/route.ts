@@ -312,6 +312,10 @@ export async function GET(request: Request) {
         ddPendingAmount: totalDDPendingAmount,
         ddCompletionPercent: grandDDCompletionPercent,
       }
+    }, {
+      headers: {
+        "Cache-Control": "public, max-age=30, s-maxage=60, stale-while-revalidate=300",
+      },
     })
   } catch (error: any) {
     console.error("Error in Division Stats API:", error)

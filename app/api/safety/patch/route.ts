@@ -32,7 +32,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       patchData: modified,
       tombstones: [],
     }, {
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      headers: { "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=59" },
     })
   } catch (error: any) {
     return NextResponse.json({ patchCount: 0, patchData: [] }, { status: 500 })
