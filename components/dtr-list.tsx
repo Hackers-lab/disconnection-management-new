@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { DTRInspectionForm } from "@/components/dtr-inspection-form"
 import type { DTRRecord } from "@/lib/dtr-service"
 import {
@@ -544,13 +545,22 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
       
-      const patchUrl = lastTs ? `/api/dtr/patch?since_ts=${lastTs}` : "/api/dtr"
-      const res = await fetch(patchUrl)
-      if (!res.ok) throw new Error()
-      const result = await res.json()
-      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as DTRRecord[]
-      const merged = await mergePatchToCache<DTRRecord>(CACHE_KEY, patchItems, "dtrCode")
-      setRecords(merged)
+      if (lastTs > 0) {
+        const merged = await PlatformSyncEngine.syncModule<DTRRecord>({
+          moduleKey: "dtr",
+          cacheKey: CACHE_KEY,
+          idKey: "dtrCode",
+          fetchPatchUrl: "/api/dtr/patch",
+        }, lastTs)
+        setRecords(merged)
+      } else {
+        const res = await fetch("/api/dtr")
+        if (!res.ok) throw new Error()
+        const result = await res.json()
+        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as DTRRecord[]
+        const merged = await mergePatchToCache<DTRRecord>(CACHE_KEY, patchItems, "dtrCode")
+        setRecords(merged)
+      }
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 2500)
     } catch (e) {

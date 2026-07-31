@@ -71,6 +71,7 @@ import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { useToast } from "@/components/ui/use-toast"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
@@ -409,40 +410,23 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
             return;
           }
         } else {
-          console.log("[Data Sync] Row counts and versions match. Checking for patches.");
-          const patchResponse = await fetch(`/api/consumers/patch`);
-          if (patchResponse.ok) {
-            const patchData: ConsumerData[] = await patchResponse.json().catch(() => []);
-            
-            if (patchData.length > 0) {
-              console.log(`[Data Sync] Patching with ${patchData.length} records.`);
-              setSyncStatus('syncing');
-              
-              const currentData = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || []);
-              const dataMap = new Map(currentData.map(c => [c.consumerId, c]));
-              // Stale-write protection: if this row was edited locally in the
-              // last 30s (longer than the CDN cache window on /patch), keep
-              // the local copy instead of letting potentially-stale patch data win.
-              const LOCAL_WIN_WINDOW_MS = 30_000;
-              const now = Date.now();
-              patchData.forEach(patchItem => {
-                const existing = dataMap.get(patchItem.consumerId);
-                const recentLocal =
-                  existing?._localEditedAt &&
-                  now - existing._localEditedAt < LOCAL_WIN_WINDOW_MS;
-                if (recentLocal || existing?._syncStatus === 'syncing' || existing?._syncStatus === 'error') {
-                  return;
-                }
-                dataMap.set(patchItem.consumerId, patchItem);
-              });
-              const mergedData = Array.from(dataMap.values());
-
-              await saveToCache(CACHE_KEY, mergedData);
-              await processData(mergedData, cachedAgencies, true);
-              setSyncStatus('updated');
-              finalStatus = 'updated';
-            }
+          console.log("[Data Sync] Row counts and versions match. Checking for patches via Sync Engine.");
+          setSyncStatus('syncing');
+          const currentData = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || []);
+          let lastTs = 0;
+          if (currentData.length > 0) {
+            const tsList = currentData.map(c => new Date(c.lastUpdated || (c as any).createdAt || 0).getTime()).filter(Boolean);
+            if (tsList.length > 0) lastTs = Math.max(...tsList);
           }
+          const mergedData = await PlatformSyncEngine.syncModule<ConsumerData>({
+            moduleKey: "disconnection",
+            cacheKey: CACHE_KEY,
+            idKey: "consumerId",
+            fetchPatchUrl: "/api/consumers/patch",
+          }, lastTs);
+          await processData(mergedData, cachedAgencies, true);
+          setSyncStatus('updated');
+          finalStatus = 'updated';
         }
 
         if ((userRole === "admin" || userRole === "viewer") && !cachedAgencies) {

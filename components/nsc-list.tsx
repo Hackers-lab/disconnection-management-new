@@ -22,6 +22,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, NSC_CLASSES, normalizeNSCStatus } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { parseTs } from "@/lib/date-utils"
@@ -158,14 +159,25 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
         }
       }
 
-      const patchUrl = lastTs ? `/api/nsc/patch?since_ts=${lastTs}` : "/api/nsc"
-      const res = await fetch(patchUrl)
-      if (!res.ok) throw new Error()
-      const result = await res.json()
-      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as NSCApplication[]
-      const merged = await mergePatchToCache<NSCApplication>(CACHE_KEY, patchItems, "receiveNo")
-      const sorted = [...merged].reverse()
-      setApps(sorted)
+      const patchUrl = lastTs ? `/api/nsc/patch` : "/api/nsc"
+      if (lastTs > 0) {
+        const merged = await PlatformSyncEngine.syncModule<NSCApplication>({
+          moduleKey: "nsc",
+          cacheKey: CACHE_KEY,
+          idKey: "receiveNo",
+          fetchPatchUrl: "/api/nsc/patch",
+        }, lastTs)
+        const sorted = [...merged].reverse()
+        setApps(sorted)
+      } else {
+        const res = await fetch("/api/nsc")
+        if (!res.ok) throw new Error()
+        const result = await res.json()
+        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as NSCApplication[]
+        const merged = await mergePatchToCache<NSCApplication>(CACHE_KEY, patchItems, "receiveNo")
+        const sorted = [...merged].reverse()
+        setApps(sorted)
+      }
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
       window.dispatchEvent(new Event("notif-refresh"))

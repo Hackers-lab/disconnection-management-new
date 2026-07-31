@@ -29,6 +29,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       serverTimestamp: Date.now(),
       patchCount: modified.length,
       patchData: modified,
+      tombstones: [],
     }, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     })

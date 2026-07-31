@@ -22,6 +22,7 @@ import {
   Info,
   ShieldCheck
 } from "lucide-react"
+import { notifyCacheUpdate } from "@/lib/indexed-db"
 import type { DTRRecord } from "@/lib/dtr-service"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
 
@@ -294,6 +295,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
       
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to submit DTR verification data")
+      notifyCacheUpdate("dtr_data_cache")
       onSave()
     } catch (e: any) {
       setFormError(e.message || "Failed to save verification updates.")

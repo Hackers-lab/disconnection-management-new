@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"
 import { SafetyAgencyDrawer } from "./safety-agency-drawer"
@@ -160,13 +161,22 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
           if (tsList.length > 0) lastTs = Math.max(...tsList)
         }
         setSyncStatus('checking')
-        const patchUrl = lastTs ? `/api/safety/patch?since_ts=${lastTs}` : "/api/safety/base"
-        const res = await fetch(patchUrl)
-        if (!res.ok) throw new Error("Failed to fetch safety tickets")
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as SafetyTicket[]
-        const merged = await mergePatchToCache<SafetyTicket>("safety_data_cache", patchItems, "safetyId")
-        setTickets(merged)
+        if (lastTs > 0) {
+          const merged = await PlatformSyncEngine.syncModule<SafetyTicket>({
+            moduleKey: "safety",
+            cacheKey: "safety_data_cache",
+            idKey: "safetyId",
+            fetchPatchUrl: "/api/safety/patch",
+          }, lastTs)
+          setTickets(merged)
+        } else {
+          const res = await fetch("/api/safety/base")
+          if (!res.ok) throw new Error("Failed to fetch safety tickets")
+          const result = await res.json()
+          const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as SafetyTicket[]
+          const merged = await mergePatchToCache<SafetyTicket>("safety_data_cache", patchItems, "safetyId")
+          setTickets(merged)
+        }
         setSyncStatus('updated')
       } catch (err: any) {
         console.error(err)
@@ -466,6 +476,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       setTickets(updated)
       setSelectedForEdit(prev => prev ? { ...prev, agency: editAgency } : null)
       await saveToCache("safety_data_cache", updated)
+      notifyCacheUpdate("safety_data_cache")
 
       toast({ title: "Agency Assigned", description: `Ticket assigned to ${editAgency || "Unassigned"}.` })
       setRefreshKey(k => k + 1)

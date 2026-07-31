@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import type { DeemedVisitData } from "@/lib/dd-service"
 import { DDStats } from "./dd-stats"
 import { DDForm } from "./dd-form"
@@ -163,29 +164,23 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           finalStatus = 'updated'
         } else {
           // 3. Counts match — check for recent patches
-          const patchRes = await fetch("/api/dd/patch")
-          if (patchRes.ok) {
-            const patchData: DeemedVisitData[] = await patchRes.json().catch(() => [])
-            if (patchData.length > 0) {
-              setSyncStatus('syncing')
-              const LOCAL_WIN_MS = 30_000
-              const now = Date.now()
-              const current = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || [])
-              const dataMap = new Map(current.map(c => [c.consumerId, c]))
-              patchData.forEach(p => {
-                const existing = dataMap.get(p.consumerId)
-                const recentLocal = existing?._localEditedAt && now - existing._localEditedAt < LOCAL_WIN_MS
-                if (recentLocal || existing?._syncStatus === 'syncing' || existing?._syncStatus === 'error') return
-                dataMap.set(p.consumerId, p)
-              })
-              const merged = Array.from(dataMap.values())
-              await saveToCache(CACHE_KEY, merged)
-              setConsumers(merged)
-              consumersRef.current = merged
-              setSyncStatus('updated')
-              finalStatus = 'updated'
-            }
+          setSyncStatus('syncing')
+          const current = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || [])
+          let lastTs = 0
+          if (current.length > 0) {
+            const tsList = current.map(c => new Date(c.disconDate || (c as any).createdAt || 0).getTime()).filter(Boolean)
+            if (tsList.length > 0) lastTs = Math.max(...tsList)
           }
+          const merged = await PlatformSyncEngine.syncModule<DeemedVisitData>({
+            moduleKey: "dd",
+            cacheKey: CACHE_KEY,
+            idKey: "consumerId",
+            fetchPatchUrl: "/api/dd/patch",
+          }, lastTs)
+          setConsumers(merged)
+          consumersRef.current = merged
+          setSyncStatus('updated')
+          finalStatus = 'updated'
         }
       } catch (err) {
         console.error(err)

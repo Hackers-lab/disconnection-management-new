@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, getCacheAgeMs, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { MeterReplacement } from "@/lib/meter-replacement-service"
@@ -258,14 +259,24 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
-      const patchUrl = lastTs ? `/api/meters/replacement/patch?since_ts=${lastTs}` : "/api/meters/replacement"
-      const res = await fetch(patchUrl)
-      if (!res.ok) throw new Error()
-      const result = await res.json()
-      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
-      const merged = await mergePatchToCache<MeterReplacement>(CACHE_KEY, patchItems, "replacementId")
-      const sorted = [...merged].reverse()
-      setRecords(sorted)
+      if (lastTs > 0) {
+        const merged = await PlatformSyncEngine.syncModule<MeterReplacement>({
+          moduleKey: "meter-replacement",
+          cacheKey: CACHE_KEY,
+          idKey: "replacementId",
+          fetchPatchUrl: "/api/meters/replacement/patch",
+        }, lastTs)
+        const sorted = [...merged].reverse()
+        setRecords(sorted)
+      } else {
+        const res = await fetch("/api/meters/replacement")
+        if (!res.ok) throw new Error()
+        const result = await res.json()
+        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
+        const merged = await mergePatchToCache<MeterReplacement>(CACHE_KEY, patchItems, "replacementId")
+        const sorted = [...merged].reverse()
+        setRecords(sorted)
+      }
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
     } catch {

@@ -147,26 +147,13 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     let active = true
     async function initCounts() {
       try {
-        const [hasSafety, hasMisc] = await Promise.all([
+        await Promise.all([
           loadSafetyFromCache(),
           loadMiscFromCache(),
           loadDdFromCache(),
           loadDisconnectionFromCache(),
           loadMeterFromCache(),
         ])
-
-        // Only fetch system counts if local cache is cold
-        if (!hasSafety || !hasMisc) {
-          fetch("/api/system/dashboard-counts")
-            .then(res => res.ok ? res.json() : null)
-            .then(data => {
-              if (active && data) {
-                if (!hasMisc && typeof data.miscPending === "number") setMiscPendingCount(data.miscPending)
-                if (!hasSafety && typeof data.safetyPending === "number") setSafetyPendingCount(data.safetyPending)
-              }
-            })
-            .catch(() => {})
-        }
       } catch (e) {
         console.error("Failed to load counts", e)
       }

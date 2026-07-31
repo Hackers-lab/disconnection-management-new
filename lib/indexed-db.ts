@@ -17,27 +17,40 @@ export function openDB() {
 
 export function getCccPrefix(): string {
   if (typeof window === "undefined") return ""
+  let ccc = ""
+  let user = ""
+
   try {
-    const match = document.cookie.match(/(^|;)\s*cccCode\s*=\s*([^;]+)/)
-    if (match) {
-      const val = decodeURIComponent(match[2]).trim()
-      if (val) return val
-    }
+    const matchCcc = document.cookie.match(/(^|;)\s*cccCode\s*=\s*([^;]+)/)
+    if (matchCcc) ccc = decodeURIComponent(matchCcc[2]).trim()
   } catch (e) {}
+  if (!ccc) {
+    try {
+      const local = localStorage.getItem("user_ccc_code")
+      if (local) ccc = local.trim()
+    } catch (e) {}
+  }
+  if (!ccc) {
+    try {
+      const session = sessionStorage.getItem("user_ccc_code")
+      if (session) ccc = session.trim()
+    } catch (e) {}
+  }
+
   try {
-    const local = localStorage.getItem("user_ccc_code")
-    if (local) {
-      const val = local.trim()
-      if (val) return val
-    }
+    const matchUser = document.cookie.match(/(^|;)\s*username\s*=\s*([^;]+)/)
+    if (matchUser) user = decodeURIComponent(matchUser[2]).trim().toLowerCase()
   } catch (e) {}
-  try {
-    const session = sessionStorage.getItem("user_ccc_code")
-    if (session) {
-      const val = session.trim()
-      if (val) return val
-    }
-  } catch (e) {}
+  if (!user) {
+    try {
+      const localUser = localStorage.getItem("user_username")
+      if (localUser) user = localUser.trim().toLowerCase()
+    } catch (e) {}
+  }
+
+  if (ccc && user) return `${ccc}_${user}`
+  if (ccc) return ccc
+  if (user) return user
   return ""
 }
 

@@ -17,6 +17,7 @@ import { ReconnectionCreateForm } from "@/components/reconnection-create-form"
 import { ReconnectionUpdateForm } from "@/components/reconnection-update-form"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -105,14 +106,24 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
-      const patchUrl = lastTs ? `/api/reconnection/patch?since_ts=${lastTs}` : "/api/reconnection"
-      const res = await fetch(patchUrl)
-      if (!res.ok) throw new Error()
-      const result = await res.json()
-      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as ReconnectionRequest[]
-      const merged = await mergePatchToCache<ReconnectionRequest>(CACHE_KEY, patchItems, "consumerId")
-      const sorted = [...merged].reverse()
-      setRecords(sorted)
+      if (lastTs > 0) {
+        const merged = await PlatformSyncEngine.syncModule<ReconnectionRequest>({
+          moduleKey: "reconnection",
+          cacheKey: CACHE_KEY,
+          idKey: "consumerId",
+          fetchPatchUrl: "/api/reconnection/patch",
+        }, lastTs)
+        const sorted = [...merged].reverse()
+        setRecords(sorted)
+      } else {
+        const res = await fetch("/api/reconnection")
+        if (!res.ok) throw new Error()
+        const result = await res.json()
+        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as ReconnectionRequest[]
+        const merged = await mergePatchToCache<ReconnectionRequest>(CACHE_KEY, patchItems, "consumerId")
+        const sorted = [...merged].reverse()
+        setRecords(sorted)
+      }
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
     } catch {

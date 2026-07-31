@@ -267,25 +267,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         console.error("Local cache count calculation failed", e)
       }
 
-      // Consolidated System Counts Backup if local cache is cold
-      if (!hasLocalSafety || !hasLocalMisc) {
-        try {
-          const res = await fetch("/api/system/dashboard-counts")
-          if (res.ok) {
-            const counts = await res.json()
-            if (counts) {
-              if (!hasLocalMisc && typeof counts.miscPending === "number") setMiscPendingCount(counts.miscPending)
-              if (!hasLocalSafety && typeof counts.safetyPending === "number") setSafetyPendingCount(counts.safetyPending)
-              if (typeof counts.meterPending === "number") setReplacementPendingCount(counts.meterPending)
-              if (typeof counts.dtrPaintingPending === "number") setDtrPaintingPendingCount(counts.dtrPaintingPending)
-              if (typeof counts.dtrPending === "number") setDtrPendingCount(counts.dtrPending)
-            }
-          }
-        } catch (e) {
-          console.error("Auto-fetch consolidated counts failed", e)
-        }
-      }
-
+      // Loading complete
       setLoadingModules(prev => ({
         ...prev,
         safety: false,
@@ -586,9 +568,9 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           }
         } catch (e) {
           console.error("Auto-fetch master count failed", e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
         }
+      }
+
       // Listener for module-specific badge cache updates
       const handleCacheUpdate = async (e: Event) => {
         const key = (e as CustomEvent).detail?.key
@@ -628,7 +610,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
               if (userRole === "admin" || userRole === "viewer") return true
               return upper.includes((c.agency || "").toUpperCase())
             }).length
-            setDisconnectionPendingCount(count)
+            setPendingCount(count)
           }
         } else if (key === "dd_data_cache") {
           const data = await getFromCache<DeemedVisitData[]>("dd_data_cache")

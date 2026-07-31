@@ -213,8 +213,12 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             try {
               localStorage.setItem("user_ccc_code", data.cccCode || "")
               sessionStorage.setItem("user_ccc_code", data.cccCode || "")
+              if (data.username) {
+                localStorage.setItem("user_username", data.username.toLowerCase())
+                sessionStorage.setItem("user_username", data.username.toLowerCase())
+              }
             } catch (e) {
-              console.error("Failed to save cccCode to storage", e)
+              console.error("Failed to save cccCode/username to storage", e)
             }
           }
         }

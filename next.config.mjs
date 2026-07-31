@@ -13,6 +13,16 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "date-fns", "@radix-ui/react-icons", "framer-motion"],
   },
+  webpack: (config, { dev, isServer }) => {
+    if (dev) {
+      config.watchOptions = {
+        poll: false,
+        aggregateTimeout: 300,
+        ignored: ['**/node_modules', '**/.next'],
+      }
+    }
+    return config
+  },
 }
 
 export default nextConfig

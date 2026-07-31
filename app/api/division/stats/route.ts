@@ -4,6 +4,8 @@ import { getTenantRegistry } from "@/lib/tenant-resolver"
 import { fetchConsumerData } from "@/lib/google-sheets"
 import { fetchDDData } from "@/lib/dd-service"
 
+export const dynamic = "force-dynamic"
+
 export interface AgencyBreakdown {
   agencyName: string
   targetCount: number

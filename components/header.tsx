@@ -453,6 +453,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
         await clearAllCache()
         sessionStorage.clear()
         localStorage.removeItem("user_ccc_code")
+        localStorage.removeItem("user_username")
         localStorage.removeItem("user_permissions")
         localStorage.removeItem("_hb_date")
       } catch (e) {

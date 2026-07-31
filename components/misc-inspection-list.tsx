@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { MiscInspectionRecord, InspectionCategory, InspectionPriority, InspectionStatus } from "@/lib/misc-inspection-types"
 import { MiscInspectionStats } from "@/components/misc-inspection-stats"
 import { MiscInspectionCreateForm } from "@/components/misc-inspection-create-form"
@@ -108,13 +109,22 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
-      const patchUrl = lastTs ? `/api/misc-inspection/patch?since_ts=${lastTs}` : "/api/misc-inspection"
-      const res = await fetch(patchUrl)
-      if (res.ok) {
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
-        const merged = await mergePatchToCache<MiscInspectionRecord>("misc_inspection_cache", patchItems, "id")
+      if (lastTs > 0) {
+        const merged = await PlatformSyncEngine.syncModule<MiscInspectionRecord>({
+          moduleKey: "misc-inspection",
+          cacheKey: "misc_inspection_cache",
+          idKey: "id",
+          fetchPatchUrl: "/api/misc-inspection/patch",
+        }, lastTs)
         setRecords(merged)
+      } else {
+        const res = await fetch("/api/misc-inspection")
+        if (res.ok) {
+          const result = await res.json()
+          const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
+          const merged = await mergePatchToCache<MiscInspectionRecord>("misc_inspection_cache", patchItems, "id")
+          setRecords(merged)
+        }
       }
     } catch (err: any) {
       if (records.length === 0) toast.error(err.message || "Failed to load inspections")

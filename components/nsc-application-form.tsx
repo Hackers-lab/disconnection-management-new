@@ -11,7 +11,7 @@ import {
   ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon,
   UploadCloud, CheckCircle2, Crop, Plus, Image as ImageIcon, FileText, AlertCircle
 } from "lucide-react"
-import { getFromCache } from "@/lib/indexed-db"
+import { getFromCache, notifyCacheUpdate } from "@/lib/indexed-db"
 import { NSC_CLASSES, NSC_PHASES } from "@/lib/nsc-types"
 import { NscCameraModal } from "@/components/nsc-camera-modal"
 import { NscCropDialog } from "@/components/nsc-crop-dialog"
@@ -347,6 +347,7 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed")
+      notifyCacheUpdate("nsc_applications_cache")
       onSave(data.receiveNo)
     } catch (e: any) {
       alert(e.message || "Failed to create application")

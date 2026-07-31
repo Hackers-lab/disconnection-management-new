@@ -35,6 +35,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         serverTimestamp: Date.now(),
         patchCount: modified.length,
         patchData: modified,
+        tombstones: [],
       },
       {
         headers: {
