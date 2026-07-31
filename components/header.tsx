@@ -450,7 +450,6 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     try {
       setLoggingOut(true);
       try {
-        await clearAllCache()
         sessionStorage.clear()
         localStorage.removeItem("user_ccc_code")
         localStorage.removeItem("user_username")
