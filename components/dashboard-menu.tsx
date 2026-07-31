@@ -370,20 +370,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           if (rcCached && rcCached.length > 0) {
             setReconnectionPendingCount(calculatePending(rcCached))
           }
-
-          // Fetch fresh from server to update badge & cache
-          setLoadingModules(prev => ({ ...prev, reconnection: true }))
-          const res = await fetch("/api/reconnection")
-          if (res.ok) {
-            const freshData = await res.json()
-            if (freshData) {
-              const sorted = [...freshData].reverse()
-              await saveToCache("reconnection_data_cache", sorted)
-              setReconnectionPendingCount(calculatePending(sorted))
-            }
-          }
         } catch (e) {
-          console.error("Auto-fetch reconnection failed", e)
+          console.error("Local cache reconnection pending calculation failed", e)
         } finally {
           setLoadingModules(prev => ({ ...prev, reconnection: false }))
         }
@@ -536,16 +524,14 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       // Material Stock
       if (hasReadPermission("material")) {
         try {
-          setLoadingModules(prev => ({ ...prev, material: true }))
-          const res = await fetch("/api/material")
-          if (res.ok) {
-            const data = await res.json()
-            const stock = data.stock || []
+          const cached = await getFromCache<any>("material_stock_cache")
+          if (cached) {
+            const stock = cached.stock || []
             const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
             setMaterialPendingCount(belowThresholdCount)
           }
         } catch (e) {
-          console.error("Auto-fetch material failed", e)
+          console.error("Local cache material pending calculation failed", e)
         } finally {
           setLoadingModules(prev => ({ ...prev, material: false }))
         }
