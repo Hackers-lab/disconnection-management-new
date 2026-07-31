@@ -36,9 +36,9 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     }
 
     if (type === 'master') {
-      const { fetchMasterData } = await import("@/lib/consumer-master-service")
-      const data = await fetchMasterData(spreadsheetId)
-      return NextResponse.json({ count: data.length, version: null }, {
+      const { fetchMasterCount } = await import("@/lib/consumer-master-service")
+      const count = await fetchMasterCount(spreadsheetId)
+      return NextResponse.json({ count, version: null }, {
         headers: { "Cache-Control": "no-store" },
       })
     }

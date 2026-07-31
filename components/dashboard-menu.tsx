@@ -584,10 +584,14 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         try {
           const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
           const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
+          let hasCache = false
           if (cachedMaster) {
             setMasterCount(parseInt(cachedMaster, 10))
+            hasCache = true
           }
-          setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+          if (!hasCache) {
+            setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+          }
           const res = await fetch("/api/system/row-count?type=master")
           if (res.ok) {
             const data = await res.json()
@@ -596,6 +600,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           }
         } catch (e) {
           console.error("Auto-fetch master count failed", e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
         }
       }
 

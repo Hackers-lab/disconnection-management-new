@@ -72,6 +72,7 @@ export async function _fetchMasterRaw(spreadsheetId: string): Promise<ConsumerMa
 }
 
 let memoryCache: Record<string, { data: ConsumerMasterRow[], timestamp: number }> = {}
+let masterCountCache: Record<string, { count: number, timestamp: number }> = {}
 
 // ── Cached read ───────────────────────────────────────────────────────────────
 export async function fetchMasterData(spreadsheetId: string): Promise<ConsumerMasterRow[]> {
@@ -83,14 +84,44 @@ export async function fetchMasterData(spreadsheetId: string): Promise<ConsumerMa
 
   const data = await _fetchMasterRaw(spreadsheetId)
   memoryCache[spreadsheetId] = { data, timestamp: Date.now() }
+  masterCountCache[spreadsheetId] = { count: data.length, timestamp: Date.now() }
   return data
+}
+
+// ── Lightweight row count (queries only Column A) ─────────────────────────────
+export async function fetchMasterCount(spreadsheetId: string): Promise<number> {
+  const fullCached = memoryCache[spreadsheetId]
+  if (fullCached && Date.now() - fullCached.timestamp < MASTER_REVALIDATE * 1000) {
+    return fullCached.data.length
+  }
+
+  const countCached = masterCountCache[spreadsheetId]
+  if (countCached && Date.now() - countCached.timestamp < MASTER_REVALIDATE * 1000) {
+    return countCached.count
+  }
+
+  try {
+    await ensureTab(spreadsheetId)
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${MASTER_TAB}!A:A` })
+    const rows = res.data.values || []
+    // Filter non-empty rows and exclude header (first row)
+    const count = Math.max(0, rows.slice(1).filter(r => r && r[0] && String(r[0]).trim() !== "").length)
+    masterCountCache[spreadsheetId] = { count, timestamp: Date.now() }
+    return count
+  } catch (error) {
+    console.error("Failed to fetch lightweight master count, falling back to full fetch:", error)
+    const fullData = await fetchMasterData(spreadsheetId)
+    return fullData.length
+  }
 }
 
 export function invalidateMasterCache(spreadsheetId?: string) {
   if (spreadsheetId) {
     delete memoryCache[spreadsheetId]
+    delete masterCountCache[spreadsheetId]
   } else {
     memoryCache = {}
+    masterCountCache = {}
   }
   revalidateTag(MASTER_TAG)
 }
