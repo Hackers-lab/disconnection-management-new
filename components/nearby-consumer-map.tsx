@@ -151,8 +151,13 @@ export function NearbyConsumerMap({
 
         const rawStatus = (consumer.disconStatus || "").trim().toLowerCase()
         const status = rawStatus || "connected"
-        const isCompleted = status === "disconnected" || status === "paid" || status === "agency paid" || status === "deemed disconnected"
-        const isPending = !isCompleted || status === "connected" || status.includes("connected") || status === "visited" || status === "not found"
+        const isPending =
+          status === "connected" ||
+          status.includes("connected") ||
+          status === "visited" ||
+          status === "not found" ||
+          status === "bill dispute" ||
+          status === "office team"
         if (filterPending && !isPending) return null
 
         return { consumer, lat, lng, dist }
