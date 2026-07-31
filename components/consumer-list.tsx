@@ -1489,29 +1489,72 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   </a>
                 )}
 
-                {(consumer.disconStatus.toLowerCase() === "paid" || consumer.disconStatus.toLowerCase() === "agency paid" || (consumer.paidAmount && Number(consumer.paidAmount) > 0)) ? (
-                  <div className="flex items-center space-x-2 bg-emerald-50/70 p-2 rounded-lg border border-emerald-100">
-                    <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-emerald-700">
-                        ₹{Number.parseFloat(consumer.paidAmount || "0").toLocaleString()}
-                      </p>
-                      <p className="text-[11px] text-emerald-600/80 font-medium">
-                        Paid Amount (OSD: ₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()})
-                      </p>
+                {(() => {
+                  const status = (consumer.disconStatus || "").toLowerCase()
+                  const paidAmt = Number.parseFloat(consumer.paidAmount || "0")
+                  const currentOsd = Number.parseFloat(consumer.d2NetOS || "0")
+                  const hasPaidRecord = status === "paid" || status === "agency paid" || paidAmt > 0
+                  
+                  if (!hasPaidRecord) {
+                    return (
+                      <div className="flex items-center space-x-2">
+                        <IndianRupee className="h-4 w-4 text-gray-400 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-red-600">
+                            ₹{currentOsd.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-gray-500">Outstanding Dues (Issued for Disconnection)</p>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  // Determine date sequence if paidDate and issue/discon date are available
+                  const paidDateObj = consumer.paidDate ? new Date(consumer.paidDate.split("-").reverse().join("-")) : null
+                  const disconDateObj = consumer.disconDate ? new Date(consumer.disconDate.split("-").reverse().join("-")) : null
+                  
+                  const isPaidAfterIssue = paidDateObj && disconDateObj ? paidDateObj.getTime() >= disconDateObj.getTime() : true
+                  const remainingPending = Math.max(0, currentOsd - paidAmt)
+
+                  return (
+                    <div className="space-y-1.5 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5">
+                          <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span className="text-sm font-extrabold text-emerald-700">
+                            Paid: ₹{paidAmt.toLocaleString()}
+                          </span>
+                        </div>
+                        {consumer.paidDate && (
+                          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                            📅 {consumer.paidDate}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] border-t border-emerald-200/60 font-medium">
+                        <div className="text-slate-600">
+                          <span className="block text-[10px] text-slate-400 uppercase">OSD</span>
+                          ₹{currentOsd.toLocaleString()}
+                        </div>
+                        <div className="text-emerald-700">
+                          <span className="block text-[10px] text-emerald-600/70 uppercase">Paid</span>
+                          ₹{paidAmt.toLocaleString()}
+                        </div>
+                        <div className={remainingPending > 0 ? "text-red-600 font-bold" : "text-emerald-700"}>
+                          <span className="block text-[10px] text-slate-400 uppercase">Pending</span>
+                          ₹{remainingPending.toLocaleString()}
+                        </div>
+                      </div>
+
+                      {!isPaidAfterIssue && (
+                        <p className="text-[10px] text-amber-700 italic pt-0.5">
+                          ⚠️ Payment was recorded before current cycle issuance. OSD reflects fresh dues.
+                        </p>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2">
-                    <IndianRupee className="h-4 w-4 text-gray-400 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-red-600">
-                        ₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500">Outstanding Dues</p>
-                    </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {consumer.osDuedateRange && (
                   <div className="flex items-center space-x-2">
