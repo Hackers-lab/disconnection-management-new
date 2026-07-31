@@ -60,8 +60,8 @@ export const MODULE_REGISTRY: Record<string, PlatformModuleManifest> = {
   safety: {
     id: "safety",
     title: "Safety Inspection",
-    sheetTab: "Safety_Tickets",
-    primaryKey: "ticketId",
+    sheetTab: "Safety_Module",
+    primaryKey: "safetyId",
     idPrefix: "SAF-",
     cacheKey: "safety_data_cache",
     permissions: ["read", "create", "update"],

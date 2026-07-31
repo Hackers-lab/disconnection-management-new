@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getFromCache, saveToCache, clearAllCache, mergePatchToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, clearAllCache, mergePatchToCache, notifyCacheUpdate } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"

@@ -64,7 +64,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.agency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.reportedDate || rec.physicalRectifiedDate || 0).getTime()
+                const recTs = new Date(rec.completionDate || rec.lastUpdated || rec.reportedDate || 0).getTime()
                 return recTs >= sinceTs
               })
               results.safety = { patchCount: modified.length, patchData: modified, tombstones: [] }

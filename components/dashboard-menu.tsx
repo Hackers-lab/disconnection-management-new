@@ -24,7 +24,7 @@ import {
   ShieldAlert
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
-import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -234,12 +234,54 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
       // Read local IndexedDB caches first for instant 0ms counts
       try {
-        const [miscCached, safetyCached] = await Promise.all([
+        let [miscCached, safetyCached] = await Promise.all([
           getFromCache<any[]>("misc_inspection_cache"),
           getFromCache<any[]>("safety_data_cache"),
         ])
 
         const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
+
+        // Fallback auto-fetch for Misc Inspection if local cache is empty
+        if (!miscCached || miscCached.length === 0) {
+          try {
+            setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
+            const res = await fetch("/api/misc-inspection")
+            if (res.ok) {
+              const freshData = await res.json()
+              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
+              if (items && Array.isArray(items)) {
+                miscCached = items
+                await saveToCache("misc_inspection_cache", items)
+                notifyCacheUpdate("misc_inspection_cache")
+              }
+            }
+          } catch (err) {
+            console.error("Auto-fetch misc inspection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
+          }
+        }
+
+        // Fallback auto-fetch for Safety Inspection if local cache is empty
+        if (!safetyCached || safetyCached.length === 0) {
+          try {
+            setLoadingModules(prev => ({ ...prev, safety: true }))
+            const res = await fetch("/api/safety/base")
+            if (res.ok) {
+              const freshData = await res.json()
+              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
+              if (items && Array.isArray(items)) {
+                safetyCached = items
+                await saveToCache("safety_data_cache", items)
+                notifyCacheUpdate("safety_data_cache")
+              }
+            }
+          } catch (err) {
+            console.error("Auto-fetch safety inspection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, safety: false }))
+          }
+        }
 
         if (miscCached && Array.isArray(miscCached)) {
           hasLocalMisc = true
