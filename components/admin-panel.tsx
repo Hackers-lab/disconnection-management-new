@@ -2521,10 +2521,10 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           <div className="flex items-start justify-between flex-wrap gap-2">
             <div>
               <h2 className="text-xl font-bold">Agency Zone Map</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <div className="text-sm text-gray-600 mt-1">
                 Map MRUs to agencies. Used during DC list upload to auto-assign agency per consumer.
                 Changes are tracked in <span className="font-mono text-xs">ZoneMapHistory</span>.
-              </p>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" disabled={resyncing || zoneMapRows.length === 0}

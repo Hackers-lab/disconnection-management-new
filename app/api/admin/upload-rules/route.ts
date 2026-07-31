@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { getRuleSetsForUser, saveRuleSet, deleteRuleSet } from "@/lib/upload-rules"
+import { withTenant } from "@/lib/tenant-context"
 
 export const dynamic = "force-dynamic"
 
 // GET - list the current admin's saved filter presets
-export async function GET() {
+export const GET = withTenant(async function GET() {
   const session = await verifySession()
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -19,10 +20,10 @@ export async function GET() {
     console.error("Error loading upload rules:", error)
     return NextResponse.json({ error: "Failed to load rules" }, { status: 500 })
   }
-}
+})
 
 // POST - create/update a named preset { name, groups }
-export async function POST(request: NextRequest) {
+export const POST = withTenant(async function POST(request: NextRequest) {
   const session = await verifySession()
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -38,10 +39,10 @@ export async function POST(request: NextRequest) {
     console.error("Error saving upload rules:", error)
     return NextResponse.json({ error: "Failed to save rules" }, { status: 500 })
   }
-}
+})
 
 // DELETE - remove a named preset (?name=)
-export async function DELETE(request: NextRequest) {
+export const DELETE = withTenant(async function DELETE(request: NextRequest) {
   const session = await verifySession()
   if (!session || session.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -57,4 +58,4 @@ export async function DELETE(request: NextRequest) {
     console.error("Error deleting upload rule:", error)
     return NextResponse.json({ error: "Failed to delete rule" }, { status: 500 })
   }
-}
+})
