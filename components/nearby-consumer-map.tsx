@@ -65,7 +65,7 @@ export function NearbyConsumerMap({
   minRange = 500,
   maxRange = 5000,
   stepRange = 500,
-  defaultFilterPending = true,
+  defaultFilterPending = false,
   isMasterMode = false
 }: Props) {
   const [range, setRange] = useState<number>(defaultRange)
@@ -149,8 +149,10 @@ export function NearbyConsumerMap({
         const dist = getDistanceMeters(userCoords[0], userCoords[1], lat, lng)
         if (dist > range) return null
 
-        const status = (consumer.disconStatus || "").toLowerCase()
-        const isPending = ["connected", "visited", "not found"].includes(status)
+        const rawStatus = (consumer.disconStatus || "").trim().toLowerCase()
+        const status = rawStatus || "connected"
+        const isCompleted = status === "disconnected" || status === "paid" || status === "agency paid" || status === "deemed disconnected"
+        const isPending = !isCompleted || status === "connected" || status.includes("connected") || status === "visited" || status === "not found"
         if (filterPending && !isPending) return null
 
         return { consumer, lat, lng, dist }
