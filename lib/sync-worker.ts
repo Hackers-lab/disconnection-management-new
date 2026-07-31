@@ -38,6 +38,7 @@ self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
     const runPoll = async () => {
       try {
         const url = `${fetchPatchUrl}${fetchPatchUrl.includes("?") ? "&" : "?"}since_ts=${lastTs || 0}`
+        console.log(`[Web Worker Engine] ⚡ Off-thread background polling for module: "${moduleKey}"`)
         const res = await fetch(url)
         if (!res.ok) return
 
@@ -46,6 +47,7 @@ self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
         const tombstones = Array.isArray(data.tombstones) ? data.tombstones : []
 
         if (patchData.length > 0 || tombstones.length > 0) {
+          console.log(`[Web Worker Engine] 📢 New patch detected off-thread for "${moduleKey}": ${patchData.length} patches, ${tombstones.length} tombstones`)
           const response: WorkerSyncResponse = {
             type: "PATCH_UPDATED",
             moduleKey,
@@ -56,6 +58,7 @@ self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
           self.postMessage(response)
         }
       } catch (err: any) {
+        console.warn(`[Web Worker Engine] ⚠️ Background sync error for "${moduleKey}":`, err.message)
         self.postMessage({
           type: "SYNC_ERROR",
           moduleKey,

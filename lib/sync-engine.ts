@@ -56,8 +56,10 @@ export class PlatformSyncEngine {
     const syncPromise = (async () => {
       try {
         const url = `${fetchPatchUrl}${fetchPatchUrl.includes("?") ? "&" : "?"}since_ts=${lastTs || 0}`
+        console.log(`[Sync Engine] 🔄 Polling Module: "${options.moduleKey}" | URL: ${url} | Last Timestamp: ${lastTs}`)
         const res = await fetch(url)
         if (!res.ok) {
+          console.warn(`[Sync Engine] ❌ HTTP Error ${res.status} fetching patch for ${options.moduleKey}`)
           return (await getFromCache<T[]>(cacheKey)) || []
         }
 
@@ -65,15 +67,19 @@ export class PlatformSyncEngine {
         const patchData = Array.isArray(data.patchData) ? data.patchData : []
         const tombstones = Array.isArray(data.tombstones) ? data.tombstones : []
 
+        console.log(`[Sync Engine] 📥 Server Response for "${options.moduleKey}": ${patchData.length} new/updated patches, ${tombstones.length} tombstones`)
+
         let existing = (await getFromCache<T[]>(cacheKey)) || []
 
         // 1. Process Tombstones (Remove deleted records from local IndexedDB cache)
         if (tombstones.length > 0) {
           const tombSet = new Set(tombstones.map((id) => String(id).trim()))
+          const prevLen = existing.length
           existing = existing.filter((item) => {
             const keyVal = String((item && item[idKey]) || "").trim()
             return !tombSet.has(keyVal)
           })
+          console.log(`[Sync Engine] 🪦 Evicted ${prevLen - existing.length} deleted tombstones from local cache for "${options.moduleKey}"`)
         }
 
         // 2. Merge incoming patch data
@@ -89,13 +95,13 @@ export class PlatformSyncEngine {
         })
 
         const merged = Array.from(map.values())
+        console.log(`[Sync Engine] ✅ Merged Total: ${merged.length} items in local cache for "${options.moduleKey}"`)
         await saveToCache(cacheKey, merged)
-        notifyCacheUpdate(cacheKey)
 
         if (onMerged) onMerged(merged)
         return merged
       } catch (error) {
-        console.warn(`Sync failed for ${cacheKey}:`, error)
+        console.warn(`[Sync Engine] ⚠️ Sync failed for ${cacheKey}:`, error)
         return (await getFromCache<T[]>(cacheKey)) || []
       } finally {
         this.activeSyncs.delete(cacheKey)

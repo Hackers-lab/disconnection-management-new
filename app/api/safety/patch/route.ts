@@ -21,7 +21,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     const modified = tickets.filter((t: any) => {
       if (isAgencyScopeRestricted(session, t.agency)) return false
       if (!sinceTs) return true
-      const recTs = new Date(t.updatedAt || t.createdAt || 0).getTime()
+      const recTs = new Date(t.lastUpdated || t.completionDate || t.noteSheetDate || t.reportedDate || 0).getTime()
       return recTs >= sinceTs
     })
 
