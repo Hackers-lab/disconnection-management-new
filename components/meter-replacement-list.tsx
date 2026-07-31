@@ -259,7 +259,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         if (tsList.length > 0) lastTs = Math.max(...tsList)
       }
 
-      if (lastTs > 0) {
+      if (lastTs > 0 && !force) {
         const merged = await PlatformSyncEngine.syncModule<MeterReplacement>({
           moduleKey: "meter-replacement",
           cacheKey: CACHE_KEY,
@@ -269,7 +269,8 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         const sorted = [...merged].reverse()
         setRecords(sorted)
       } else {
-        const res = await fetch("/api/meters/replacement")
+        const url = force ? "/api/meters/replacement?bypassCache=true" : "/api/meters/replacement"
+        const res = await fetch(url)
         if (!res.ok) throw new Error()
         const result = await res.json()
         const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
