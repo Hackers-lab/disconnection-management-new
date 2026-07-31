@@ -2135,7 +2135,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
             </div>
           </div>
           <div>
-            <p className="text-sm text-gray-600 mt-1">
+            <div className="text-sm text-gray-600 mt-1">
               Upload a CSV or Excel DC list. New IDs are inserted; existing IDs are updated.
               Consumers removed from the new list are archived to <span className="font-mono">DC_History</span>.
               Statuses like Disconnected/Paid are protected — only billing data and coordinates are updated for them.
@@ -2155,7 +2155,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                   </ul>
                 </div>
               </details>
-            </p>
+            </div>
           </div>
 
           {/* New cycle toggle */}
