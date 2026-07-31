@@ -105,8 +105,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       if (cached && cached.length > 0) {
         setRecords(cached)
         setLoading(false)
-        const tsList = cached.map(r => new Date(r.createdAt || r.inspectedAt || 0).getTime()).filter(Boolean)
-        if (tsList.length > 0) lastTs = Math.max(...tsList)
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["createdAt", "inspectedAt"])
       }
 
       if (lastTs > 0) {

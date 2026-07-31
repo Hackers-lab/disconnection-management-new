@@ -3,6 +3,7 @@ import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { fetchDTRData } from "@/lib/dtr-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { parseTs } from "@/lib/date-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -26,7 +27,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const modified = allRecords.filter((rec: any) => {
       if (isAgencyScopeRestricted(session, rec.paintingAgency || rec.agency)) return false
       if (!sinceTs) return true
-      const recTs = new Date(rec.updatedAt || rec.verifiedAt || rec.createdAt || 0).getTime()
+      const recTs = parseTs(rec.updatedAt || rec.verifiedAt || rec.createdAt || "")
       return recTs >= sinceTs
     })
 

@@ -70,8 +70,8 @@ import {
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ConsumerData } from "@/lib/google-sheets"
-import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { parseTs } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
@@ -413,11 +413,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
           console.log("[Data Sync] Row counts and versions match. Checking for patches via Sync Engine.");
           setSyncStatus('syncing');
           const currentData = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || []);
-          let lastTs = 0;
-          if (currentData.length > 0) {
-            const tsList = currentData.map(c => new Date(c.lastUpdated || (c as any).createdAt || 0).getTime()).filter(Boolean);
-            if (tsList.length > 0) lastTs = Math.max(...tsList);
-          }
+          let lastTs = PlatformSyncEngine.extractMaxTimestamp(currentData, ["lastUpdated", "createdAt"]);
           const mergedData = await PlatformSyncEngine.syncModule<ConsumerData>({
             moduleKey: "disconnection",
             cacheKey: CACHE_KEY,

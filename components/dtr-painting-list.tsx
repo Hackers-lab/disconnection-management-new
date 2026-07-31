@@ -129,8 +129,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.verifiedAt || (r as any).createdAt || 0).getTime()).filter(Boolean)
-        if (tsList.length > 0) lastTs = Math.max(...tsList)
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["verifiedAt", "createdAt"])
       }
       
       const patchUrl = lastTs ? `/api/dtr/patch?since_ts=${lastTs}` : "/api/dtr"

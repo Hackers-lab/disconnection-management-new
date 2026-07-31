@@ -1,4 +1,5 @@
 import { getFromCache, saveToCache, notifyCacheUpdate } from "./indexed-db"
+import { parseTs } from "./date-utils"
 
 export interface SyncPatchOptions<T> {
   moduleKey: string
@@ -34,7 +35,7 @@ export class PlatformSyncEngine {
       timestampFields.forEach((field) => {
         const val = rec[field]
         if (val) {
-          const ts = typeof val === "number" ? val : new Date(String(val)).getTime()
+          const ts = typeof val === "number" ? val : parseTs(String(val))
           if (!isNaN(ts) && ts > max) max = ts
         }
       })

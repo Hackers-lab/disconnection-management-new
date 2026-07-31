@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
+import { parseTs } from "@/lib/date-utils"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -397,7 +398,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             return list.filter((r: any) => {
               let effectiveStatus = r.status
               if (r.status === "door_locked") {
-                const updatedTime = new Date(r.updatedAt || r.createdAt).getTime()
+                const updatedTime = parseTs(r.updatedAt || r.createdAt || "")
                 const hrsLocked = Math.floor((now - updatedTime) / (1000 * 60 * 60))
                 if (hrsLocked >= 72) {
                   effectiveStatus = "pending"
