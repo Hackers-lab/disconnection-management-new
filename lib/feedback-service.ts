@@ -16,54 +16,6 @@ export interface FeedbackItem {
 
 const sheets = googleSheets({ version: "v4", auth })
 
-// Fallback curated sample feedbacks to showcase immediately on login screen
-const SAMPLE_FEEDBACKS: FeedbackItem[] = [
-  {
-    id: "fb-001",
-    username: "agency_joyguru",
-    name: "Joyguru Enterprise",
-    supplyOffice: "Krishnanagar CCC",
-    cccCode: "3311",
-    rating: 5,
-    comment: "The new disconnection tracking module simplified our daily site visits and photo verification. Fast and reliable!",
-    createdAt: "2026-07-28T10:30:00.000Z",
-    status: "approved",
-  },
-  {
-    id: "fb-002",
-    username: "subhajit_admin",
-    name: "Subhajit Roy",
-    supplyOffice: "Ranaghat Division",
-    cccCode: "3312",
-    rating: 5,
-    comment: "Real-time sync between field teams and division dashboard saved us hours of daily manual reporting.",
-    createdAt: "2026-07-29T14:15:00.000Z",
-    status: "approved",
-  },
-  {
-    id: "fb-003",
-    username: "tech_agency_sarkar",
-    name: "Sarkar Electricals",
-    supplyOffice: "Tehatta CCC",
-    cccCode: "3313",
-    rating: 5,
-    comment: "Meter replacement and safety ticket tracking works seamlessly offline in rural areas. Highly recommended!",
-    createdAt: "2026-07-30T16:45:00.000Z",
-    status: "approved",
-  },
-  {
-    id: "fb-004",
-    username: "debamalya_m",
-    name: "Debamalya Mukherjee",
-    supplyOffice: "Kalyani CCC",
-    cccCode: "3314",
-    rating: 5,
-    comment: "Outstanding UI with instantaneous searching across 10,000+ consumer records. Great job team!",
-    createdAt: "2026-07-31T09:20:00.000Z",
-    status: "approved",
-  },
-]
-
 let memoryFeedbacksCache: FeedbackItem[] | null = null
 let lastFetchTime = 0
 const CACHE_TTL_MS = 60_000 // 1 minute memory cache
@@ -84,9 +36,9 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
 
     const rows = (res?.data?.values || []) as string[][]
     if (rows.length < 2) {
-      memoryFeedbacksCache = SAMPLE_FEEDBACKS
+      memoryFeedbacksCache = memoryFeedbacksCache || []
       lastFetchTime = now
-      return SAMPLE_FEEDBACKS
+      return memoryFeedbacksCache
     }
 
     const headers = rows[0].map((h: string) => String(h || "").trim().toLowerCase())
@@ -122,15 +74,14 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
       })
     }
 
-    const result = parsedItems.length > 0 ? [...parsedItems, ...SAMPLE_FEEDBACKS] : SAMPLE_FEEDBACKS
-    memoryFeedbacksCache = result
+    memoryFeedbacksCache = parsedItems
     lastFetchTime = now
-    return result
+    return parsedItems
   } catch (err) {
-    console.warn("Using sample feedbacks fallback due to sheet read error:", err)
-    memoryFeedbacksCache = SAMPLE_FEEDBACKS
+    console.warn("Feedback read warning:", err)
+    memoryFeedbacksCache = memoryFeedbacksCache || []
     lastFetchTime = now
-    return SAMPLE_FEEDBACKS
+    return memoryFeedbacksCache
   }
 }
 
@@ -147,7 +98,7 @@ export async function addFeedback(
 
   // Update memory cache immediately
   if (!memoryFeedbacksCache) {
-    memoryFeedbacksCache = [newItem, ...SAMPLE_FEEDBACKS]
+    memoryFeedbacksCache = [newItem]
   } else {
     memoryFeedbacksCache = [newItem, ...memoryFeedbacksCache]
   }

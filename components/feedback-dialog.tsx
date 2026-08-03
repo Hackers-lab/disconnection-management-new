@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Star, MessageSquarePlus, Send, Loader2, CheckCircle2 } from "lucide-react"
 import {
   Dialog,
@@ -14,14 +14,44 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 
-export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
-  const [open, setOpen] = useState(false)
-  const [rating, setRating] = useState(5)
+interface FeedbackDialogProps {
+  trigger?: React.ReactNode
+  initialRating?: number
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function FeedbackDialog({
+  trigger,
+  initialRating = 5,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+}: FeedbackDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = typeof controlledOpen === "boolean"
+  const open = isControlled ? controlledOpen : internalOpen
+
+  const setOpen = (newOpen: boolean) => {
+    if (isControlled && setControlledOpen) {
+      setControlledOpen(newOpen)
+    } else {
+      setInternalOpen(newOpen)
+    }
+  }
+
+  const [rating, setRating] = useState(initialRating)
   const [hoverRating, setHoverRating] = useState(0)
   const [comment, setComment] = useState("")
+  const [suggestion, setSuggestion] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (initialRating) {
+      setRating(initialRating)
+    }
+  }, [initialRating])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,10 +66,14 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
 
     setIsSubmitting(true)
     try {
+      const fullComment = suggestion.trim()
+        ? `${comment.trim()} (Suggestion: ${suggestion.trim()})`
+        : comment.trim()
+
       const res = await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, comment }),
+        body: JSON.stringify({ rating, comment: fullComment }),
       })
 
       if (!res.ok) {
@@ -57,6 +91,7 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
         setOpen(false)
         setIsSubmitted(false)
         setComment("")
+        setSuggestion("")
         setRating(5)
       }, 2000)
     } catch (err: any) {
@@ -72,18 +107,7 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border-blue-500/30 text-blue-600 hover:text-blue-700 hover:border-blue-500"
-          >
-            <MessageSquarePlus className="w-4 h-4 text-blue-600" />
-            <span>Give Feedback</span>
-          </Button>
-        )}
-      </DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
 
       <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white shadow-2xl">
         <DialogHeader>
@@ -92,7 +116,7 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
             Share Your Experience
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Your rating and review will be featured on the login screen showcase for your supply office team!
+            Your rating and review will be featured on the login screen for your supply office!
           </DialogDescription>
         </DialogHeader>
 
@@ -100,7 +124,7 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
           <div className="py-8 text-center space-y-3">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto animate-bounce" />
             <h3 className="text-lg font-bold text-white">Thank You!</h3>
-            <p className="text-sm text-slate-300">Your review has been published successfully.</p>
+            <p className="text-sm text-slate-300">Your review has been recorded successfully.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -134,17 +158,29 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
 
             {/* Comment Area */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Your Review / Feedback</label>
+              <label className="text-xs font-semibold text-slate-300">Feedback / Review</label>
               <Textarea
-                placeholder="What do you like about the app? Any features or improvements to share?"
+                placeholder="What do you like about the app? Any thoughts to share?"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[100px] resize-none"
+                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[80px] resize-none"
                 maxLength={300}
               />
-              <div className="text-right text-[11px] text-slate-500">
-                {comment.length} / 300 characters
-              </div>
+            </div>
+
+            {/* Optional Suggestions */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
+                <span>Feature Suggestions</span>
+                <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
+              </label>
+              <Textarea
+                placeholder="Any feature suggestions or ideas for improvement?"
+                value={suggestion}
+                onChange={(e) => setSuggestion(e.target.value)}
+                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[60px] resize-none"
+                maxLength={200}
+              />
             </div>
 
             {/* Actions */}
@@ -170,7 +206,7 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    Publish Feedback
+                    Submit Feedback
                   </>
                 )}
               </Button>

@@ -1,0 +1,81 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Star, X } from "lucide-react"
+import { FeedbackDialog } from "@/components/feedback-dialog"
+
+export function FloatingRatingPill() {
+  const [isVisible, setIsVisible] = useState(true)
+  const [selectedStar, setSelectedStar] = useState<number | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  useEffect(() => {
+    try {
+      const dismissed = sessionStorage.getItem("feedback_pill_dismissed")
+      if (dismissed === "true") {
+        setIsVisible(false)
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+  }, [])
+
+  const handleDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsVisible(false)
+    try {
+      sessionStorage.setItem("feedback_pill_dismissed", "true")
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const handleStarClick = (starIndex: number) => {
+    setSelectedStar(starIndex)
+    setDialogOpen(true)
+  }
+
+  if (!isVisible) return null
+
+  return (
+    <>
+      <div className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 bg-slate-900/90 text-white px-3.5 py-2 rounded-full border border-slate-700/80 shadow-2xl backdrop-blur-md hover:border-amber-400/60 transition-all duration-300 group animate-bounce-short">
+        <span className="text-[11px] font-semibold text-slate-300 mr-1 hidden sm:inline">
+          Rate App:
+        </span>
+        
+        {/* 5 Stars Only */}
+        <div className="flex items-center gap-0.5">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              onClick={() => handleStarClick(star)}
+              className="p-1 hover:scale-125 transition-transform text-amber-400 focus:outline-none"
+              title={`Rate ${star} star${star > 1 ? "s" : ""}`}
+            >
+              <Star className="w-4 h-4 fill-amber-400 text-amber-400 shrink-0" />
+            </button>
+          ))}
+        </div>
+
+        {/* X Dismiss Button */}
+        <button
+          onClick={handleDismiss}
+          className="ml-1.5 p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          title="Close rating prompt"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Controlled Feedback Modal */}
+      {dialogOpen && (
+        <FeedbackDialog
+          initialRating={selectedStar || 5}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      )}
+    </>
+  )
+}

@@ -8,6 +8,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { ViewType } from "@/components/app-sidebar"
 import { DashboardProvider } from "@/components/dashboard-context"
 import { DashboardMenu } from "@/components/dashboard-menu" 
+import { FloatingRatingPill } from "@/components/floating-rating-pill"
 import type { ConsumerData } from "@/lib/google-sheets"
 // Heavy libraries loaded dynamically in download functions
 // import jsPDF / autoTable / XLSX — see handleDownloadConfirm, generateStatusReport, downloadPDF
@@ -1763,6 +1764,9 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Floating 5-Star Rating Pill Overlay */}
+        <FloatingRatingPill />
 
       </DashboardShell>
     </DashboardProvider>
