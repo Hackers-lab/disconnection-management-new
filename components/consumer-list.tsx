@@ -236,7 +236,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     }
     fetchBlocked()
     const timer = setInterval(fetchBlocked, 5 * 60 * 1000)
-    return () => clearInterval(timer)
+    window.addEventListener("notif-refresh", fetchBlocked)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener("notif-refresh", fetchBlocked)
+    }
   }, [userRole, agenciesKey])
 
   useEffect(() => {
