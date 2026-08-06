@@ -27,7 +27,7 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
   }
 
   try {
-    const targetSheetId = spreadsheetId || getSpreadsheetId()
+    const targetSheetId = process.env.MASTER_CONFIG_SHEET || spreadsheetId || getSpreadsheetId()
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: targetSheetId,
@@ -48,28 +48,33 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
     const officeIdx = headers.findIndex((h: string) => h.includes("office") || h.includes("supply"))
     const cccIdx = headers.findIndex((h: string) => h.includes("ccc"))
     const ratingIdx = headers.findIndex((h: string) => h.includes("rating"))
-    const commentIdx = headers.findIndex((h: string) => h.includes("comment") || h.includes("feedback"))
+    const commentIdx = headers.findIndex((h: string) => h.includes("comment") || h.includes("feedback") || h.includes("text"))
     const statusIdx = headers.findIndex((h: string) => h.includes("status"))
-    const dateIdx = headers.findIndex((h: string) => h.includes("date") || h.includes("created"))
+    const dateIdx = headers.findIndex((h: string) => h.includes("date") || h.includes("created") || h.includes("submitted"))
 
     const parsedItems: FeedbackItem[] = []
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i] || []
-      const comment = commentIdx >= 0 ? String(r[commentIdx] || "").trim() : ""
+      const comment = commentIdx >= 0 ? String(r[commentIdx] || "").trim() : String(r[4] || "").trim()
       if (!comment) continue
 
       const status = statusIdx >= 0 ? String(r[statusIdx] || "").trim().toLowerCase() : "approved"
       if (status !== "approved") continue
 
+      const username = userIdx >= 0 ? String(r[userIdx] || "").trim() : String(r[1] || "").trim()
+      const cccCode = cccIdx >= 0 ? String(r[cccIdx] || "").trim() : String(r[0] || "").trim()
+      const name = nameIdx >= 0 && r[nameIdx] ? String(r[nameIdx]) : username || cccCode || "Officer"
+      const office = officeIdx >= 0 && r[officeIdx] ? String(r[officeIdx]) : cccCode || "CCC Office"
+
       parsedItems.push({
         id: idIdx >= 0 ? String(r[idIdx] || `fb-${i}`) : `fb-${i}`,
-        username: userIdx >= 0 ? String(r[userIdx] || "user") : "user",
-        name: nameIdx >= 0 ? String(r[nameIdx] || "Officer") : "Officer",
-        supplyOffice: officeIdx >= 0 ? String(r[officeIdx] || "Supply Office") : "Supply Office",
-        cccCode: cccIdx >= 0 ? String(r[cccIdx] || "") : "",
-        rating: ratingIdx >= 0 ? Math.min(5, Math.max(1, parseInt(String(r[ratingIdx] || "5"), 10))) : 5,
+        username: username || "user",
+        name,
+        supplyOffice: office,
+        cccCode,
+        rating: ratingIdx >= 0 ? Math.min(5, Math.max(1, parseInt(String(r[ratingIdx] || "5"), 10))) : Number(r[2] || 5),
         comment,
-        createdAt: dateIdx >= 0 ? String(r[dateIdx] || new Date().toISOString()) : new Date().toISOString(),
+        createdAt: dateIdx >= 0 ? String(r[dateIdx] || new Date().toISOString()) : String(r[5] || new Date().toISOString()),
         status: "approved",
       })
     }
@@ -83,6 +88,7 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
     lastFetchTime = now
     return memoryFeedbacksCache
   }
+
 }
 
 export async function addFeedback(
