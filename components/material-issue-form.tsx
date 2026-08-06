@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Loader2, ArrowUpFromLine, Plus, Trash2, Camera, Upload, Package, AlertTriangle } from "lucide-react"
 import type { Material, MaterialStock } from "@/lib/material-types"
+import { compressAndWatermarkImage } from "@/lib/image-processor"
+
 
 function getGoogleDriveDirectLink(url: string): string {
+
   if (!url) return ""
   if (url.includes("drive.google.com")) {
     let fileId = ""
@@ -130,6 +132,19 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
     if (items.length === 0 || !recipientName.trim()) return
     setSubmitting(true)
     try {
+      let uploadPhoto = photo
+      if (photo && photo.type.startsWith("image/")) {
+        try {
+          uploadPhoto = await compressAndWatermarkImage(photo, {
+            watermarkLines: [`ISSUED TO: ${recipientName.trim().toUpperCase()}`, `DATE: ${issueDate}`],
+            maxDim: 1000,
+            targetKb: 150,
+          })
+        } catch (err) {
+          console.warn("Failed to compress photo, proceeding with original", err)
+        }
+      }
+
       const fd = new FormData()
       fd.append("items", JSON.stringify(items))
       fd.append("recipientName", recipientName)
@@ -137,11 +152,20 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
       fd.append("purpose", purpose)
       fd.append("issueDate", issueDate)
       fd.append("remarks", remarks)
-      if (photo) fd.append("photo", photo)
+      if (uploadPhoto) fd.append("photo", uploadPhoto)
 
       const res = await fetch("/api/material/issue", { method: "POST", body: fd })
-      if (!res.ok) throw new Error((await res.json()).error || "Failed to submit")
-      const result = await res.json()
+      const responseText = await res.text()
+      let result: any = null
+      try {
+        result = JSON.parse(responseText)
+      } catch {
+        // Fallback for non-JSON server response (e.g. 413 Request Entity Too Large)
+      }
+
+      if (!res.ok) {
+        throw new Error(result?.error || responseText || "Failed to submit material issue")
+      }
 
       // Reset
       setItems([])
@@ -152,11 +176,12 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
       setPhotoPreview(null)
       onSuccess(result?.issueId)
     } catch (e: any) {
-      alert(e.message)
+      alert(e.message || "Failed to submit material issue")
     } finally {
       setSubmitting(false)
     }
   }
+
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-4 md:px-6 space-y-5 pb-28 min-w-0 overflow-x-hidden bg-[#F8FAFC]">

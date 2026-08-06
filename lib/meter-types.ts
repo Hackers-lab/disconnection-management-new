@@ -51,6 +51,9 @@ export interface MeterIssue {
   address:        string
   mobile:         string
   noteSheetNo?:    string
+  dtrCode?:        string
+  zoneNo?:         string
+
   // Slow/Fast check meter fields
   existingMeterNo?:           string
   existingMeterStartReading?: string

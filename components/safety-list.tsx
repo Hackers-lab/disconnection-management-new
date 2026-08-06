@@ -20,6 +20,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
@@ -121,8 +129,10 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
 
   // Sub-tab filter: "pending_site" | "rectified" | "notesheet" | "closed" | "all"
   const [subTab, setSubTab] = useState<"pending_site" | "rectified" | "notesheet" | "closed" | "all">("pending_site")
+  const [selectedAgencyFilter, setSelectedAgencyFilter] = useState<string>("all")
 
   // Modal states
+
   const [selectedForView, setSelectedForView] = useState<SafetyTicket | null>(null)
   const [selectedForEdit, setSelectedForEdit] = useState<SafetyTicket | null>(null)
   const [confirmNoPOItem, setConfirmNoPOItem] = useState<SafetyTicket | null>(null)
@@ -198,6 +208,9 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         if (t.agency && !myAgencies.includes(t.agency.toUpperCase())) return false
       }
 
+      // Agency filter matching
+      const matchesAgency = selectedAgencyFilter === "all" || (t.agency || "").toUpperCase().trim() === selectedAgencyFilter.toUpperCase().trim()
+
       // Search matching
       const q = searchTerm.toLowerCase().trim()
       const matchesSearch = !q ||
@@ -221,12 +234,13 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         matchesTab = t.physicalStatus === "rectified" && (t.adminStatus === "po_done" || t.adminStatus === "not_required")
       }
 
-      return matchesSearch && matchesTab
+      return matchesAgency && matchesSearch && matchesTab
     })
 
     // Show last to first (newest tickets first)
     return [...list].reverse()
-  }, [tickets, searchTerm, subTab, isAdmin, userAgencies])
+  }, [tickets, searchTerm, subTab, selectedAgencyFilter, isAdmin, userAgencies])
+
 
   const itemsPerPage = viewMode === "list" ? 50 : 12
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage)
@@ -694,7 +708,25 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
             )}
           </div>
 
+          {/* Agency Filter Dropdown */}
+          {isAdmin && agenciesList.length > 0 && (
+            <Select value={selectedAgencyFilter} onValueChange={setSelectedAgencyFilter}>
+              <SelectTrigger className="h-8 text-xs font-semibold w-[140px] sm:w-[170px] bg-slate-50 border-slate-200 text-slate-700 rounded-lg shrink-0">
+                <SelectValue placeholder="All Agencies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Agencies</SelectItem>
+                {agenciesList.map(agency => (
+                  <SelectItem key={agency} value={agency}>
+                    {agency}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           {/* Export Reports Dropdown */}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-8 px-2.5 text-xs font-bold bg-slate-50 border-slate-200 text-slate-700 flex items-center gap-1 shrink-0 rounded-lg">

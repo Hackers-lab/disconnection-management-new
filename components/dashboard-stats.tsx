@@ -131,7 +131,7 @@ export function DashboardStats({ consumers, loading = false, onStatusSelect }: D
   const agencyReport: Record<string, AgencyReport> = {}
 
   filteredConsumers.forEach((consumer) => {
-    const status = consumer.disconStatus.toLowerCase()
+    const status = (consumer.disconStatus || "").toLowerCase().trim()
     const outstanding = Number.parseFloat(consumer.d2NetOS || "0")
     const agency = consumer.agency || "Unknown"
 
@@ -160,59 +160,51 @@ export function DashboardStats({ consumers, loading = false, onStatusSelect }: D
     agencyReport[agency].totalAmount += outstanding
     stats.totalOutstanding += outstanding
 
-    switch (status) {
-      case "connected":
-        stats.connected++
-        stats.connectedAmount += outstanding
-        stats.notAttended++
-        stats.notAttendedAmount += outstanding
-        agencyReport[agency].notAttended++
-        agencyReport[agency].notAttendedAmount += outstanding
-        break
-      case "agency paid":
-      case "paid": {
-        const actualPaid = consumer.paidAmount && consumer.paidAmount.trim() !== ""
-          ? Number.parseFloat(consumer.paidAmount)
-          : 0
-        stats.paid++
-        stats.paidAmount += actualPaid
-        agencyReport[agency].paid++
-        agencyReport[agency].paidAmount += actualPaid
-        break
-      }
-      case "disconnected":
-        stats.disconnected++
-        stats.disconnectedAmount += outstanding
-        agencyReport[agency].disconnected++
-        agencyReport[agency].disconnectedAmount += outstanding
-        break
-      case "office team":
-        stats.pending++
-        stats.pendingAmount += outstanding
-        stats.officeTeam++
-        stats.officeTeamAmount += outstanding
-        agencyReport[agency].officeTeam++
-        agencyReport[agency].officeTeamAmount += outstanding
-        break
-      case "bill dispute":
-        stats.billDispute++
-        stats.billDisputeAmount += outstanding
-        agencyReport[agency].billDispute++
-        agencyReport[agency].billDisputeAmount += outstanding
-        break
-      case "not found":
-        stats.notFound++
-        stats.notFoundAmount += outstanding
-        agencyReport[agency].notFound++
-        agencyReport[agency].notFoundAmount += outstanding
-        break
-      default:
-        stats.notAttended++
-        stats.notAttendedAmount += outstanding
-        agencyReport[agency].notAttended++
-        agencyReport[agency].notAttendedAmount += outstanding
+    if (status === "connected" || status === "not attended" || status === "") {
+      stats.connected++
+      stats.connectedAmount += outstanding
+      stats.notAttended++
+      stats.notAttendedAmount += outstanding
+      agencyReport[agency].notAttended++
+      agencyReport[agency].notAttendedAmount += outstanding
+    } else if (status === "paid" || status === "agency paid" || status.startsWith("paid")) {
+      const actualPaid = consumer.paidAmount && consumer.paidAmount.trim() !== ""
+        ? Number.parseFloat(consumer.paidAmount)
+        : 0
+      stats.paid++
+      stats.paidAmount += actualPaid
+      agencyReport[agency].paid++
+      agencyReport[agency].paidAmount += actualPaid
+    } else if (status === "disconnected" || status.includes("disconnection") || status.includes("disconnected")) {
+      stats.disconnected++
+      stats.disconnectedAmount += outstanding
+      agencyReport[agency].disconnected++
+      agencyReport[agency].disconnectedAmount += outstanding
+    } else if (status === "office team" || status === "pending") {
+      stats.pending++
+      stats.pendingAmount += outstanding
+      stats.officeTeam++
+      stats.officeTeamAmount += outstanding
+      agencyReport[agency].officeTeam++
+      agencyReport[agency].officeTeamAmount += outstanding
+    } else if (status === "bill dispute") {
+      stats.billDispute++
+      stats.billDisputeAmount += outstanding
+      agencyReport[agency].billDispute++
+      agencyReport[agency].billDisputeAmount += outstanding
+    } else if (status === "not found") {
+      stats.notFound++
+      stats.notFoundAmount += outstanding
+      agencyReport[agency].notFound++
+      agencyReport[agency].notFoundAmount += outstanding
+    } else {
+      stats.notAttended++
+      stats.notAttendedAmount += outstanding
+      agencyReport[agency].notAttended++
+      agencyReport[agency].notAttendedAmount += outstanding
     }
   })
+
 
   // Calculate performance and sort
   const agencyReportData = Object.values(agencyReport)

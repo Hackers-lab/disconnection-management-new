@@ -21,7 +21,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       completedBy:      `${session.role}:${session.username}`,
       remarks:          body.remarks || "",
       installationDate: body.installationDate || "",
+      dtrCode:          body.dtrCode || "",
+      zoneNo:           body.zoneNo || "",
     })
+
     return NextResponse.json({ success: true })
   } catch (e: any) {
     console.error("Complete meter error:", e)

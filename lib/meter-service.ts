@@ -37,6 +37,7 @@ const ISSUES_HEADERS = [
   "Cross Check Date 2", "Existing Meter Reading 2", "Check Meter Reading 2",
   "Calculated Diff Units", "Accuracy Percentage", "Check Meter Outcome", "Check Meter Status",
   "Old Meter Return Status", "Old Meter Return Date", "Old Meter Return Received By", "Old Meter Return Condition", "Old Meter Return Remarks",
+  "DTR Code", "Zone No"
 ]
 
 // ─── Shared cross-instance cache (Next.js Data Cache) ─────────────────────────
@@ -61,9 +62,9 @@ async function ensureTabs(id: string) {
     })
   }
 
-  // Always update header rows to guarantee all headers (including Note Sheet No at Column V) are present
+  // Always update header rows to guarantee all headers (including Note Sheet No, DTR Code, Zone No) are present
   await sheets.spreadsheets.values.update({
-    spreadsheetId: id, range: `${ISSUES_TAB}!A1:AM1`,
+    spreadsheetId: id, range: `${ISSUES_TAB}!A1:AO1`,
     valueInputOption: "RAW",
     requestBody: { values: [ISSUES_HEADERS] },
   })
@@ -130,6 +131,8 @@ function parseIssue(r: string[]): MeterIssue {
     oldMeterReturnReceivedBy:  r[36] || "",
     oldMeterReturnCondition:   (r[37] || "") as any,
     oldMeterReturnRemarks:     r[38] || "",
+    dtrCode:                   r[39] || "",
+    zoneNo:                    r[40] || "",
   }
 }
 
@@ -229,6 +232,8 @@ export async function issueMeter(req: {
   existingMeterNo?: string
   existingMeterStartReading?: string
   noteSheetNo?:  string
+  dtrCode?:      string
+  zoneNo?:       string
 }): Promise<string> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
@@ -238,14 +243,22 @@ export async function issueMeter(req: {
   if (stock[idx].condition !== "available") throw new Error("Meter is not available")
   const issueId = await nextIssueId(id)
   const today = nowDate()
+
+  // Full row payload extending to Column AO (39 & 40: DTR Code & Zone No)
+  const rowValues = [
+    issueId, today, req.purpose, req.consumerId, req.nscReceiveNo || "",
+    req.consumerName, req.agency, req.serialNo, stock[idx].typeLabel, "issued",
+    "", "", "", "", req.workOrderNo || "", "", "", req.remarks || "", "", req.address || "", req.mobile || "",
+    req.noteSheetNo || "", req.existingMeterNo || "", req.existingMeterStartReading || "",
+    "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+    req.dtrCode || "", req.zoneNo || ""
+  ]
+
   await sheets.spreadsheets.values.append({
-    spreadsheetId: id, range: `${ISSUES_TAB}!A:X`,
+    spreadsheetId: id, range: `${ISSUES_TAB}!A:AO`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [[issueId, today, req.purpose, req.consumerId, req.nscReceiveNo || "",
-        req.consumerName, req.agency, req.serialNo, stock[idx].typeLabel, "issued",
-        "", "", "", "", req.workOrderNo || "", "", "", req.remarks || "", "", req.address || "", req.mobile || "",
-        req.noteSheetNo || "", req.existingMeterNo || "", req.existingMeterStartReading || ""]],
+      values: [rowValues],
     },
   })
   await sheets.spreadsheets.values.batchUpdate({
@@ -278,6 +291,8 @@ export async function completeMeterInstallation(req: {
   completedBy:       string
   remarks?:          string
   installationDate?: string
+  dtrCode?:          string
+  zoneNo?:           string
 }): Promise<void> {
   const id = getSpreadsheetId()
   await ensureTabs(id)
@@ -286,25 +301,36 @@ export async function completeMeterInstallation(req: {
   if (issueIdx === -1) throw new Error("Issue not found")
   const row = issueIdx + 2
   const now = req.installationDate || nowDate()
+
+  const updates: any[] = [
+    { range: `${ISSUES_TAB}!J${row}`, values: [["installation_done"]] },
+    { range: `${ISSUES_TAB}!K${row}`, values: [[req.beforeImage || ""]] },
+    { range: `${ISSUES_TAB}!L${row}`, values: [[req.afterImage]] },
+    { range: `${ISSUES_TAB}!M${row}`, values: [[req.lastReading || ""]] },
+    { range: `${ISSUES_TAB}!N${row}`, values: [[req.newReading || ""]] },
+    { range: `${ISSUES_TAB}!P${row}`, values: [[now]] },
+    { range: `${ISSUES_TAB}!Q${row}`, values: [[req.completedBy]] },
+    { range: `${ISSUES_TAB}!R${row}`, values: [[req.remarks || ""]] },
+  ]
+
+  if (req.dtrCode !== undefined) {
+    updates.push({ range: `${ISSUES_TAB}!AN${row}`, values: [[req.dtrCode]] })
+  }
+  if (req.zoneNo !== undefined) {
+    updates.push({ range: `${ISSUES_TAB}!AO${row}`, values: [[req.zoneNo]] })
+  }
+
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: id,
     requestBody: {
       valueInputOption: "RAW",
-      data: [
-        { range: `${ISSUES_TAB}!J${row}`, values: [["installation_done"]] },
-        { range: `${ISSUES_TAB}!K${row}`, values: [[req.beforeImage || ""]] },
-        { range: `${ISSUES_TAB}!L${row}`, values: [[req.afterImage]] },
-        { range: `${ISSUES_TAB}!M${row}`, values: [[req.lastReading || ""]] },
-        { range: `${ISSUES_TAB}!N${row}`, values: [[req.newReading || ""]] },
-        { range: `${ISSUES_TAB}!P${row}`, values: [[now]] },
-        { range: `${ISSUES_TAB}!Q${row}`, values: [[req.completedBy]] },
-        { range: `${ISSUES_TAB}!R${row}`, values: [[req.remarks || ""]] },
-      ],
+      data: updates,
     },
   })
   invalidateMeterCache()
   await syncStatusFromIssue(req.issueId, "installation_done", issues[issueIdx].completionRef)
 }
+
 
 // ─── Admin/Executive: finalize with completionRef ────────────────────────────
 export async function finalizeMeterInstallation(req: {

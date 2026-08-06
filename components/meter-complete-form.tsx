@@ -49,6 +49,9 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
   const [afterPreview, setAfterPreview]     = useState<string | null>(null)
   const [lastReading, setLastReading]       = useState("")
   const [newReading, setNewReading]         = useState("")
+  const [dtrCode, setDtrCode]               = useState(issue.dtrCode || "")
+  const [zoneNo, setZoneNo]                 = useState(issue.zoneNo || "")
+
 
   // 3-Phase TOD readings (N, P, O, CU)
   const [lastN, setLastN]   = useState("")
@@ -212,7 +215,10 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
           newReading:       finalNewReading,
           installationDate: formattedInstDate,
           remarks:          remarks.trim(),
+          dtrCode:          dtrCode.trim(),
+          zoneNo:           zoneNo.trim(),
         }),
+
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
 
@@ -429,12 +435,37 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
             </>
           )}
 
+          {issue.purpose === "nsc" && (
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-green-900">NSC DTR Code</Label>
+                <Input
+                  value={dtrCode}
+                  onChange={e => setDtrCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. DTR-1024"
+                  className="font-mono text-xs uppercase bg-white border-green-200"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-green-900">NSC Zone / MRU No</Label>
+                <Input
+                  value={zoneNo}
+                  onChange={e => setZoneNo(e.target.value.toUpperCase())}
+                  placeholder="e.g. Z-01 / MRU-04"
+                  className="font-mono text-xs uppercase bg-white border-green-200"
+                />
+              </div>
+            </div>
+          )}
+
+
           <div className="space-y-2">
             <Label>Remarks</Label>
             <Textarea value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes..." rows={2} />
           </div>
         </CardContent>
       </Card>
+
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t z-50 flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <Button variant="outline" className="flex-1 h-12" onClick={onCancel}>Cancel</Button>

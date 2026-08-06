@@ -690,8 +690,14 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
       "connected", "disconnected", "office team", "bill dispute", "pending", "paid", "not found"
     ]
     const presentSet = new Set(pool.map(c => (c.disconStatus || "").toLowerCase().trim()).filter(Boolean))
-    return ALL_POSSIBLE_STATUSES.filter(s => presentSet.has(s))
+    return ALL_POSSIBLE_STATUSES.filter(s => {
+      if (s === "paid") {
+        return presentSet.has("paid") || presentSet.has("agency paid") || Array.from(presentSet).some(p => p.startsWith("paid"))
+      }
+      return presentSet.has(s)
+    })
   }, [scopedConsumers, filters.agency, filters.mru, filters.baseClass])
+
 
   // Available Base Classes: dynamically scoped by selected agency, MRU, status
   const availableBaseClasses = useMemo(() => {

@@ -48,7 +48,10 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
   const [consumerAddress, setConsumerAddress] = useState(prefill?.address || "")
   const [consumerMobile, setConsumerMobile]   = useState(prefill?.mobile || "")
   const [consumerDevice, setConsumerDevice]   = useState("")
+  const [dtrCode, setDtrCode]                 = useState("")
+  const [zoneNo, setZoneNo]                   = useState("")
   const [serialNo, setSerialNo]           = useState("")
+
   const [typeFilter, setTypeFilter]       = useState("all")
   const [serialSearch, setSerialSearch]   = useState("")
   const [consumerFoundInDC, setConsumerFoundInDC] = useState(!!(prefill && prefill.consumerId))
@@ -123,6 +126,8 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
     setConsumerAddress(effectiveAddress(app))
     setConsumerMobile(app.mobile)
     setConsumerDevice("")
+    if (app.mru) setZoneNo(app.mru)
+    if ((app as any).dtrCode) setDtrCode((app as any).dtrCode)
     setAgency(app.agency || agency)
     setNscSearch("")
   }
@@ -135,7 +140,10 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
     setConsumerAddress("")
     setConsumerMobile("")
     setConsumerDevice("")
+    setDtrCode("")
+    setZoneNo("")
   }
+
 
   // Lookup consumer from cache
   const lookupConsumer = async () => {
@@ -183,9 +191,9 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
     return true
   })
 
-  const handleSubmit = () => {
-    if (!serialNo)        { alert("Select a meter serial number."); return }
-    if (!agency)          { alert("Select an agency."); return }
+  const handleSubmit = async () => {
+    if (!serialNo) { alert("Please select a meter serial number."); return }
+    if (!agency)   { alert("Please select an agency."); return }
     if (purpose === "nsc" && !workOrderNo.trim()) { alert("Work Order Number is mandatory to issue NSC meter."); return }
     if (purpose !== "nsc" && !consumerId.trim()) { alert("Consumer ID is required."); return }
     if (purpose === "nsc" && !isLegacyNsc && !nscSelected) { alert("Please select an NSC application or switch to Legacy / Manual entry."); return }
@@ -215,6 +223,8 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
           agency,
           workOrderNo: workOrderNo.trim(),
           remarks,
+          dtrCode: dtrCode.trim(),
+          zoneNo: zoneNo.trim(),
           replacementId: prefill?.replacementId || ""
         }),
       })
@@ -514,8 +524,33 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
               className="font-mono text-sm"
             />
           </div>
+
+          {purpose === "nsc" && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-2">
+                <Label className="font-semibold text-xs text-green-900">NSC DTR Code (Optional)</Label>
+                <Input
+                  value={dtrCode}
+                  onChange={e => setDtrCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. DTR-1024"
+                  className="font-mono text-xs uppercase bg-white border-green-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold text-xs text-green-900">NSC Zone / MRU No (Optional)</Label>
+                <Input
+                  value={zoneNo}
+                  onChange={e => setZoneNo(e.target.value.toUpperCase())}
+                  placeholder="e.g. Z-01 / MRU-04"
+                  className="font-mono text-xs uppercase bg-white border-green-200"
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+
 
       {/* Meter selection */}
       <Card>

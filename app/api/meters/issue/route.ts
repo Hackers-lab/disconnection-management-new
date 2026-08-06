@@ -46,7 +46,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       existingMeterNo: body.existingMeterNo || body.oldDevice || "",
       existingMeterStartReading: body.existingMeterStartReading || body.lastReading || "",
       noteSheetNo:   body.noteSheetNo || "",
+      dtrCode:       body.dtrCode || "",
+      zoneNo:        body.zoneNo || "",
     })
+
     return NextResponse.json({ success: true, issueId })
   } catch (e: any) {
     console.error("Issue meter error:", e)
