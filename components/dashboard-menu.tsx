@@ -24,7 +24,8 @@ import {
   ShieldAlert
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
-import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
+import { parseTs } from "@/lib/date-utils"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -234,12 +235,54 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
       // Read local IndexedDB caches first for instant 0ms counts
       try {
-        const [miscCached, safetyCached] = await Promise.all([
+        let [miscCached, safetyCached] = await Promise.all([
           getFromCache<any[]>("misc_inspection_cache"),
           getFromCache<any[]>("safety_data_cache"),
         ])
 
         const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
+
+        // Fallback auto-fetch for Misc Inspection if local cache is empty
+        if (!miscCached || miscCached.length === 0) {
+          try {
+            setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
+            const res = await fetch("/api/misc-inspection")
+            if (res.ok) {
+              const freshData = await res.json()
+              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
+              if (items && Array.isArray(items)) {
+                miscCached = items
+                await saveToCache("misc_inspection_cache", items)
+                notifyCacheUpdate("misc_inspection_cache")
+              }
+            }
+          } catch (err) {
+            console.error("Auto-fetch misc inspection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
+          }
+        }
+
+        // Fallback auto-fetch for Safety Inspection if local cache is empty
+        if (!safetyCached || safetyCached.length === 0) {
+          try {
+            setLoadingModules(prev => ({ ...prev, safety: true }))
+            const res = await fetch("/api/safety/base")
+            if (res.ok) {
+              const freshData = await res.json()
+              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
+              if (items && Array.isArray(items)) {
+                safetyCached = items
+                await saveToCache("safety_data_cache", items)
+                notifyCacheUpdate("safety_data_cache")
+              }
+            }
+          } catch (err) {
+            console.error("Auto-fetch safety inspection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, safety: false }))
+          }
+        }
 
         if (miscCached && Array.isArray(miscCached)) {
           hasLocalMisc = true
@@ -355,7 +398,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             return list.filter((r: any) => {
               let effectiveStatus = r.status
               if (r.status === "door_locked") {
-                const updatedTime = new Date(r.updatedAt || r.createdAt).getTime()
+                const updatedTime = parseTs(r.updatedAt || r.createdAt || "")
                 const hrsLocked = Math.floor((now - updatedTime) / (1000 * 60 * 60))
                 if (hrsLocked >= 72) {
                   effectiveStatus = "pending"
@@ -542,10 +585,14 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         try {
           const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
           const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
+          let hasCache = false
           if (cachedMaster) {
             setMasterCount(parseInt(cachedMaster, 10))
+            hasCache = true
           }
-          setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+          if (!hasCache) {
+            setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+          }
           const res = await fetch("/api/system/row-count?type=master")
           if (res.ok) {
             const data = await res.json()
@@ -554,6 +601,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           }
         } catch (e) {
           console.error("Auto-fetch master count failed", e)
+        } finally {
+          setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
         }
       }
 

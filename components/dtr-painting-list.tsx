@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { DTRPaintingForm } from "@/components/dtr-painting-form"
 import { NearbyDtrMap } from "@/components/nearby-dtr-map"
 import type { DTRRecord } from "@/lib/dtr-service"
@@ -129,8 +130,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.verifiedAt || (r as any).createdAt || 0).getTime()).filter(Boolean)
-        if (tsList.length > 0) lastTs = Math.max(...tsList)
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["verifiedAt", "createdAt"])
       }
       
       const patchUrl = lastTs ? `/api/dtr/patch?since_ts=${lastTs}` : "/api/dtr"

@@ -3,6 +3,7 @@ import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { getMiscInspections } from "@/lib/misc-inspection-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { parseTs } from "@/lib/date-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -23,7 +24,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const modified = allRecords.filter((rec: any) => {
       if (isAgencyScopeRestricted(session, rec.agency)) return false
       if (!sinceTs) return true
-      const recTs = new Date(rec.updatedAt || rec.createdAt || 0).getTime()
+      const recTs = parseTs(rec.updatedAt || rec.createdAt || "")
       return recTs >= sinceTs
     })
 
@@ -35,7 +36,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       },
       {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=59",
         },
       }
     )

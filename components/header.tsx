@@ -33,6 +33,7 @@ import {
   FileCheck2,
 } from "lucide-react"
 import { useState, useEffect } from "react"
+import { FeedbackDialog } from "@/components/feedback-dialog"
 import {
   Dialog,
   DialogContent,
@@ -450,7 +451,6 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     try {
       setLoggingOut(true);
       try {
-        await clearAllCache()
         sessionStorage.clear()
         localStorage.removeItem("user_ccc_code")
         localStorage.removeItem("user_username")
@@ -933,6 +933,8 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
             {/* --- DESKTOP VIEW (Hidden on Mobile) --- */}
             <div className="hidden md:flex items-center space-x-2">
+              <FeedbackDialog />
+
               <Button
                 variant="ghost"
                 size="sm"

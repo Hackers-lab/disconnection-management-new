@@ -40,7 +40,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     return NextResponse.json(data, {
       status: 200,
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Cache-Control': 'public, max-age=10, s-maxage=30, stale-while-revalidate=59',
       },
     })
   } catch (error) {

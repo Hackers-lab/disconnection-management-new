@@ -110,9 +110,14 @@ body {
   }
 
   .animate-marquee {
-    display: inline-block;
+    display: inline-flex;
     white-space: nowrap;
-    animation: marquee 12s linear infinite;
+    animation: marquee 16s linear infinite;
+  }
+
+  .animate-marquee:hover {
+    animation-play-state: paused;
   }
 }
+
 

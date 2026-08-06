@@ -166,11 +166,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           // 3. Counts match — check for recent patches
           setSyncStatus('syncing')
           const current = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || [])
-          let lastTs = 0
-          if (current.length > 0) {
-            const tsList = current.map(c => new Date(c.disconDate || (c as any).createdAt || 0).getTime()).filter(Boolean)
-            if (tsList.length > 0) lastTs = Math.max(...tsList)
-          }
+          let lastTs = PlatformSyncEngine.extractMaxTimestamp(current, ["disconDate", "createdAt" as any])
           const merged = await PlatformSyncEngine.syncModule<DeemedVisitData>({
             moduleKey: "dd",
             cacheKey: CACHE_KEY,

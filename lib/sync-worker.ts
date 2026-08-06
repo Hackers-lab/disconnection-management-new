@@ -5,12 +5,12 @@
  */
 
 export interface WorkerSyncMessage {
-  type: "START_SYNC" | "STOP_SYNC" | "POLL_NOW"
+  type: "START_SYNC" | "STOP_SYNC" | "POLL_NOW" | "PAUSE_SYNC" | "RESUME_SYNC"
   payload?: {
     moduleKey: string
-    cacheKey: string
-    fetchPatchUrl: string
-    lastTs: number
+    cacheKey?: string
+    fetchPatchUrl?: string
+    lastTs?: number
     pollIntervalMs?: number
   }
 }
@@ -24,18 +24,37 @@ export interface WorkerSyncResponse {
 }
 
 const activeIntervals = new Map<string, number>()
+const pausedConfigs = new Map<string, NonNullable<WorkerSyncMessage["payload"]>>()
+let isPausedGlobal = false
 
 self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
   const { type, payload } = event.data
 
+  if (type === "PAUSE_SYNC") {
+    isPausedGlobal = true
+    activeIntervals.forEach((intervalId) => clearInterval(intervalId))
+    console.log("[Web Worker Engine] ⏸️ Polling paused (tab hidden)")
+    return
+  }
+
+  if (type === "RESUME_SYNC") {
+    isPausedGlobal = false
+    console.log("[Web Worker Engine] ▶️ Polling resumed (tab visible)")
+    return
+  }
+
   if (type === "START_SYNC" && payload) {
-    const { moduleKey, fetchPatchUrl, lastTs, pollIntervalMs = 30000 } = payload
+    const { moduleKey, fetchPatchUrl, lastTs, pollIntervalMs = 180000 } = payload
+    if (!fetchPatchUrl) return
+
+    pausedConfigs.set(moduleKey, payload)
 
     if (activeIntervals.has(moduleKey)) {
       clearInterval(activeIntervals.get(moduleKey))
     }
 
     const runPoll = async () => {
+      if (isPausedGlobal) return
       try {
         const url = `${fetchPatchUrl}${fetchPatchUrl.includes("?") ? "&" : "?"}since_ts=${lastTs || 0}`
         console.log(`[Web Worker Engine] ⚡ Off-thread background polling for module: "${moduleKey}"`)
@@ -67,7 +86,7 @@ self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
       }
     }
 
-    // Run initial poll immediately, then schedule recurring interval
+    // Run initial poll immediately if not paused, then schedule recurring interval
     await runPoll()
     const intervalId = self.setInterval(runPoll, pollIntervalMs) as unknown as number
     activeIntervals.set(moduleKey, intervalId)
@@ -77,5 +96,6 @@ self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
       clearInterval(activeIntervals.get(moduleKey))
       activeIntervals.delete(moduleKey)
     }
+    pausedConfigs.delete(moduleKey)
   }
 }

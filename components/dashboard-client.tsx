@@ -8,6 +8,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { ViewType } from "@/components/app-sidebar"
 import { DashboardProvider } from "@/components/dashboard-context"
 import { DashboardMenu } from "@/components/dashboard-menu" 
+import { FloatingRatingPill } from "@/components/floating-rating-pill"
 import type { ConsumerData } from "@/lib/google-sheets"
 // Heavy libraries loaded dynamically in download functions
 // import jsPDF / autoTable / XLSX — see handleDownloadConfirm, generateStatusReport, downloadPDF
@@ -32,7 +33,6 @@ const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashbo
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
-import { FeedbackFloatingButton } from "@/components/feedback-floating-button"
 
 // UI Components for the Dialog
 import { Button } from "@/components/ui/button"
@@ -1765,10 +1765,10 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
           </DialogContent>
         </Dialog>
 
-        {/* Floating Feedback Action Button */}
-        <FeedbackFloatingButton username={profileName || profileCccCode || role} />
+        {/* Floating 5-Star Rating Pill Overlay */}
+        <FloatingRatingPill />
 
       </DashboardShell>
     </DashboardProvider>
   )
-}
+}

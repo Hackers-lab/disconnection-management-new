@@ -3,6 +3,7 @@ import { fetchConsumerData } from "@/lib/google-sheets"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { checkApiPermission } from "@/lib/permissions"
+import { parseTs } from "@/lib/date-utils"
 
 export const GET = withTenant(async function GET(req: NextRequest) {
   try {
@@ -22,36 +23,23 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     if (data.length < 100) {
       return NextResponse.json(data, {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=59",
         },
       })
     }
 
-    const fortyEightHoursAgo = new Date()
-    fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48)
+    const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000)
 
     const patchData = data.filter((consumer) => {
       if (!consumer.lastUpdated) return false
-      
-      let updatedDate: Date | null = null
-      const dateStr = consumer.lastUpdated
-    
-      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-        updatedDate = new Date(dateStr)
-      } else if (/^\d{2}-\d{2}-\d{4}/.test(dateStr)) {
-        const [day, month, year] = dateStr.split(/[-/]/)
-        updatedDate = new Date(`${year}-${month}-${day}`)
-      } else {
-        updatedDate = new Date(dateStr)
-      }
-      
-      return updatedDate && !isNaN(updatedDate.getTime()) && updatedDate >= fortyEightHoursAgo
+      const ts = parseTs(consumer.lastUpdated)
+      return ts > 0 && ts >= fortyEightHoursAgo
     })
 
     return NextResponse.json(patchData, {
       status: 200,
       headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=59",
       },
     })
   } catch (error) {

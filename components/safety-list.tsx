@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getFromCache, saveToCache, clearAllCache, mergePatchToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, clearAllCache, mergePatchToCache, notifyCacheUpdate } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"
@@ -167,8 +167,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         if (cached && cached.length > 0) {
           setTickets(cached)
           setLoading(false)
-          const tsList = cached.map(t => new Date(t.reportedDate || (t as any).physicalRectifiedDate || 0).getTime()).filter(Boolean)
-          if (tsList.length > 0) lastTs = Math.max(...tsList)
+          lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["reportedDate", "physicalRectifiedDate" as any])
         }
         setSyncStatus('checking')
         if (lastTs > 0) {

@@ -18,8 +18,12 @@ export async function GET(request: Request) {
   const query = (searchParams.get("q") || "").trim().toLowerCase()
   let divPrefix = searchParams.get("division") || ""
 
-  if (!query || query.length < 2) {
-    return NextResponse.json({ results: [] })
+  if (!query || query.length < 3) {
+    return NextResponse.json({ results: [] }, {
+      headers: {
+        "Cache-Control": "public, max-age=60, s-maxage=120",
+      },
+    })
   }
 
   if (!divPrefix) {
@@ -65,7 +69,11 @@ export async function GET(request: Request) {
       })
     )
 
-    return NextResponse.json({ results: searchResults.slice(0, 50) })
+    return NextResponse.json({ results: searchResults.slice(0, 50) }, {
+      headers: {
+        "Cache-Control": "public, max-age=15, s-maxage=30, stale-while-revalidate=120",
+      },
+    })
   } catch (error: any) {
     console.error("Error in Division Search API:", error)
     return NextResponse.json({ error: error.message || "Failed to search division consumers" }, { status: 500 })

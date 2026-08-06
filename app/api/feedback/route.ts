@@ -18,7 +18,6 @@ async function getSheetsClient() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
   return googleSheets({ version: "v4", auth: auth as any })
-
 }
 
 async function ensureFeedbackTab(sheets: any) {
@@ -61,7 +60,6 @@ export async function GET(req: NextRequest) {
     })
 
     const rows = res.data.values || []
-    // Find matching feedback for the logged-in user and CCC Code
     const userFeedback = rows.find(
       (r: string[]) =>
         String(r[0] || "").trim().toUpperCase() === String(session.cccCode || "").trim().toUpperCase() &&
@@ -92,7 +90,6 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await verifySession()
-
     if (!session?.username) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -100,7 +97,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const rating = Number(body.rating || 5)
     const category = String(body.category || "General").trim()
-    const feedbackText = String(body.feedbackText || "").trim()
+    const feedbackText = String(body.feedbackText || body.comment || "").trim()
 
     if (!feedbackText) {
       return NextResponse.json({ error: "Feedback text is required" }, { status: 400 })
@@ -123,7 +120,6 @@ export async function POST(req: NextRequest) {
     const cccCode = String(session.cccCode || "SYSTEM").trim()
     const username = String(session.username).trim()
 
-    // Check if user already submitted feedback -> Update existing row
     const rowIndex = rows.findIndex(
       (r: string[]) =>
         String(r[0] || "").trim().toUpperCase() === cccCode.toUpperCase() &&

@@ -64,7 +64,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.agency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.reportedDate || rec.physicalRectifiedDate || 0).getTime()
+                const recTs = parseTs(rec.completionDate || rec.lastUpdated || rec.reportedDate || "")
                 return recTs >= sinceTs
               })
               results.safety = { patchCount: modified.length, patchData: modified, tombstones: [] }
@@ -77,7 +77,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.auditAgency) && isAgencyScopeRestricted(session, rec.paintingAgency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.verifiedAt || rec.createdAt || 0).getTime()
+                const recTs = parseTs(rec.verifiedAt || rec.createdAt || "")
                 return recTs >= sinceTs
               })
               results.dtr = { patchCount: modified.length, patchData: modified, tombstones: [] }
@@ -90,7 +90,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.agency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.createdAt || rec.inspectedAt || 0).getTime()
+                const recTs = parseTs(rec.createdAt || rec.inspectedAt || "")
                 return recTs >= sinceTs
               })
               results["misc-inspection"] = { patchCount: modified.length, patchData: modified, tombstones: [] }
@@ -103,7 +103,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.agency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.updatedAt || rec.createdAt || 0).getTime()
+                const recTs = parseTs(rec.updatedAt || rec.createdAt || "")
                 return recTs >= sinceTs
               })
               results.reconnection = { patchCount: modified.length, patchData: modified, tombstones: [] }
@@ -116,7 +116,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.agency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.disconDate || rec.createdAt || 0).getTime()
+                const recTs = parseTs(rec.disconDate || rec.createdAt || "")
                 return recTs >= sinceTs
               })
               results.dd = { patchCount: modified.length, patchData: modified, tombstones: [] }
@@ -129,7 +129,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
               const modified = all.filter((rec: any) => {
                 if (isAgencyScopeRestricted(session, rec.agency)) return false
                 if (!sinceTs) return true
-                const recTs = new Date(rec.proposedDate || 0).getTime()
+                const recTs = parseTs(rec.proposedDate || "")
                 return recTs >= sinceTs
               })
               results["meter-replacement"] = { patchCount: modified.length, patchData: modified, tombstones: [] }
@@ -148,7 +148,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
       },
       {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=59",
         },
       }
     )

@@ -27,6 +27,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { parseTs } from "@/lib/date-utils"
 // xlsx is loaded dynamically in downloadReport() to avoid bundling ~1MB upfront
 
 const CACHE_KEY = "reconnection_data_cache"
@@ -49,12 +50,9 @@ function formatTs(ts: string) {
 
 function hoursAgo(ts: string): number {
   if (!ts) return 0
-  try {
-    const [datePart, timePart] = ts.split(" ")
-    const [d, m, y] = datePart.split("-").map(Number)
-    const [h, min] = (timePart || "00:00").split(":").map(Number)
-    return (Date.now() - new Date(y, m - 1, d, h, min).getTime()) / 3_600_000
-  } catch { return 0 }
+  const parsed = parseTs(ts)
+  if (!parsed) return 0
+  return (Date.now() - parsed) / 3_600_000
 }
 
 function StatusBadge({ status, effectiveStatus }: { status: ReconnectionRequest["status"], effectiveStatus: string }) {
@@ -102,8 +100,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.updatedAt || r.createdAt || 0).getTime()).filter(Boolean)
-        if (tsList.length > 0) lastTs = Math.max(...tsList)
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["updatedAt", "createdAt"])
       }
 
       if (lastTs > 0) {
@@ -120,7 +117,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
         if (!res.ok) throw new Error()
         const result = await res.json()
         const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as ReconnectionRequest[]
-        const merged = await mergePatchToCache<ReconnectionRequest>(CACHE_KEY, patchItems, "consumerId")
+        const merged = await mergePatchToCache<ReconnectionRequest>(CACHE_KEY, patchItems, "requestId")
         const sorted = [...merged].reverse()
         setRecords(sorted)
       }

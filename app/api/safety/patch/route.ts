@@ -4,6 +4,7 @@ import { _fetchSafetyTicketsRaw } from "@/lib/safety-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { isAgencyScopeRestricted } from "@/lib/permissions"
+import { parseTs } from "@/lib/date-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +22,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     const modified = tickets.filter((t: any) => {
       if (isAgencyScopeRestricted(session, t.agency)) return false
       if (!sinceTs) return true
-      const recTs = new Date(t.lastUpdated || t.completionDate || t.noteSheetDate || t.reportedDate || 0).getTime()
+      const recTs = parseTs(t.lastUpdated || t.completionDate || t.noteSheetDate || t.reportedDate || "")
       return recTs >= sinceTs
     })
 
@@ -31,7 +32,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       patchData: modified,
       tombstones: [],
     }, {
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      headers: { "Cache-Control": "public, max-age=10, s-maxage=15, stale-while-revalidate=59" },
     })
   } catch (error: any) {
     return NextResponse.json({ patchCount: 0, patchData: [] }, { status: 500 })

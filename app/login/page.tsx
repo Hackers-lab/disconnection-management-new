@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/login-form"
+import { LoginFeedbackCarousel } from "@/components/login-feedback-carousel"
 
 export default function LoginPage() {
   return (
@@ -29,6 +30,11 @@ export default function LoginPage() {
         </div>
 
         <LoginForm />
+
+        {/* Minimal Right-to-Left Real User Feedback Ticker */}
+        <div className="pt-2">
+          <LoginFeedbackCarousel />
+        </div>
       </div>
     </div>
   )

@@ -255,8 +255,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        const tsList = cached.map(r => new Date(r.proposedDate || 0).getTime()).filter(Boolean)
-        if (tsList.length > 0) lastTs = Math.max(...tsList)
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["proposedDate"])
       }
 
       if (lastTs > 0 && !force) {

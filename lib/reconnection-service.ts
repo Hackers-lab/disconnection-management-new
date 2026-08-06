@@ -117,6 +117,14 @@ export async function createReconnectionRequest(
 ): Promise<string> {
   const id = getSpreadsheetId()
   await ensureTab(id)
+
+  // Guard against duplicate active pending requests for the same consumer
+  const all = await _fetchReconnectionDataRaw(id)
+  const existingActive = all.find(r => r.consumerId === req.consumerId && (r.status === "pending" || r.status === "door_locked"))
+  if (existingActive) {
+    return existingActive.requestId
+  }
+
   const requestId = await nextRequestId(id)
   const now = nowTs()
   await sheets.spreadsheets.values.append({
@@ -214,22 +222,48 @@ export async function getBlockedConsumerIds(agencies?: string[]): Promise<string
   const all = await fetchReconnectionData(id)
   const agenciesUpper = agencies?.map(a => a.trim().toUpperCase())
   const now = Date.now()
-  return all
-    .filter(r => {
-      if (agenciesUpper !== undefined && !agenciesUpper.includes(r.agency.trim().toUpperCase())) {
-        return false
-      }
-      if (r.status === "pending") {
-        const hrs = (now - parseTs(r.createdAt)) / 3_600_000
-        return hrs > 30
-      }
-      if (r.status === "door_locked") {
-        const hrs = (now - parseTs(r.updatedAt || r.createdAt)) / 3_600_000
-        return hrs > 144 // Moved to pending after 72h, overdue after another 72h (total 144h)
-      }
+
+  // Filter by agency scope if provided
+  const scoped = all.filter(r => {
+    if (agenciesUpper !== undefined && !agenciesUpper.includes(r.agency.trim().toUpperCase())) {
       return false
-    })
-    .map(r => r.consumerId)
+    }
+    return true
+  })
+
+  // Group by consumerId and pick the LATEST request per consumer
+  const latestByConsumer = new Map<string, ReconnectionRequest>()
+  for (const r of scoped) {
+    const existing = latestByConsumer.get(r.consumerId)
+    if (!existing) {
+      latestByConsumer.set(r.consumerId, r)
+    } else {
+      const existingTs = parseTs(existing.createdAt)
+      const currentTs = parseTs(r.createdAt)
+      if (currentTs >= existingTs) {
+        latestByConsumer.set(r.consumerId, r)
+      }
+    }
+  }
+
+  const blockedConsumerIds: string[] = []
+  latestByConsumer.forEach((r, consumerId) => {
+    if (r.status === "pending") {
+      const createdTs = parseTs(r.createdAt)
+      if (createdTs > 0) {
+        const hrs = (now - createdTs) / 3_600_000
+        if (hrs > 30) blockedConsumerIds.push(consumerId)
+      }
+    } else if (r.status === "door_locked") {
+      const updateTs = parseTs(r.updatedAt || r.createdAt)
+      if (updateTs > 0) {
+        const hrs = (now - updateTs) / 3_600_000
+        if (hrs > 144) blockedConsumerIds.push(consumerId)
+      }
+    }
+  })
+
+  return blockedConsumerIds
 }
 
 
