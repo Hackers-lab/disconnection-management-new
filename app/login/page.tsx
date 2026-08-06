@@ -17,19 +17,8 @@ export default function LoginPage() {
           </h1>
         </div>
 
-        {/* Centered Feedback & Notice Marquee Banner */}
-        <div className="w-full bg-white/80 backdrop-blur-sm border border-blue-200/80 rounded-2xl px-3.5 py-2 shadow-sm flex items-center gap-2 overflow-hidden">
-          <span className="shrink-0 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-            Notice
-          </span>
-          <div className="flex-1 overflow-hidden whitespace-nowrap relative">
-            <div className="inline-block animate-marquee text-xs font-medium text-slate-700">
-              Welcome! Send app feedback inside your profile tab after login • For technical support contact Pramod Verma: 8092273459
-            </div>
-          </div>
-        </div>
-
         <LoginForm />
+
 
         {/* Minimal Right-to-Left Real User Feedback Ticker */}
         <div className="pt-2">
