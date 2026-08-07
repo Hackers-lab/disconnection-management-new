@@ -10,13 +10,29 @@ export function FloatingRatingPill() {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
+    let isMounted = true
     try {
       const dismissed = sessionStorage.getItem("feedback_pill_dismissed")
       if (dismissed === "true") {
         setIsVisible(false)
+        return
       }
     } catch (e) {
-      // ignore storage errors
+      // ignore
+    }
+
+    // Check if user has already submitted feedback
+    fetch("/api/feedback")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.feedback && data.feedback.comment !== "") {
+          setIsVisible(false)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      isMounted = false
     }
   }, [])
 
@@ -58,6 +74,17 @@ export function FloatingRatingPill() {
           ))}
         </div>
 
+        <button
+          onClick={() => {
+            setSelectedStar(5)
+            setDialogOpen(true)
+          }}
+          className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 transition-colors ml-1 underline decoration-amber-400/40"
+          title="Click to check or update your feedback"
+        >
+          View & Edit
+        </button>
+
         {/* X Dismiss Button */}
         <button
           onClick={handleDismiss}
@@ -73,7 +100,19 @@ export function FloatingRatingPill() {
         <FeedbackDialog
           initialRating={selectedStar || 5}
           open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          onOpenChange={(openState) => {
+            setDialogOpen(openState)
+            if (!openState) {
+              fetch("/api/feedback")
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => {
+                  if (data?.feedback) {
+                    setIsVisible(false)
+                  }
+                })
+                .catch(() => {})
+            }
+          }}
         />
       )}
     </>

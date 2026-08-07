@@ -31,6 +31,8 @@ import {
   Upload,
   Loader2,
   FileCheck2,
+  Star,
+  MessageSquarePlus,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
@@ -933,7 +935,19 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
             {/* --- DESKTOP VIEW (Hidden on Mobile) --- */}
             <div className="hidden md:flex items-center space-x-2">
-              <FeedbackDialog />
+              <FeedbackDialog
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 border-amber-300/60 bg-amber-50/60 hover:bg-amber-100/80 text-amber-900 font-semibold gap-1.5 text-xs rounded-full shadow-xs transition-all"
+                    title="View & Edit Your Feedback"
+                  >
+                    <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 shrink-0" />
+                    <span>My Feedback</span>
+                  </Button>
+                }
+              />
 
               <Button
                 variant="ghost"
@@ -1375,6 +1389,14 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   )}
 
                   <DropdownMenuSeparator />
+                  <FeedbackDialog
+                    trigger={
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <MessageSquarePlus className="mr-2 h-4 w-4 text-amber-500" />
+                        <span>My Feedback & Rating</span>
+                      </DropdownMenuItem>
+                    }
+                  />
                   <DropdownMenuItem onClick={openChangePwdDialog}>
                     <KeyRound className="mr-2 h-4 w-4" />
                     <span>Change Password</span>
