@@ -47,11 +47,37 @@ export function FeedbackDialog({
   const [isSubmitted, setIsSubmitted] = useState(false)
   const { toast } = useToast()
 
+  const [hasExisting, setHasExisting] = useState(false)
+  const [isLoadingExisting, setIsLoadingExisting] = useState(false)
+
   useEffect(() => {
     if (initialRating) {
       setRating(initialRating)
     }
   }, [initialRating])
+
+  useEffect(() => {
+    if (!open) return
+    let isMounted = true
+    setIsLoadingExisting(true)
+    fetch("/api/feedback")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.feedback) {
+          if (data.feedback.rating) setRating(data.feedback.rating)
+          if (data.feedback.feedbackText) setComment(data.feedback.feedbackText)
+          setHasExisting(true)
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setIsLoadingExisting(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [open])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -113,10 +139,12 @@ export function FeedbackDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             <MessageSquarePlus className="w-5 h-5 text-indigo-400" />
-            Share Your Experience
+            {hasExisting ? "Edit Your Feedback" : "Share Your Experience"}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Your rating and review will be featured on the login screen for your supply office!
+            {hasExisting
+              ? "You can view or update your submitted rating and review below."
+              : "Your rating and review will be featured on the login screen for your supply office!"}
           </DialogDescription>
         </DialogHeader>
 

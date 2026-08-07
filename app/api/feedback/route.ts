@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const FEEDBACK_TAB = "Feedbacks"
-const HEADERS = ["CCC Code", "Username", "Rating", "Category", "Feedback Text", "Submitted At", "Updated At"]
+const HEADERS = ["ID", "Username", "Name", "Supply Office", "CCC Code", "Rating", "Comment", "Status", "CreatedAt"]
 
 async function getSheetsClient() {
   const auth = new GoogleAuth({
@@ -33,7 +33,7 @@ async function ensureFeedbackTab(sheets: any) {
     })
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${FEEDBACK_TAB}!A1:G1`,
+      range: `${FEEDBACK_TAB}!A1:I1`,
       valueInputOption: "RAW",
       requestBody: { values: [HEADERS] },
     })
@@ -56,14 +56,28 @@ export async function GET(req: NextRequest) {
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${FEEDBACK_TAB}!A2:G1000`,
+      range: `${FEEDBACK_TAB}!A1:I1000`,
     })
 
     const rows = res.data.values || []
-    const userFeedback = rows.find(
+    if (rows.length < 2) {
+      return NextResponse.json({ feedback: null })
+    }
+
+    const headerRow = rows[0].map((h: string) => String(h || "").trim().toLowerCase())
+    const idIdx = headerRow.findIndex((h) => h.includes("id")) >= 0 ? headerRow.findIndex((h) => h.includes("id")) : 0
+    const userIdx = headerRow.findIndex((h) => h.includes("user")) >= 0 ? headerRow.findIndex((h) => h.includes("user")) : 1
+    const nameIdx = headerRow.findIndex((h) => h.includes("name")) >= 0 ? headerRow.findIndex((h) => h.includes("name")) : 2
+    const officeIdx = headerRow.findIndex((h) => h.includes("office") || h.includes("supply")) >= 0 ? headerRow.findIndex((h) => h.includes("office") || h.includes("supply")) : 3
+    const cccIdx = headerRow.findIndex((h) => h.includes("ccc")) >= 0 ? headerRow.findIndex((h) => h.includes("ccc")) : 4
+    const ratingIdx = headerRow.findIndex((h) => h.includes("rating")) >= 0 ? headerRow.findIndex((h) => h.includes("rating")) : 5
+    const commentIdx = headerRow.findIndex((h) => h.includes("comment") || h.includes("text") || h.includes("feedback")) >= 0 ? headerRow.findIndex((h) => h.includes("comment") || h.includes("text") || h.includes("feedback")) : 6
+
+    const dataRows = rows.slice(1)
+    const userFeedback = dataRows.find(
       (r: string[]) =>
-        String(r[0] || "").trim().toUpperCase() === String(session.cccCode || "").trim().toUpperCase() &&
-        String(r[1] || "").trim().toLowerCase() === String(session.username || "").trim().toLowerCase()
+        String(r[userIdx] || "").trim().toLowerCase() === String(session.username || "").trim().toLowerCase() ||
+        (session.cccCode && String(r[cccIdx] || "").trim().toUpperCase() === String(session.cccCode || "").trim().toUpperCase())
     )
 
     if (!userFeedback) {
@@ -72,13 +86,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       feedback: {
-        cccCode: userFeedback[0],
-        username: userFeedback[1],
-        rating: Number(userFeedback[2] || 5),
-        category: userFeedback[3] || "General",
-        feedbackText: userFeedback[4] || "",
-        submittedAt: userFeedback[5] || "",
-        updatedAt: userFeedback[6] || userFeedback[5] || "",
+        id: userFeedback[idIdx] || "",
+        cccCode: userFeedback[cccIdx] || session.cccCode,
+        username: userFeedback[userIdx] || session.username,
+        name: userFeedback[nameIdx] || session.username,
+        supplyOffice: userFeedback[officeIdx] || session.cccCode,
+        rating: Number(userFeedback[ratingIdx] || 5),
+        category: "General",
+        feedbackText: userFeedback[commentIdx] || "",
       },
     })
   } catch (e: any) {
@@ -96,7 +111,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const rating = Number(body.rating || 5)
-    const category = String(body.category || "General").trim()
     const feedbackText = String(body.feedbackText || body.comment || "").trim()
 
     if (!feedbackText) {
@@ -112,38 +126,84 @@ export async function POST(req: NextRequest) {
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${FEEDBACK_TAB}!A2:G1000`,
+      range: `${FEEDBACK_TAB}!A1:I1000`,
     })
 
     const rows = res.data.values || []
     const now = new Date().toISOString()
-    const cccCode = String(session.cccCode || "SYSTEM").trim()
+    const cccCode = String(session.cccCode || "MAIN").trim()
     const username = String(session.username).trim()
+    const name = String((session as any).name || (session as any).agencyName || username).trim()
+    const supplyOffice = String((session as any).supplyOffice || `${cccCode} CCC`).trim()
 
-    const rowIndex = rows.findIndex(
-      (r: string[]) =>
-        String(r[0] || "").trim().toUpperCase() === cccCode.toUpperCase() &&
-        String(r[1] || "").trim().toLowerCase() === username.toLowerCase()
-    )
+    let headerRow: string[] = []
+    let idIdx = 0, userIdx = 1, nameIdx = 2, officeIdx = 3, cccIdx = 4, ratingIdx = 5, commentIdx = 6, statusIdx = 7, dateIdx = 8
+
+    if (rows.length > 0) {
+      headerRow = rows[0].map((h: string) => String(h || "").trim().toLowerCase())
+      if (headerRow.findIndex((h) => h.includes("id")) >= 0) idIdx = headerRow.findIndex((h) => h.includes("id"))
+      if (headerRow.findIndex((h) => h.includes("user")) >= 0) userIdx = headerRow.findIndex((h) => h.includes("user"))
+      if (headerRow.findIndex((h) => h.includes("name")) >= 0) nameIdx = headerRow.findIndex((h) => h.includes("name"))
+      if (headerRow.findIndex((h) => h.includes("office") || h.includes("supply")) >= 0) officeIdx = headerRow.findIndex((h) => h.includes("office") || h.includes("supply"))
+      if (headerRow.findIndex((h) => h.includes("ccc")) >= 0) cccIdx = headerRow.findIndex((h) => h.includes("ccc"))
+      if (headerRow.findIndex((h) => h.includes("rating")) >= 0) ratingIdx = headerRow.findIndex((h) => h.includes("rating"))
+      if (headerRow.findIndex((h) => h.includes("comment") || h.includes("text") || h.includes("feedback")) >= 0) commentIdx = headerRow.findIndex((h) => h.includes("comment") || h.includes("text") || h.includes("feedback"))
+      if (headerRow.findIndex((h) => h.includes("status")) >= 0) statusIdx = headerRow.findIndex((h) => h.includes("status"))
+      if (headerRow.findIndex((h) => h.includes("date") || h.includes("created") || h.includes("submitted")) >= 0) dateIdx = headerRow.findIndex((h) => h.includes("date") || h.includes("created") || h.includes("submitted"))
+    }
+
+    const dataRows = rows.slice(1)
+    const rowIndex = dataRows.findIndex((r: string[]) => {
+      const rUser = String(r[userIdx] || "").trim().toLowerCase()
+      const rCcc = String(r[cccIdx] || "").trim().toUpperCase()
+      return rUser === username.toLowerCase() || (cccCode && rCcc === cccCode.toUpperCase())
+    })
 
     if (rowIndex >= 0) {
       const sheetRowNumber = rowIndex + 2
-      const originalSubmittedAt = rows[rowIndex][5] || now
+      const existingRow = dataRows[rowIndex] || []
+      const id = existingRow[idIdx] || `fb-${Date.now()}`
+      const createdDate = existingRow[dateIdx] || now
+
+      // Construct aligned 9-column row
+      const updatedRow = new Array(9).fill("")
+      updatedRow[idIdx] = id
+      updatedRow[userIdx] = username
+      updatedRow[nameIdx] = name
+      updatedRow[officeIdx] = supplyOffice
+      updatedRow[cccIdx] = cccCode
+      updatedRow[ratingIdx] = rating
+      updatedRow[commentIdx] = feedbackText
+      updatedRow[statusIdx] = "approved"
+      updatedRow[dateIdx] = createdDate
+
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEET_ID,
-        range: `${FEEDBACK_TAB}!A${sheetRowNumber}:G${sheetRowNumber}`,
+        range: `${FEEDBACK_TAB}!A${sheetRowNumber}:I${sheetRowNumber}`,
         valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[cccCode, username, rating, category, feedbackText, originalSubmittedAt, now]],
+          values: [updatedRow],
         },
       })
     } else {
+      const id = `fb-${Date.now()}`
+      const newRow = new Array(9).fill("")
+      newRow[idIdx] = id
+      newRow[userIdx] = username
+      newRow[nameIdx] = name
+      newRow[officeIdx] = supplyOffice
+      newRow[cccIdx] = cccCode
+      newRow[ratingIdx] = rating
+      newRow[commentIdx] = feedbackText
+      newRow[statusIdx] = "approved"
+      newRow[dateIdx] = now
+
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: `${FEEDBACK_TAB}!A:G`,
+        range: `${FEEDBACK_TAB}!A:I`,
         valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[cccCode, username, rating, category, feedbackText, now, now]],
+          values: [newRow],
         },
       })
     }
