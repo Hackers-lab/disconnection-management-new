@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
             if (!tenant || !tenant.spreadsheetId) return
 
             try {
+              let client: any = getTenantSheetsClient(tenant.googleDriveRefreshToken) || masterSheets || serviceSheets
               let meta: any = null
 
               // 1. Try tenant's own decrypted OAuth token
@@ -88,8 +89,9 @@ export async function GET(request: NextRequest) {
                 try {
                   meta = await tenantSheets.spreadsheets.get({
                     spreadsheetId: tenant.spreadsheetId,
-                    fields: "sheets(properties(title,gridProperties(rowCount)))",
+                    fields: "sheets(properties(title))",
                   })
+                  client = tenantSheets
                 } catch {
                   // Fall through to master OAuth
                 }
@@ -100,8 +102,9 @@ export async function GET(request: NextRequest) {
                 try {
                   meta = await masterSheets.spreadsheets.get({
                     spreadsheetId: tenant.spreadsheetId,
-                    fields: "sheets(properties(title,gridProperties(rowCount)))",
+                    fields: "sheets(properties(title))",
                   })
+                  client = masterSheets
                 } catch {
                   // Fall through to service account
                 }
@@ -112,8 +115,9 @@ export async function GET(request: NextRequest) {
                 try {
                   meta = await serviceSheets.spreadsheets.get({
                     spreadsheetId: tenant.spreadsheetId,
-                    fields: "sheets(properties(title,gridProperties(rowCount)))",
+                    fields: "sheets(properties(title))",
                   })
+                  client = serviceSheets
                 } catch {
                   // Ignore
                 }
@@ -138,17 +142,39 @@ export async function GET(request: NextRequest) {
                 )
               )
 
+              const rangesToQuery: string[] = []
+              if (dcSheet) rangesToQuery.push(`'${dcSheet.properties?.title}'!A:A`)
+              if (zoneSheet) rangesToQuery.push(`'${zoneSheet.properties?.title}'!A:A`)
+
               let dcCount = 0
               let zoneCount = 0
 
-              if (dcSheet) {
-                const rawRows = dcSheet.properties?.gridProperties?.rowCount || 0
-                dcCount = Math.max(0, rawRows > 1 ? rawRows - 1 : rawRows)
-              }
+              if (rangesToQuery.length > 0) {
+                try {
+                  const batchRes = await client.spreadsheets.values.batchGet({
+                    spreadsheetId: tenant.spreadsheetId,
+                    ranges: rangesToQuery,
+                    majorDimension: "ROWS",
+                  })
 
-              if (zoneSheet) {
-                const rawRows = zoneSheet.properties?.gridProperties?.rowCount || 0
-                zoneCount = Math.max(0, rawRows > 1 ? rawRows - 1 : rawRows)
+                  const valueRanges = batchRes.data.valueRanges || []
+                  valueRanges.forEach((vr: any) => {
+                    const rangeName = vr.range || ""
+                    const filledRows = (vr.values || []).filter(
+                      (r: any) => r && r[0] && String(r[0]).trim() !== ""
+                    )
+                    // Subtract header row if length > 1
+                    const count = Math.max(0, filledRows.length > 1 ? filledRows.length - 1 : 0)
+
+                    if (dcSheet && rangeName.includes(dcSheet.properties?.title)) {
+                      dcCount = count
+                    } else if (zoneSheet && rangeName.includes(zoneSheet.properties?.title)) {
+                      zoneCount = count
+                    }
+                  })
+                } catch (batchErr: any) {
+                  console.error(`Batch query error for ${code}:`, batchErr?.message)
+                }
               }
 
               result[code] = { dcCount, zoneCount }
