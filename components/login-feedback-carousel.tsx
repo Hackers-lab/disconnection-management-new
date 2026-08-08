@@ -118,13 +118,15 @@ export function LoginFeedbackCarousel() {
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
             <div className="flex items-center gap-2 truncate">
               <span className="font-bold text-slate-900 text-xs truncate">
-                {currentItem.name}
+                {currentItem.name || currentItem.supplyOffice || "Disconnection Officer"}
               </span>
-              {currentItem.supplyOffice && (
-                <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 shrink-0">
-                  {currentItem.supplyOffice}
-                </span>
-              )}
+              {currentItem.supplyOffice &&
+                currentItem.name &&
+                currentItem.supplyOffice.toLowerCase() !== currentItem.name.toLowerCase() && (
+                  <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 shrink-0">
+                    {currentItem.supplyOffice}
+                  </span>
+                )}
             </div>
 
             {/* Rating Stars */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
+import { getTenantRegistry } from "@/lib/tenant-resolver"
 
 export const dynamic = "force-dynamic"
 
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!SHEET_ID) {
-      return NextResponse.json({ feedback: null })
+      return NextResponse.json({ feedback: null, hasSubmitted: false })
     }
 
     const sheets = await getSheetsClient()
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     const rows = res.data.values || []
     if (rows.length < 2) {
-      return NextResponse.json({ feedback: null })
+      return NextResponse.json({ feedback: null, hasSubmitted: false })
     }
 
     const headerRow = rows[0].map((h: string) => String(h || "").trim().toLowerCase())
@@ -81,19 +82,42 @@ export async function GET(req: NextRequest) {
     )
 
     if (!userFeedback) {
-      return NextResponse.json({ feedback: null })
+      return NextResponse.json({ feedback: null, hasSubmitted: false })
     }
 
+    const rowCccCode = String(userFeedback[cccIdx] || session.cccCode || "").trim()
+    let officialCccName = ""
+    try {
+      const registry = await getTenantRegistry()
+      officialCccName = registry[rowCccCode]?.cccName || registry[session.cccCode]?.cccName || ""
+    } catch (e) {
+      console.warn("Could not load registry for feedback GET:", e)
+    }
+
+    let resolvedOffice = String(userFeedback[officeIdx] || "").trim()
+    if (!resolvedOffice || /^\d+\s*ccc$/i.test(resolvedOffice) || /^\d+$/.test(resolvedOffice)) {
+      resolvedOffice = officialCccName || (rowCccCode ? `${rowCccCode} CCC` : "CCC Office")
+    }
+
+    let resolvedName = String(userFeedback[nameIdx] || "").trim()
+    if (!resolvedName) {
+      resolvedName = String(userFeedback[userIdx] || session.username || "Officer").trim()
+    }
+
+    const comment = String(userFeedback[commentIdx] || "").trim()
+
     return NextResponse.json({
+      hasSubmitted: !!comment,
       feedback: {
         id: userFeedback[idIdx] || "",
-        cccCode: userFeedback[cccIdx] || session.cccCode,
+        cccCode: rowCccCode,
         username: userFeedback[userIdx] || session.username,
-        name: userFeedback[nameIdx] || session.username,
-        supplyOffice: userFeedback[officeIdx] || session.cccCode,
+        name: resolvedName,
+        supplyOffice: resolvedOffice,
         rating: Number(userFeedback[ratingIdx] || 5),
         category: "General",
-        feedbackText: userFeedback[commentIdx] || "",
+        feedbackText: comment,
+        comment: comment,
       },
     })
   } catch (e: any) {
@@ -121,6 +145,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "MASTER_CONFIG_SHEET not configured" }, { status: 500 })
     }
 
+    const cccCode = String(session.cccCode || "MAIN").trim()
+    const username = String(session.username).trim()
+
+    // Resolve official CCC Name from CCC_Registry
+    let officialCccName = ""
+    try {
+      const registry = await getTenantRegistry()
+      officialCccName = registry[cccCode]?.cccName || registry[username]?.cccName || ""
+    } catch (e) {
+      console.warn("Could not load registry for feedback POST:", e)
+    }
+
+    const name = String(
+      body.name ||
+      (session as any).name ||
+      (session as any).agencyName ||
+      (username && !/^\d+$/.test(username) ? username : (officialCccName ? `${officialCccName.replace(/\s*ccc$/i, '')} Officer` : "Officer"))
+    ).trim()
+
+    let supplyOffice = String(
+      body.supplyOffice ||
+      officialCccName ||
+      (session as any).supplyOffice ||
+      (session as any).cccName ||
+      (cccCode ? `${cccCode} CCC` : "CCC Office")
+    ).trim()
+
+    // If supplyOffice was passed as code like "6612107 CCC", override with official CCC name
+    if (officialCccName && (/^\d+\s*ccc$/i.test(supplyOffice) || /^\d+$/.test(supplyOffice))) {
+      supplyOffice = officialCccName
+    }
+
     const sheets = await getSheetsClient()
     await ensureFeedbackTab(sheets)
 
@@ -131,10 +187,6 @@ export async function POST(req: NextRequest) {
 
     const rows = res.data.values || []
     const now = new Date().toISOString()
-    const cccCode = String(session.cccCode || "MAIN").trim()
-    const username = String(session.username).trim()
-    const name = String((session as any).name || (session as any).agencyName || username).trim()
-    const supplyOffice = String((session as any).supplyOffice || `${cccCode} CCC`).trim()
 
     let headerRow: string[] = []
     let idIdx = 0, userIdx = 1, nameIdx = 2, officeIdx = 3, cccIdx = 4, ratingIdx = 5, commentIdx = 6, statusIdx = 7, dateIdx = 8

@@ -17,15 +17,19 @@ import { useToast } from "@/components/ui/use-toast"
 interface FeedbackDialogProps {
   trigger?: React.ReactNode
   initialRating?: number
+  initialComment?: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onSuccess?: () => void
 }
 
 export function FeedbackDialog({
   trigger,
   initialRating = 5,
+  initialComment = "",
   open: controlledOpen,
   onOpenChange: setControlledOpen,
+  onSuccess,
 }: FeedbackDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = typeof controlledOpen === "boolean"
@@ -108,6 +112,7 @@ export function FeedbackDialog({
       }
 
       setIsSubmitted(true)
+      if (onSuccess) onSuccess()
       toast({
         title: "Feedback Submitted! 🎉",
         description: "Thank you! Your feedback will now be featured on the login screen.",
@@ -156,10 +161,15 @@ export function FeedbackDialog({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            {/* Star Rating Selection */}
+            {/* Star Rating Selection - Defaults to 5 Stars, Reducible by User */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Your Rating</label>
-              <div className="flex items-center gap-1 bg-slate-900/80 p-3 rounded-xl border border-slate-800 justify-center">
+              <div className="flex items-center justify-between px-0.5">
+                <label className="text-xs font-semibold text-slate-300">Your Rating</label>
+                <span className="text-xs font-bold text-amber-300 font-mono">
+                  {(hoverRating || rating)}.0 / 5 {rating === 5 ? "★ Excellent" : rating === 4 ? "★ Very Good" : rating === 3 ? "★ Good" : rating === 2 ? "★ Fair" : "★ Needs Improvement"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-900/80 p-3 rounded-xl border border-slate-800 justify-center">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
@@ -167,20 +177,18 @@ export function FeedbackDialog({
                     onClick={() => setRating(star)}
                     onMouseEnter={() => setHoverRating(star)}
                     onMouseLeave={() => setHoverRating(0)}
-                    className="p-1 text-amber-400 hover:scale-110 transition-transform"
+                    className="p-1 text-amber-400 hover:scale-110 transition-transform cursor-pointer focus:outline-none"
+                    title={`Select ${star} Star${star > 1 ? "s" : ""}`}
                   >
                     <Star
-                      className={`w-7 h-7 ${
+                      className={`w-7 h-7 transition-all ${
                         star <= (hoverRating || rating)
-                          ? "fill-amber-400 text-amber-400"
-                          : "text-slate-600"
+                          ? "fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]"
+                          : "text-slate-700 fill-slate-900"
                       }`}
                     />
                   </button>
                 ))}
-                <span className="ml-3 font-bold text-amber-300 font-mono text-sm">
-                  {(hoverRating || rating)}.0 / 5
-                </span>
               </div>
             </div>
 
