@@ -42,7 +42,8 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Link2,
-  Unlink
+  Unlink,
+  UserPlus
 } from "lucide-react"
 
 interface Tenant {
@@ -374,7 +375,11 @@ export function SuperuserDashboard() {
 
   let totalDcRowsCount = 0
   let totalZoneMapCount = 0
+  let activeDcTenantsCount = 0
+  let activeZoneTenantsCount = 0
   Object.values(stats).forEach(s => {
+    if ((s.dcCount || 0) > 0) activeDcTenantsCount++
+    if ((s.zoneCount || 0) > 0) activeZoneTenantsCount++
     totalDcRowsCount += s.dcCount || 0
     totalZoneMapCount += s.zoneCount || 0
   })
@@ -430,24 +435,45 @@ export function SuperuserDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => fetchStats()}
-              disabled={loadingStats}
-              className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs"
+              variant="outline"
+              onClick={() => {
+                fetchTenants()
+                fetchUsers()
+                fetchStats()
+              }}
+              className="h-8 text-xs border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-300"
             >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loadingStats ? "animate-spin text-blue-400" : ""}`} />
-              Refresh Metrics
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Refresh
             </Button>
             <Button
-              variant="ghost"
               size="sm"
-              onClick={() => logout()}
-              className="text-slate-400 hover:text-slate-100 hover:bg-slate-800 text-xs"
+              onClick={() => setShowAddTenantModal(true)}
+              className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm shadow-blue-600/20"
             >
-              <LogOut className="h-4 w-4 mr-1.5" />
-              Log Out
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Register CCC
             </Button>
+            <Button
+              size="sm"
+              onClick={() => setShowAddUserModal(true)}
+              className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm shadow-indigo-600/20"
+            >
+              <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+              Create User
+            </Button>
+            <form action={logout}>
+              <Button
+                type="submit"
+                size="sm"
+                variant="ghost"
+                className="h-8 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+              >
+                <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                Logout
+              </Button>
+            </form>
           </div>
         </div>
       </header>
@@ -456,11 +482,11 @@ export function SuperuserDashboard() {
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
         
         {/* OVERVIEW METRICS GRID */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card className="bg-slate-900/60 border-slate-800/80 backdrop-blur">
             <CardHeader className="p-3 pb-1">
               <CardTitle className="text-xs font-medium text-slate-400 flex items-center justify-between">
-                Total Supplies
+                Total CCCs
                 <Building2 className="h-4 w-4 text-blue-400" />
               </CardTitle>
             </CardHeader>
@@ -540,7 +566,7 @@ export function SuperuserDashboard() {
           <Card className="bg-slate-900/60 border-slate-800/80 backdrop-blur">
             <CardHeader className="p-3 pb-1">
               <CardTitle className="text-xs font-medium text-slate-400 flex items-center justify-between">
-                DC Rows Count
+                DC Configured
                 <Database className="h-4 w-4 text-rose-400" />
               </CardTitle>
             </CardHeader>
@@ -549,8 +575,12 @@ export function SuperuserDashboard() {
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
               ) : (
                 <div>
-                  <div className="text-2xl font-black text-rose-400">{totalDcRowsCount.toLocaleString()}</div>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Active DC Records</p>
+                  <div className="text-2xl font-black text-rose-400">
+                    {activeDcTenantsCount} <span className="text-xs text-slate-500 font-normal">/ {tenants.length}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    {tenants.length ? Math.round((activeDcTenantsCount / tenants.length) * 100) : 0}% Supplies with DC List
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -568,8 +598,12 @@ export function SuperuserDashboard() {
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
               ) : (
                 <div>
-                  <div className="text-2xl font-black text-cyan-400">{totalZoneMapCount.toLocaleString()}</div>
-                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">MRU Mappings</p>
+                  <div className="text-2xl font-black text-cyan-400">
+                    {activeZoneTenantsCount} <span className="text-xs text-slate-500 font-normal">/ {tenants.length}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    {tenants.length ? Math.round((activeZoneTenantsCount / tenants.length) * 100) : 0}% Supplies with Zone Map
+                  </p>
                 </div>
               )}
             </CardContent>

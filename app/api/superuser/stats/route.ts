@@ -36,52 +36,73 @@ export async function GET(request: NextRequest) {
     }
 
     const tenants = await getTenantRegistry()
-    const result: Record<string, { dcCount: number; zoneCount: number }> = {}
+    const result: Record<string, { dcCount: number; zoneCount: number }> = statsCache?.data
+      ? { ...statsCache.data }
+      : {}
 
-    // Initialize all registered tenants with 0
-    Object.keys(tenants).forEach(code => {
-      result[code] = { dcCount: 0, zoneCount: 0 }
+    // Initialize all registered tenants with 0 if not present
+    Object.keys(tenants).forEach((code) => {
+      if (!result[code]) {
+        result[code] = { dcCount: 0, zoneCount: 0 }
+      }
     })
 
     const targetCodes = cccCodeParam ? [cccCodeParam] : Object.keys(tenants)
 
-    // Best-effort stats fetch for linked spreadsheets
     try {
       const sheets = getSheetsClient()
-      for (const code of targetCodes) {
-        const tenant = tenants[code]
-        if (!tenant || !tenant.spreadsheetId) continue
+      const chunkSize = 12
 
-        try {
-          const meta = await sheets.spreadsheets.get({ spreadsheetId: tenant.spreadsheetId })
-          const sheetTabs = meta.data.sheets || []
+      for (let i = 0; i < targetCodes.length; i += chunkSize) {
+        const chunk = targetCodes.slice(i, i + chunkSize)
+        await Promise.allSettled(
+          chunk.map(async (code) => {
+            const tenant = tenants[code]
+            if (!tenant || !tenant.spreadsheetId) return
 
-          const dcSheet = sheetTabs.find(s => s.properties?.title === "Sheet1" || s.properties?.title === "Disconnection")
-          const zoneSheet = sheetTabs.find(s => s.properties?.title === "AgencyZoneMap")
+            try {
+              // Lightweight fetch: ONLY tab titles and rowCount metadata, NO cell data
+              const meta = await sheets.spreadsheets.get({
+                spreadsheetId: tenant.spreadsheetId,
+                fields: "sheets(properties(title,gridProperties(rowCount)))",
+              })
 
-          let dcCount = 0
-          let zoneCount = 0
+              const sheetTabs = meta.data.sheets || []
 
-          if (dcSheet) {
-            const resp = await sheets.spreadsheets.values.get({
-              spreadsheetId: tenant.spreadsheetId,
-              range: `'${dcSheet.properties?.title}'!C2:C`,
-            })
-            dcCount = (resp.data.values || []).filter(r => r && r[0] && String(r[0]).trim()).length
-          }
+              const dcSheet = sheetTabs.find((s) =>
+                /^(sheet\s*1|disconnection|dc|consumers?|consumer_master|data)$/i.test(
+                  s.properties?.title || ""
+                )
+              )
 
-          if (zoneSheet) {
-            const resp = await sheets.spreadsheets.values.get({
-              spreadsheetId: tenant.spreadsheetId,
-              range: `'${zoneSheet.properties?.title}'!A2:A`,
-            })
-            zoneCount = (resp.data.values || []).filter(r => r && r[0] && String(r[0]).trim()).length
-          }
+              const zoneSheet = sheetTabs.find((s) =>
+                /^(agencyzonemap|agency_zone_map|zonemap|zone_map|agencyzone|agency_zone|zones?)$/i.test(
+                  s.properties?.title || ""
+                )
+              )
 
-          result[code] = { dcCount, zoneCount }
-        } catch {
-          // If sheet fails or lacks permission, retain 0
-        }
+              let dcCount = 0
+              let zoneCount = 0
+
+              if (dcSheet) {
+                const rawRows = dcSheet.properties?.gridProperties?.rowCount || 0
+                dcCount = Math.max(0, rawRows > 1 ? rawRows - 1 : rawRows)
+              }
+
+              if (zoneSheet) {
+                const rawRows = zoneSheet.properties?.gridProperties?.rowCount || 0
+                zoneCount = Math.max(0, rawRows > 1 ? rawRows - 1 : rawRows)
+              }
+
+              result[code] = { dcCount, zoneCount }
+            } catch (err: any) {
+              // If single tenant sheet lacks permission or is unreachable, keep default
+              if (!result[code]) {
+                result[code] = { dcCount: 0, zoneCount: 0 }
+              }
+            }
+          })
+        )
       }
     } catch (e: any) {
       console.error("Superuser stats fetch error:", e?.message)
@@ -89,6 +110,8 @@ export async function GET(request: NextRequest) {
 
     if (!cccCodeParam) {
       statsCache = { timestamp: Date.now(), data: result }
+    } else if (statsCache) {
+      statsCache.data[cccCodeParam] = result[cccCodeParam]
     }
 
     return NextResponse.json(result)
