@@ -24,7 +24,11 @@ export async function GET(request: NextRequest) {
   }
   try {
     const tenants = await getTenantRegistry()
-    return NextResponse.json(Object.values(tenants))
+    const masterSheetId = process.env.MASTER_CONFIG_SHEET || ""
+    return NextResponse.json({
+      tenants: Object.values(tenants),
+      masterSheetId,
+    })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 })
   }
