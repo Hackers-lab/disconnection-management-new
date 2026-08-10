@@ -59,6 +59,7 @@
     "papaparse": "^5.5.3",
     "path": "latest",
     "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19",
     "react-day-picker": "latest",
     "react-dom": "^19",

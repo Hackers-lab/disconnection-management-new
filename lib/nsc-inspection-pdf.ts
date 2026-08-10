@@ -16,12 +16,69 @@ const CLASS_LABELS: Record<string, string> = {
 }
 
 /**
- * Asynchronously converts any image URL (HTTP/HTTPS/Google Drive/Data URL)
- * into a Base64 Data URL by passing remote URLs through our server-side proxy route `/api/image-proxy`.
+ * Checks if a string contains non-ASCII characters (e.g. Bengali, Hindi, Unicode symbols).
  */
-export async function fetchImageAsBase64(url: string): Promise<string | null> {
-  if (!url || typeof window === "undefined") return null
-  if (url.startsWith("data:image")) return url
+export function hasNonAscii(str: string): boolean {
+  return /[^\x00-\x7F]/.test(str)
+}
+
+/**
+ * Renders non-ASCII Unicode text (e.g. Bengaliবাংলা) onto an HTML5 Canvas using browser system fonts
+ * and returns a PNG Data URL for embedding into jsPDF.
+ */
+export function renderUnicodeTextToPng(
+  text: string,
+  fontSizePx = 22,
+  textColorHex = "#0f172a",
+  isBold = false
+): { dataUrl: string; widthMm: number; heightMm: number } | null {
+  if (!text || typeof window === "undefined") return null
+
+  try {
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return null
+
+    const fontStyle = `${isBold ? "bold " : ""}${fontSizePx}px "Noto Sans Bengali", "Kohinoor Bangla", "SolaimanLipi", "Segoe UI", sans-serif`
+    ctx.font = fontStyle
+
+    const metrics = ctx.measureText(text)
+    const padding = 6
+    const width = Math.ceil(metrics.width) + padding * 2
+    const height = Math.ceil(fontSizePx * 1.4)
+
+    canvas.width = width
+    canvas.height = height
+
+    const ctx2 = canvas.getContext("2d")
+    if (!ctx2) return null
+
+    ctx2.font = fontStyle
+    ctx2.fillStyle = textColorHex
+    ctx2.textBaseline = "middle"
+    ctx2.fillText(text, padding, height / 2)
+
+    const dataUrl = canvas.toDataURL("image/png")
+
+    // Convert canvas px to mm (72dpi equivalent scale for PDF)
+    const pxToMm = 0.264583
+    const heightMm = (fontSizePx * 1.2) * pxToMm
+    const widthMm = (width / (fontSizePx * 1.4)) * heightMm
+
+    return { dataUrl, widthMm, heightMm }
+  } catch (e) {
+    console.error("renderUnicodeTextToPng error:", e)
+    return null
+  }
+}
+
+/**
+ * Asynchronously converts any remote image or PDF attachment URL into printable Base64 Data URLs.
+ * If the URL points to a PDF document, it uses PDF.js to render PDF pages onto canvases.
+ */
+export async function fetchAttachmentAsDataUrls(url: string): Promise<string[]> {
+  if (!url || typeof window === "undefined") return []
+  if (url.startsWith("data:image")) return [url]
 
   try {
     // Route remote URLs through our server proxy to bypass CORS & Google Drive auth blocks
@@ -29,19 +86,75 @@ export async function fetchImageAsBase64(url: string): Promise<string | null> {
     const res = await fetch(proxyUrl)
     if (!res.ok) {
       console.warn(`Proxy fetch failed for ${url}: status ${res.status}`)
-      return null
+      return []
     }
 
-    const blob = await res.blob()
+    const contentType = res.headers.get("content-type") || ""
+    const arrayBuffer = await res.arrayBuffer()
+
+    // Check if attachment is a PDF Document
+    const isPdf = contentType.includes("pdf") || url.toLowerCase().includes(".pdf") || isPdfHeader(arrayBuffer)
+
+    if (isPdf) {
+      return await renderPdfPagesToDataUrls(arrayBuffer)
+    }
+
+    // Otherwise, treat as Image
     return new Promise((resolve) => {
+      const blob = new Blob([arrayBuffer], { type: contentType || "image/jpeg" })
       const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.onerror = () => resolve(null)
+      reader.onloadend = () => {
+        const result = reader.result as string
+        resolve(result ? [result] : [])
+      }
+      reader.onerror = () => resolve([])
       reader.readAsDataURL(blob)
     })
   } catch (e) {
-    console.error("fetchImageAsBase64 error:", e)
-    return null
+    console.error("fetchAttachmentAsDataUrls error:", e)
+    return []
+  }
+}
+
+function isPdfHeader(buffer: ArrayBuffer): boolean {
+  try {
+    const arr = new Uint8Array(buffer.slice(0, 5))
+    const header = String.fromCharCode(...arr)
+    return header.startsWith("%PDF-")
+  } catch {
+    return false
+  }
+}
+
+async function renderPdfPagesToDataUrls(arrayBuffer: ArrayBuffer): Promise<string[]> {
+  try {
+    const pdfjsLib = await import("pdfjs-dist")
+    // Use unpkg worker fallback
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
+
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
+    const pdfDoc = await loadingTask.promise
+    const pageImages: string[] = []
+
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum)
+      const viewport = page.getViewport({ scale: 2.0 }) // High resolution render
+
+      const canvas = document.createElement("canvas")
+      const context = canvas.getContext("2d")
+      if (!context) continue
+
+      canvas.height = viewport.height
+      canvas.width = viewport.width
+
+      await page.render({ canvasContext: context, viewport }).promise
+      pageImages.push(canvas.toDataURL("image/jpeg", 0.90))
+    }
+
+    return pageImages
+  } catch (e) {
+    console.error("Failed to render PDF pages via PDF.js:", e)
+    return []
   }
 }
 
@@ -59,12 +172,11 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // ─── Clean White Header Banner (Ink-Saving & Non-Overlapping Layout) ──────
+  // ─── Clean White Header Banner ────────────────────────────────────────────
   doc.setFillColor(255, 255, 255)
   doc.rect(0, 0, pageWidth, 30, "F")
 
-  // Top Accent Line
-  doc.setFillColor(30, 41, 59) // Dark Slate Accent
+  doc.setFillColor(30, 41, 59)
   doc.rect(14, 8, pageWidth - 28, 1, "F")
 
   doc.setTextColor(15, 23, 42)
@@ -88,13 +200,12 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.setTextColor(100, 116, 139)
   doc.text(`Date: ${app.inspectedAt || app.receivedDate || "—"}`, pageWidth - 14, 21, { align: "right" })
 
-  // Header Bottom Line
   doc.setDrawColor(226, 232, 240)
   doc.line(14, 25, pageWidth - 14, 25)
 
   let y = 32
 
-  // ─── Section 1: Applicant & Location Overview ─────────────────────────────
+  // ─── Section 1: Applicant & Location Details ──────────────────────────────
   doc.setFont("helvetica", "bold")
   doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
@@ -103,6 +214,10 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.line(14, y + 2, pageWidth - 14, y + 2)
 
   y += 5
+
+  const appNameText = app.applicantName || "—"
+  const careOfText = app.careOf || "—"
+  const addressText = app.address || "—"
 
   autoTable(doc, {
     startY: y,
@@ -117,15 +232,15 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
     },
     body: [
       [
-        "Applicant Name:", app.applicantName || "—",
+        "Applicant Name:", hasNonAscii(appNameText) ? "" : appNameText,
         "Receive No / Ref:", `${app.receiveNo || "—"}${app.officeRefNo ? ` (${app.officeRefNo})` : ""}`,
       ],
       [
-        "C/O Name:", app.careOf || "—",
+        "C/O Name:", hasNonAscii(careOfText) ? "" : careOfText,
         "Received Date:", app.receivedDate || "—",
       ],
       [
-        "Premises Address:", app.address || "—",
+        "Premises Address:", hasNonAscii(addressText) ? "" : addressText,
         "Applied Class & Phase:", `${CLASS_LABELS[app.appliedClass] || app.appliedClass || "—"} (${app.phase || "1P"})`,
       ],
       [
@@ -133,6 +248,22 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
         "Assigned Agency:", app.agency || "—",
       ],
     ],
+    didDrawCell: (data) => {
+      // Custom Canvas Image snippet rendering for Bengali / Unicode cells
+      if (data.section === "body") {
+        let textToRender = ""
+        if (data.column.index === 1 && data.row.index === 0 && hasNonAscii(appNameText)) textToRender = appNameText
+        if (data.column.index === 1 && data.row.index === 1 && hasNonAscii(careOfText)) textToRender = careOfText
+        if (data.column.index === 1 && data.row.index === 2 && hasNonAscii(addressText)) textToRender = addressText
+
+        if (textToRender) {
+          const png = renderUnicodeTextToPng(textToRender, 20, "#1e293b", true)
+          if (png) {
+            doc.addImage(png.dataUrl, "PNG", data.cell.x + 2, data.cell.y + 1, png.widthMm, png.heightMm)
+          }
+        }
+      }
+    },
   })
 
   y = (doc as any).lastAutoTable.finalY + 6
@@ -146,6 +277,8 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.line(14, y + 2, pageWidth - 14, y + 2)
 
   y += 5
+
+  const disputeText = app.dispute ? `Dispute: ${app.dispute}` : "None (No Legal Dispute)"
 
   autoTable(doc, {
     startY: y,
@@ -177,10 +310,18 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
         "DTR Total Load", app.dtrLoad ? `${app.dtrLoad} kVA` : "—",
       ],
       [
-        "Dispute Noted", app.dispute ? `Dispute: ${app.dispute}` : "None (No Legal Dispute)",
+        "Dispute Noted", hasNonAscii(disputeText) ? "" : disputeText,
         "Project Requirement", app.agencyDecision === "project_required" ? "YES (LT/HT Extension Required)" : "Direct Connection Possible",
       ],
     ],
+    didDrawCell: (data) => {
+      if (data.section === "body" && data.column.index === 1 && data.row.index === 5 && hasNonAscii(disputeText)) {
+        const png = renderUnicodeTextToPng(disputeText, 20, "#1e293b", false)
+        if (png) {
+          doc.addImage(png.dataUrl, "PNG", data.cell.x + 2.5, data.cell.y + 1.5, png.widthMm, png.heightMm)
+        }
+      }
+    },
   })
 
   y = (doc as any).lastAutoTable.finalY + 6
@@ -195,7 +336,6 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
 
   y += 6
 
-  // Clean White Outline Decision Box
   const isApproved = (app.agencyDecision || "").toLowerCase().includes("approve")
   const isRejected = (app.agencyDecision || "").toLowerCase().includes("reject")
   const isDispute = (app.agencyDecision || "").toLowerCase().includes("dispute")
@@ -214,28 +354,44 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.setFillColor(255, 255, 255)
   doc.setDrawColor(...decBorder)
   doc.setLineWidth(0.4)
-  doc.roundedRect(14, y, pageWidth - 28, 16, 1.5, 1.5, "FD")
+  doc.roundedRect(14, y, pageWidth - 28, 18, 1.5, 1.5, "FD")
 
   doc.setFont("helvetica", "bold")
   doc.setFontSize(9)
   doc.setTextColor(...decText)
   doc.text(`INSPECTION DECISION: ${(app.agencyDecision || "COMPLETED").toUpperCase()}`, 18, y + 5)
 
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.setTextColor(51, 65, 85)
   const remarksText = app.agencyRemarks ? `Remarks: ${app.agencyRemarks}` : "Remarks: Field inspection completed satisfactorily as per WBSEDCL technical guidelines."
-  const splitRemarks = doc.splitTextToSize(remarksText, pageWidth - 36)
-  doc.text(splitRemarks, 18, y + 10)
 
-  y += 22
+  if (hasNonAscii(remarksText)) {
+    // Render Bengali / Unicode remarks using Canvas PNG
+    const png = renderUnicodeTextToPng(remarksText, 20, "#334155", false)
+    if (png) {
+      doc.addImage(png.dataUrl, "PNG", 18, y + 8, Math.min(png.widthMm, pageWidth - 36), png.heightMm)
+    }
+  } else {
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(51, 65, 85)
+    const splitRemarks = doc.splitTextToSize(remarksText, pageWidth - 36)
+    doc.text(splitRemarks, 18, y + 10)
+  }
+
+  y += 24
 
   // Inspector & Timestamps
   doc.setFont("helvetica", "bold")
   doc.setFontSize(8)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Inspected By: ${app.inspectedBy || app.agency || "Authorized Agency Inspector"}`, 14, y)
-  doc.text(`Inspected At: ${app.inspectedAt || "—"}`, pageWidth / 2, y)
+  const inspectorText = `Inspected By: ${app.inspectedBy || app.agency || "Authorized Agency Inspector"}`
+  if (hasNonAscii(inspectorText)) {
+    const png = renderUnicodeTextToPng(inspectorText, 18, "#475569", true)
+    if (png) doc.addImage(png.dataUrl, "PNG", 14, y - 2, png.widthMm, png.heightMm)
+  } else {
+    doc.text(inspectorText, 14, y)
+  }
+
+  doc.text(`Inspected At: ${app.inspectedAt || "—"}`, pageWidth / 2 + 10, y)
 
   // ─── Bottom Right Agency Signature Block ──────────────────────────────────
   const sigBoxW = 75
@@ -256,7 +412,13 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.setFont("helvetica", "bold")
   doc.setFontSize(8.5)
   doc.setTextColor(30, 41, 59)
-  doc.text((app.agency || "AUTHORIZATION AGENCY").toUpperCase(), sigBoxX + 4, sigBoxY + 10)
+  const agencyNameText = (app.agency || "AUTHORIZATION AGENCY").toUpperCase()
+  if (hasNonAscii(agencyNameText)) {
+    const png = renderUnicodeTextToPng(agencyNameText, 18, "#1e293b", true)
+    if (png) doc.addImage(png.dataUrl, "PNG", sigBoxX + 4, sigBoxY + 7, png.widthMm, png.heightMm)
+  } else {
+    doc.text(agencyNameText, sigBoxX + 4, sigBoxY + 10)
+  }
 
   // Seal / Sign Line Placeholder
   doc.setDrawColor(203, 213, 225)
@@ -268,69 +430,77 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.text("Authorized Inspection Officer / Representative", sigBoxX + 4, sigBoxY + 28)
   doc.text(`Date: ${app.inspectedAt?.split(" ")[0] || app.receivedDate || "—"}`, sigBoxX + sigBoxW - 4, sigBoxY + 28, { align: "right" })
 
-  // ─── Attachments Pages ───────────────────────────────────────────────────
+  // ─── Attachments Rendering (Full Page Uncropped Images & PDF Pages) ──────
 
-  const addImagePage = async (title: string, rawUrl: string) => {
+  const addAttachmentPages = async (title: string, rawUrl: string) => {
     try {
-      const base64Img = await fetchImageAsBase64(rawUrl)
-      if (!base64Img) {
-        console.warn(`Could not load base64 image for attachment: ${title}`)
+      const dataUrls = await fetchAttachmentAsDataUrls(rawUrl)
+      if (dataUrls.length === 0) {
+        console.warn(`Could not load attachment content for: ${title}`)
         return
       }
 
-      doc.addPage()
+      for (let idx = 0; idx < dataUrls.length; idx++) {
+        const dataUrl = dataUrls[idx]
+        doc.addPage()
 
-      // Header Banner on Attachment Page
-      doc.setFillColor(255, 255, 255)
-      doc.rect(0, 0, pageWidth, 22, "F")
+        // Header Banner on Attachment Page
+        doc.setFillColor(255, 255, 255)
+        doc.rect(0, 0, pageWidth, 22, "F")
 
-      doc.setTextColor(15, 23, 42)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.text(title.toUpperCase(), 14, 14)
+        doc.setTextColor(15, 23, 42)
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        const pageSuffix = dataUrls.length > 1 ? ` (Page ${idx + 1}/${dataUrls.length})` : ""
+        doc.text(`${title.toUpperCase()}${pageSuffix}`, 14, 14)
 
-      doc.setFontSize(8)
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(100, 116, 139)
-      doc.text(`Receive No: ${app.receiveNo}`, pageWidth - 14, 14, { align: "right" })
+        doc.setFontSize(8)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(100, 116, 139)
+        doc.text(`Receive No: ${app.receiveNo}`, pageWidth - 14, 14, { align: "right" })
 
-      doc.setDrawColor(226, 232, 240)
-      doc.line(14, 18, pageWidth - 14, 18)
+        doc.setDrawColor(226, 232, 240)
+        doc.line(14, 18, pageWidth - 14, 18)
 
-      const imgX = 14
-      const imgY = 24
-      const maxImgW = pageWidth - 28 // 182mm
-      const maxImgH = pageHeight - 38 // 259mm
+        // Full Page Bounds without cropping
+        const imgX = 14
+        const imgY = 22
+        const maxImgW = pageWidth - 28 // 182mm
+        const maxImgH = pageHeight - 32 // 265mm
 
-      let imgW = maxImgW
-      let imgH = maxImgH
+        let imgW = maxImgW
+        let imgH = maxImgH
 
-      try {
-        const tempImg = new Image()
-        tempImg.src = base64Img
-        if (tempImg.width && tempImg.height) {
-          const ratio = tempImg.height / tempImg.width
-          if (ratio * imgW <= maxImgH) {
-            imgH = ratio * imgW
-          } else {
-            imgW = maxImgH / ratio
+        try {
+          const tempImg = new Image()
+          tempImg.src = dataUrl
+          if (tempImg.width && tempImg.height) {
+            const ratio = tempImg.height / tempImg.width
+            if (ratio * maxImgW <= maxImgH) {
+              imgW = maxImgW
+              imgH = ratio * maxImgW
+            } else {
+              imgH = maxImgH
+              imgW = maxImgH / ratio
+            }
           }
-        }
-      } catch {}
+        } catch {}
 
-      const posX = imgX + (maxImgW - imgW) / 2
-      const posY = imgY + (maxImgH - imgH) / 2
+        // Center the full uncropped image on page
+        const posX = imgX + (maxImgW - imgW) / 2
+        const posY = imgY + (maxImgH - imgH) / 2
 
-      doc.addImage(base64Img, "JPEG", posX, posY, imgW, imgH, undefined, "FAST")
+        doc.addImage(dataUrl, "JPEG", posX, posY, imgW, imgH, undefined, "FAST")
+      }
     } catch (e) {
       console.error(`Error embedding attachment "${title}":`, e)
     }
   }
 
-  // 1. Straightened / Original Inspection Form
+  // 1. Full Uncropped Inspection Form
   const inspectionFormToEmbed = straightenedInspectionFormBase64 || app.inspectionFormImg
   if (includeInspectionForm && inspectionFormToEmbed) {
-    await addImagePage(
+    await addAttachmentPages(
       straightenedInspectionFormBase64
         ? "Attachment: Inspection Form (Auto-Straightened A4)"
         : "Attachment: Field Inspection Form Document",
@@ -338,21 +508,21 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
     )
   }
 
-  // 2. Application Booklet
+  // 2. Application Booklet (Supports both PDF files & Images)
   if (includeBooklet && app.applicationFormUrl) {
-    await addImagePage("Attachment: Application Booklet Document", app.applicationFormUrl)
+    await addAttachmentPages("Attachment: Application Booklet Document", app.applicationFormUrl)
   }
 
   // 3. Site & Meter Photos
   if (includeSitePhotos) {
     if (app.siteImg) {
-      await addImagePage("Attachment: Field Site Inspection Photo", app.siteImg)
+      await addAttachmentPages("Attachment: Field Site Inspection Photo", app.siteImg)
     }
     if (app.existingMeterImg) {
-      await addImagePage("Attachment: Existing Consumer Meter Photo", app.existingMeterImg)
+      await addAttachmentPages("Attachment: Existing Consumer Meter Photo", app.existingMeterImg)
     }
     if (app.poleDrawingImg) {
-      await addImagePage("Attachment: Pole Route & Technical Sketch", app.poleDrawingImg)
+      await addAttachmentPages("Attachment: Pole Route & Technical Sketch", app.poleDrawingImg)
     }
   }
 

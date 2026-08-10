@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { FileText, Download, Loader2, Sparkles, CheckCircle2 } from "lucide-react"
 import type { NSCApplication } from "@/lib/nsc-types"
-import { generateNSCInspectionReportPDF, fetchImageAsBase64 } from "@/lib/nsc-inspection-pdf"
+import { generateNSCInspectionReportPDF, fetchAttachmentAsDataUrls } from "@/lib/nsc-inspection-pdf"
 import { detectDocumentCorners, warpPerspective } from "@/lib/document-scanner"
 
 interface NscReportDownloadModalProps {
@@ -23,7 +23,7 @@ export function NscReportDownloadModal({
   // Checkboxes UNTICKED by default as requested
   const [includeBooklet, setIncludeBooklet] = useState(false)
   const [includeInspectionForm, setIncludeInspectionForm] = useState(false)
-  const [autoStraightenForm, setAutoStraightenForm] = useState(true)
+  const [autoStraightenForm, setAutoStraightenForm] = useState(false) // Default false for FULL uncropped image
   const [includeSitePhotos, setIncludeSitePhotos] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [progressMsg, setProgressMsg] = useState("")
@@ -41,12 +41,13 @@ export function NscReportDownloadModal({
     try {
       let straightenedBase64: string | null = null
 
-      // Client-side auto-straightening for uploaded Inspection Form Image
+      // Optional client-side perspective warping (only if user explicitly opts in)
       if (includeInspectionForm && autoStraightenForm && app.inspectionFormImg) {
-        setProgressMsg("Auto-detecting paper borders & straightening Inspection Form...")
+        setProgressMsg("Straightening Inspection Form image...")
         try {
-          const rawBase64 = await fetchImageAsBase64(app.inspectionFormImg)
-          if (rawBase64) {
+          const rawBase64List = await fetchAttachmentAsDataUrls(app.inspectionFormImg)
+          if (rawBase64List.length > 0) {
+            const rawBase64 = rawBase64List[0]
             straightenedBase64 = await new Promise<string | null>((resolve) => {
               const img = new Image()
               img.crossOrigin = "anonymous"
@@ -73,11 +74,11 @@ export function NscReportDownloadModal({
             })
           }
         } catch (e) {
-          console.error("Auto-straightening failed, falling back to raw image:", e)
+          console.error("Auto-straightening failed, falling back to full uncropped image:", e)
         }
       }
 
-      setProgressMsg("Building PDF with Agency Signature Block & Attachments...")
+      setProgressMsg("Building PDF with Attachments & Bengali Unicode rendering...")
 
       await generateNSCInspectionReportPDF({
         app,
@@ -127,11 +128,11 @@ export function NscReportDownloadModal({
               />
               <div className="space-y-0.5">
                 <label htmlFor="inc-form" className="text-xs font-bold text-slate-800 cursor-pointer flex items-center gap-1.5">
-                  Field Inspection Form Image
+                  Field Inspection Form Document
                   {!hasInspectionForm && <span className="text-[10px] text-amber-600 font-semibold">(Not Uploaded)</span>}
                 </label>
                 <p className="text-[11px] text-slate-500">
-                  Includes the agency inspector&apos;s physical form submission.
+                  Includes the full uncropped physical inspection form submission.
                 </p>
               </div>
             </div>
@@ -146,7 +147,7 @@ export function NscReportDownloadModal({
                 />
                 <label htmlFor="auto-straighten" className="text-[11px] font-semibold text-indigo-700 cursor-pointer flex items-center gap-1">
                   <Sparkles className="h-3 w-3 text-indigo-500" />
-                  Auto-crop & straighten paper to A4 format (Client-side)
+                  Auto-crop & straighten paper frame (Optional)
                 </label>
               </div>
             )}
@@ -163,11 +164,11 @@ export function NscReportDownloadModal({
             />
             <div className="space-y-0.5">
               <label htmlFor="inc-booklet" className="text-xs font-bold text-slate-800 cursor-pointer flex items-center gap-1.5">
-                NSC Application Booklet Scan
+                NSC Application Booklet (PDF / Image)
                 {!hasBooklet && <span className="text-[10px] text-amber-600 font-semibold">(Not Uploaded)</span>}
               </label>
               <p className="text-[11px] text-slate-500">
-                Appends applicant&apos;s original scanned booklet pages.
+                Appends applicant&apos;s scanned booklet pages (supports both PDF documents & images).
               </p>
             </div>
           </div>
