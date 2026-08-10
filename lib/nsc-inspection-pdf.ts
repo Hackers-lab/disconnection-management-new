@@ -442,11 +442,35 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
 
       for (let idx = 0; idx < dataUrls.length; idx++) {
         const dataUrl = dataUrls[idx]
-        doc.addPage()
+
+        // Load image to determine natural orientation & aspect ratio
+        let isLandscape = false
+        let naturalW = 1000
+        let naturalH = 1414
+
+        try {
+          await new Promise<void>((resolve) => {
+            const img = new Image()
+            img.onload = () => {
+              naturalW = img.width || 1000
+              naturalH = img.height || 1414
+              isLandscape = naturalW > naturalH
+              resolve()
+            }
+            img.onerror = () => resolve()
+            img.src = dataUrl
+          })
+        } catch {}
+
+        // Dynamically set page orientation (landscape vs portrait) based on image aspect ratio
+        doc.addPage("a4", isLandscape ? "landscape" : "portrait")
+
+        const curPageW = doc.internal.pageSize.getWidth()
+        const curPageH = doc.internal.pageSize.getHeight()
 
         // Header Banner on Attachment Page
         doc.setFillColor(255, 255, 255)
-        doc.rect(0, 0, pageWidth, 22, "F")
+        doc.rect(0, 0, curPageW, 22, "F")
 
         doc.setTextColor(15, 23, 42)
         doc.setFont("helvetica", "bold")
@@ -457,36 +481,30 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
         doc.setFontSize(8)
         doc.setFont("helvetica", "normal")
         doc.setTextColor(100, 116, 139)
-        doc.text(`Receive No: ${app.receiveNo}`, pageWidth - 14, 14, { align: "right" })
+        doc.text(`Receive No: ${app.receiveNo}`, curPageW - 14, 14, { align: "right" })
 
         doc.setDrawColor(226, 232, 240)
-        doc.line(14, 18, pageWidth - 14, 18)
+        doc.line(14, 18, curPageW - 14, 18)
 
-        // Full Page Bounds without cropping
+        // Full Page Bounds with exact aspect ratio scaling (No Squeezing)
         const imgX = 14
         const imgY = 22
-        const maxImgW = pageWidth - 28 // 182mm
-        const maxImgH = pageHeight - 32 // 265mm
+        const maxImgW = curPageW - 28
+        const maxImgH = curPageH - 32
 
         let imgW = maxImgW
         let imgH = maxImgH
 
-        try {
-          const tempImg = new Image()
-          tempImg.src = dataUrl
-          if (tempImg.width && tempImg.height) {
-            const ratio = tempImg.height / tempImg.width
-            if (ratio * maxImgW <= maxImgH) {
-              imgW = maxImgW
-              imgH = ratio * maxImgW
-            } else {
-              imgH = maxImgH
-              imgW = maxImgH / ratio
-            }
-          }
-        } catch {}
+        const ratio = naturalH / naturalW
+        if (ratio * maxImgW <= maxImgH) {
+          imgW = maxImgW
+          imgH = ratio * maxImgW
+        } else {
+          imgH = maxImgH
+          imgW = maxImgH / ratio
+        }
 
-        // Center the full uncropped image on page
+        // Center image on the page
         const posX = imgX + (maxImgW - imgW) / 2
         const posY = imgY + (maxImgH - imgH) / 2
 
