@@ -97,7 +97,7 @@ const NSC_FIELD_MAP: Record<keyof NSCApplication, string[]> = {
 // Read paths use the cached wrapper; write paths use the raw fetch so row
 // positions / next receive numbers are always computed against live data.
 const NSC_TAG = "nsc"
-const NSC_REVALIDATE_S = 30 * 24 * 60 * 60 // 30 days — write-invalidated infinite cache
+const NSC_REVALIDATE_S = 30 // 30 seconds cache TTL for live sheet sync
 let tabReady = false
 
 export function invalidateNSCCache() { revalidateTag(NSC_TAG) }
@@ -185,16 +185,19 @@ function parseRow(r: string[], headers: string[]): NSCApplication {
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
-async function _fetchApplicationsRaw(spreadsheetId: string): Promise<NSCApplication[]> {
+export async function fetchApplicationsRaw(spreadsheetId: string): Promise<NSCApplication[]> {
   const headers = await ensureHeaders(spreadsheetId, NSC_TAB, NSC_HEADERS)
   const lastColLetter = colLetter(headers.length - 1)
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${NSC_TAB}!A:${lastColLetter}` })
-  return (res.data.values || []).slice(1).filter(r => r[0]).map(r => parseRow(r.map(String), headers))
+  return (res.data.values || [])
+    .slice(1)
+    .filter(r => r && r.some(cell => cell && String(cell).trim().length > 0))
+    .map(r => parseRow(r.map(String), headers))
 }
 
 // Cached read for list/count endpoints (notifications, GET).
 export const fetchApplications = unstable_cache(
-  async (spreadsheetId: string) => _fetchApplicationsRaw(spreadsheetId),
+  async (spreadsheetId: string) => fetchApplicationsRaw(spreadsheetId),
   ["nsc-data"],
   { revalidate: NSC_REVALIDATE_S, tags: [NSC_TAG] },
 )
