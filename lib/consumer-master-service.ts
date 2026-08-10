@@ -3,6 +3,8 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { unstable_cache, revalidateTag } from "next/cache"
 import { auth } from "./google-drive"
 import { getSpreadsheetId } from "./google-sheets-api"
+import { db } from "./db"
+import { getTenantContext } from "./tenant-context"
 
 const sheets = googleSheets({ version: "v4", auth })
 
@@ -82,6 +84,40 @@ export async function fetchMasterData(spreadsheetId: string): Promise<ConsumerMa
     return cached.data
   }
 
+  // Try Turso SQL Database primary read
+  try {
+    const context = getTenantContext()
+    const cccCode = context?.cccCode || "6612107"
+    const res = await db.execute({
+      sql: `SELECT consumer_id as consumerId, name, care_of as careOf, address, 
+                   base_class as baseClass, meter_no as meterNo, zone, mobile, 
+                   CAST(COALESCE(latitude, '') AS TEXT) as latitude, 
+                   CAST(COALESCE(longitude, '') AS TEXT) as longitude 
+            FROM master_consumers WHERE ccc_code = ?`,
+      args: [cccCode]
+    })
+
+    if (res.rows && res.rows.length > 0) {
+      const data: ConsumerMasterRow[] = res.rows.map((r: any) => ({
+        consumerId: String(r.consumerId || ""),
+        name: String(r.name || ""),
+        careOf: String(r.careOf || ""),
+        address: String(r.address || ""),
+        baseClass: String(r.baseClass || ""),
+        meterNo: String(r.meterNo || ""),
+        zone: String(r.zone || ""),
+        mobile: String(r.mobile || ""),
+        latitude: String(r.latitude || ""),
+        longitude: String(r.longitude || ""),
+      }))
+      memoryCache[spreadsheetId] = { data, timestamp: Date.now() }
+      masterCountCache[spreadsheetId] = { count: data.length, timestamp: Date.now() }
+      return data
+    }
+  } catch (err) {
+    console.error("Turso master fetch error, falling back to Google Sheets:", err)
+  }
+
   const data = await _fetchMasterRaw(spreadsheetId)
   memoryCache[spreadsheetId] = { data, timestamp: Date.now() }
   masterCountCache[spreadsheetId] = { count: data.length, timestamp: Date.now() }
@@ -98,6 +134,25 @@ export async function fetchMasterCount(spreadsheetId: string): Promise<number> {
   const countCached = masterCountCache[spreadsheetId]
   if (countCached && Date.now() - countCached.timestamp < MASTER_REVALIDATE * 1000) {
     return countCached.count
+  }
+
+  // Try Turso SQL Database count
+  try {
+    const context = getTenantContext()
+    const cccCode = context?.cccCode || "6612107"
+    const res = await db.execute({
+      sql: "SELECT COUNT(*) as count FROM master_consumers WHERE ccc_code = ?",
+      args: [cccCode]
+    })
+    if (res.rows && res.rows[0]) {
+      const count = Number(res.rows[0].count)
+      if (count > 0) {
+        masterCountCache[spreadsheetId] = { count, timestamp: Date.now() }
+        return count
+      }
+    }
+  } catch (err) {
+    console.error("Turso master count error, falling back to Google Sheets:", err)
   }
 
   try {

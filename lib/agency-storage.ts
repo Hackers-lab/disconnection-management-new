@@ -1,6 +1,7 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 import { getTenantContext } from "./tenant-context"
+import { db } from "./db"
 
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const AGENCY_SHEET_NAME = "Agencies"
@@ -67,6 +68,30 @@ export async function getAgencies() {
   // Serve from cache if not expired
   if (agenciesCache[cccCode] && (now - (agenciesCacheTimestamp[cccCode] || 0) < CACHE_TTL_MS)) {
     return agenciesCache[cccCode]
+  }
+
+  // Try Turso SQL Database primary read
+  try {
+    const res = await db.execute({
+      sql: `SELECT id, name, description, is_active, ccc_code as cccCode, vendor_code 
+            FROM agencies WHERE ccc_code = ? OR ccc_code = 'SYSTEM'`,
+      args: [cccCode]
+    })
+    if (res.rows && res.rows.length > 0) {
+      const tenantAgencies = res.rows.map((r: any) => ({
+        id: String(r.id),
+        name: String(r.name || ""),
+        description: String(r.description || ""),
+        isActive: Boolean(r.is_active),
+        cccCode: String(r.cccCode || ""),
+        vendorCode: String(r.vendor_code || ""),
+      }))
+      agenciesCache[cccCode] = tenantAgencies
+      agenciesCacheTimestamp[cccCode] = now
+      return tenantAgencies
+    }
+  } catch (err) {
+    console.error("Turso agencies fetch error, falling back to Google Sheets:", err)
   }
 
   await ensureTab()
