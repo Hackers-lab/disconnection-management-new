@@ -262,7 +262,7 @@ export function detectDocumentCorners(
 ): [Point, Point, Point, Point] {
   const w = canvas.width
   const h = canvas.height
-  const ctx = canvas.getContext("2d")
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })
 
   if (!ctx) {
     return defaultInsetCorners(w, h)
@@ -375,8 +375,8 @@ export function warpPerspective(
   outputCanvas.width = targetWidth
   outputCanvas.height = targetHeight
 
-  const srcCtx = sourceCanvas.getContext("2d")
-  const outCtx = outputCanvas.getContext("2d")
+  const srcCtx = sourceCanvas.getContext("2d", { willReadFrequently: true })
+  const outCtx = outputCanvas.getContext("2d", { willReadFrequently: true })
   if (!srcCtx || !outCtx) return sourceCanvas
 
   const sw = sourceCanvas.width

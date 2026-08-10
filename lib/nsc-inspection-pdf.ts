@@ -36,7 +36,7 @@ export function renderUnicodeTextToPng(
 
   try {
     const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })
     if (!ctx) return null
 
     const fontStyle = `${isBold ? "bold " : ""}${fontSizePx}px "Noto Sans Bengali", "Kohinoor Bangla", "SolaimanLipi", "Segoe UI", sans-serif`
@@ -50,7 +50,7 @@ export function renderUnicodeTextToPng(
     canvas.width = width
     canvas.height = height
 
-    const ctx2 = canvas.getContext("2d")
+    const ctx2 = canvas.getContext("2d", { willReadFrequently: true })
     if (!ctx2) return null
 
     ctx2.font = fontStyle
