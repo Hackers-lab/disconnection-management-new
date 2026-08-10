@@ -221,6 +221,12 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
     if (!inspectionFormImg) { alert("Inspection form image is required."); return }
     if (!agencyDecision) { alert("Please select Accepted or Rejected."); return }
 
+    let normalizedLoad = load.trim()
+    const numLoad = parseFloat(normalizedLoad)
+    if (!isNaN(numLoad) && numLoad >= 50) {
+      normalizedLoad = (numLoad / 1000).toString()
+    }
+
     setSubmitting(true)
     try {
       const res = await fetch("/api/nsc/inspect", {
@@ -231,7 +237,7 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
           verifyName, verifyCO, verifyAddress, verifyClass,
           existingMeter, existingMeterNo, existingMeterImg,
           validPartition, partitionImg, dispute,
-          load, serviceLength, poleRequired, poleDrawingImg,
+          load: normalizedLoad, serviceLength, poleRequired, poleDrawingImg,
           dtrCapacity, dtrLoad, siteImg, inspectionFormImg,
           agencyDecision, agencyRemarks,
         }),
@@ -313,8 +319,8 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
         <CardContent className="px-4 pb-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Applied Load (kW) *</Label>
-              <Input value={load} onChange={e => setLoad(e.target.value)} placeholder="e.g. 2.5" inputMode="decimal" />
+              <Label className="text-xs">Applied Load (kW) * <span className="text-[10px] text-gray-400 font-normal">(e.g. 0.5 or 500W)</span></Label>
+              <Input value={load} onChange={e => setLoad(e.target.value)} placeholder="e.g. 0.5" inputMode="decimal" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Service Length (m)</Label>

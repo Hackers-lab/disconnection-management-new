@@ -8,8 +8,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   Search, X, Plus, RefreshCw, Check, ChevronLeft, ChevronRight,
   FileDown, Phone, MapPin, ClipboardList, Clock, FolderOpen,
-  FileInput, Pencil, Loader2, SlidersHorizontal, Eye, FileSpreadsheet,
+  FileInput, Pencil, Loader2, SlidersHorizontal, Eye, FileSpreadsheet, FileText,
 } from "lucide-react"
+import { NscReportDownloadModal } from "@/components/nsc-report-download-modal"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -126,6 +127,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   const [editingRefApp, setEditingRefApp]       = useState<NSCApplication | null>(null)
   const [refNoInput, setRefNoInput]             = useState("")
   const [savingRefNo, setSavingRefNo]           = useState(false)
+  const [downloadReportApp, setDownloadReportApp] = useState<NSCApplication | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = async (silent = false, forceFull = false) => {
@@ -1814,6 +1816,12 @@ function NscReports({ apps }: { apps: NSCApplication[] }) {
       <Button className="w-full bg-slate-950 hover:bg-slate-900 text-white h-11" onClick={exportReport}>
         <FileDown className="h-4 w-4 mr-2" /> Export Full System Raw Data (Excel)
       </Button>
+
+      <NscReportDownloadModal
+        isOpen={!!downloadReportApp}
+        app={downloadReportApp}
+        onClose={() => setDownloadReportApp(null)}
+      />
     </div>
   )
 }
