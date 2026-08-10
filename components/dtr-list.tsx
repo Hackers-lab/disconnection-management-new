@@ -1079,6 +1079,30 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                         )}
                       </div>
                     </div>
+
+                    {/* Direct Image Preview Thumbnail (matching Safety List) */}
+                    {(() => {
+                      const rawImg = r.image || r.paintingImage
+                      const directImg = getGoogleDriveDirectLink(rawImg)
+                      if (!directImg) return null
+                      return (
+                        <div className="mt-3 relative rounded-lg overflow-hidden border border-black shadow-sm bg-slate-100 max-h-36 flex items-center justify-center group">
+                          <img
+                            src={directImg}
+                            alt="DTR Evidence Photo"
+                            className="w-full max-h-36 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => window.open(rawImg, "_blank")}
+                          />
+                          <div
+                            onClick={() => window.open(rawImg, "_blank")}
+                            className="absolute bottom-1.5 right-1.5 bg-black/80 hover:bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur-sm cursor-pointer flex items-center gap-1 transition-all border border-slate-700"
+                          >
+                            <ImageIcon className="h-3 w-3 text-amber-400" />
+                            <span>Tap to View ↗</span>
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </CardContent>
                 </div>
 
