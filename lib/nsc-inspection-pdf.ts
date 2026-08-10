@@ -277,6 +277,9 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   const disputeText = app.dispute ? `Dispute: ${app.dispute}` : "None (No Legal Dispute)"
   const formattedLoad = formatLoadKw(app.load)
 
+  const isPoleCase = app.poleRequired === "yes" || app.agencyDecision === "project_required"
+  const projectReqText = isPoleCase ? "YES (LT/HT Extension Required)" : "NO (Direct Connection Possible)"
+
   autoTable(doc, {
     startY: y,
     margin: { left: 14, right: 14 },
@@ -296,7 +299,7 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
       ],
       [
         "Class Verified", app.verifyClass === "ok" ? "Confirmed" : (app.verifyClass || "—"),
-        "Pole Required", app.poleRequired === "yes" ? "YES" : "NO", // Simplified to YES / NO as requested
+        "Pole Required", app.poleRequired === "yes" ? "YES" : "NO",
       ],
       [
         "Existing Meter", app.existingMeter === "yes" ? `YES (Serial: ${app.existingMeterNo || "N/A"})` : "NO",
@@ -308,7 +311,7 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
       ],
       [
         "Dispute Noted", hasNonAscii(disputeText) ? "" : disputeText,
-        "Project Requirement", app.agencyDecision === "project_required" ? "YES (LT/HT Extension Required)" : "Direct Connection Possible",
+        "Project Requirement", projectReqText,
       ],
     ],
     didDrawCell: (data) => {
@@ -334,24 +337,33 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   y += 6
 
   const isDisputeAction = app.finalAction === "dispute_letter" || (app.status || "").includes("dispute")
-  const isApproved = (app.agencyDecision || "").toLowerCase().includes("approve")
-  const isRejected = (app.agencyDecision || "").toLowerCase().includes("reject") || isDisputeAction
+  const isApproved = (app.agencyDecision || "").toLowerCase().includes("accept") || (app.agencyDecision || "").toLowerCase().includes("approve") || isPoleCase
+  const isRejected = ((app.agencyDecision || "").toLowerCase().includes("reject") || isDisputeAction) && !isPoleCase
 
   let decBorder: [number, number, number] = [148, 163, 184]
   let decText: [number, number, number] = [30, 41, 59]
+  let decBg: [number, number, number] = [255, 255, 255]
 
   if (isDisputeAction) {
     decBorder = [239, 68, 68]
     decText = [153, 27, 27]
+    decBg = [254, 242, 242]
+  } else if (isPoleCase) {
+    // Yellow border and light yellow background for Pole Case
+    decBorder = [234, 179, 8]
+    decText = [161, 98, 7]
+    decBg = [254, 252, 232]
   } else if (isApproved) {
     decBorder = [34, 197, 94]
     decText = [22, 101, 52]
+    decBg = [240, 253, 244]
   } else if (isRejected) {
     decBorder = [239, 68, 68]
     decText = [153, 27, 27]
+    decBg = [254, 242, 242]
   }
 
-  doc.setFillColor(255, 255, 255)
+  doc.setFillColor(...decBg)
   doc.setDrawColor(...decBorder)
   doc.setLineWidth(0.4)
   doc.roundedRect(14, y, pageWidth - 28, 18, 1.5, 1.5, "FD")
@@ -362,6 +374,8 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
 
   const decisionLabel = isDisputeAction
     ? `INSPECTION & STATUS: DISPUTE LETTER ISSUED (${(app.agencyDecision || "ACCEPTED").toUpperCase()})`
+    : isPoleCase
+    ? `INSPECTION DECISION: ACCEPTED (POLE CASE)`
     : `INSPECTION DECISION: ${(app.agencyDecision || "COMPLETED").toUpperCase()}`
 
   doc.text(decisionLabel, 18, y + 5)
