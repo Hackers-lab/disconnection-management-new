@@ -70,22 +70,20 @@ interface Props {
   permissions?: Record<string, string[]>
 }
 
-function isValidImageUrl(url: string | undefined | null): boolean {
-  if (!url) return false
-  const clean = url.trim().toLowerCase()
-  if (!clean || clean === "-" || clean === "n/a" || clean === "none" || clean === "null" || clean === "undefined" || clean === "no" || clean === "no image" || clean === "—") {
-    return false
+function getGoogleDriveDirectLink(url: string): string {
+  if (!url) return ""
+  if (url.includes("drive.google.com")) {
+    let fileId = ""
+    if (url.includes("/file/d/")) {
+      const parts = url.split("/file/d/")
+      if (parts[1]) fileId = parts[1].split("/")[0]
+    } else if (url.includes("id=")) {
+      const match = url.match(/[?&]id=([^&]+)/)
+      if (match && match[1]) fileId = match[1]
+    }
+    if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
   }
-  return true
-}
-
-function getGoogleDriveDirectLink(url: string | undefined): string {
-  if (!isValidImageUrl(url)) return ""
-  const clean = url!.trim()
-  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
-    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
-  }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
+  return url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`
 }
 
 type TabType = "all" | "pending" | "completed" | "reports"
@@ -1325,27 +1323,20 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                     {/* Photographic Proof */}
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Photographic Evidence</h3>
-                      {(() => {
-                        const rawUrl = isValidImageUrl(viewingDtr.image) ? viewingDtr.image : (isValidImageUrl(viewingDtr.paintingImage) ? viewingDtr.paintingImage : "")
-                        const directLink = getGoogleDriveDirectLink(rawUrl)
-                        if (!directLink) {
-                          return (
-                            <div className="py-12 text-center text-slate-400 text-xs border border-dashed rounded-xl">
-                              <Camera className="h-8 w-8 mx-auto opacity-35 mb-1.5" /> No image proof uploaded
-                            </div>
-                          )
-                        }
-                        return (
-                          <div className="rounded-xl overflow-hidden border max-h-48 flex items-center justify-center bg-white shadow-sm">
-                            <img 
-                              src={directLink} 
-                              alt="DTR evidence" 
-                              className="max-h-48 object-contain cursor-pointer" 
-                              onClick={() => window.open(rawUrl, "_blank")}
-                            />
-                          </div>
-                        )
-                      })()}
+                      {viewingDtr.image ? (
+                        <div className="rounded-xl overflow-hidden border max-h-48 flex items-center justify-center bg-white shadow-sm">
+                          <img 
+                            src={getGoogleDriveDirectLink(viewingDtr.image)} 
+                            alt="DTR evidence" 
+                            className="max-h-48 object-contain cursor-pointer" 
+                            onClick={() => window.open(viewingDtr.image, "_blank")}
+                          />
+                        </div>
+                      ) : (
+                        <div className="py-12 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+                          <Camera className="h-8 w-8 mx-auto opacity-35 mb-1.5" /> No image proof uploaded
+                        </div>
+                      )}
                     </div>
 
                     {/* GPS Coordinates and Maps */}
