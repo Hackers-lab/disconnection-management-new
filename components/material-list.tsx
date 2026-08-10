@@ -30,18 +30,11 @@ type SettingsSubTab = "catalogue" | "transactions"
 
 function getGoogleDriveDirectLink(url: string): string {
   if (!url) return ""
-  if (url.includes("drive.google.com")) {
-    let fileId = ""
-    if (url.includes("/file/d/")) {
-      const parts = url.split("/file/d/")
-      if (parts[1]) fileId = parts[1].split("/")[0]
-    } else if (url.includes("id=")) {
-      const match = url.match(/[?&]id=([^&]+)/)
-      if (match && match[1]) fileId = match[1]
-    }
-    if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
+  const clean = url.trim()
+  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
+    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
   }
-  return url
+  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
 }
 
 interface Props {
