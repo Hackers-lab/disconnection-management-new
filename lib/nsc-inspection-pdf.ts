@@ -16,6 +16,23 @@ const CLASS_LABELS: Record<string, string> = {
 }
 
 /**
+ * Smart load normalization helper:
+ * Converts entries like 500 / 1000 (Watts) to 0.5 kW / 1 kW,
+ * while keeping direct kW values like 0.5 / 1 / 3.5 intact.
+ */
+export function formatLoadKw(raw: string | undefined): string {
+  if (!raw || !raw.trim()) return "—"
+  const cleaned = raw.replace(/[^0-9.]/g, "")
+  const num = parseFloat(cleaned)
+  if (isNaN(num)) return raw
+  if (num >= 50) {
+    const kw = num / 1000
+    return `${Number.isInteger(kw) ? kw : kw.toFixed(2)} kW`
+  }
+  return `${num} kW`
+}
+
+/**
  * Checks if a string contains non-ASCII characters (e.g. Bengali, Hindi, Unicode symbols).
  */
 export function hasNonAscii(str: string): boolean {
@@ -23,7 +40,7 @@ export function hasNonAscii(str: string): boolean {
 }
 
 /**
- * Renders non-ASCII Unicode text (e.g. Bengaliবাংলা) onto an HTML5 Canvas using browser system fonts
+ * Renders non-ASCII Unicode text (e.g. Bengali) onto an HTML5 Canvas using browser system fonts
  * and returns a PNG Data URL for embedding into jsPDF.
  */
 export function renderUnicodeTextToPng(
@@ -60,7 +77,6 @@ export function renderUnicodeTextToPng(
 
     const dataUrl = canvas.toDataURL("image/png")
 
-    // Convert canvas px to mm (72dpi equivalent scale for PDF)
     const pxToMm = 0.264583
     const heightMm = (fontSizePx * 1.2) * pxToMm
     const widthMm = (width / (fontSizePx * 1.4)) * heightMm
@@ -74,14 +90,12 @@ export function renderUnicodeTextToPng(
 
 /**
  * Asynchronously converts any remote image or PDF attachment URL into printable Base64 Data URLs.
- * If the URL points to a PDF document, it uses PDF.js to render PDF pages onto canvases.
  */
 export async function fetchAttachmentAsDataUrls(url: string): Promise<string[]> {
   if (!url || typeof window === "undefined") return []
   if (url.startsWith("data:image")) return [url]
 
   try {
-    // Route remote URLs through our server proxy to bypass CORS & Google Drive auth blocks
     const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`
     const res = await fetch(proxyUrl)
     if (!res.ok) {
@@ -92,14 +106,12 @@ export async function fetchAttachmentAsDataUrls(url: string): Promise<string[]> 
     const contentType = res.headers.get("content-type") || ""
     const arrayBuffer = await res.arrayBuffer()
 
-    // Check if attachment is a PDF Document
     const isPdf = contentType.includes("pdf") || url.toLowerCase().includes(".pdf") || isPdfHeader(arrayBuffer)
 
     if (isPdf) {
       return await renderPdfPagesToDataUrls(arrayBuffer)
     }
 
-    // Otherwise, treat as Image
     return new Promise((resolve) => {
       const blob = new Blob([arrayBuffer], { type: contentType || "image/jpeg" })
       const reader = new FileReader()
@@ -129,7 +141,6 @@ function isPdfHeader(buffer: ArrayBuffer): boolean {
 async function renderPdfPagesToDataUrls(arrayBuffer: ArrayBuffer): Promise<string[]> {
   try {
     const pdfjsLib = await import("pdfjs-dist")
-    // Use unpkg worker fallback
     pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
 
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
@@ -138,10 +149,10 @@ async function renderPdfPagesToDataUrls(arrayBuffer: ArrayBuffer): Promise<strin
 
     for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
       const page = await pdfDoc.getPage(pageNum)
-      const viewport = page.getViewport({ scale: 2.0 }) // High resolution render
+      const viewport = page.getViewport({ scale: 2.0 })
 
       const canvas = document.createElement("canvas")
-      const context = canvas.getContext("2d")
+      const context = canvas.getContext("2d", { willReadFrequently: true })
       if (!context) continue
 
       canvas.height = viewport.height
@@ -172,38 +183,24 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // ─── Clean White Header Banner ────────────────────────────────────────────
+  // ─── Clean Header Banner (No WBSEDCL Subtitle, No Overlapping Top Right Meta) ──
   doc.setFillColor(255, 255, 255)
-  doc.rect(0, 0, pageWidth, 30, "F")
+  doc.rect(0, 0, pageWidth, 22, "F")
 
+  // Top Accent Line
   doc.setFillColor(30, 41, 59)
   doc.rect(14, 8, pageWidth - 28, 1, "F")
 
   doc.setTextColor(15, 23, 42)
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
+  doc.setFontSize(12)
   doc.text("NEW SERVICE CONNECTION (NSC) - TECHNICAL INSPECTION REPORT", 14, 16)
 
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text("West Bengal State Electricity Distribution Company Limited (WBSEDCL)", 14, 21)
-
-  // Top Right Meta Text
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(9)
-  doc.setTextColor(15, 23, 42)
-  doc.text(`RECEIVE NO: ${app.receiveNo || "—"}`, pageWidth - 14, 16, { align: "right" })
-
-  doc.setFontSize(8)
-  doc.setFont("helvetica", "normal")
-  doc.setTextColor(100, 116, 139)
-  doc.text(`Date: ${app.inspectedAt || app.receivedDate || "—"}`, pageWidth - 14, 21, { align: "right" })
-
+  // Header Bottom Line
   doc.setDrawColor(226, 232, 240)
-  doc.line(14, 25, pageWidth - 14, 25)
+  doc.line(14, 20, pageWidth - 14, 20)
 
-  let y = 32
+  let y = 26
 
   // ─── Section 1: Applicant & Location Details ──────────────────────────────
   doc.setFont("helvetica", "bold")
@@ -249,7 +246,6 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
       ],
     ],
     didDrawCell: (data) => {
-      // Custom Canvas Image snippet rendering for Bengali / Unicode cells
       if (data.section === "body") {
         let textToRender = ""
         if (data.column.index === 1 && data.row.index === 0 && hasNonAscii(appNameText)) textToRender = appNameText
@@ -279,6 +275,7 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   y += 5
 
   const disputeText = app.dispute ? `Dispute: ${app.dispute}` : "None (No Legal Dispute)"
+  const formattedLoad = formatLoadKw(app.load)
 
   autoTable(doc, {
     startY: y,
@@ -291,15 +288,15 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
     body: [
       [
         "Name Verified", app.verifyName === "ok" ? "Confirmed" : (app.verifyName || "—"),
-        "Applied Load (kW)", app.load ? `${app.load} kW` : "—",
+        "Applied Load", formattedLoad,
       ],
       [
         "Address Verified", app.verifyAddress === "ok" ? "Confirmed" : (app.verifyAddress || "—"),
-        "Service Length (m)", app.serviceLength ? `${app.serviceLength} meters` : "—",
+        "Service Length", app.serviceLength ? `${app.serviceLength} meters` : "—",
       ],
       [
         "Class Verified", app.verifyClass === "ok" ? "Confirmed" : (app.verifyClass || "—"),
-        "Pole Required", app.poleRequired === "yes" ? "YES (New Pole Needed)" : "NO (Direct Hook)",
+        "Pole Required", app.poleRequired === "yes" ? "YES" : "NO", // Simplified to YES / NO as requested
       ],
       [
         "Existing Meter", app.existingMeter === "yes" ? `YES (Serial: ${app.existingMeterNo || "N/A"})` : "NO",
@@ -326,7 +323,7 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
 
   y = (doc as any).lastAutoTable.finalY + 6
 
-  // ─── Section 3: Agency Inspection Decision & Remarks ─────────────────────
+  // ─── Section 3: Agency Inspection Decision & Field Remarks ───────────────
   doc.setFont("helvetica", "bold")
   doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
@@ -336,17 +333,20 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
 
   y += 6
 
+  const isDisputeAction = app.finalAction === "dispute_letter" || (app.status || "").includes("dispute")
   const isApproved = (app.agencyDecision || "").toLowerCase().includes("approve")
-  const isRejected = (app.agencyDecision || "").toLowerCase().includes("reject")
-  const isDispute = (app.agencyDecision || "").toLowerCase().includes("dispute")
+  const isRejected = (app.agencyDecision || "").toLowerCase().includes("reject") || isDisputeAction
 
   let decBorder: [number, number, number] = [148, 163, 184]
   let decText: [number, number, number] = [30, 41, 59]
 
-  if (isApproved) {
+  if (isDisputeAction) {
+    decBorder = [239, 68, 68]
+    decText = [153, 27, 27]
+  } else if (isApproved) {
     decBorder = [34, 197, 94]
     decText = [22, 101, 52]
-  } else if (isRejected || isDispute) {
+  } else if (isRejected) {
     decBorder = [239, 68, 68]
     decText = [153, 27, 27]
   }
@@ -359,12 +359,16 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.setFont("helvetica", "bold")
   doc.setFontSize(9)
   doc.setTextColor(...decText)
-  doc.text(`INSPECTION DECISION: ${(app.agencyDecision || "COMPLETED").toUpperCase()}`, 18, y + 5)
+
+  const decisionLabel = isDisputeAction
+    ? `INSPECTION & STATUS: DISPUTE LETTER ISSUED (${(app.agencyDecision || "ACCEPTED").toUpperCase()})`
+    : `INSPECTION DECISION: ${(app.agencyDecision || "COMPLETED").toUpperCase()}`
+
+  doc.text(decisionLabel, 18, y + 5)
 
   const remarksText = app.agencyRemarks ? `Remarks: ${app.agencyRemarks}` : "Remarks: Field inspection completed satisfactorily as per WBSEDCL technical guidelines."
 
   if (hasNonAscii(remarksText)) {
-    // Render Bengali / Unicode remarks using Canvas PNG
     const png = renderUnicodeTextToPng(remarksText, 20, "#334155", false)
     if (png) {
       doc.addImage(png.dataUrl, "PNG", 18, y + 8, Math.min(png.widthMm, pageWidth - 36), png.heightMm)
@@ -392,6 +396,46 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   }
 
   doc.text(`Inspected At: ${app.inspectedAt || "—"}`, pageWidth / 2 + 10, y)
+
+  y += 6
+
+  // ─── Section 4: Final Administration Action & Finalized Details ────────────
+  if (app.finalAction || app.adminDecision || app.memoNo || app.existingConsumerId || app.applicationNo) {
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    doc.setTextColor(15, 23, 42)
+    doc.text("4. FINAL ADMINISTRATION DISPOSAL & ORDER DETAILS", 14, y)
+    doc.setDrawColor(203, 213, 225)
+    doc.line(14, y + 2, pageWidth - 14, y + 2)
+
+    y += 5
+
+    const finalActionTitle = app.finalAction === "dispute_letter"
+      ? "Dispute Letter Issued"
+      : app.finalAction === "quotation"
+      ? "Quotation Issued"
+      : (app.finalAction || "Processed")
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 14, right: 14 },
+      theme: "grid",
+      headStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 8, lineWidth: 0.2, lineColor: [203, 213, 225] },
+      bodyStyles: { lineWidth: 0.1, lineColor: [226, 232, 240], textColor: [30, 41, 59] },
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      head: [["Final Action", "Admin Decision", "Ref / Memo No", "Consumer ID / Final Ref"]],
+      body: [
+        [
+          finalActionTitle,
+          app.adminDecision || "—",
+          app.memoNo ? `Memo No: ${app.memoNo}` : (app.applicationNo ? `App No: ${app.applicationNo}` : "—"),
+          app.existingConsumerId ? `Consumer ID: ${app.existingConsumerId}` : (app.status || "—"),
+        ],
+      ],
+    })
+
+    y = (doc as any).lastAutoTable.finalY + 6
+  }
 
   // ─── Bottom Right Agency Signature Block ──────────────────────────────────
   const sigBoxW = 75
@@ -443,7 +487,6 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
       for (let idx = 0; idx < dataUrls.length; idx++) {
         const dataUrl = dataUrls[idx]
 
-        // Load image to determine natural orientation & aspect ratio
         let isLandscape = false
         let naturalW = 1000
         let naturalH = 1414
@@ -462,7 +505,6 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
           })
         } catch {}
 
-        // Dynamically set page orientation (landscape vs portrait) based on image aspect ratio
         doc.addPage("a4", isLandscape ? "landscape" : "portrait")
 
         const curPageW = doc.internal.pageSize.getWidth()
@@ -504,7 +546,6 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
           imgW = maxImgH / ratio
         }
 
-        // Center image on the page
         const posX = imgX + (maxImgW - imgW) / 2
         const posY = imgY + (maxImgH - imgH) / 2
 
