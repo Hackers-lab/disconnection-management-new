@@ -55,3 +55,6 @@ yarn-error.log*
 /feature/
 cookie.txt
 
+# Local SQLite databases
+*.db
+*.db-journal
