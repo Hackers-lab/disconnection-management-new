@@ -12,6 +12,7 @@
     "@googleapis/drive": "^20.2.0",
     "@googleapis/sheets": "^13.0.2",
     "@hookform/resolvers": "^3.9.1",
+    "@libsql/client": "^0.17.4",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
