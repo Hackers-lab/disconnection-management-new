@@ -33,9 +33,9 @@ const NSC_HEADERS = [
   "Memo No", "Application No", "Finalized At", "Finalized By",
   // Meter & connection milestones
   "Meter Issued At", "Connection Effected At", "Meter Serial No",
-  // Added columns (AS–AW) — safe to append, never break existing data
+  // Added columns (AS–AY) — safe to append, never break existing data
   "Office Ref No", "Project ID", "Is Legacy", "Existing Consumer ID",
-  "Application Form URL", "Inspection History",
+  "Application Form URL", "Inspection History", "Latitude", "Longitude",
 ]
 
 const NSC_FIELD_MAP: Record<keyof NSCApplication, string[]> = {
@@ -89,6 +89,8 @@ const NSC_FIELD_MAP: Record<keyof NSCApplication, string[]> = {
   existingConsumerId:   ["Existing Consumer ID", "existingConsumerId", "existing_consumer_id", "existingconsumerid"],
   applicationFormUrl:   ["Application Form URL", "applicationFormUrl", "application_form_url"],
   inspectionHistory:    ["Inspection History", "inspectionHistory", "inspection_history"],
+  latitude:             ["Latitude", "latitude", "lat"],
+  longitude:            ["Longitude", "longitude", "lng", "long"],
   remarks:              ["Remarks", "agencyRemarks", "adminRemarks", "remarks"],
   quotationDate:        ["Quotation Date", "quotationDate", "quotation_date"],
   appliedDate:          ["Applied Date", "receivedDate", "appliedDate"],
@@ -191,6 +193,8 @@ function parseRow(r: string[], headers: string[]): NSCApplication {
     isLegacy:             getVal("isLegacy"),
     existingConsumerId:   getVal("existingConsumerId"),
     applicationFormUrl:   getVal("applicationFormUrl"),
+    latitude:             getVal("latitude"),
+    longitude:            getVal("longitude"),
     inspectionHistory:    parsedHistory,
   }
 }
@@ -324,6 +328,8 @@ export async function submitInspection(req: {
   agencyDecision:    string
   agencyRemarks:     string
   inspectedBy:       string
+  latitude?:         string
+  longitude?:        string
 }): Promise<void> {
   const id = getSpreadsheetId()
   const headers = await ensureHeaders(id, NSC_TAB, NSC_HEADERS)
@@ -365,6 +371,8 @@ export async function submitInspection(req: {
       inspectionFormImg: existingApp.inspectionFormImg,
       inspectedBy: existingApp.inspectedBy,
       inspectedAt: existingApp.inspectedAt,
+      latitude: existingApp.latitude,
+      longitude: existingApp.longitude,
     })
   }
 
@@ -394,6 +402,8 @@ export async function submitInspection(req: {
     inspectionFormImg: req.inspectionFormImg,
     inspectedBy: req.inspectedBy,
     inspectedAt: now,
+    latitude: req.latitude || "",
+    longitude: req.longitude || "",
   }
 
   history.push(currentRoundSnapshot)
@@ -432,6 +442,8 @@ export async function submitInspection(req: {
   addUpdate("agencyRemarks", req.agencyRemarks)
   addUpdate("inspectedAt", now)
   addUpdate("inspectedBy", req.inspectedBy)
+  if (req.latitude)  addUpdate("latitude", req.latitude)
+  if (req.longitude) addUpdate("longitude", req.longitude)
   addUpdate("inspectionHistory", JSON.stringify(history))
 
   await sheets.spreadsheets.values.batchUpdate({

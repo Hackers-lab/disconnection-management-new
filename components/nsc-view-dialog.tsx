@@ -8,7 +8,7 @@ import type { NSCApplication } from "@/lib/nsc-types"
 import {
   Check, ChevronDown, ChevronRight,
   Zap, ClipboardList, Clock,
-  AlertTriangle, ImageIcon, FileText, History,
+  AlertTriangle, ImageIcon, FileText, History, MapPin,
 } from "lucide-react"
 import { NscReportDownloadModal } from "./nsc-report-download-modal"
 
@@ -299,6 +299,17 @@ export function NscViewDialog({ app, open, onClose }: Props) {
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
+                    {app.latitude && app.longitude && (
+                      <a
+                        href={`https://maps.google.com/?q=${app.latitude},${app.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-emerald-100 text-emerald-800 hover:bg-emerald-200 px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1 transition"
+                      >
+                        <MapPin className="h-3 w-3 text-emerald-600" />
+                        GPS: {app.latitude}, {app.longitude} ↗
+                      </a>
+                    )}
                     {app.existingMeter  === "yes" && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Existing Meter: {app.existingMeterNo || "?"}</span>}
                     {app.validPartition === "no"  && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Invalid Partition</span>}
                     {app.poleRequired   === "yes" && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Pole Required</span>}

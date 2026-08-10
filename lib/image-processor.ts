@@ -56,14 +56,14 @@ export async function compressAndWatermarkImage(
 
       ctx.drawImage(img, 0, 0, w, h);
 
-      // Render Watermark if any lines are provided
+      // Render Watermark if any lines are provided (Small, crisp, unobtrusive text)
       if (watermarkLines.length > 0) {
-        const fs = Math.max(16, w * 0.032); // font size relative to width
-        const pad = fs / 2;
-        const lineSpacing = fs * 0.3;
+        const fs = Math.max(11, Math.round(w * 0.020)); // smaller font size relative to width (~12-14px)
+        const pad = Math.round(fs * 0.4);
+        const lineSpacing = Math.round(fs * 0.2);
         const barH = watermarkLines.length * fs + (watermarkLines.length - 1) * lineSpacing + pad * 2;
 
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillStyle = "rgba(15, 23, 42, 0.60)";
         ctx.fillRect(0, h - barH, w, barH);
 
         ctx.font = `bold ${fs}px sans-serif`;
@@ -72,7 +72,7 @@ export async function compressAndWatermarkImage(
 
         watermarkLines.forEach((line, index) => {
           const y = h - barH + pad + index * (fs + lineSpacing);
-          ctx.fillText(line, pad, y);
+          ctx.fillText(line, pad + 4, y);
         });
       }
 

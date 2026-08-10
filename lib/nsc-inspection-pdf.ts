@@ -313,6 +313,10 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
         "Dispute Noted", hasNonAscii(disputeText) ? "" : disputeText,
         "Project Requirement", projectReqText,
       ],
+      [
+        "GPS Coordinates", app.latitude && app.longitude ? `${app.latitude}° N, ${app.longitude}° E` : "Not Recorded",
+        "Inspection Date", app.inspectedAt || "—",
+      ],
     ],
     didDrawCell: (data) => {
       if (data.section === "body" && data.column.index === 1 && data.row.index === 5 && hasNonAscii(disputeText)) {

@@ -123,6 +123,9 @@ export interface NSCApplication {
   quotationDate?:       string
   appliedDate?:         string
   remarks?:             string
+  // GPS Location Coordinates
+  latitude?:            string
+  longitude?:           string
   // Multi-round inspection history audit log
   inspectionHistory?:   NSCInspectionRound[]
 }
@@ -152,6 +155,8 @@ export interface NSCInspectionRound {
   inspectionFormImg?: string
   inspectedBy?:      string
   inspectedAt?:      string
+  latitude?:         string
+  longitude?:        string
 }
 
 // ── NSC Project ───────────────────────────────────────────────────────────────
