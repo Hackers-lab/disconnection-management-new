@@ -46,19 +46,20 @@ const NearbySafetyMap = dynamic(
 
 export function getGoogleDriveDirectLink(url: string | undefined): string {
   if (!url) return ""
-  const clean = url.trim()
-  if (clean.includes("drive.google.com")) {
+  // If multiple URLs are provided (comma separated), take the first one
+  const firstUrl = url.split(",")[0].trim()
+  if (firstUrl.includes("drive.google.com")) {
     let fileId = ""
-    if (clean.includes("/file/d/")) {
-      const parts = clean.split("/file/d/")
+    if (firstUrl.includes("/file/d/")) {
+      const parts = firstUrl.split("/file/d/")
       if (parts[1]) fileId = parts[1].split("/")[0]
-    } else if (clean.includes("id=")) {
-      const match = clean.match(/[?&]id=([^&]+)/)
+    } else if (firstUrl.includes("id=")) {
+      const match = firstUrl.match(/[?&]id=([^&]+)/)
       if (match && match[1]) fileId = match[1]
     }
     if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
   }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
+  return firstUrl.startsWith("http://") || firstUrl.startsWith("https://") ? firstUrl : `https://${firstUrl}`
 }
 
 interface SafetyListProps {
