@@ -748,73 +748,73 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   }}
                 >
                   {module.id === "safety" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["safety"] ? "bg-blue-500 animate-pulse" : safetyPendingCount > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["safety"] ? "bg-slate-800 text-white animate-pulse" : safetyPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["safety"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : safetyPendingCount}
                     </div>
                   )}
                   {module.id === "misc-inspection" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["misc-inspection"] ? "bg-blue-500 animate-pulse" : miscPendingCount > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["misc-inspection"] ? "bg-slate-800 text-white animate-pulse" : miscPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["misc-inspection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : miscPendingCount}
                     </div>
                   )}
                   {module.id === "disconnection" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-red-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["disconnection"] ? "bg-blue-500 animate-pulse" : pendingCount > 0 ? "bg-red-600 shadow-red-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["disconnection"] ? "bg-slate-800 text-white animate-pulse" : pendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["disconnection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : pendingCount}
                     </div>
                   )}
                   {module.id === "deemed" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-orange-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["deemed"] ? "bg-blue-500 animate-pulse" : ddPendingCount > 0 ? "bg-orange-600 shadow-orange-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["deemed"] ? "bg-slate-800 text-white animate-pulse" : ddPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["deemed"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : ddPendingCount}
                     </div>
                   )}
                   {module.id === "reconnection" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["reconnection"] ? "bg-blue-500 animate-pulse" : reconnectionPendingCount > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["reconnection"] ? "bg-slate-800 text-white animate-pulse" : reconnectionPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["reconnection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : reconnectionPendingCount}
                     </div>
                   )}
                   {module.id === "nsc" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-green-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["nsc"] ? "bg-blue-500 animate-pulse" : nscPendingCount > 0 ? "bg-green-600" : "bg-gray-400"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["nsc"] ? "bg-slate-800 text-white animate-pulse" : nscPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["nsc"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : nscPendingCount}
                     </div>
                   )}
                   {module.id === "meter" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["meter"] ? "bg-blue-500 animate-pulse" : meterPendingCount > 0 ? "bg-purple-600" : "bg-gray-400"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["meter"] ? "bg-slate-800 text-white animate-pulse" : meterPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["meter"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : meterPendingCount}
                     </div>
                   )}
                   {module.id === "meter-replacement" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-indigo-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["meter-replacement"] ? "bg-blue-500 animate-pulse" : replacementPendingCount > 0 ? "bg-indigo-600" : "bg-gray-400"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["meter-replacement"] ? "bg-slate-800 text-white animate-pulse" : replacementPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["meter-replacement"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : replacementPendingCount}
                     </div>
                   )}
                   {module.id === "material" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["material"] ? "bg-blue-500 animate-pulse" : materialPendingCount > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["material"] ? "bg-slate-800 text-white animate-pulse" : materialPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["material"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : materialPendingCount}
                     </div>
                   )}
                   {module.id === "dtr" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-teal-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr"] ? "bg-blue-500 animate-pulse" : dtrPendingCount > 0 ? "bg-teal-600" : "bg-gray-400"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr"] ? "bg-slate-800 text-white animate-pulse" : dtrPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["dtr"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : dtrPendingCount}
                     </div>
                   )}
                   {module.id === "dtr-painting" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-orange-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr-painting"] ? "bg-blue-500 animate-pulse" : dtrPaintingPendingCount > 0 ? "bg-orange-600" : "bg-gray-400"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr-painting"] ? "bg-slate-800 text-white animate-pulse" : dtrPaintingPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["dtr-painting"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : dtrPaintingPendingCount}
                     </div>
                   )}
                   {module.id === "consumer-master" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-teal-500/10 transition-all duration-300 group-hover:scale-105 ${loadingModules["consumer-master"] ? "bg-blue-500 animate-pulse" : masterCount > 0 ? "bg-teal-600 shadow-teal-500/20" : "bg-gray-400 shadow-gray-400/20"
+                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["consumer-master"] ? "bg-slate-800 text-white animate-pulse" : masterCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
                       }`}>
                       {loadingModules["consumer-master"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : masterCount.toLocaleString()}
                     </div>
