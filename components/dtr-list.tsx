@@ -70,9 +70,18 @@ interface Props {
   permissions?: Record<string, string[]>
 }
 
-function getGoogleDriveDirectLink(url: string): string {
-  if (!url) return ""
-  const clean = url.trim()
+function isValidImageUrl(url: string | undefined | null): boolean {
+  if (!url) return false
+  const clean = url.trim().toLowerCase()
+  if (!clean || clean === "-" || clean === "n/a" || clean === "none" || clean === "null" || clean === "undefined" || clean === "no" || clean === "no image" || clean === "—") {
+    return false
+  }
+  return true
+}
+
+function getGoogleDriveDirectLink(url: string | undefined): string {
+  if (!isValidImageUrl(url)) return ""
+  const clean = url!.trim()
   if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
     return `/api/image-proxy?url=${encodeURIComponent(clean)}`
   }
@@ -1080,30 +1089,6 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                         )}
                       </div>
                     </div>
-
-                    {/* Direct Image Preview Thumbnail (matching Safety List) */}
-                    {(() => {
-                      const rawImg = r.image || r.paintingImage
-                      const directImg = getGoogleDriveDirectLink(rawImg)
-                      if (!directImg) return null
-                      return (
-                        <div className="mt-3 relative rounded-lg overflow-hidden border border-black shadow-sm bg-slate-100 max-h-36 flex items-center justify-center group">
-                          <img
-                            src={directImg}
-                            alt="DTR Evidence Photo"
-                            className="w-full max-h-36 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => window.open(rawImg, "_blank")}
-                          />
-                          <div
-                            onClick={() => window.open(rawImg, "_blank")}
-                            className="absolute bottom-1.5 right-1.5 bg-black/80 hover:bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur-sm cursor-pointer flex items-center gap-1 transition-all border border-slate-700"
-                          >
-                            <ImageIcon className="h-3 w-3 text-amber-400" />
-                            <span>Tap to View ↗</span>
-                          </div>
-                        </div>
-                      )
-                    })()}
                   </CardContent>
                 </div>
 
@@ -1340,20 +1325,27 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                     {/* Photographic Proof */}
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Photographic Evidence</h3>
-                      {(viewingDtr.image || viewingDtr.paintingImage) ? (
-                        <div className="rounded-xl overflow-hidden border max-h-48 flex items-center justify-center bg-white shadow-sm">
-                          <img 
-                            src={getGoogleDriveDirectLink(viewingDtr.image || viewingDtr.paintingImage)} 
-                            alt="DTR evidence" 
-                            className="max-h-48 object-contain cursor-pointer" 
-                            onClick={() => window.open(viewingDtr.image || viewingDtr.paintingImage, "_blank")}
-                          />
-                        </div>
-                      ) : (
-                        <div className="py-12 text-center text-slate-400 text-xs border border-dashed rounded-xl">
-                          <Camera className="h-8 w-8 mx-auto opacity-35 mb-1.5" /> No image proof uploaded
-                        </div>
-                      )}
+                      {(() => {
+                        const rawUrl = isValidImageUrl(viewingDtr.image) ? viewingDtr.image : (isValidImageUrl(viewingDtr.paintingImage) ? viewingDtr.paintingImage : "")
+                        const directLink = getGoogleDriveDirectLink(rawUrl)
+                        if (!directLink) {
+                          return (
+                            <div className="py-12 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+                              <Camera className="h-8 w-8 mx-auto opacity-35 mb-1.5" /> No image proof uploaded
+                            </div>
+                          )
+                        }
+                        return (
+                          <div className="rounded-xl overflow-hidden border max-h-48 flex items-center justify-center bg-white shadow-sm">
+                            <img 
+                              src={directLink} 
+                              alt="DTR evidence" 
+                              className="max-h-48 object-contain cursor-pointer" 
+                              onClick={() => window.open(rawUrl, "_blank")}
+                            />
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     {/* GPS Coordinates and Maps */}
