@@ -47,16 +47,8 @@ const NearbySafetyMap = dynamic(
 export function getGoogleDriveDirectLink(url: string | undefined): string {
   if (!url) return ""
   const clean = url.trim()
-  if (clean.includes("drive.google.com")) {
-    let fileId = ""
-    if (clean.includes("/file/d/")) {
-      const parts = clean.split("/file/d/")
-      if (parts[1]) fileId = parts[1].split("/")[0]
-    } else if (clean.includes("id=")) {
-      const match = clean.match(/[?&]id=([^&]+)/)
-      if (match && match[1]) fileId = match[1]
-    }
-    if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
+  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
+    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
   }
   return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
 }
