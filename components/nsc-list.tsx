@@ -128,10 +128,13 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   const [savingRefNo, setSavingRefNo]           = useState(false)
 
   // ── Load ──────────────────────────────────────────────────────────────────
-  const load = async (silent = false) => {
+  const load = async (silent = false, forceFull = false) => {
     if (!silent) setSyncState("loading")
     try {
-      const cached = await getFromCache<NSCApplication[]>(CACHE_KEY)
+      if (forceFull) {
+        await clearCache(CACHE_KEY)
+      }
+      const cached = forceFull ? null : await getFromCache<NSCApplication[]>(CACHE_KEY)
       let lastTs = 0
       if (cached && cached.length > 0) {
         setApps(cached)
@@ -148,19 +151,17 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
         ).filter(Boolean)
         if (tsList.length > 0) lastTs = Math.max(...tsList)
 
-        // Self-repair: check if cache is corrupted with only completed items
+        // Self-repair: check if cache is corrupted with only completed items or partial records
         const hasUncompleted = cached.some(a => {
           const s = normalizeNSCStatus(a.status)
           return s === "pending" || s === "inspected" || s === "project_required" || s === "project_ongoing"
         })
-        if (!hasUncompleted) {
-          // Force full refresh from Google Sheet
+        if (!hasUncompleted || cached.length < 100) {
           lastTs = 0
         }
       }
 
-      const patchUrl = lastTs ? `/api/nsc/patch` : "/api/nsc"
-      if (lastTs > 0) {
+      if (lastTs > 0 && !forceFull) {
         const merged = await PlatformSyncEngine.syncModule<NSCApplication>({
           moduleKey: "nsc",
           cacheKey: CACHE_KEY,
@@ -170,12 +171,12 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
         const sorted = [...merged].reverse()
         setApps(sorted)
       } else {
-        const res = await fetch("/api/nsc")
+        const res = await fetch("/api/nsc?refresh=true")
         if (!res.ok) throw new Error()
         const result = await res.json()
         const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as NSCApplication[]
-        const merged = await mergePatchToCache<NSCApplication>(CACHE_KEY, patchItems, "receiveNo")
-        const sorted = [...merged].reverse()
+        await saveToCache<NSCApplication[]>(CACHE_KEY, patchItems)
+        const sorted = [...patchItems].reverse()
         setApps(sorted)
       }
       setSyncState("updated")

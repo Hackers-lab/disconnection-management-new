@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
-import { fetchApplications, createApplication } from "@/lib/nsc-service"
+import { fetchApplications, fetchApplicationsRaw, createApplication } from "@/lib/nsc-service"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
@@ -12,7 +12,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!authorized) return NextResponse.json({ error }, { status })
 
   const id = getSpreadsheetId()
-  const all = await fetchApplications(id)
+  const refresh = request.nextUrl.searchParams.get("refresh") === "true"
+  const all = refresh ? await fetchApplicationsRaw(id) : await fetchApplications(id)
 
   if (session.agencies && session.agencies.length > 0) {
     const upper = session.agencies.map((a: string) => a.toUpperCase())
