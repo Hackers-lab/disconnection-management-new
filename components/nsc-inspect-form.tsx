@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, XCircle, RefreshCw } from "lucide-react"
+import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, XCircle, RefreshCw, MapPin } from "lucide-react"
 import { NSC_CLASSES } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
@@ -78,12 +78,13 @@ function YesNo({ label, value, onChange }: { label: string; value: string; onCha
 }
 
 // ── Image upload slot ─────────────────────────────────────────────────────────
-function ImageSlot({ label, required, url, onUrl, tag }: {
+function ImageSlot({ label, required = false, url, onUrl, tag, latlong = "" }: {
   label:    string
   required: boolean
   url:      string
   onUrl:    (u: string) => void
   tag:      string
+  latlong?: string
 }) {
   const [preview, setPreview]     = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -122,9 +123,13 @@ function ImageSlot({ label, required, url, onUrl, tag }: {
         minute: "2-digit", 
         hour12: true 
       })
+      const watermarkLines = [
+        `NSC: ${tag} — ${label}`,
+        latlong ? `GPS: ${latlong} | Date: ${dateStr}` : `Date: ${dateStr}`,
+      ]
       const compressed = await compressAndWatermarkImage(file, {
         maxDim: 800,
-        watermarkLines: [`NSC: ${label} — ${tag}`, `Date: ${dateStr}`],
+        watermarkLines,
         targetKb: 95
       })
       const fd = new FormData(); fd.append("file", compressed); fd.append("consumerId", tag)
@@ -179,6 +184,39 @@ function ImageSlot({ label, required, url, onUrl, tag }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function NscInspectForm({ app, onSave, onCancel }: Props) {
+  // GPS Location
+  const [latitude, setLatitude]   = useState<string>(app.latitude || "")
+  const [longitude, setLongitude] = useState<string>(app.longitude || "")
+  const [gpsStatus, setGpsStatus] = useState<"locating" | "captured" | "error" | "idle">("idle")
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null)
+
+  const fetchLocation = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setGpsStatus("error")
+      return
+    }
+    setGpsStatus("locating")
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(6)
+        const lng = pos.coords.longitude.toFixed(6)
+        setLatitude(lat)
+        setLongitude(lng)
+        setGpsAccuracy(Math.round(pos.coords.accuracy))
+        setGpsStatus("captured")
+      },
+      (err) => {
+        console.warn("GPS Geolocation error:", err)
+        setGpsStatus("error")
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    )
+  }, [])
+
+  useEffect(() => {
+    fetchLocation()
+  }, [fetchLocation])
+
   // Verification
   const [verifyName,    setVerifyName]    = useState(app.verifyName    || "ok")
   const [verifyCO,      setVerifyCO]      = useState(app.verifyCO      || "ok")
@@ -240,6 +278,7 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
           load: normalizedLoad, serviceLength, poleRequired, poleDrawingImg,
           dtrCapacity, dtrLoad, siteImg, inspectionFormImg,
           agencyDecision, agencyRemarks,
+          latitude, longitude,
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
@@ -250,6 +289,7 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
   }
 
   const tag = app.receiveNo.replace(/\//g, "-")
+  const latlongStr = latitude && longitude ? `${latitude}, ${longitude}` : ""
 
   return (
     <div className="max-w-xl mx-auto space-y-4 pb-28">
@@ -262,14 +302,38 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
         </div>
       </div>
 
-      {/* Application summary */}
+      {/* Application summary & GPS Location Card */}
       <Card className="bg-slate-50">
-        <CardContent className="p-4 space-y-1 text-sm">
+        <CardContent className="p-4 space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-gray-500">Applicant</span><span className="font-semibold">{app.applicantName}</span></div>
           {app.careOf && <div className="flex justify-between"><span className="text-gray-500">C/O</span><span>{app.careOf}</span></div>}
           <div className="flex justify-between"><span className="text-gray-500">Address</span><span className="text-right max-w-[60%]">{app.address}</span></div>
           <div className="flex justify-between"><span className="text-gray-500">Mobile</span><a href={`tel:${app.mobile}`} className="text-blue-600 font-mono">{app.mobile}</a></div>
           <div className="flex justify-between"><span className="text-gray-500">Class / Phase</span><span>{app.appliedClass?.toUpperCase()} · {app.phase}</span></div>
+
+          {/* GPS Badge */}
+          <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5 font-mono">
+              <MapPin className={`h-4 w-4 ${gpsStatus === "captured" ? "text-emerald-600 animate-pulse" : gpsStatus === "locating" ? "text-blue-500 animate-spin" : "text-amber-500"}`} />
+              {gpsStatus === "captured" ? (
+                <span className="text-emerald-700 font-semibold">
+                  {latitude}, {longitude} {gpsAccuracy ? `(±${gpsAccuracy}m)` : ""}
+                </span>
+              ) : gpsStatus === "locating" ? (
+                <span className="text-blue-600 font-medium">Acquiring GPS location...</span>
+              ) : (
+                <span className="text-amber-700">GPS location unavailable</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={fetchLocation}
+              className="text-[11px] text-blue-600 hover:text-blue-800 underline font-medium flex items-center gap-1"
+            >
+              <RefreshCw className={`h-3 w-3 ${gpsStatus === "locating" ? "animate-spin" : ""}`} />
+              {gpsStatus === "captured" ? "Refresh GPS" : "Retry GPS"}
+            </button>
+          </div>
         </CardContent>
       </Card>
 
@@ -295,14 +359,14 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
                 <Label className="text-xs">Existing Meter No</Label>
                 <Input value={existingMeterNo} onChange={e => setExistingMeterNo(e.target.value)} placeholder="Meter number" className="font-mono" />
               </div>
-              <ImageSlot label="Existing Meter Photo" required={false} url={existingMeterImg} onUrl={setExistingMeterImg} tag={`${tag}-existing`} />
+              <ImageSlot label="Existing Meter Photo" required={false} url={existingMeterImg} onUrl={setExistingMeterImg} tag={`${tag}-existing`} latlong={latlongStr} />
             </div>
           )}
 
           <YesNo label="Valid Partition / Separate Space?" value={validPartition} onChange={setValidPartition} />
           {validPartition === "no" && (
             <div className="pl-2 border-l-2 border-red-200">
-              <ImageSlot label="Partition Issue Photo" required={false} url={partitionImg} onUrl={setPartitionImg} tag={`${tag}-partition`} />
+              <ImageSlot label="Partition Issue Photo" required={false} url={partitionImg} onUrl={setPartitionImg} tag={`${tag}-partition`} latlong={latlongStr} />
             </div>
           )}
 
@@ -331,7 +395,7 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
           <YesNo label="Pole Required?" value={poleRequired} onChange={setPoleRequired} />
           {poleRequired === "yes" && (
             <div className="pl-2 border-l-2 border-blue-200">
-              <ImageSlot label="Pole / Line Drawing" required={true} url={poleDrawingImg} onUrl={setPoleDrawingImg} tag={`${tag}-pole`} />
+              <ImageSlot label="Pole / Line Drawing" required={true} url={poleDrawingImg} onUrl={setPoleDrawingImg} tag={`${tag}-pole`} latlong={latlongStr} />
             </div>
           )}
 
@@ -352,8 +416,8 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
       <Card>
         <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm">4. Evidence Photos</CardTitle></CardHeader>
         <CardContent className="px-4 pb-4 space-y-4">
-          <ImageSlot label="Site Photo" required url={siteImg} onUrl={setSiteImg} tag={`${tag}-site`} />
-          <ImageSlot label="Inspection Form Photo" required url={inspectionFormImg} onUrl={setInspectionFormImg} tag={`${tag}-form`} />
+          <ImageSlot label="Site Photo" required url={siteImg} onUrl={setSiteImg} tag={`${tag}-site`} latlong={latlongStr} />
+          <ImageSlot label="Inspection Form Photo" required url={inspectionFormImg} onUrl={setInspectionFormImg} tag={`${tag}-form`} latlong={latlongStr} />
         </CardContent>
       </Card>
 

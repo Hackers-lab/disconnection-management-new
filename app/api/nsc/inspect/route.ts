@@ -42,6 +42,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       agencyDecision:    body.agencyDecision,
       agencyRemarks:     body.agencyRemarks     || "",
       inspectedBy:       `${session.role}:${session.username}`,
+      latitude:          body.latitude          || "",
+      longitude:         body.longitude         || "",
     })
     return NextResponse.json({ success: true })
   } catch (e: any) {
