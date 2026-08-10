@@ -108,7 +108,9 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
   const { toast } = useToast()
   const [records, setRecords] = useState<DTRRecord[]>([])
   const [syncState, setSyncState] = useState<SyncState>("loading")
-  const [tab, setTab] = useState<TabType>("pending")
+  const [tab, setTab] = useState<TabType>(() => {
+    return ["admin", "executive", "viewer"].includes(userRole) ? "all" : "pending"
+  })
   const [search, setSearch] = useState("")
   const [selectedFeeder, setSelectedFeeder] = useState<string>("all")
   const [selectedPainting, setSelectedPainting] = useState<string>("all")
