@@ -55,7 +55,8 @@ import {
   SlidersHorizontal,
   FileDown,
   FileSpreadsheet,
-  BarChart3
+  BarChart3,
+  Zap
 } from "lucide-react"
 
 import { NearbyDtrMap } from "@/components/nearby-dtr-map"
@@ -295,14 +296,67 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
     toast({ title: "Pending Excel Report downloaded" })
   }
 
-  const exportAuditAgencyCompletedPDF = async () => {
+  const exportCustomDTRReportExcel = async (reportTitle: string, filenamePrefix: string, dtrList: DTRRecord[]) => {
+    const XLSX = await import("xlsx")
+    const wb = XLSX.utils.book_new()
+
+    // Sheet 1: Summary Sheet
+    const summaryRows = [
+      [reportTitle],
+      [`Generated on: ${new Date().toLocaleDateString("en-IN")}`],
+      [`Total Filtered DTR Records: ${dtrList.length}`],
+      []
+    ]
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Report Summary")
+
+    // Sheet 2: Detailed Sheet with ALL verified data fields
+    const sortedDTRs = [...dtrList].sort((a, b) => {
+      const agComp = (a.auditAgency || "").localeCompare(b.auditAgency || "")
+      if (agComp !== 0) return agComp
+      return (a.dtrCode || "").localeCompare(b.dtrCode || "")
+    })
+
+    const detailRows = sortedDTRs.map(r => ({
+      "DTR Code": r.dtrCode || "",
+      "Ex Feeder Code": r.feederName || "",
+      "Ex Location": r.locationName || "",
+      "Ex Capacity (kVA)": r.kvCapacity || "",
+      "Status": (r.status || "").toUpperCase() === "EXIST" ? "Verified" : (r.status || "Pending"),
+      "Actual Capacity (kVA)": r.actualRating || "",
+      "Actual Feeder": r.actualFeeder || "",
+      "Actual Location": r.actualLocation || "",
+      "Supply Office": r.supplyOffice || "",
+      "GPS Coordinates": r.latlong || "",
+      "Painting Status": r.painting || "Pending",
+      "Kiosk Box": r.kiosk || "",
+      "LA (Lightning Arrester)": r.la || "",
+      "NE (Neutral Earthing)": r.ne || "",
+      "Load R (Amps)": r.loadR || "",
+      "Load Y (Amps)": r.loadY || "",
+      "Load B (Amps)": r.loadB || "",
+      "Load N (Amps)": r.loadN || "",
+      "Notes / Remarks": r.remarks || "",
+      "Verified By": r.verifiedBy || "",
+      "Verified At": r.verifiedAt || "",
+      "Audit Agency": r.auditAgency || "Unassigned",
+      "Painting Agency": r.paintingAgency || "",
+      "Inspection Image Link": r.image || "",
+      "Painting Image Link": r.paintingImage || ""
+    }))
+
+    const wsDetails = XLSX.utils.json_to_sheet(detailRows)
+    XLSX.utils.book_append_sheet(wb, wsDetails, "Verified Data")
+
+    XLSX.writeFile(wb, `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    toast({ title: `${reportTitle} Excel report downloaded` })
+  }
+
+  const exportCustomDTRReportPDF = async (reportTitle: string, filenamePrefix: string, dtrList: DTRRecord[]) => {
     const { default: jsPDF } = await import("jspdf")
     const { default: autoTable } = await import("jspdf-autotable")
 
-    const completedDTRs = records.filter(r => (r.status || "").toUpperCase() === "EXIST")
-    
-    // Sort by agency then dtrCode
-    const sortedDTRs = [...completedDTRs].sort((a, b) => {
+    const sortedDTRs = [...dtrList].sort((a, b) => {
       const agComp = (a.auditAgency || "").localeCompare(b.auditAgency || "")
       if (agComp !== 0) return agComp
       return (a.dtrCode || "").localeCompare(b.dtrCode || "")
@@ -311,79 +365,51 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
     const doc = new jsPDF({ orientation: "landscape" })
     const pw = doc.internal.pageSize.width
 
-    // Title / Header
-    doc.setFontSize(16)
+    doc.setFontSize(15)
     doc.setTextColor(30, 41, 59)
-    doc.text("Agency-wise Completed DTR Verification Report", pw / 2, 14, { align: "center" })
-    
+    doc.text(reportTitle, pw / 2, 14, { align: "center" })
+
     doc.setFontSize(9)
     doc.setTextColor(100)
     doc.text(
-      `Generated on: ${new Date().toLocaleDateString("en-IN")} | Total Verified DTRs: ${completedDTRs.length}`,
+      `Generated on: ${new Date().toLocaleDateString("en-IN")} | Total DTRs: ${dtrList.length}`,
       pw / 2, 20, { align: "center" }
     )
 
-    // Summary table
-    const summaryRows = auditAgencyStats.map((row, idx) => [
-      idx + 1,
-      row.agency,
-      row.total,
-      row.done,
-      row.pending,
-      `${row.pct}%`
-    ])
+    const cols = [
+      "#", "DTR Code", "Ex Feeder", "Ex Location", "Ex kVA", "Status",
+      "Actual Feeder", "Actual kVA", "Actual Location", "GPS",
+      "Painting", "Kiosk", "LA", "NE", "R/Y/B/N",
+      "Verified By", "Audit Agency", "Remarks"
+    ]
 
-    autoTable(doc, {
-      startY: 25,
-      head: [["#", "Audit Agency", "Assigned DTRs", "Verified DTRs", "Pending Verification", "Verification Progress"]],
-      body: summaryRows,
-      styles: { fontSize: 8.5, font: "helvetica", halign: "center", cellPadding: 3 },
-      headStyles: { fillColor: [22, 163, 74], textColor: 255, fontStyle: "bold" },
-      columnStyles: { 1: { halign: "left", fontStyle: "bold" } },
-      theme: "grid"
-    })
-
-    const nextY = (doc as any).lastAutoTable.finalY + 10
-    let startY = nextY
-    if (startY > doc.internal.pageSize.height - 40) {
-      doc.addPage()
-      startY = 15
-    }
-
-    doc.setFontSize(11)
-    doc.setTextColor(30, 41, 59)
-    doc.text("Detailed Verified List (Grouped by Agency)", 14, startY)
-
-    const cols = ["#", "DTR Code", "Feeder Name", "Capacity (kVA)", "Landmark / Location", "Audit Agency", "Verified By", "Verified At", "Remarks"]
     const body = sortedDTRs.map((r, idx) => [
       idx + 1,
       r.dtrCode || "-",
       r.feederName || "-",
-      r.kvCapacity || "-",
       r.locationName || "-",
-      r.auditAgency || "Unassigned",
+      r.kvCapacity || "-",
+      (r.status || "").toUpperCase() === "EXIST" ? "Verified" : (r.status || "Pending"),
+      r.actualFeeder || "-",
+      r.actualRating || "-",
+      r.actualLocation || "-",
+      r.latlong || "-",
+      r.painting || "Pending",
+      r.kiosk || "-",
+      r.la || "-",
+      r.ne || "-",
+      `${r.loadR || 0}/${r.loadY || 0}/${r.loadB || 0}/${r.loadN || 0}`,
       r.verifiedBy || "-",
-      r.verifiedAt || "-",
+      r.auditAgency || "Unassigned",
       r.remarks || "-"
     ])
 
     autoTable(doc, {
-      startY: startY + 3,
+      startY: 25,
       head: [cols],
       body: body,
-      styles: { fontSize: 8, font: "helvetica", cellPadding: 2.5 },
-      headStyles: { fillColor: [60, 60, 60], textColor: 255 },
-      columnStyles: {
-        0: { cellWidth: 10 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 35 },
-        3: { cellWidth: 20 },
-        4: { cellWidth: 70 },
-        5: { cellWidth: 35 },
-        6: { cellWidth: 25 },
-        7: { cellWidth: 25 },
-        8: { cellWidth: 30 }
-      },
+      styles: { fontSize: 6.5, font: "helvetica", cellPadding: 2, overflow: "linebreak" },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
       didDrawPage: (data) => {
         doc.setFontSize(8)
         doc.setTextColor(150)
@@ -392,61 +418,18 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
       theme: "grid"
     })
 
-    doc.save(`agency-wise-completed-dtr-verification-report-${new Date().toISOString().slice(0, 10)}.pdf`)
-    toast({ title: "Completed PDF Report downloaded" })
+    doc.save(`${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.pdf`)
+    toast({ title: `${reportTitle} PDF report downloaded` })
+  }
+
+  const exportAuditAgencyCompletedPDF = async () => {
+    const completedDTRs = records.filter(r => (r.status || "").toUpperCase() === "EXIST")
+    await exportCustomDTRReportPDF("Agency Completed DTR Verification Report", "agency-wise-completed-dtr-verification-report", completedDTRs)
   }
 
   const exportAuditAgencyCompletedExcel = async () => {
-    const XLSX = await import("xlsx")
-    const wb = XLSX.utils.book_new()
-
-    // Sheet 1: Summary Sheet
-    const summaryRows = [
-      ["Agency-wise DTR Verification Progress Summary"],
-      [`Generated on: ${new Date().toLocaleDateString("en-IN")}`],
-      [],
-      ["Audit Agency", "Assigned DTRs", "Verified DTRs", "Pending Verification", "Verification Progress"]
-    ]
-
-    auditAgencyStats.forEach(row => {
-      summaryRows.push([
-        row.agency,
-        row.total.toString(),
-        row.done.toString(),
-        row.pending.toString(),
-        `${row.pct}%`
-      ])
-    })
-
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows)
-    XLSX.utils.book_append_sheet(wb, wsSummary, "Verification Summary")
-
-    // Sheet 2: Detailed Completed Sheet
     const completedDTRs = records.filter(r => (r.status || "").toUpperCase() === "EXIST")
-    const sortedDTRs = [...completedDTRs].sort((a, b) => {
-      const agComp = (a.auditAgency || "").localeCompare(b.auditAgency || "")
-      if (agComp !== 0) return agComp
-      return (a.dtrCode || "").localeCompare(b.dtrCode || "")
-    })
-
-    const detailRows = sortedDTRs.map(r => ({
-      "DTR Code": r.dtrCode,
-      "Feeder Name": r.feederName,
-      "Capacity (kVA)": r.kvCapacity || "",
-      "Landmark / Location": r.locationName,
-      "Supply Office": r.supplyOffice || "",
-      "Audit Agency": r.auditAgency || "Unassigned",
-      "Verified By": r.verifiedBy || "",
-      "Verified At": r.verifiedAt || "",
-      "Remarks": r.remarks || "",
-      "Inspection Image Link": r.image || ""
-    }))
-
-    const wsDetails = XLSX.utils.json_to_sheet(detailRows)
-    XLSX.utils.book_append_sheet(wb, wsDetails, "Verified Details")
-
-    XLSX.writeFile(wb, `agency-wise-completed-dtr-verification-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
-    toast({ title: "Completed Excel Report downloaded" })
+    await exportCustomDTRReportExcel("Agency Completed DTR Verification Report", "agency-wise-completed-dtr-verification-report", completedDTRs)
   }
   // Painters can edit/inspected their painting status and photo uploads
   const isEditable = userRole === "admin" || userRole === "painter" || (permissions && permissions.dtr?.includes("update"))
@@ -885,6 +868,8 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
           exportAuditAgencyPendingExcel={exportAuditAgencyPendingExcel}
           exportAuditAgencyCompletedPDF={exportAuditAgencyCompletedPDF}
           exportAuditAgencyCompletedExcel={exportAuditAgencyCompletedExcel}
+          exportCustomDTRReportExcel={exportCustomDTRReportExcel}
+          exportCustomDTRReportPDF={exportCustomDTRReportPDF}
           userRole={userRole}
           userAgencies={userAgencies}
         />
@@ -1448,6 +1433,8 @@ interface VerificationReportsProps {
   exportAuditAgencyPendingExcel: () => void
   exportAuditAgencyCompletedPDF: () => void
   exportAuditAgencyCompletedExcel: () => void
+  exportCustomDTRReportExcel: (title: string, filenamePrefix: string, dtrList: DTRRecord[]) => void
+  exportCustomDTRReportPDF: (title: string, filenamePrefix: string, dtrList: DTRRecord[]) => void
   userRole: string
   userAgencies: string[]
 }
@@ -1459,6 +1446,8 @@ function DTRVerificationReports({
   exportAuditAgencyPendingExcel,
   exportAuditAgencyCompletedPDF,
   exportAuditAgencyCompletedExcel,
+  exportCustomDTRReportExcel,
+  exportCustomDTRReportPDF,
   userRole,
   userAgencies
 }: VerificationReportsProps) {
@@ -1478,6 +1467,42 @@ function DTRVerificationReports({
   const completed = scopedRecords.filter(r => (r.status || "").toUpperCase() === "EXIST").length
   const pending = total - completed
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0
+
+  // Specialized Exception / Action Required Records
+  const kioskRequiredRecords = useMemo(() => {
+    return scopedRecords.filter(r => {
+      const k = (r.kiosk || "").trim().toLowerCase()
+      return k === "defective" || k === "missing"
+    })
+  }, [scopedRecords])
+
+  const neRequiredRecords = useMemo(() => {
+    return scopedRecords.filter(r => {
+      const n = (r.ne || "").trim().toLowerCase()
+      return n === "defective" || n === "missing"
+    })
+  }, [scopedRecords])
+
+  const laRequiredRecords = useMemo(() => {
+    return scopedRecords.filter(r => {
+      const l = (r.la || "").trim().toLowerCase()
+      return l === "defective" || l === "missing"
+    })
+  }, [scopedRecords])
+
+  const locationUpdatedRecords = useMemo(() => {
+    return scopedRecords.filter(r => {
+      if (!r.actualLocation || !r.locationName) return false
+      return r.actualLocation.trim().toLowerCase() !== r.locationName.trim().toLowerCase()
+    })
+  }, [scopedRecords])
+
+  const kvaUpdatedRecords = useMemo(() => {
+    return scopedRecords.filter(r => {
+      if (!r.actualRating || !r.kvCapacity) return false
+      return r.actualRating.trim().toLowerCase() !== r.kvCapacity.trim().toLowerCase()
+    })
+  }, [scopedRecords])
 
   const StatCard = ({ label, value, color }: { label: string; value: number | string; color: string }) => (
     <div className={`rounded-2xl p-5 border bg-white shadow-sm hover:shadow-md transition-shadow ${color}`}>
@@ -1528,11 +1553,11 @@ function DTRVerificationReports({
         <StatCard label="Verification Progress" value={`${progress}%`} color="border-blue-200" />
       </div>
 
-      {/* Custom Reports Panel */}
+      {/* Core Agency Reports Panel */}
       <Card className="border border-slate-200 shadow-sm overflow-hidden bg-white rounded-2xl">
         <div className="px-5 py-4 border-b bg-slate-50/50">
-          <h3 className="font-bold text-slate-900 text-sm">Download DTR Verification Reports</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Generate customized PDF reports and Excel spreadsheets with summary pages</p>
+          <h3 className="font-bold text-slate-900 text-sm">Main DTR Verification Reports</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Comprehensive verification status reports with full verified field data (DTR code, feeder, location, capacity, coordinates, status, kiosk, LA, NE, phase loads & notes)</p>
         </div>
         <CardContent className="p-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1540,10 +1565,10 @@ function DTRVerificationReports({
             {/* Card 1: Agency Pending Report */}
             <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-orange-200 hover:bg-orange-50/5 transition">
               <div className="space-y-1.5">
-                <span className="text-[9px] font-bold tracking-wider text-orange-700 uppercase bg-orange-100/60 px-2 py-0.5 rounded-full">Pending Tasks</span>
+                <span className="text-[9px] font-bold tracking-wider text-orange-700 uppercase bg-orange-100/60 px-2 py-0.5 rounded-full">Pending Tasks ({pending})</span>
                 <h4 className="font-bold text-gray-900 text-sm">Agency Pending Verification Report</h4>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  List and matrix of DTRs assigned to audit agencies where verification is pending.
+                  List and matrix of DTRs assigned to audit agencies where physical verification is still pending.
                 </p>
               </div>
               <div className="flex gap-2 pt-1">
@@ -1559,10 +1584,10 @@ function DTRVerificationReports({
             {/* Card 2: Agency Completed Report */}
             <div className="bg-slate-50/60 border border-slate-100 rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:border-green-200 hover:bg-green-50/5 transition">
               <div className="space-y-1.5">
-                <span className="text-[9px] font-bold tracking-wider text-green-700 uppercase bg-green-100/60 px-2 py-0.5 rounded-full">Completed Tasks</span>
+                <span className="text-[9px] font-bold tracking-wider text-green-700 uppercase bg-green-100/60 px-2 py-0.5 rounded-full">Completed Tasks ({completed})</span>
                 <h4 className="font-bold text-gray-900 text-sm">Agency Completed Verification Report</h4>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  List and matrix of DTRs where verification has been successfully completed and approved.
+                  Complete report downloading all verified data parameters (DTR code, feeder, rating, coordinates, kiosk, LA, NE, phase loads & notes).
                 </p>
               </div>
               <div className="flex gap-2 pt-1">
@@ -1570,6 +1595,199 @@ function DTRVerificationReports({
                   <FileDown className="h-3.5 w-3.5" /> PDF
                 </Button>
                 <Button size="sm" variant="outline" className="flex-1 h-8 text-xs gap-1 border-green-200 text-green-700 bg-green-50/50 hover:bg-green-100 hover:text-green-800 transition" onClick={exportAuditAgencyCompletedExcel}>
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                </Button>
+              </div>
+            </div>
+
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Specialized Maintenance & Data Discrepancy Reports Panel */}
+      <Card className="border border-slate-200 shadow-sm overflow-hidden bg-white rounded-2xl">
+        <div className="px-5 py-4 border-b bg-slate-50/50">
+          <h3 className="font-bold text-slate-900 text-sm">Maintenance & Exception Action Reports</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Filter and export targeted lists for physical repairs, hardware replacement, and field updates</p>
+        </div>
+        <CardContent className="p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            
+            {/* Card 1: Kiosk Required */}
+            <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:shadow-sm transition">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                    {kioskRequiredRecords.length} DTRs
+                  </span>
+                  <SlidersHorizontal className="h-4 w-4 text-amber-600" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm mt-1">Kiosk Required Report</h4>
+                <p className="text-xs text-slate-500 leading-snug">
+                  DTRs where Kiosk Box status is reported as Defective or Missing.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-red-200 text-red-700 bg-white hover:bg-red-50"
+                  onClick={() => exportCustomDTRReportPDF("Kiosk Box Action Required DTR Report", "kiosk-required-dtr-report", kioskRequiredRecords)}
+                  disabled={kioskRequiredRecords.length === 0}
+                >
+                  <FileDown className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-green-200 text-green-700 bg-white hover:bg-green-50"
+                  onClick={() => exportCustomDTRReportExcel("Kiosk Box Action Required DTR Report", "kiosk-required-dtr-report", kioskRequiredRecords)}
+                  disabled={kioskRequiredRecords.length === 0}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                </Button>
+              </div>
+            </div>
+
+            {/* Card 2: Neutral Earthing (NE) Required */}
+            <div className="bg-blue-50/40 border border-blue-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:shadow-sm transition">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full">
+                    {neRequiredRecords.length} DTRs
+                  </span>
+                  <Zap className="h-4 w-4 text-blue-600" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm mt-1">NE (Earthing) Required</h4>
+                <p className="text-xs text-slate-500 leading-snug">
+                  DTRs requiring Neutral Earthing (NE) installation or urgent repair.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-red-200 text-red-700 bg-white hover:bg-red-50"
+                  onClick={() => exportCustomDTRReportPDF("Neutral Earthing (NE) Required DTR Report", "ne-required-dtr-report", neRequiredRecords)}
+                  disabled={neRequiredRecords.length === 0}
+                >
+                  <FileDown className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-green-200 text-green-700 bg-white hover:bg-green-50"
+                  onClick={() => exportCustomDTRReportExcel("Neutral Earthing (NE) Required DTR Report", "ne-required-dtr-report", neRequiredRecords)}
+                  disabled={neRequiredRecords.length === 0}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                </Button>
+              </div>
+            </div>
+
+            {/* Card 3: Lightning Arrester (LA) Required */}
+            <div className="bg-purple-50/40 border border-purple-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:shadow-sm transition">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">
+                    {laRequiredRecords.length} DTRs
+                  </span>
+                  <RadioTower className="h-4 w-4 text-purple-600" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm mt-1">LA (Arrester) Required</h4>
+                <p className="text-xs text-slate-500 leading-snug">
+                  DTRs where Lightning Arrester (LA) is missing or reported defective.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-red-200 text-red-700 bg-white hover:bg-red-50"
+                  onClick={() => exportCustomDTRReportPDF("Lightning Arrester (LA) Required DTR Report", "la-required-dtr-report", laRequiredRecords)}
+                  disabled={laRequiredRecords.length === 0}
+                >
+                  <FileDown className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-green-200 text-green-700 bg-white hover:bg-green-50"
+                  onClick={() => exportCustomDTRReportExcel("Lightning Arrester (LA) Required DTR Report", "la-required-dtr-report", laRequiredRecords)}
+                  disabled={laRequiredRecords.length === 0}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                </Button>
+              </div>
+            </div>
+
+            {/* Card 4: Location Updated */}
+            <div className="bg-teal-50/40 border border-teal-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:shadow-sm transition">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full">
+                    {locationUpdatedRecords.length} Updated
+                  </span>
+                  <MapPin className="h-4 w-4 text-teal-600" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm mt-1">Location Updated Report</h4>
+                <p className="text-xs text-slate-500 leading-snug">
+                  Transformers where field location/landmark differs from original master record.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-red-200 text-red-700 bg-white hover:bg-red-50"
+                  onClick={() => exportCustomDTRReportPDF("Field Location Updated DTR Report", "location-updated-dtr-report", locationUpdatedRecords)}
+                  disabled={locationUpdatedRecords.length === 0}
+                >
+                  <FileDown className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-green-200 text-green-700 bg-white hover:bg-green-50"
+                  onClick={() => exportCustomDTRReportExcel("Field Location Updated DTR Report", "location-updated-dtr-report", locationUpdatedRecords)}
+                  disabled={locationUpdatedRecords.length === 0}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
+                </Button>
+              </div>
+            </div>
+
+            {/* Card 5: kVA Rating Updated */}
+            <div className="bg-rose-50/40 border border-rose-200/80 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:shadow-sm transition">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full">
+                    {kvaUpdatedRecords.length} Updated
+                  </span>
+                  <TrendingUp className="h-4 w-4 text-rose-600" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm mt-1">kVA Capacity Updated</h4>
+                <p className="text-xs text-slate-500 leading-snug">
+                  Transformers where actual field kVA rating differs from existing master capacity.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-red-200 text-red-700 bg-white hover:bg-red-50"
+                  onClick={() => exportCustomDTRReportPDF("kVA Capacity Rating Updated DTR Report", "kva-updated-dtr-report", kvaUpdatedRecords)}
+                  disabled={kvaUpdatedRecords.length === 0}
+                >
+                  <FileDown className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 h-8 text-xs gap-1 border-green-200 text-green-700 bg-white hover:bg-green-50"
+                  onClick={() => exportCustomDTRReportExcel("kVA Capacity Rating Updated DTR Report", "kva-updated-dtr-report", kvaUpdatedRecords)}
+                  disabled={kvaUpdatedRecords.length === 0}
+                >
                   <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
                 </Button>
               </div>
