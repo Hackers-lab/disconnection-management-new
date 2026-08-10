@@ -6,7 +6,7 @@
  *    - Division normalization by local background luminance map
  *    - 100% pure white paper background (#FFFFFF) with zero dark borders/shadows
  *    - Dynamic text contrast darkening & saturation boost for blue pen/signatures/stamps
- * 3. Proportional A4 Perspective Warp Homography
+ * 3. Proportional A4 Perspective Warp Homography with 8-point Transposition & Safety Margin
  */
 
 export interface Point {
@@ -17,6 +17,131 @@ export interface Point {
 // Standard A4 Aspect Ratio Dimensions (1 : 1.4142)
 export const A4_PORTRAIT_WIDTH = 1200
 export const A4_PORTRAIT_HEIGHT = 1697
+
+/**
+ * 8-Point Helper Utilities for 4 Corners + 4 Side Handles
+ * Ordering:
+ * 0: TL (Top-Left)
+ * 1: TM (Top-Mid)
+ * 2: TR (Top-Right)
+ * 3: RM (Right-Mid)
+ * 4: BR (Bottom-Right)
+ * 5: BM (Bottom-Mid)
+ * 6: BL (Bottom-Left)
+ * 7: LM (Left-Mid)
+ */
+export function compute8Points(corners: [Point, Point, Point, Point]): Point[] {
+  const [TL, TR, BR, BL] = corners
+  return [
+    TL,
+    { x: Math.round((TL.x + TR.x) / 2), y: Math.round((TL.y + TR.y) / 2) },
+    TR,
+    { x: Math.round((TR.x + BR.x) / 2), y: Math.round((TR.y + BR.y) / 2) },
+    BR,
+    { x: Math.round((BR.x + BL.x) / 2), y: Math.round((BR.y + BL.y) / 2) },
+    BL,
+    { x: Math.round((TL.x + BL.x) / 2), y: Math.round((TL.y + BL.y) / 2) },
+  ]
+}
+
+export function updateCornersFrom8Points(
+  dragIndex: number,
+  newPos: Point,
+  corners: [Point, Point, Point, Point]
+): [Point, Point, Point, Point] {
+  const [TL, TR, BR, BL] = corners
+
+  if (dragIndex === 0) return [newPos, TR, BR, BL]
+  if (dragIndex === 2) return [TL, newPos, BR, BL]
+  if (dragIndex === 4) return [TL, TR, newPos, BL]
+  if (dragIndex === 6) return [TL, TR, BR, newPos]
+
+  // Midpoint handle drag shifts the corresponding edge / adjacent corners
+  if (dragIndex === 1) {
+    // Top-Mid
+    const oldMidX = (TL.x + TR.x) / 2
+    const oldMidY = (TL.y + TR.y) / 2
+    const dx = newPos.x - oldMidX
+    const dy = newPos.y - oldMidY
+    return [
+      { x: TL.x + dx, y: TL.y + dy },
+      { x: TR.x + dx, y: TR.y + dy },
+      BR,
+      BL
+    ]
+  }
+
+  if (dragIndex === 3) {
+    // Right-Mid
+    const oldMidX = (TR.x + BR.x) / 2
+    const oldMidY = (TR.y + BR.y) / 2
+    const dx = newPos.x - oldMidX
+    const dy = newPos.y - oldMidY
+    return [
+      TL,
+      { x: TR.x + dx, y: TR.y + dy },
+      { x: BR.x + dx, y: BR.y + dy },
+      BL
+    ]
+  }
+
+  if (dragIndex === 5) {
+    // Bottom-Mid
+    const oldMidX = (BL.x + BR.x) / 2
+    const oldMidY = (BL.y + BR.y) / 2
+    const dx = newPos.x - oldMidX
+    const dy = newPos.y - oldMidY
+    return [
+      TL,
+      TR,
+      { x: BR.x + dx, y: BR.y + dy },
+      { x: BL.x + dx, y: BL.y + dy }
+    ]
+  }
+
+  if (dragIndex === 7) {
+    // Left-Mid
+    const oldMidX = (TL.x + BL.x) / 2
+    const oldMidY = (TL.y + BL.y) / 2
+    const dx = newPos.x - oldMidX
+    const dy = newPos.y - oldMidY
+    return [
+      { x: TL.x + dx, y: TL.y + dy },
+      TR,
+      BR,
+      { x: BL.x + dx, y: BL.y + dy }
+    ]
+  }
+
+  return corners
+}
+
+/**
+ * Expands quadrilateral corners outward from centroid by safety margin % to prevent cutting text/edges
+ */
+export function expandCornersWithSafetyMargin(
+  corners: [Point, Point, Point, Point],
+  canvasWidth: number,
+  canvasHeight: number,
+  marginPercent = 0.025 // 2.5% safety margin padding
+): [Point, Point, Point, Point] {
+  const [TL, TR, BR, BL] = corners
+  const centerX = (TL.x + TR.x + BR.x + BL.x) / 4
+  const centerY = (TL.y + TR.y + BR.y + BL.y) / 4
+
+  const factor = 1 + marginPercent
+
+  const expand = (p: Point): Point => {
+    const vx = p.x - centerX
+    const vy = p.y - centerY
+    return {
+      x: Math.max(0, Math.min(canvasWidth, Math.round(centerX + vx * factor))),
+      y: Math.max(0, Math.min(canvasHeight, Math.round(centerY + vy * factor))),
+    }
+  }
+
+  return [expand(TL), expand(TR), expand(BR), expand(BL)]
+}
 
 /**
  * CamScanner-Grade "Magic Color" Document Enhancer
@@ -149,10 +274,10 @@ export function detectDocumentCorners(
 
     // Sample scan lines along 4 quadrants to detect paper brightness edge transition
     const step = 8
-    let topL = { x: Math.round(w * 0.03), y: Math.round(h * 0.03) }
-    let topR = { x: Math.round(w * 0.97), y: Math.round(h * 0.03) }
-    let botR = { x: Math.round(w * 0.97), y: Math.round(h * 0.97) }
-    let botL = { x: Math.round(w * 0.03), y: Math.round(h * 0.97) }
+    let topL = { x: Math.round(w * 0.02), y: Math.round(h * 0.02) }
+    let topR = { x: Math.round(w * 0.98), y: Math.round(h * 0.02) }
+    let botR = { x: Math.round(w * 0.98), y: Math.round(h * 0.98) }
+    let botL = { x: Math.round(w * 0.02), y: Math.round(h * 0.98) }
 
     // Top edge scan (downward from top)
     for (let y = 0; y < Math.floor(h * 0.35); y += step) {
@@ -223,8 +348,8 @@ export function detectDocumentCorners(
 }
 
 function defaultInsetCorners(w: number, h: number): [Point, Point, Point, Point] {
-  const insetX = Math.round(w * 0.03)
-  const insetY = Math.round(h * 0.03)
+  const insetX = Math.round(w * 0.02)
+  const insetY = Math.round(h * 0.02)
   return [
     { x: insetX, y: insetY },
     { x: w - insetX, y: insetY },
@@ -236,6 +361,7 @@ function defaultInsetCorners(w: number, h: number): [Point, Point, Point, Point]
 /**
  * Perspective Warp Homography (A4 Proportional Output)
  * Transforms arbitrary 4 corner quadrilateral into exact A4 aspect ratio canvas.
+ * Applies safety margin padding to guarantee no paper edges/text get cut off.
  */
 export function warpPerspective(
   sourceCanvas: HTMLCanvasElement,
@@ -253,7 +379,13 @@ export function warpPerspective(
   const outCtx = outputCanvas.getContext("2d")
   if (!srcCtx || !outCtx) return sourceCanvas
 
-  const srcData = srcCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height)
+  const sw = sourceCanvas.width
+  const sh = sourceCanvas.height
+
+  // Expand corners with 2.5% safety margin padding outward
+  const expandedCorners = expandCornersWithSafetyMargin(corners, sw, sh, 0.025)
+
+  const srcData = srcCtx.getImageData(0, 0, sw, sh)
   const outData = outCtx.createImageData(targetWidth, targetHeight)
 
   const H = getHomographyMatrix(
@@ -263,11 +395,8 @@ export function warpPerspective(
       { x: targetWidth, y: targetHeight },
       { x: 0, y: targetHeight },
     ],
-    corners
+    expandedCorners
   )
-
-  const sw = sourceCanvas.width
-  const sh = sourceCanvas.height
 
   for (let y = 0; y < targetHeight; y++) {
     for (let x = 0; x < targetWidth; x++) {
