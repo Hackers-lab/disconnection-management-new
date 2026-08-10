@@ -8,7 +8,7 @@ import type { NSCApplication } from "@/lib/nsc-types"
 import {
   Check, ChevronDown, ChevronRight,
   Zap, ClipboardList, Clock,
-  AlertTriangle, ImageIcon, FileText,
+  AlertTriangle, ImageIcon, FileText, History,
 } from "lucide-react"
 import { NscReportDownloadModal } from "./nsc-report-download-modal"
 
@@ -311,6 +311,57 @@ export function NscViewDialog({ app, open, onClose }: Props) {
                       {app.inspectionFormImg && <a href={app.inspectionFormImg} target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 flex items-center gap-1"><ImageIcon className="h-3 w-3" />Insp. Form ↗</a>}
                       {app.existingMeterImg  && <a href={app.existingMeterImg}  target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 flex items-center gap-1"><ImageIcon className="h-3 w-3" />Meter Img ↗</a>}
                       {app.poleDrawingImg    && <a href={app.poleDrawingImg}    target="_blank" rel="noopener noreferrer" className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-100 flex items-center gap-1"><ImageIcon className="h-3 w-3" />Pole Drawing ↗</a>}
+                    </div>
+                  )}
+
+                  {/* ── Inspection Audit Log (Multi-round Timeline) ──────────── */}
+                  {app.inspectionHistory && app.inspectionHistory.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-slate-200 space-y-2.5">
+                      <p className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <History className="h-3.5 w-3.5 text-blue-600" />
+                        Inspection Audit History ({app.inspectionHistory.length} Rounds)
+                      </p>
+
+                      <div className="space-y-2">
+                        {app.inspectionHistory.map((round) => {
+                          const isAccepted = round.decision === "accepted"
+                          return (
+                            <div key={round.round} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-800 bg-slate-200 px-2 py-0.5 rounded text-[10px]">
+                                  Round {round.round}: {round.agency}
+                                </span>
+                                <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${isAccepted ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                                  {isAccepted ? "✓ Accepted" : "✗ Rejected"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between text-slate-500 font-mono text-[10px]">
+                                <span>By: {round.inspectedBy || "Inspector"}</span>
+                                <span>{round.inspectedAt || "—"}</span>
+                              </div>
+                              {round.remarks && (
+                                <p className="text-slate-600 italic bg-white p-2 rounded border border-slate-100 text-[11px]">
+                                  "{round.remarks}"
+                                </p>
+                              )}
+                              {(round.siteImg || round.inspectionFormImg) && (
+                                <div className="flex gap-2 pt-0.5">
+                                  {round.siteImg && (
+                                    <a href={round.siteImg} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-white border text-blue-600 px-2 py-0.5 rounded hover:bg-blue-50 flex items-center gap-1">
+                                      <ImageIcon className="h-2.5 w-2.5" /> Site Photo ↗
+                                    </a>
+                                  )}
+                                  {round.inspectionFormImg && (
+                                    <a href={round.inspectionFormImg} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-white border text-blue-600 px-2 py-0.5 rounded hover:bg-blue-50 flex items-center gap-1">
+                                      <ImageIcon className="h-2.5 w-2.5" /> Form Photo ↗
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
                 </>

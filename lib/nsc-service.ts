@@ -33,9 +33,9 @@ const NSC_HEADERS = [
   "Memo No", "Application No", "Finalized At", "Finalized By",
   // Meter & connection milestones
   "Meter Issued At", "Connection Effected At", "Meter Serial No",
-  // Added columns (AS–AV) — safe to append, never break existing data
+  // Added columns (AS–AW) — safe to append, never break existing data
   "Office Ref No", "Project ID", "Is Legacy", "Existing Consumer ID",
-  "Application Form URL",
+  "Application Form URL", "Inspection History",
 ]
 
 const NSC_FIELD_MAP: Record<keyof NSCApplication, string[]> = {
@@ -88,6 +88,7 @@ const NSC_FIELD_MAP: Record<keyof NSCApplication, string[]> = {
   isLegacy:             ["Is Legacy", "isLegacy", "is_legacy"],
   existingConsumerId:   ["Existing Consumer ID", "existingConsumerId", "existing_consumer_id", "existingconsumerid"],
   applicationFormUrl:   ["Application Form URL", "applicationFormUrl", "application_form_url"],
+  inspectionHistory:    ["Inspection History", "inspectionHistory", "inspection_history"],
   remarks:              ["Remarks", "agencyRemarks", "adminRemarks", "remarks"],
   quotationDate:        ["Quotation Date", "quotationDate", "quotation_date"],
   appliedDate:          ["Applied Date", "receivedDate", "appliedDate"],
@@ -129,6 +130,15 @@ function parseRow(r: string[], headers: string[]): NSCApplication {
     const idx = findColumn(headers, candidates)
     if (idx === -1) return ""
     return r[idx] || ""
+  }
+
+  const rawHistory = getVal("inspectionHistory")
+  let parsedHistory: any[] | undefined
+  if (rawHistory) {
+    try {
+      const arr = JSON.parse(rawHistory)
+      if (Array.isArray(arr)) parsedHistory = arr
+    } catch {}
   }
 
   return {
@@ -181,6 +191,7 @@ function parseRow(r: string[], headers: string[]): NSCApplication {
     isLegacy:             getVal("isLegacy"),
     existingConsumerId:   getVal("existingConsumerId"),
     applicationFormUrl:   getVal("applicationFormUrl"),
+    inspectionHistory:    parsedHistory,
   }
 }
 
@@ -319,8 +330,73 @@ export async function submitInspection(req: {
   const all = await _fetchApplicationsRaw(id)
   const idx = all.findIndex(a => a.receiveNo === req.receiveNo)
   if (idx === -1) throw new Error("Application not found")
+  const existingApp = all[idx]
   const row = idx + 2
   const now = nowTs()
+
+  // Build / update inspection history audit log
+  let history: any[] = []
+  if (existingApp.inspectionHistory && Array.isArray(existingApp.inspectionHistory)) {
+    history = [...existingApp.inspectionHistory]
+  } else if (existingApp.agencyDecision) {
+    // Legacy snapshot: Convert existing past inspection into Round 1 so previous decision isn't lost
+    history.push({
+      round: 1,
+      agency: existingApp.agency || "Agency",
+      decision: existingApp.agencyDecision,
+      remarks: existingApp.agencyRemarks || "",
+      verifyName: existingApp.verifyName,
+      verifyCO: existingApp.verifyCO,
+      verifyAddress: existingApp.verifyAddress,
+      verifyClass: existingApp.verifyClass,
+      existingMeter: existingApp.existingMeter,
+      existingMeterNo: existingApp.existingMeterNo,
+      existingMeterImg: existingApp.existingMeterImg,
+      validPartition: existingApp.validPartition,
+      partitionImg: existingApp.partitionImg,
+      dispute: existingApp.dispute,
+      load: existingApp.load,
+      serviceLength: existingApp.serviceLength,
+      poleRequired: existingApp.poleRequired,
+      poleDrawingImg: existingApp.poleDrawingImg,
+      dtrCapacity: existingApp.dtrCapacity,
+      dtrLoad: existingApp.dtrLoad,
+      siteImg: existingApp.siteImg,
+      inspectionFormImg: existingApp.inspectionFormImg,
+      inspectedBy: existingApp.inspectedBy,
+      inspectedAt: existingApp.inspectedAt,
+    })
+  }
+
+  const newRoundNumber = history.length + 1
+  const currentRoundSnapshot = {
+    round: newRoundNumber,
+    agency: existingApp.agency || req.inspectedBy,
+    decision: req.agencyDecision,
+    remarks: req.agencyRemarks,
+    verifyName: req.verifyName,
+    verifyCO: req.verifyCO,
+    verifyAddress: req.verifyAddress,
+    verifyClass: req.verifyClass,
+    existingMeter: req.existingMeter,
+    existingMeterNo: req.existingMeterNo,
+    existingMeterImg: req.existingMeterImg,
+    validPartition: req.validPartition,
+    partitionImg: req.partitionImg,
+    dispute: req.dispute,
+    load: req.load,
+    serviceLength: req.serviceLength,
+    poleRequired: req.poleRequired,
+    poleDrawingImg: req.poleDrawingImg,
+    dtrCapacity: req.dtrCapacity,
+    dtrLoad: req.dtrLoad,
+    siteImg: req.siteImg,
+    inspectionFormImg: req.inspectionFormImg,
+    inspectedBy: req.inspectedBy,
+    inspectedAt: now,
+  }
+
+  history.push(currentRoundSnapshot)
 
   const data: any[] = []
   const addUpdate = (field: keyof NSCApplication, value: string) => {
@@ -356,6 +432,7 @@ export async function submitInspection(req: {
   addUpdate("agencyRemarks", req.agencyRemarks)
   addUpdate("inspectedAt", now)
   addUpdate("inspectedBy", req.inspectedBy)
+  addUpdate("inspectionHistory", JSON.stringify(history))
 
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: id,
