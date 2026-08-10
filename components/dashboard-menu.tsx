@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
+import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
 
 interface DashboardMenuProps {
@@ -333,6 +334,28 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                 if (data) await saveToCache("consumers_data_cache", data)
               }
             } catch (err) { console.error("Auto-fetch consumers failed", err) }
+          } else {
+            // Background delta patch sync to align mobile & desktop device caches
+            const maxTs = PlatformSyncEngine.extractMaxTimestamp(data, ["lastUpdated", "createdAt"])
+            PlatformSyncEngine.syncModule<ConsumerData>({
+              moduleKey: "disconnection",
+              cacheKey: "consumers_data_cache",
+              idKey: "consumerId",
+              fetchPatchUrl: "/api/consumers/patch",
+            }, maxTs).then(mergedData => {
+              if (mergedData && Array.isArray(mergedData)) {
+                const freshCount = mergedData.filter(c => {
+                  const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
+                  if (!isConnected) return false
+                  if (userRole === "admin" || userRole === "viewer") return true
+                  const consumerAgency = (c.agency || "").trim().toUpperCase()
+                  const safeAgencies = userAgencies || []
+                  const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
+                  return userAgenciesUpper.includes(consumerAgency)
+                }).length
+                setPendingCount(freshCount)
+              }
+            }).catch(() => {})
           }
 
           if (!data) data = []
