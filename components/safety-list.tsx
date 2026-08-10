@@ -46,20 +46,26 @@ const NearbySafetyMap = dynamic(
 
 export function getGoogleDriveDirectLink(url: string | undefined): string {
   if (!url) return ""
-  // If multiple URLs are provided (comma separated), take the first one
-  const firstUrl = url.split(",")[0].trim()
-  if (firstUrl.includes("drive.google.com")) {
-    let fileId = ""
-    if (firstUrl.includes("/file/d/")) {
-      const parts = firstUrl.split("/file/d/")
-      if (parts[1]) fileId = parts[1].split("/")[0]
-    } else if (firstUrl.includes("id=")) {
-      const match = firstUrl.match(/[?&]id=([^&]+)/)
-      if (match && match[1]) fileId = match[1]
+  
+  // Extract the first Google Drive ID safely, ignoring newlines, brackets, or commas
+  let fileId = ""
+  const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+  if (fileDMatch && fileDMatch[1]) {
+    fileId = fileDMatch[1]
+  } else {
+    const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+    if (idMatch && idMatch[1]) {
+      fileId = idMatch[1]
     }
-    if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
   }
-  return firstUrl.startsWith("http://") || firstUrl.startsWith("https://") ? firstUrl : `https://${firstUrl}`
+
+  if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
+
+  // If not a Drive link, extract the first clean http/https URL
+  const httpMatch = url.match(/https?:\/\/[^\s\]\),]+/)
+  if (httpMatch) return httpMatch[0]
+
+  return url.split(",")[0].trim()
 }
 
 interface SafetyListProps {
