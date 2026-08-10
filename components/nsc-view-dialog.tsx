@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { NSC_STATUS_COLORS, NSC_STATUS_LABELS } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import {
@@ -151,6 +151,7 @@ export function NscViewDialog({ app, open, onClose }: Props) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <DialogTitle className="text-base font-bold truncate">{app.applicantName}</DialogTitle>
+              <DialogDescription className="sr-only">NSC Application Details for {app.applicantName}</DialogDescription>
               <p className="text-xs font-mono text-gray-500 mt-0.5">{app.receiveNo}</p>
               {app.careOf && <p className="text-xs text-gray-500">C/O {app.careOf}</p>}
             </div>

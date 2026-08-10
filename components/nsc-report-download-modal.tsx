@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { FileText, Download, Loader2, Sparkles, CheckCircle2 } from "lucide-react"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { generateNSCInspectionReportPDF, fetchImageAsBase64 } from "@/lib/nsc-inspection-pdf"
@@ -104,9 +104,9 @@ export function NscReportDownloadModal({
             <FileText className="h-5 w-5 text-indigo-600" />
             Download NSC Technical Inspection Report
           </DialogTitle>
-          <p className="text-xs text-slate-500 mt-1">
+          <DialogDescription className="text-xs text-slate-500 mt-1">
             Receive No: <span className="font-mono font-bold text-indigo-600">{app.receiveNo}</span> ({app.applicantName})
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         {/* Checkbox Attachment Options */}

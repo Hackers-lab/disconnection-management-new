@@ -16,44 +16,33 @@ const CLASS_LABELS: Record<string, string> = {
 }
 
 /**
- * Asynchronously converts any image URL (HTTP/HTTPS/Data URL) into a JPEG Base64 Data URL for jsPDF embedding.
+ * Asynchronously converts any image URL (HTTP/HTTPS/Google Drive/Data URL)
+ * into a Base64 Data URL by passing remote URLs through our server-side proxy route `/api/image-proxy`.
  */
 export async function fetchImageAsBase64(url: string): Promise<string | null> {
   if (!url || typeof window === "undefined") return null
   if (url.startsWith("data:image")) return url
 
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas")
-        canvas.width = img.width
-        canvas.height = img.height
-        const ctx = canvas.getContext("2d")
-        if (!ctx) return resolve(null)
-        ctx.drawImage(img, 0, 0)
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.88)
-        resolve(dataUrl)
-      } catch (e) {
-        console.error("Canvas toDataURL failed:", e)
-        resolve(null)
-      }
+  try {
+    // Route remote URLs through our server proxy to bypass CORS & Google Drive auth blocks
+    const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`
+    const res = await fetch(proxyUrl)
+    if (!res.ok) {
+      console.warn(`Proxy fetch failed for ${url}: status ${res.status}`)
+      return null
     }
-    img.onerror = async () => {
-      try {
-        const res = await fetch(url)
-        const blob = await res.blob()
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(blob)
-      } catch {
-        resolve(null)
-      }
-    }
-    img.src = url
-  })
+
+    const blob = await res.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch (e) {
+    console.error("fetchImageAsBase64 error:", e)
+    return null
+  }
 }
 
 export async function generateNSCInspectionReportPDF(options: NSCReportPDFOptions): Promise<void> {
@@ -70,39 +59,40 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // ─── Clean White Header Banner (Ink-Saving Print Optimized) ────────────────
-  doc.setFillColor(255, 255, 255) // Pure White
-  doc.rect(0, 0, pageWidth, 28, "F")
+  // ─── Clean White Header Banner (Ink-Saving & Non-Overlapping Layout) ──────
+  doc.setFillColor(255, 255, 255)
+  doc.rect(0, 0, pageWidth, 30, "F")
 
   // Top Accent Line
-  doc.setFillColor(30, 41, 59) // Slate-900 line
+  doc.setFillColor(30, 41, 59) // Dark Slate Accent
   doc.rect(14, 8, pageWidth - 28, 1, "F")
 
-  doc.setTextColor(15, 23, 42) // Dark Slate
+  doc.setTextColor(15, 23, 42)
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(13)
-  doc.text("NEW SERVICE CONNECTION (NSC) - TECHNICAL INSPECTION REPORT", 14, 15)
+  doc.setFontSize(11)
+  doc.text("NEW SERVICE CONNECTION (NSC) - TECHNICAL INSPECTION REPORT", 14, 16)
 
   doc.setFont("helvetica", "normal")
-  doc.setFontSize(8.5)
+  doc.setFontSize(8)
   doc.setTextColor(100, 116, 139)
-  doc.text("West Bengal State Electricity Distribution Company Limited (WBSEDCL)", 14, 20)
+  doc.text("West Bengal State Electricity Distribution Company Limited (WBSEDCL)", 14, 21)
 
   // Top Right Meta Text
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
-  doc.text(`RECEIVE NO: ${app.receiveNo || "—"}`, pageWidth - 14, 15, { align: "right" })
+  doc.text(`RECEIVE NO: ${app.receiveNo || "—"}`, pageWidth - 14, 16, { align: "right" })
+
   doc.setFontSize(8)
   doc.setFont("helvetica", "normal")
   doc.setTextColor(100, 116, 139)
-  doc.text(`Date: ${app.inspectedAt || app.receivedDate || "—"}`, pageWidth - 14, 20, { align: "right" })
+  doc.text(`Date: ${app.inspectedAt || app.receivedDate || "—"}`, pageWidth - 14, 21, { align: "right" })
 
-  // Bottom Line of Header
+  // Header Bottom Line
   doc.setDrawColor(226, 232, 240)
-  doc.line(14, 24, pageWidth - 14, 24)
+  doc.line(14, 25, pageWidth - 14, 25)
 
-  let y = 30
+  let y = 32
 
   // ─── Section 1: Applicant & Location Overview ─────────────────────────────
   doc.setFont("helvetica", "bold")
@@ -214,10 +204,10 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   let decText: [number, number, number] = [30, 41, 59]
 
   if (isApproved) {
-    decBorder = [34, 197, 94] // Green
+    decBorder = [34, 197, 94]
     decText = [22, 101, 52]
   } else if (isRejected || isDispute) {
-    decBorder = [239, 68, 68] // Red
+    decBorder = [239, 68, 68]
     decText = [153, 27, 27]
   }
 
@@ -247,13 +237,13 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
   doc.text(`Inspected By: ${app.inspectedBy || app.agency || "Authorized Agency Inspector"}`, 14, y)
   doc.text(`Inspected At: ${app.inspectedAt || "—"}`, pageWidth / 2, y)
 
-  // ─── Bottom Right Agency Signature Block (Clean Print Style) ──────────────
+  // ─── Bottom Right Agency Signature Block ──────────────────────────────────
   const sigBoxW = 75
   const sigBoxH = 34
   const sigBoxX = pageWidth - 14 - sigBoxW
   const sigBoxY = pageHeight - 14 - sigBoxH
 
-  doc.setDrawColor(148, 163, 184) // Slate-400 border
+  doc.setDrawColor(148, 163, 184)
   doc.setLineWidth(0.3)
   doc.setFillColor(255, 255, 255)
   doc.roundedRect(sigBoxX, sigBoxY, sigBoxW, sigBoxH, 1.5, 1.5, "FD")
@@ -292,25 +282,46 @@ export async function generateNSCInspectionReportPDF(options: NSCReportPDFOption
 
       // Header Banner on Attachment Page
       doc.setFillColor(255, 255, 255)
-      doc.rect(0, 0, pageWidth, 18, "F")
+      doc.rect(0, 0, pageWidth, 22, "F")
 
       doc.setTextColor(15, 23, 42)
       doc.setFont("helvetica", "bold")
-      doc.setFontSize(11)
-      doc.text(title.toUpperCase(), 14, 12)
+      doc.setFontSize(10)
+      doc.text(title.toUpperCase(), 14, 14)
 
       doc.setFontSize(8)
       doc.setFont("helvetica", "normal")
       doc.setTextColor(100, 116, 139)
-      doc.text(`Receive No: ${app.receiveNo}`, pageWidth - 14, 12, { align: "right" })
+      doc.text(`Receive No: ${app.receiveNo}`, pageWidth - 14, 14, { align: "right" })
 
       doc.setDrawColor(226, 232, 240)
-      doc.line(14, 16, pageWidth - 14, 16)
+      doc.line(14, 18, pageWidth - 14, 18)
 
-      const maxImgW = pageWidth - 28
-      const maxImgH = pageHeight - 26
+      const imgX = 14
+      const imgY = 24
+      const maxImgW = pageWidth - 28 // 182mm
+      const maxImgH = pageHeight - 38 // 259mm
 
-      doc.addImage(base64Img, "JPEG", 14, 20, maxImgW, maxImgH, undefined, "FAST")
+      let imgW = maxImgW
+      let imgH = maxImgH
+
+      try {
+        const tempImg = new Image()
+        tempImg.src = base64Img
+        if (tempImg.width && tempImg.height) {
+          const ratio = tempImg.height / tempImg.width
+          if (ratio * imgW <= maxImgH) {
+            imgH = ratio * imgW
+          } else {
+            imgW = maxImgH / ratio
+          }
+        }
+      } catch {}
+
+      const posX = imgX + (maxImgW - imgW) / 2
+      const posY = imgY + (maxImgH - imgH) / 2
+
+      doc.addImage(base64Img, "JPEG", posX, posY, imgW, imgH, undefined, "FAST")
     } catch (e) {
       console.error(`Error embedding attachment "${title}":`, e)
     }
