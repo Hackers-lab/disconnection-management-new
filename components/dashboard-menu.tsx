@@ -723,11 +723,18 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     loadPendingCount()
   }, [userRole, JSON.stringify(userAgencies), Boolean(permissions)])
 
+  const totalPendingActionCount = pendingCount + reconnectionPendingCount + ddPendingCount + safetyPendingCount + dtrPendingCount + replacementPendingCount
+
   return (
     <>
-      <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-[calc(100vh-80px)] flex flex-col">
+      <div className="relative p-2 sm:p-4 md:p-6 max-w-7xl mx-auto flex flex-col justify-between min-h-[calc(100vh-100px)] overflow-hidden">
+        {/* Subtle Ambient Background Mesh Blobs */}
+        <div className="absolute top-10 left-1/4 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" />
+        <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
+        <div className="absolute top-1/2 left-10 w-60 h-60 bg-purple-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
+
         <div className="flex-grow">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
             {modules.map((module) => {
               const permKey = module.id.replace(/-/g, "_")
               const hasAccess = userRole === "admin" || userRole === "superuser" || module.id === "home" || (permissions && (
@@ -738,102 +745,56 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
               ))
               if (!hasAccess) return null
               const Icon = module.icon
+
+              let count = 0
+              if (module.id === "safety") count = safetyPendingCount
+              else if (module.id === "misc-inspection") count = miscPendingCount
+              else if (module.id === "disconnection") count = pendingCount
+              else if (module.id === "deemed") count = ddPendingCount
+              else if (module.id === "reconnection") count = reconnectionPendingCount
+              else if (module.id === "nsc") count = nscPendingCount
+              else if (module.id === "meter") count = meterPendingCount
+              else if (module.id === "meter-replacement") count = replacementPendingCount
+              else if (module.id === "material") count = materialPendingCount
+              else if (module.id === "dtr") count = dtrPendingCount
+              else if (module.id === "dtr-painting") count = dtrPaintingPendingCount
+              else if (module.id === "consumer-master") count = masterCount
+
+              const isLoading = Boolean(loadingModules[module.id])
+
               return (
                 <Card
                   key={module.id}
-                  className={`group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl ${module.borderColor} overflow-hidden`}
+                  className={`group relative cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1.5 border border-slate-200/90 bg-white/80 backdrop-blur-xl rounded-2xl ${module.borderColor} overflow-hidden`}
                   onClick={() => {
                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                     onSelect(module.id as ViewType)
                   }}
                 >
-                  {module.id === "safety" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["safety"] ? "bg-slate-800 text-white animate-pulse" : safetyPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["safety"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : safetyPendingCount}
-                    </div>
-                  )}
-                  {module.id === "misc-inspection" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["misc-inspection"] ? "bg-slate-800 text-white animate-pulse" : miscPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["misc-inspection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : miscPendingCount}
-                    </div>
-                  )}
-                  {module.id === "disconnection" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["disconnection"] ? "bg-slate-800 text-white animate-pulse" : pendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["disconnection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : pendingCount}
-                    </div>
-                  )}
-                  {module.id === "deemed" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["deemed"] ? "bg-slate-800 text-white animate-pulse" : ddPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["deemed"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : ddPendingCount}
-                    </div>
-                  )}
-                  {module.id === "reconnection" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["reconnection"] ? "bg-slate-800 text-white animate-pulse" : reconnectionPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["reconnection"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : reconnectionPendingCount}
-                    </div>
-                  )}
-                  {module.id === "nsc" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["nsc"] ? "bg-slate-800 text-white animate-pulse" : nscPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["nsc"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : nscPendingCount}
-                    </div>
-                  )}
-                  {module.id === "meter" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["meter"] ? "bg-slate-800 text-white animate-pulse" : meterPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["meter"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : meterPendingCount}
-                    </div>
-                  )}
-                  {module.id === "meter-replacement" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["meter-replacement"] ? "bg-slate-800 text-white animate-pulse" : replacementPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["meter-replacement"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : replacementPendingCount}
-                    </div>
-                  )}
-                  {module.id === "material" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["material"] ? "bg-slate-800 text-white animate-pulse" : materialPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["material"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : materialPendingCount}
-                    </div>
-                  )}
-                  {module.id === "dtr" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr"] ? "bg-slate-800 text-white animate-pulse" : dtrPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["dtr"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : dtrPendingCount}
-                    </div>
-                  )}
-                  {module.id === "dtr-painting" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["dtr-painting"] ? "bg-slate-800 text-white animate-pulse" : dtrPaintingPendingCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["dtr-painting"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : dtrPaintingPendingCount}
-                    </div>
-                  )}
-                  {module.id === "consumer-master" && (
-                    <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${loadingModules["consumer-master"] ? "bg-slate-800 text-white animate-pulse" : masterCount > 0 ? "bg-slate-900 text-white shadow-slate-900/20" : "bg-slate-200 text-slate-500"
-                      }`}>
-                      {loadingModules["consumer-master"] ? <RefreshCw className="h-3 w-3 animate-spin" /> : masterCount.toLocaleString()}
+                  {/* Executive Dark Badge Counter (Only shown when count > 0 or loading) */}
+                  {(isLoading || count > 0) && (
+                    <div className={`absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
+                      isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
+                    }`}>
+                      {isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.id === "consumer-master" ? count.toLocaleString() : count}
                     </div>
                   )}
 
-                  <div className={`absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500`}>
-                    <Icon className={`h-16 w-16 md:h-24 md:w-24 ${module.color} transition-transform duration-500 group-hover:scale-110`} />
+                  {/* Faded Background Icon */}
+                  <div className="absolute top-0 right-0 p-2 md:p-3 opacity-5 group-hover:opacity-15 transition-opacity duration-300">
+                    <Icon className={`h-20 w-20 md:h-24 md:w-24 ${module.color} transition-transform duration-500 group-hover:scale-110`} />
                   </div>
 
-                  <CardHeader className="relative pb-2 p-3 md:p-6">
-                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl ${module.bgColor} flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm`}>
+                  <CardHeader className="relative pb-2 p-3.5 md:p-5">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl ${module.bgColor} flex items-center justify-center mb-2.5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-sm border border-slate-100`}>
                       <Icon className={`h-5 w-5 md:h-6 md:w-6 ${module.color}`} />
                     </div>
-                    <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                    <CardTitle className="text-sm md:text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">
                       {module.title}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
-                    <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                  <CardContent className="relative p-3.5 pt-0 md:p-5 md:pt-0">
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                       {module.description}
                     </p>
                   </CardContent>

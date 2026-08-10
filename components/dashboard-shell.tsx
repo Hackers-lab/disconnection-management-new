@@ -47,7 +47,7 @@ export function DashboardShell({
         permissions={permissions}
       />
       <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden ${
-        activeView === "home" ? "py-6" : "pt-2 pb-6"
+        activeView === "home" ? "py-6 bg-gradient-to-b from-slate-50/80 via-slate-100/40 to-slate-50/80 rounded-3xl" : "pt-2 pb-6"
       }`}>
         {/* Render whatever is passed as children (Menu, List, etc.) */}
         {children} 
