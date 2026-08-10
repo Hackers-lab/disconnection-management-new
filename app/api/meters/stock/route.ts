@@ -15,7 +15,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const id = getSpreadsheetId()
-  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true" || request.nextUrl.searchParams.get("t") !== null
+  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true"
 
   const [summary, stock, issues] = await Promise.all([
     getStockSummary(id),

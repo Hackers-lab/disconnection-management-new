@@ -15,7 +15,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!authorized) return NextResponse.json({ error }, { status })
 
   const id = getSpreadsheetId()
-  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true" || request.nextUrl.searchParams.get("t") !== null
+  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true"
   const all = bypass ? await _fetchReplacementsRaw(id) : await fetchReplacements(id)
 
   if (session.role === "agency") {
