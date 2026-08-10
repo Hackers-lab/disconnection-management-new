@@ -391,7 +391,22 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       if (hasReadPermission("reconnection")) {
         try {
           // Show cached count immediately if available
-          const rcCached = await getFromCache<any[]>("reconnection_data_cache")
+          let rcCached = await getFromCache<any[]>("reconnection_data_cache")
+          
+          if (!rcCached || rcCached.length === 0) {
+            setLoadingModules(prev => ({ ...prev, reconnection: true }))
+            try {
+              const res = await fetch("/api/reconnection")
+              if (res.ok) {
+                const freshData = await res.json()
+                if (freshData && Array.isArray(freshData)) {
+                  rcCached = freshData
+                  await saveToCache("reconnection_data_cache", freshData)
+                }
+              }
+            } catch (err) { console.error("Auto-fetch reconnection failed", err) }
+          }
+
           const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
           const calculatePending = (list: any[]) => {
             const now = Date.now()
@@ -567,7 +582,20 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       // Material Stock
       if (hasReadPermission("material")) {
         try {
-          const cached = await getFromCache<any>("material_stock_cache")
+          let cached = await getFromCache<any>("material_stock_cache")
+          if (!cached || !cached.stock) {
+            setLoadingModules(prev => ({ ...prev, material: true }))
+            try {
+              const res = await fetch("/api/material")
+              if (res.ok) {
+                const freshData = await res.json()
+                if (freshData && freshData.stock) {
+                  cached = freshData
+                  await saveToCache("material_stock_cache", cached)
+                }
+              }
+            } catch (err) { console.error("Auto-fetch material failed", err) }
+          }
           if (cached) {
             const stock = cached.stock || []
             const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
