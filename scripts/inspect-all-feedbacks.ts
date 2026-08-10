@@ -27,7 +27,7 @@ async function inspectAllFeedbacks() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
 
-  const sheets = googleSheets({ version: "v4", auth: auth as any })
+  const sheets = googleSheets({ version: "v4", auth })
   const masterSheetId = process.env.MASTER_CONFIG_SHEET!
 
   console.log("=== MASTER CONFIG SHEET FEEDBACKS TAB ===")

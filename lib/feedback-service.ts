@@ -1,6 +1,7 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { auth } from "./google-drive"
 import { getSpreadsheetId } from "./google-sheets-api"
+import { getTenantRegistry } from "./tenant-resolver"
 
 export interface FeedbackItem {
   id: string
@@ -11,7 +12,7 @@ export interface FeedbackItem {
   rating: number // 1 to 5
   comment: string
   createdAt: string
-  status: 'approved' | 'pending' | 'hidden'
+  status: "approved" | "pending" | "hidden"
 }
 
 const sheets = googleSheets({ version: "v4", auth })
@@ -20,6 +21,17 @@ let memoryFeedbacksCache: FeedbackItem[] | null = null
 let lastFetchTime = 0
 const CACHE_TTL_MS = 60_000 // 1 minute memory cache
 
+export function getFeedbackMasterSheetId(): string {
+  return process.env.MASTER_CONFIG_SHEET?.trim() || getSpreadsheetId()
+}
+
+export function formatCccDisplay(name: string): string {
+  if (!name) return ""
+  const trimmed = name.trim()
+  if (/^\d+$/.test(trimmed)) return trimmed
+  return trimmed
+}
+
 export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<FeedbackItem[]> {
   const now = Date.now()
   if (memoryFeedbacksCache && now - lastFetchTime < CACHE_TTL_MS) {
@@ -27,7 +39,14 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
   }
 
   try {
-    const targetSheetId = process.env.MASTER_CONFIG_SHEET || spreadsheetId || getSpreadsheetId()
+    const targetSheetId = getFeedbackMasterSheetId()
+
+    let registry: Record<string, any> = {}
+    try {
+      registry = await getTenantRegistry()
+    } catch (err) {
+      console.warn("Tenant registry lookup warning in feedback service:", err)
+    }
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: targetSheetId,
@@ -55,26 +74,42 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
     const parsedItems: FeedbackItem[] = []
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i] || []
-      const comment = commentIdx >= 0 ? String(r[commentIdx] || "").trim() : String(r[4] || "").trim()
+      const comment = commentIdx >= 0 ? String(r[commentIdx] || "").trim() : String(r[6] || r[4] || "").trim()
       if (!comment) continue
 
       const status = statusIdx >= 0 ? String(r[statusIdx] || "").trim().toLowerCase() : "approved"
       if (status !== "approved") continue
 
       const username = userIdx >= 0 ? String(r[userIdx] || "").trim() : String(r[1] || "").trim()
-      const cccCode = cccIdx >= 0 ? String(r[cccIdx] || "").trim() : String(r[0] || "").trim()
-      const name = nameIdx >= 0 && r[nameIdx] ? String(r[nameIdx]) : username || cccCode || "Officer"
-      const office = officeIdx >= 0 && r[officeIdx] ? String(r[officeIdx]) : cccCode || "CCC Office"
+      const cccCode = cccIdx >= 0 ? String(r[cccIdx] || "").trim() : String(r[4] || r[0] || "").trim()
+      
+      const officialCccName = registry[cccCode]?.cccName || registry[username]?.cccName || ""
+      
+      let rawOffice = officeIdx >= 0 && r[officeIdx] ? String(r[officeIdx]).trim() : ""
+      if (!rawOffice || /^\d+\s*ccc$/i.test(rawOffice) || /^\d+$/.test(rawOffice)) {
+        rawOffice = officialCccName || (cccCode ? `${cccCode} CCC` : "CCC Office")
+      }
+
+      let rawName = nameIdx >= 0 && r[nameIdx] ? String(r[nameIdx]).trim() : ""
+      if (!rawName) {
+        if (username && !/^\d+$/.test(username)) {
+          rawName = username
+        } else if (officialCccName) {
+          rawName = officialCccName
+        } else {
+          rawName = "Officer"
+        }
+      }
 
       parsedItems.push({
         id: idIdx >= 0 ? String(r[idIdx] || `fb-${i}`) : `fb-${i}`,
         username: username || "user",
-        name,
-        supplyOffice: office,
+        name: rawName,
+        supplyOffice: rawOffice,
         cccCode,
-        rating: ratingIdx >= 0 ? Math.min(5, Math.max(1, parseInt(String(r[ratingIdx] || "5"), 10))) : Number(r[2] || 5),
+        rating: ratingIdx >= 0 ? Math.min(5, Math.max(1, parseInt(String(r[ratingIdx] || "5"), 10))) : Number(r[5] || 5),
         comment,
-        createdAt: dateIdx >= 0 ? String(r[dateIdx] || new Date().toISOString()) : String(r[5] || new Date().toISOString()),
+        createdAt: dateIdx >= 0 ? String(r[dateIdx] || new Date().toISOString()) : String(r[8] || new Date().toISOString()),
         status: "approved",
       })
     }
@@ -88,32 +123,61 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
     lastFetchTime = now
     return memoryFeedbacksCache
   }
+}
 
+export async function getUserFeedback(username: string): Promise<FeedbackItem | null> {
+  const all = await fetchApprovedFeedbacks()
+  return (
+    all.find(
+      (f) =>
+        f.username.toLowerCase() === username.toLowerCase() ||
+        f.cccCode.toLowerCase() === username.toLowerCase()
+    ) || null
+  )
 }
 
 export async function addFeedback(
-  feedback: Omit<FeedbackItem, "id" | "createdAt" | "status">,
-  spreadsheetId?: string
+  feedback: Omit<FeedbackItem, "id" | "createdAt" | "status">
 ): Promise<FeedbackItem> {
+  const targetSheetId = getFeedbackMasterSheetId()
+
+  let officialCccName = ""
+  try {
+    const registry = await getTenantRegistry()
+    officialCccName = registry[feedback.cccCode]?.cccName || registry[feedback.username]?.cccName || ""
+  } catch (e) {}
+
+  let supplyOffice = feedback.supplyOffice?.trim() || ""
+  if (!supplyOffice || /^\d+\s*ccc$/i.test(supplyOffice) || /^\d+$/.test(supplyOffice)) {
+    supplyOffice = officialCccName || (feedback.cccCode ? `${feedback.cccCode} CCC` : "CCC Office")
+  }
+
+  const existingList = await fetchApprovedFeedbacks()
+  const existingIdx = existingList.findIndex(
+    (f) =>
+      f.username.toLowerCase() === feedback.username.toLowerCase() ||
+      (feedback.cccCode && f.cccCode.toUpperCase() === feedback.cccCode.toUpperCase())
+  )
+
   const newItem: FeedbackItem = {
     ...feedback,
-    id: `fb-${Date.now()}`,
+    supplyOffice,
+    id: existingIdx >= 0 ? existingList[existingIdx].id : `fb-${Date.now()}`,
     createdAt: new Date().toISOString(),
     status: "approved",
   }
 
   // Update memory cache immediately
-  if (!memoryFeedbacksCache) {
-    memoryFeedbacksCache = [newItem]
+  if (existingIdx >= 0) {
+    existingList[existingIdx] = newItem
+    memoryFeedbacksCache = [...existingList]
   } else {
-    memoryFeedbacksCache = [newItem, ...memoryFeedbacksCache]
+    memoryFeedbacksCache = [newItem, ...(memoryFeedbacksCache || [])]
   }
   lastFetchTime = Date.now()
 
-  // Background append to Google Sheet if tab exists
+  // Sync to Master Config Google Sheet
   try {
-    const targetSheetId = spreadsheetId || getSpreadsheetId()
-
     // Ensure 'Feedbacks' tab exists
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: targetSheetId,
@@ -126,31 +190,69 @@ export async function addFeedback(
           },
         ],
       },
-    }).catch(() => {}) // Ignore if sheet tab already exists
+    }).catch(() => {})
 
-    // Append row
-    await sheets.spreadsheets.values.append({
+    const res = await sheets.spreadsheets.values.get({
       spreadsheetId: targetSheetId,
-      range: "'Feedbacks'!A1",
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [
-          [
-            newItem.id,
-            newItem.username,
-            newItem.name,
-            newItem.supplyOffice,
-            newItem.cccCode,
-            newItem.rating,
-            newItem.comment,
-            newItem.status,
-            newItem.createdAt,
-          ],
-        ],
-      },
-    }).catch((e: any) => console.warn("Failed to append feedback row to Google Sheet:", e.message))
+      range: "'Feedbacks'!A1:Z500",
+    }).catch(() => null)
+
+    const rows = (res?.data?.values || []) as string[][]
+    if (rows.length === 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: targetSheetId,
+        range: "'Feedbacks'!A1:I1",
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [["ID", "Username", "Name", "Supply Office", "CCC Code", "Rating", "Comment", "Status", "CreatedAt"]],
+        },
+      })
+    }
+
+    let foundRowIndex = -1
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i] || []
+      const u = String(r[1] || "").trim().toLowerCase()
+      const c = String(r[4] || "").trim().toUpperCase()
+      if (u === feedback.username.toLowerCase() || (feedback.cccCode && c === feedback.cccCode.toUpperCase())) {
+        foundRowIndex = i + 1
+        break
+      }
+    }
+
+    const rowValues = [
+      newItem.id,
+      newItem.username,
+      newItem.name,
+      newItem.supplyOffice,
+      newItem.cccCode,
+      newItem.rating,
+      newItem.comment,
+      newItem.status,
+      newItem.createdAt,
+    ]
+
+    if (foundRowIndex > 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: targetSheetId,
+        range: `'Feedbacks'!A${foundRowIndex}:I${foundRowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [rowValues],
+        },
+      })
+    } else {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: targetSheetId,
+        range: "'Feedbacks'!A1",
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [rowValues],
+        },
+      })
+    }
   } catch (e: any) {
-    console.warn("Feedback added to local memory cache, Google Sheet sync skipped:", e)
+    console.warn("Feedback saved to memory cache, Master Sheet sync warning:", e?.message || e)
   }
 
   return newItem

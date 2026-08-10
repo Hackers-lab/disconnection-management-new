@@ -34,7 +34,7 @@ async function debugKushida() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
 
-  const sheets = googleSheets({ version: "v4", auth: auth as any })
+  const sheets = googleSheets({ version: "v4", auth })
 
   const regRes = await sheets.spreadsheets.values.get({
     spreadsheetId: masterSheetId,
@@ -56,7 +56,7 @@ async function debugKushida() {
         console.log(`  Tabs in ${cccName} (${sheetId}):`, sheetTabs)
 
         for (const tab of sheetTabs) {
-          if (tab && tab.toLowerCase().includes("feed")) {
+          if (tab.toLowerCase().includes("feed")) {
             const data = await sheets.spreadsheets.values.get({
               spreadsheetId: sheetId,
               range: `'${tab}'!A1:Z50`,

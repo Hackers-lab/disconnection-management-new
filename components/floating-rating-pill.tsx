@@ -46,8 +46,8 @@ export function FloatingRatingPill() {
     }
   }
 
-  const handleStarClick = (starIndex: number) => {
-    setSelectedStar(starIndex)
+  const handleStarClick = () => {
+    setSelectedStar(5)
     setDialogOpen(true)
   }
 
@@ -60,14 +60,14 @@ export function FloatingRatingPill() {
           Rate App:
         </span>
         
-        {/* 5 Stars Only */}
+        {/* 5 Stars - Clicking opens feedback form with 5 stars by default */}
         <div className="flex items-center gap-0.5">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
-              onClick={() => handleStarClick(star)}
-              className="p-1 hover:scale-125 transition-transform text-amber-400 focus:outline-none"
-              title={`Rate ${star} star${star > 1 ? "s" : ""}`}
+              onClick={handleStarClick}
+              className="p-1 hover:scale-125 transition-transform text-amber-400 focus:outline-none cursor-pointer"
+              title="Rate App 5 Stars"
             >
               <Star className="w-4 h-4 fill-amber-400 text-amber-400 shrink-0" />
             </button>
@@ -79,7 +79,7 @@ export function FloatingRatingPill() {
             setSelectedStar(5)
             setDialogOpen(true)
           }}
-          className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 transition-colors ml-1 underline decoration-amber-400/40"
+          className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 transition-colors ml-1 underline decoration-amber-400/40 cursor-pointer"
           title="Click to check or update your feedback"
         >
           View & Edit
@@ -88,7 +88,7 @@ export function FloatingRatingPill() {
         {/* X Dismiss Button */}
         <button
           onClick={handleDismiss}
-          className="ml-1.5 p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="ml-1.5 p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           title="Close rating prompt"
         >
           <X className="w-3.5 h-3.5" />
@@ -98,7 +98,7 @@ export function FloatingRatingPill() {
       {/* Controlled Feedback Modal */}
       {dialogOpen && (
         <FeedbackDialog
-          initialRating={selectedStar || 5}
+          initialRating={5}
           open={dialogOpen}
           onOpenChange={(openState) => {
             setDialogOpen(openState)

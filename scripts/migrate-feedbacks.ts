@@ -42,7 +42,7 @@ async function runMigration() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
 
-  const sheets = googleSheets({ version: "v4", auth: auth as any })
+  const sheets = googleSheets({ version: "v4", auth })
 
   // 1. Gather all candidate spreadsheet IDs (Master Config registry + default DISCONNECTION_SHEET + USERS_SHEET)
   const candidateSheetIds = new Set<string>()
