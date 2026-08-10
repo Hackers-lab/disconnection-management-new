@@ -52,6 +52,7 @@ import {
   Building2,
   X,
   Camera,
+  ImageIcon,
   SlidersHorizontal,
   FileDown,
   FileSpreadsheet,
