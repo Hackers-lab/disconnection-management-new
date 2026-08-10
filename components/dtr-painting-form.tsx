@@ -31,24 +31,18 @@ interface Props {
 
 function getGoogleDriveDirectLink(url: string): string {
   if (!url) return ""
-  
-  let fileId = ""
-  const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
-  if (fileDMatch && fileDMatch[1]) {
-    fileId = fileDMatch[1]
-  } else {
-    const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/)
-    if (idMatch && idMatch[1]) {
-      fileId = idMatch[1]
+  if (url.includes("drive.google.com")) {
+    let fileId = ""
+    if (url.includes("/file/d/")) {
+      const parts = url.split("/file/d/")
+      if (parts[1]) fileId = parts[1].split("/")[0]
+    } else if (url.includes("id=")) {
+      const match = url.match(/[?&]id=([^&]+)/)
+      if (match && match[1]) fileId = match[1]
     }
+    if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
   }
-
-  if (fileId) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
-
-  const httpMatch = url.match(/https?:\/\/[^\s\]\),]+/)
-  if (httpMatch) return httpMatch[0]
-
-  return url.split(",")[0].trim()
+  return url
 }
 
 export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: Props) {
