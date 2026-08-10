@@ -6,7 +6,7 @@ import {
   invalidateMasterCache,
   type ConsumerMasterRow,
 } from "@/lib/consumer-master-service"
-import { getTenantConfig } from "@/lib/tenant-resolver"
+import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { withTenant } from "@/lib/tenant-context"
 
 // All roles can read the consumer master
@@ -59,8 +59,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const rows = body.rows as ConsumerMasterRow[]
     const clearExisting = body.clearExisting !== false
 
-    const tenantConfig = await getTenantConfig(session.cccCode)
-    const result = await uploadMasterData(rows, clearExisting, tenantConfig.spreadsheetId)
+    const spreadsheetId = getSpreadsheetId()
+    const result = await uploadMasterData(rows, clearExisting, spreadsheetId)
     return NextResponse.json({ success: true, count: result.count })
   } catch (e: any) {
     console.error("Consumer master upload error:", e)
