@@ -123,6 +123,35 @@ export interface NSCApplication {
   quotationDate?:       string
   appliedDate?:         string
   remarks?:             string
+  // Multi-round inspection history audit log
+  inspectionHistory?:   NSCInspectionRound[]
+}
+
+export interface NSCInspectionRound {
+  round:             number
+  agency:            string
+  decision:          string
+  remarks:           string
+  verifyName?:       string
+  verifyCO?:         string
+  verifyAddress?:    string
+  verifyClass?:      string
+  existingMeter?:    string
+  existingMeterNo?:  string
+  existingMeterImg?: string
+  validPartition?:   string
+  partitionImg?:     string
+  dispute?:          string
+  load?:             string
+  serviceLength?:    string
+  poleRequired?:     string
+  poleDrawingImg?:   string
+  dtrCapacity?:      string
+  dtrLoad?:          string
+  siteImg?:          string
+  inspectionFormImg?: string
+  inspectedBy?:      string
+  inspectedAt?:      string
 }
 
 // ── NSC Project ───────────────────────────────────────────────────────────────
