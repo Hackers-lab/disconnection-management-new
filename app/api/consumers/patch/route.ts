@@ -28,12 +28,13 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       })
     }
 
-    const fortyEightHoursAgo = Date.now() - (48 * 60 * 60 * 1000)
+    const sinceTs = parseInt(req.nextUrl.searchParams.get("since_ts") || "0", 10)
 
     const patchData = data.filter((consumer) => {
       if (!consumer.lastUpdated) return false
-      const ts = parseTs(consumer.lastUpdated)
-      return ts > 0 && ts >= fortyEightHoursAgo
+      const recTs = parseTs(consumer.lastUpdated)
+      if (!sinceTs) return true
+      return recTs >= sinceTs
     })
 
     return NextResponse.json(patchData, {

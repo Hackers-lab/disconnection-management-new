@@ -30,6 +30,8 @@ export interface SafetyTicket {
   remarks?: string
 }
 
+import { unstable_cache, revalidateTag } from "next/cache"
+
 async function getSheetsClient() {
   const { sheets: googleSheets } = await import("@googleapis/sheets")
   const { auth } = await import("./google-drive")
@@ -37,6 +39,7 @@ async function getSheetsClient() {
 }
 
 export const SAFETY_TAB = "Safety_Module"
+export const SAFETY_TAG = "safety_module"
 
 export const SAFETY_HEADERS = [
   "Safety ID",
@@ -68,15 +71,8 @@ export const SAFETY_HEADERS = [
   "Remarks",
 ]
 
-const SAFETY_MEMO_TTL_MS = 60_000
-let safetyMemo: Record<string, { at: number; data: SafetyTicket[] }> = {}
-
 export function invalidateSafetyCache(spreadsheetId?: string) {
-  if (spreadsheetId) {
-    delete safetyMemo[spreadsheetId]
-  } else {
-    safetyMemo = {}
-  }
+  revalidateTag(SAFETY_TAG)
 }
 
 function nowDate(): string {
@@ -105,11 +101,6 @@ export async function ensureSafetyTab(spreadsheetId: string): Promise<void> {
 }
 
 export async function _fetchSafetyTicketsRaw(spreadsheetId: string): Promise<SafetyTicket[]> {
-  const memo = safetyMemo[spreadsheetId]
-  if (memo && Date.now() - memo.at < SAFETY_MEMO_TTL_MS) {
-    return memo.data
-  }
-
   await ensureSafetyTab(spreadsheetId)
   const sheets = await getSheetsClient()
 
@@ -163,12 +154,15 @@ export async function _fetchSafetyTicketsRaw(spreadsheetId: string): Promise<Saf
     })
   }
 
-  safetyMemo[spreadsheetId] = { at: Date.now(), data: tickets }
   return tickets
 }
 
-export async function fetchSafetyTickets(spreadsheetId: string): Promise<SafetyTicket[]> {
-  return _fetchSafetyTicketsRaw(spreadsheetId)
+export const fetchSafetyTickets = (spreadsheetId: string) => {
+  return unstable_cache(
+    async () => _fetchSafetyTicketsRaw(spreadsheetId),
+    ["safety_tickets_list", spreadsheetId],
+    { tags: [SAFETY_TAG], revalidate: 30 * 24 * 60 * 60 }
+  )()
 }
 
 export async function createSafetyTicket(
