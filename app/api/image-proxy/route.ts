@@ -11,8 +11,14 @@ export async function GET(request: NextRequest) {
   try {
     let targetUrl = urlParam
 
+    // Extract first clean http/https URL if wrapped in markdown, brackets, or newline
+    const httpMatch = targetUrl.match(/https?:\/\/[^\s\]\),]+/)
+    if (httpMatch) {
+      targetUrl = httpMatch[0]
+    }
+
     // Handle Google Drive file URLs
-    if (targetUrl.includes("drive.google.com")) {
+    if (targetUrl.includes("drive.google.com") || targetUrl.includes("docs.google.com")) {
       const match = targetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || targetUrl.match(/id=([a-zA-Z0-9_-]+)/)
       if (match && match[1]) {
         const fileId = match[1]

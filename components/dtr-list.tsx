@@ -1315,13 +1315,13 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                     {/* Photographic Proof */}
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                       <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Photographic Evidence</h3>
-                      {viewingDtr.image ? (
+                      {(viewingDtr.image || viewingDtr.paintingImage) ? (
                         <div className="rounded-xl overflow-hidden border max-h-48 flex items-center justify-center bg-white shadow-sm">
                           <img 
-                            src={getGoogleDriveDirectLink(viewingDtr.image)} 
+                            src={getGoogleDriveDirectLink(viewingDtr.image || viewingDtr.paintingImage)} 
                             alt="DTR evidence" 
                             className="max-h-48 object-contain cursor-pointer" 
-                            onClick={() => window.open(viewingDtr.image, "_blank")}
+                            onClick={() => window.open(viewingDtr.image || viewingDtr.paintingImage, "_blank")}
                           />
                         </div>
                       ) : (
