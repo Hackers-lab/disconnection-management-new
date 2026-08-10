@@ -4,9 +4,9 @@ import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { FileText, Download, Loader2, Sparkles, CheckCircle2, Image as ImageIcon } from "lucide-react"
+import { FileText, Download, Loader2, Sparkles, CheckCircle2 } from "lucide-react"
 import type { NSCApplication } from "@/lib/nsc-types"
-import { generateNSCInspectionReportPDF } from "@/lib/nsc-inspection-pdf"
+import { generateNSCInspectionReportPDF, fetchImageAsBase64 } from "@/lib/nsc-inspection-pdf"
 import { detectDocumentCorners, warpPerspective } from "@/lib/document-scanner"
 
 interface NscReportDownloadModalProps {
@@ -20,10 +20,11 @@ export function NscReportDownloadModal({
   app,
   onClose,
 }: NscReportDownloadModalProps) {
-  const [includeBooklet, setIncludeBooklet] = useState(true)
-  const [includeInspectionForm, setIncludeInspectionForm] = useState(true)
+  // Checkboxes UNTICKED by default as requested
+  const [includeBooklet, setIncludeBooklet] = useState(false)
+  const [includeInspectionForm, setIncludeInspectionForm] = useState(false)
   const [autoStraightenForm, setAutoStraightenForm] = useState(true)
-  const [includeSitePhotos, setIncludeSitePhotos] = useState(true)
+  const [includeSitePhotos, setIncludeSitePhotos] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [progressMsg, setProgressMsg] = useState("")
 
@@ -35,45 +36,48 @@ export function NscReportDownloadModal({
 
   const processAndDownload = async () => {
     setGenerating(true)
-    setProgressMsg("Preparing PDF document structure...")
+    setProgressMsg("Preparing PDF report layout...")
 
     try {
       let straightenedBase64: string | null = null
 
       // Client-side auto-straightening for uploaded Inspection Form Image
-      if (includeInspectionForm && autoStraightenForm && app.inspectionFormImg && app.inspectionFormImg.startsWith("data:image")) {
+      if (includeInspectionForm && autoStraightenForm && app.inspectionFormImg) {
         setProgressMsg("Auto-detecting paper borders & straightening Inspection Form...")
         try {
-          straightenedBase64 = await new Promise<string | null>((resolve) => {
-            const img = new Image()
-            img.crossOrigin = "anonymous"
-            img.onload = () => {
-              try {
-                const canvas = document.createElement("canvas")
-                canvas.width = img.width
-                canvas.height = img.height
-                const ctx = canvas.getContext("2d")
-                if (!ctx) return resolve(null)
+          const rawBase64 = await fetchImageAsBase64(app.inspectionFormImg)
+          if (rawBase64) {
+            straightenedBase64 = await new Promise<string | null>((resolve) => {
+              const img = new Image()
+              img.crossOrigin = "anonymous"
+              img.onload = () => {
+                try {
+                  const canvas = document.createElement("canvas")
+                  canvas.width = img.width
+                  canvas.height = img.height
+                  const ctx = canvas.getContext("2d")
+                  if (!ctx) return resolve(null)
 
-                ctx.drawImage(img, 0, 0)
-                const isLandscape = img.width > img.height
-                const corners = detectDocumentCorners(canvas)
-                const warpedCanvas = warpPerspective(canvas, corners, isLandscape)
-                const dataUrl = warpedCanvas.toDataURL("image/jpeg", 0.90)
-                resolve(dataUrl)
-              } catch {
-                resolve(null)
+                  ctx.drawImage(img, 0, 0)
+                  const isLandscape = img.width > img.height
+                  const corners = detectDocumentCorners(canvas)
+                  const warpedCanvas = warpPerspective(canvas, corners, isLandscape)
+                  const dataUrl = warpedCanvas.toDataURL("image/jpeg", 0.90)
+                  resolve(dataUrl)
+                } catch {
+                  resolve(null)
+                }
               }
-            }
-            img.onerror = () => resolve(null)
-            img.src = app.inspectionFormImg!
-          })
+              img.onerror = () => resolve(null)
+              img.src = rawBase64
+            })
+          }
         } catch (e) {
-          console.error("Auto-straightening failed, falling back to original image:", e)
+          console.error("Auto-straightening failed, falling back to raw image:", e)
         }
       }
 
-      setProgressMsg("Building PDF with Agency Signature Block...")
+      setProgressMsg("Building PDF with Agency Signature Block & Attachments...")
 
       await generateNSCInspectionReportPDF({
         app,

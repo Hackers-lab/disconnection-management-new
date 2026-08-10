@@ -717,17 +717,6 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
                     <Eye className="h-3.5 w-3.5" /> View
                   </button>
 
-                  {/* Download Inspection Report PDF Button */}
-                  {(app.inspectedAt || normalizeNSCStatus(app.status) !== "pending") && (
-                    <button
-                      className="flex items-center gap-1.5 text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 border border-indigo-200/80 font-semibold transition"
-                      onClick={() => setDownloadReportApp(app)}
-                      title="Download Official Inspection PDF Report"
-                    >
-                      <FileText className="h-3.5 w-3.5 text-indigo-600" /> Inspection Report
-                    </button>
-                  )}
-
                   {/* Agency / Inspector / Custom Role: inspect pending */}
                   {canInspect && normalizeNSCStatus(app.status) === "pending" && (
                     <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
