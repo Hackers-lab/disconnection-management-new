@@ -23,8 +23,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       invalidateMasterCache()
     }
 
-    const tenantConfig = await getTenantConfig(session.cccCode)
-    const data = await fetchMasterData(tenantConfig.spreadsheetId)
+    const spreadsheetId = getSpreadsheetId()
+    const data = await fetchMasterData(spreadsheetId)
     
     let result = data
     if (offsetStr !== null || limitStr !== null) {

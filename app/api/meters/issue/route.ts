@@ -11,7 +11,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const id = getSpreadsheetId()
-  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true" || request.nextUrl.searchParams.get("t") !== null
+  const bypass = request.nextUrl.searchParams.get("bypassCache") === "true"
   const all = bypass ? await _fetchIssuesRaw(id) : await fetchIssues(id)
 
   if (session.role === "agency") {
