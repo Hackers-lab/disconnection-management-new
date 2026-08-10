@@ -8,8 +8,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   Search, X, Plus, RefreshCw, Check, ChevronLeft, ChevronRight,
   FileDown, Phone, MapPin, ClipboardList, Clock, FolderOpen,
-  FileInput, Pencil, Loader2, SlidersHorizontal, Eye, FileSpreadsheet,
+  FileInput, Pencil, Loader2, SlidersHorizontal, Eye, FileSpreadsheet, FileText,
 } from "lucide-react"
+import { NscReportDownloadModal } from "@/components/nsc-report-download-modal"
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -126,6 +127,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   const [editingRefApp, setEditingRefApp]       = useState<NSCApplication | null>(null)
   const [refNoInput, setRefNoInput]             = useState("")
   const [savingRefNo, setSavingRefNo]           = useState(false)
+  const [downloadReportApp, setDownloadReportApp] = useState<NSCApplication | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = async (silent = false, forceFull = false) => {
@@ -714,6 +716,17 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
                   >
                     <Eye className="h-3.5 w-3.5" /> View
                   </button>
+
+                  {/* Download Inspection Report PDF Button */}
+                  {(app.inspectedAt || normalizeNSCStatus(app.status) !== "pending") && (
+                    <button
+                      className="flex items-center gap-1.5 text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg px-2.5 py-1.5 border border-indigo-200/80 font-semibold transition"
+                      onClick={() => setDownloadReportApp(app)}
+                      title="Download Official Inspection PDF Report"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-indigo-600" /> Inspection Report
+                    </button>
+                  )}
 
                   {/* Agency / Inspector / Custom Role: inspect pending */}
                   {canInspect && normalizeNSCStatus(app.status) === "pending" && (
@@ -1814,6 +1827,12 @@ function NscReports({ apps }: { apps: NSCApplication[] }) {
       <Button className="w-full bg-slate-950 hover:bg-slate-900 text-white h-11" onClick={exportReport}>
         <FileDown className="h-4 w-4 mr-2" /> Export Full System Raw Data (Excel)
       </Button>
+
+      <NscReportDownloadModal
+        isOpen={!!downloadReportApp}
+        app={downloadReportApp}
+        onClose={() => setDownloadReportApp(null)}
+      />
     </div>
   )
 }

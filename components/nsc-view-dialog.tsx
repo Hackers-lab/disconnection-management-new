@@ -8,8 +8,9 @@ import type { NSCApplication } from "@/lib/nsc-types"
 import {
   Check, ChevronDown, ChevronRight,
   Zap, ClipboardList, Clock,
-  AlertTriangle, ImageIcon,
+  AlertTriangle, ImageIcon, FileText,
 } from "lucide-react"
+import { NscReportDownloadModal } from "./nsc-report-download-modal"
 
 const CLASS_LABELS: Record<string, string> = {
   domestic:   "LT Domestic",
@@ -38,6 +39,7 @@ interface Props {
 export function NscViewDialog({ app, open, onClose }: Props) {
   const [activeTab,     setActiveTab]     = useState<TabId>("history")
   const [expandedStep,  setExpandedStep]  = useState<number | null>(null)
+  const [showReportModal, setShowReportModal] = useState(false)
 
   if (!app) return null
 
@@ -167,10 +169,15 @@ export function NscViewDialog({ app, open, onClose }: Props) {
             {app.poleRequired === "yes" && (
               <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 font-medium">Pole Required</span>
             )}
-            {app.dispute && (
-              <span className="text-xs bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5 font-medium">
-                <AlertTriangle className="h-3 w-3 inline mr-0.5" />Dispute
-              </span>
+            {/* Download Inspection Report PDF Button */}
+            {(app.inspectedAt || app.status !== "pending") && (
+              <button
+                type="button"
+                onClick={() => setShowReportModal(true)}
+                className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-full px-2.5 py-0.5 flex items-center gap-1 shadow-sm transition"
+              >
+                <FileText className="h-3 w-3" /> Report PDF
+              </button>
             )}
           </div>
         </DialogHeader>
@@ -364,6 +371,12 @@ export function NscViewDialog({ app, open, onClose }: Props) {
 
         </div>
       </DialogContent>
+
+      <NscReportDownloadModal
+        isOpen={showReportModal}
+        app={app}
+        onClose={() => setShowReportModal(false)}
+      />
     </Dialog>
   )
 }
