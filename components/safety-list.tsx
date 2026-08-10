@@ -59,7 +59,7 @@ export function getGoogleDriveDirectLink(url: string | undefined): string {
     }
   }
 
-  if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
+  if (fileId) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
 
   // If not a Drive link, extract the first clean http/https URL
   const httpMatch = url.match(/https?:\/\/[^\s\]\),]+/)
