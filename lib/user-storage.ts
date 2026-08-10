@@ -1,5 +1,6 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
+import { db } from "./db"
 
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const SHEET_NAME = "Master_Credentials"
@@ -12,7 +13,7 @@ async function getSheetsClient() {
     },
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
-  return googleSheets({ version: "v4", auth })
+  return googleSheets({ version: "v4", auth: auth as any })
 }
 
 export interface MasterUser {
@@ -63,13 +64,43 @@ export class UserStorage {
   }
 
   async getUsers(): Promise<MasterUser[]> {
-    if (!SHEET_ID) {
-      throw new Error("MASTER_CONFIG_SHEET environment variable is not defined")
-    }
-    
     const now = Date.now()
     if (this._cache && (now - this._cacheTimestamp < this.CACHE_TTL_MS)) {
       return this._cache
+    }
+
+    // Try Turso SQL Database primary read
+    try {
+      const res = await db.execute({
+        sql: `SELECT id, username, password_hash as password, role, ccc_code as cccCode, 
+                     full_name as name, subscription_status as subStatus, 
+                     subscription_expires_at as subExpiresAt, bypass_subscription as bypassSub 
+              FROM users`,
+        args: []
+      })
+      if (res.rows && res.rows.length > 0) {
+        const users: MasterUser[] = res.rows.map((r: any) => ({
+          id: String(r.id || ""),
+          username: String(r.username || ""),
+          password: String(r.password || ""),
+          role: String(r.role || ""),
+          cccCode: String(r.cccCode || ""),
+          name: String(r.name || ""),
+          agencies: [],
+          subscriptionStatus: String(r.subStatus || "active"),
+          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          bypassSubscription: Boolean(r.bypassSub),
+        }))
+        this._cache = users
+        this._cacheTimestamp = now
+        return users
+      }
+    } catch (err) {
+      console.error("Turso users fetch error, falling back to Google Sheets:", err)
+    }
+
+    if (!SHEET_ID) {
+      throw new Error("MASTER_CONFIG_SHEET environment variable is not defined")
     }
 
     try {

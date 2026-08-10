@@ -2,7 +2,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { auth } from "./google-drive"
 import { getSpreadsheetId } from "./google-sheets-api"
 
-const sheets = googleSheets({ version: "v4", auth })
+const sheets = googleSheets({ version: "v4", auth: auth as any })
 
 export const RULES_TAB = "UploadRules"
 
