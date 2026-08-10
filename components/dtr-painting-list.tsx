@@ -65,7 +65,7 @@ function getGoogleDriveDirectLink(url: string): string {
     }
   }
 
-  if (fileId) return `https://lh3.googleusercontent.com/d/${fileId}`
+  if (fileId) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
 
   const httpMatch = url.match(/https?:\/\/[^\s\]\),]+/)
   if (httpMatch) return httpMatch[0]
