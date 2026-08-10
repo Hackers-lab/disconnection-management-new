@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Camera, RefreshCw, X, Check, Zap, ZapOff, Image as ImageIcon, RotateCcw, CheckCircle2 } from "lucide-react"
+import { Camera, X, Zap, ZapOff, RotateCcw, CheckCircle2 } from "lucide-react"
 
 interface NscCameraModalProps {
   isOpen: boolean
@@ -151,7 +151,7 @@ export function NscCameraModal({
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col justify-between select-none overflow-hidden touch-none">
       {/* Top Header Controls */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/90 to-transparent z-[210]">
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/95 to-transparent z-[210]">
         <Button
           type="button"
           variant="ghost"
@@ -162,8 +162,8 @@ export function NscCameraModal({
           <X className="h-6 w-6" />
         </Button>
 
-        <span className="text-xs font-bold text-white tracking-widest uppercase bg-indigo-600/80 px-3 py-1 rounded-full border border-indigo-400/40 backdrop-blur-md shadow-md">
-          A4 Camera Viewfinder
+        <span className="text-xs font-bold text-white tracking-widest uppercase bg-indigo-600/90 px-3.5 py-1 rounded-full border border-indigo-400/40 backdrop-blur-md shadow-md">
+          A4 Camera Scanner
         </span>
 
         <div className="flex items-center gap-2">
@@ -211,6 +211,7 @@ export function NscCameraModal({
           </div>
         ) : (
           <>
+            {/* Live Camera Video Feed */}
             <video
               ref={videoRef}
               playsInline
@@ -220,21 +221,42 @@ export function NscCameraModal({
             />
             <canvas ref={canvasRef} className="hidden" />
 
-            {/* Exact A4 Ratio Viewfinder Box Overlay (1 : 1.414) */}
-            <div className="absolute inset-x-6 top-10 bottom-24 flex items-center justify-center pointer-events-none">
-              <div className="w-full max-w-xs aspect-[1/1.414] border-2 border-indigo-400/80 rounded-2xl relative flex flex-col justify-between p-3 bg-indigo-900/10 shadow-2xl backdrop-blur-[1px]">
-                <div className="flex justify-between">
-                  <div className="w-7 h-7 border-t-4 border-l-4 border-indigo-400 rounded-tl-lg"></div>
-                  <div className="w-7 h-7 border-t-4 border-r-4 border-indigo-400 rounded-tr-lg"></div>
+            {/* FULL SCREEN A4 VIEWFINDER WITH OUTSIDE BLUR MASK */}
+            <div className="absolute inset-0 flex flex-col pointer-events-none z-10">
+              {/* Top Blurred Backdrop Outside Frame */}
+              <div className="flex-1 bg-black/60 backdrop-blur-md border-b border-indigo-500/30" />
+
+              {/* Center Row containing Full-Screen Clear A4 Frame */}
+              <div className="flex w-full max-h-[82vh] aspect-[1/1.414] self-center items-center justify-center">
+                {/* Left Blurred Backdrop */}
+                <div className="w-2.5 sm:w-5 h-full bg-black/60 backdrop-blur-md border-r border-indigo-500/30" />
+
+                {/* CLEAR CAMERA WINDOW (Zero blur, crystal clear video) */}
+                <div className="flex-1 h-full relative border-2 border-indigo-400 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_50px_rgba(99,102,241,0.3)]">
+                  {/* Top Corner Brackets */}
+                  <div className="flex justify-between">
+                    <div className="w-8 h-8 border-t-4 border-l-4 border-indigo-400 rounded-tl-xl shadow-sm" />
+                    <div className="w-8 h-8 border-t-4 border-r-4 border-indigo-400 rounded-tr-xl shadow-sm" />
+                  </div>
+
+                  {/* Alignment Guide Pill */}
+                  <div className="self-center bg-black/85 text-white text-[11px] font-bold px-4 py-1.5 rounded-full border border-indigo-400/50 shadow-xl tracking-wider uppercase backdrop-blur-sm">
+                    Align A4 Document
+                  </div>
+
+                  {/* Bottom Corner Brackets */}
+                  <div className="flex justify-between">
+                    <div className="w-8 h-8 border-b-4 border-l-4 border-indigo-400 rounded-bl-xl shadow-sm" />
+                    <div className="w-8 h-8 border-b-4 border-r-4 border-indigo-400 rounded-br-xl shadow-sm" />
+                  </div>
                 </div>
-                <p className="text-center text-white text-[11px] bg-black/75 py-1.5 px-3 rounded-full self-center backdrop-blur-md font-bold tracking-wide border border-indigo-400/40">
-                  Align A4 Document
-                </p>
-                <div className="flex justify-between">
-                  <div className="w-7 h-7 border-b-4 border-l-4 border-indigo-400 rounded-bl-lg"></div>
-                  <div className="w-7 h-7 border-b-4 border-r-4 border-indigo-400 rounded-br-lg"></div>
-                </div>
+
+                {/* Right Blurred Backdrop */}
+                <div className="w-2.5 sm:w-5 h-full bg-black/60 backdrop-blur-md border-l border-indigo-500/30" />
               </div>
+
+              {/* Bottom Blurred Backdrop Outside Frame */}
+              <div className="flex-1 bg-black/60 backdrop-blur-md border-t border-indigo-500/30" />
             </div>
 
             {/* Visual Shutter Flash */}
@@ -245,9 +267,9 @@ export function NscCameraModal({
         )}
       </div>
 
-      {/* Bottom Shutter & Controls Container (z-[210] to remain above all forms) */}
+      {/* Bottom Shutter & Controls Container */}
       <div className="bg-gradient-to-t from-black/95 via-black/85 to-transparent px-6 pt-4 pb-10 flex items-center justify-between z-[210] relative">
-        {/* Gallery / Status Counter */}
+        {/* Page Counter Badge */}
         <div className="w-20 flex justify-start">
           {capturedCount > 0 && (
             <div className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg animate-pulse">
@@ -257,7 +279,7 @@ export function NscCameraModal({
           )}
         </div>
 
-        {/* Persistent Large Shutter Button */}
+        {/* Shutter Button */}
         <button
           type="button"
           onClick={takePhoto}
@@ -269,7 +291,7 @@ export function NscCameraModal({
           </div>
         </button>
 
-        {/* Finish & Review Pages Button */}
+        {/* Finish & Close Button */}
         <div className="w-20 flex justify-end">
           <Button
             type="button"

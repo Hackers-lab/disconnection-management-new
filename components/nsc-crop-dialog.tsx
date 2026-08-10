@@ -4,7 +4,13 @@ import React, { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Crop, Check, RotateCcw } from "lucide-react"
-import { Point, detectDocumentCorners, warpPerspective } from "@/lib/document-scanner"
+import {
+  Point,
+  detectDocumentCorners,
+  warpPerspective,
+  compute8Points,
+  updateCornersFrom8Points
+} from "@/lib/document-scanner"
 
 interface NscCropDialogProps {
   isOpen: boolean
@@ -28,7 +34,7 @@ export function NscCropDialog({
     { x: 100, y: 100 },
     { x: 0, y: 100 },
   ])
-  const [activeCorner, setActiveCorner] = useState<number | null>(null)
+  const [activeHandleIndex, setActiveHandleIndex] = useState<number | null>(null)
   const [imgSize, setImgSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 })
   const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({ width: 0, height: 0 })
 
@@ -63,11 +69,11 @@ export function NscCropDialog({
   const handlePointerDown = (index: number) => (e: React.PointerEvent) => {
     e.stopPropagation()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-    setActiveCorner(index)
+    setActiveHandleIndex(index)
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (activeCorner === null || !imageRef.current) return
+    if (activeHandleIndex === null || !imageRef.current) return
 
     const rect = imageRef.current.getBoundingClientRect()
     const relativeX = Math.max(0, Math.min(rect.width, e.clientX - rect.left))
@@ -80,18 +86,16 @@ export function NscCropDialog({
     const realY = Math.round(relativeY * scaleY)
 
     setCorners((prev: [Point, Point, Point, Point]) => {
-      const next = [...prev] as [Point, Point, Point, Point]
-      next[activeCorner] = { x: realX, y: realY }
-      return next
+      return updateCornersFrom8Points(activeHandleIndex, { x: realX, y: realY }, prev)
     })
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (activeCorner !== null) {
+    if (activeHandleIndex !== null) {
       try {
         ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
       } catch {}
-      setActiveCorner(null)
+      setActiveHandleIndex(null)
     }
   }
 
@@ -100,10 +104,10 @@ export function NscCropDialog({
     const w = imgSize.width
     const h = imgSize.height
     setCorners([
-      { x: 0, y: 0 },
-      { x: w, y: 0 },
-      { x: w, y: h },
-      { x: 0, y: h },
+      { x: Math.round(w * 0.02), y: Math.round(h * 0.02) },
+      { x: Math.round(w * 0.98), y: Math.round(h * 0.02) },
+      { x: Math.round(w * 0.98), y: Math.round(h * 0.98) },
+      { x: Math.round(w * 0.02), y: Math.round(h * 0.98) },
     ])
   }
 
@@ -122,7 +126,7 @@ export function NscCropDialog({
       ctx.drawImage(img, 0, 0)
       const isLandscape = img.width > img.height
       const warpedCanvas = warpPerspective(canvas, corners, isLandscape)
-      const dataUrl = warpedCanvas.toDataURL("image/jpeg", 0.85)
+      const dataUrl = warpedCanvas.toDataURL("image/jpeg", 0.88)
       onApplyCrop(dataUrl)
       onClose()
     }
@@ -134,16 +138,22 @@ export function NscCropDialog({
   const scaleX = displaySize.width ? displaySize.width / imgSize.width : 1
   const scaleY = displaySize.height ? displaySize.height / imgSize.height : 1
 
+  const points8 = compute8Points(corners)
+
+  // Build SVG path for outside dark mask
+  const pathCorners = corners.map((c: Point) => `${c.x * scaleX},${c.y * scaleY}`).join(" L ")
+  const maskPathData = `M 0,0 L ${displaySize.width},0 L ${displaySize.width},${displaySize.height} L 0,${displaySize.height} Z M ${pathCorners} Z`
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md w-full p-4 bg-slate-950 text-white border-slate-800 rounded-2xl">
         <DialogHeader className="pb-2">
           <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-white">
             <Crop className="h-4 w-4 text-indigo-400" />
-            A4 Document Edge & Perspective Warp
+            8-Point A4 Document Edge Transposition
           </DialogTitle>
           <p className="text-[11px] text-slate-400">
-            Drag the 4 corner handles to align document edges precisely into an A4 page.
+            Drag 4 corners or 4 side midpoints to align paper borders. Includes automatic safety margin.
           </p>
         </DialogHeader>
 
@@ -152,7 +162,7 @@ export function NscCropDialog({
           ref={containerRef}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          className="relative my-2 flex items-center justify-center bg-black/60 rounded-xl overflow-hidden touch-none select-none max-h-[55vh]"
+          className="relative my-2 flex items-center justify-center bg-black/80 rounded-xl overflow-hidden touch-none select-none max-h-[55vh]"
         >
           <img
             ref={imageRef}
@@ -162,17 +172,25 @@ export function NscCropDialog({
             className="w-full h-auto max-h-[55vh] object-contain"
           />
 
-          {/* SVG Overlay Polygon connecting corners */}
+          {/* SVG Overlay: Outside Dark Mask + Quad Outline */}
           {displaySize.width > 0 && (
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
               viewBox={`0 0 ${displaySize.width} ${displaySize.height}`}
             >
+              {/* Dark Mask for Outside Area */}
+              <path
+                d={maskPathData}
+                fill="rgba(0, 0, 0, 0.65)"
+                fillRule="evenodd"
+              />
+
+              {/* Inside Document Quad Border */}
               <polygon
                 points={corners
                   .map((c: Point) => `${c.x * scaleX},${c.y * scaleY}`)
                   .join(" ")}
-                fill="rgba(99, 102, 241, 0.25)"
+                fill="rgba(99, 102, 241, 0.15)"
                 stroke="#818cf8"
                 strokeWidth="2.5"
                 strokeDasharray="4 4"
@@ -180,25 +198,43 @@ export function NscCropDialog({
             </svg>
           )}
 
-          {/* 4 Interactive Corner Drag Handles */}
+          {/* 8 Interactive Corner & Side Drag Handles */}
           {displaySize.width > 0 &&
-            corners.map((c: Point, i: number) => (
-              <div
-                key={i}
-                onPointerDown={handlePointerDown(i)}
-                style={{
-                  left: `${c.x * scaleX}px`,
-                  top: `${c.y * scaleY}px`,
-                }}
-                className={`absolute w-7 h-7 -ml-3.5 -mt-3.5 rounded-full border-2 border-white flex items-center justify-center shadow-xl cursor-grab active:cursor-grabbing ${
-                  activeCorner === i ? "bg-indigo-500 scale-125 z-30" : "bg-indigo-600 hover:scale-110 z-20"
-                }`}
-              >
-                <span className="text-[9px] font-bold text-white leading-none">
-                  {i === 0 ? "TL" : i === 1 ? "TR" : i === 2 ? "BR" : "BL"}
-                </span>
-              </div>
-            ))}
+            points8.map((p: Point, i: number) => {
+              const isCorner = i % 2 === 0
+              const label =
+                i === 0 ? "TL" :
+                i === 1 ? "T" :
+                i === 2 ? "TR" :
+                i === 3 ? "R" :
+                i === 4 ? "BR" :
+                i === 5 ? "B" :
+                i === 6 ? "BL" : "L"
+
+              return (
+                <div
+                  key={i}
+                  onPointerDown={handlePointerDown(i)}
+                  style={{
+                    left: `${p.x * scaleX}px`,
+                    top: `${p.y * scaleY}px`,
+                  }}
+                  className={`absolute rounded-full border-2 border-white flex items-center justify-center shadow-xl cursor-grab active:cursor-grabbing transition-transform ${
+                    isCorner ? "w-7 h-7 -ml-3.5 -mt-3.5" : "w-6 h-6 -ml-3 -mt-3"
+                  } ${
+                    activeHandleIndex === i
+                      ? "bg-amber-500 scale-125 z-30"
+                      : isCorner
+                      ? "bg-indigo-600 hover:scale-110 z-20"
+                      : "bg-emerald-600 hover:scale-110 z-20"
+                  }`}
+                >
+                  <span className="text-[9px] font-extrabold text-white leading-none">
+                    {label}
+                  </span>
+                </div>
+              )
+            })}
         </div>
 
         <DialogFooter className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
@@ -209,7 +245,7 @@ export function NscCropDialog({
             onClick={resetCorners}
             className="text-slate-400 hover:text-white text-xs h-9"
           >
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Full Page
+            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset Borders
           </Button>
 
           <div className="flex items-center gap-2">
