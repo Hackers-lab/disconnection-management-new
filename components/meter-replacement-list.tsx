@@ -96,6 +96,17 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const handleReturnIssuedMeter = async () => {
     if (!selectedForReturn) return
     const targetId = selectedForReturn.issueId || selectedForReturn.replacementId
+    
+    // 1. Optimistic UI update
+    setRecords(prev => {
+      const updated = prev.map(r => (r.replacementId === selectedForReturn.replacementId || r.issueId === targetId) ? { ...r, status: "proposed", serialNo: "", issueId: "" } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setReturnDialogOpen(false)
+    setSelectedForReturn(null)
+    setReturnRemarks("")
+
     setReturning(true)
     try {
       const res = await fetch("/api/meters/return", {
@@ -108,12 +119,9 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed to return meter")
       toast({ title: `Meter ${selectedForReturn.serialNo || ""} returned to stock`, description: "Proposal reset to proposed status." })
-      setReturnDialogOpen(false)
-      setSelectedForReturn(null)
-      setReturnRemarks("")
-      load(true, true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to return meter", variant: "destructive" })
+      load(true, true)
     } finally {
       setReturning(false)
     }
@@ -132,6 +140,17 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   const handleReassignAgency = async () => {
     if (!selectedForReassign) return
+    const targetId = selectedForReassign.replacementId
+
+    // Optimistic UI update
+    setRecords(prev => {
+      const updated = prev.map(r => r.replacementId === targetId ? { ...r, agency: newAgency } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setReassignDialogOpen(false)
+    setSelectedForReassign(null)
+
     setReassigning(true)
     try {
       const res = await fetch("/api/meters/replacement", {
@@ -139,17 +158,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "reassign_agency",
-          replacementId: selectedForReassign.replacementId,
+          replacementId: targetId,
           agency: newAgency
         })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed to reassign agency")
       toast({ title: `Agency updated to "${newAgency || "Unassigned"}"` })
-      setReassignDialogOpen(false)
-      setSelectedForReassign(null)
-      load(true, true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to reassign agency", variant: "destructive" })
+      load(true, true)
     } finally {
       setReassigning(false)
     }
@@ -160,6 +177,19 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       toast({ title: "Please enter remarks for closing", variant: "destructive" })
       return
     }
+    const targetId = selectedForClose.replacementId
+    const remarks = closeRemarks.trim()
+
+    // Optimistic UI update: instantly reflect closed status on screen
+    setRecords(prev => {
+      const updated = prev.map(r => r.replacementId === targetId ? { ...r, status: "closed", remarks } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setCloseDialogOpen(false)
+    setSelectedForClose(null)
+    setCloseRemarks("")
+
     setClosing(true)
     try {
       const res = await fetch("/api/meters/replacement", {
@@ -167,18 +197,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "close",
-          replacementId: selectedForClose.replacementId,
-          remarks: closeRemarks.trim()
+          replacementId: targetId,
+          remarks
         })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
       toast({ title: "Proposal closed successfully" })
-      setCloseDialogOpen(false)
-      setSelectedForClose(null)
-      setCloseRemarks("")
-      load(true, true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to close proposal", variant: "destructive" })
+      load(true, true)
     } finally {
       setClosing(false)
     }
