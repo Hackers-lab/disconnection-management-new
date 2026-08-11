@@ -277,33 +277,23 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const load = async (silent = false, force = false) => {
     if (!silent) setSyncState("loading")
     try {
+      // 1. Instant render from local IndexedDB cache for 0ms initial display
       const cached = await getFromCache<MeterReplacement[]>(CACHE_KEY)
-      let lastTs = 0
       if (cached && cached.length > 0) {
-        setRecords(cached)
+        const sorted = [...cached].reverse()
+        setRecords(sorted)
         if (!silent) setSyncState("idle")
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["proposedDate"])
       }
 
-      if (lastTs > 0 && !force) {
-        const merged = await PlatformSyncEngine.syncModule<MeterReplacement>({
-          moduleKey: "meter-replacement",
-          cacheKey: CACHE_KEY,
-          idKey: "replacementId",
-          fetchPatchUrl: "/api/meters/replacement/patch",
-        }, lastTs)
-        const sorted = [...merged].reverse()
-        setRecords(sorted)
-      } else {
-        const url = force ? "/api/meters/replacement?bypassCache=true" : "/api/meters/replacement"
-        const res = await fetch(url)
-        if (!res.ok) throw new Error()
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
-        const merged = await mergePatchToCache<MeterReplacement>(CACHE_KEY, patchItems, "replacementId")
-        const sorted = [...merged].reverse()
-        setRecords(sorted)
-      }
+      // 2. Automatically fetch fresh server records to reconcile additions, updates, and deleted items
+      const url = force ? "/api/meters/replacement?bypassCache=true" : "/api/meters/replacement"
+      const res = await fetch(url)
+      if (!res.ok) throw new Error()
+      const result = await res.json()
+      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
+      const sorted = [...patchItems].reverse()
+      setRecords(sorted)
+      await saveToCache(CACHE_KEY, patchItems)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
     } catch {

@@ -100,41 +100,21 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const fetchRecords = async (force = false) => {
     setLoading(true)
     try {
-      if (force) {
-        const res = await fetch("/api/misc-inspection?bypassCache=true")
-        if (res.ok) {
-          const result = await res.json()
-          const items = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
-          setRecords(items)
-          await saveToCache("misc_inspection_cache", items)
-        }
-        return
-      }
-
+      // 1. Instant render from local IndexedDB cache for 0ms initial load
       const cached = await getFromCache<MiscInspectionRecord[]>("misc_inspection_cache")
-      let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         setLoading(false)
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["createdAt", "inspectedAt", "finalizedAt" as any])
       }
 
-      if (lastTs > 0) {
-        const merged = await PlatformSyncEngine.syncModule<MiscInspectionRecord>({
-          moduleKey: "misc-inspection",
-          cacheKey: "misc_inspection_cache",
-          idKey: "id",
-          fetchPatchUrl: "/api/misc-inspection/patch",
-        }, lastTs)
-        setRecords(merged)
-      } else {
-        const res = await fetch("/api/misc-inspection")
-        if (res.ok) {
-          const result = await res.json()
-          const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
-          const merged = await mergePatchToCache<MiscInspectionRecord>("misc_inspection_cache", patchItems, "id")
-          setRecords(merged)
-        }
+      // 2. Automatically fetch fresh server records to reconcile additions, updates, and deleted items
+      const url = force ? "/api/misc-inspection?bypassCache=true" : "/api/misc-inspection"
+      const res = await fetch(url)
+      if (res.ok) {
+        const result = await res.json()
+        const items = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
+        setRecords(items)
+        await saveToCache("misc_inspection_cache", items)
       }
     } catch (err: any) {
       if (records.length === 0) toast.error(err.message || "Failed to load inspections")
