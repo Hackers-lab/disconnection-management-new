@@ -9,7 +9,8 @@ import {
   Search, X, Plus, RotateCcw, MapPin, Phone, Clock,
   CheckCircle2, Lock, XCircle, ChevronLeft, ChevronRight,
   Loader2, Download, Image as ImageIcon, RefreshCw, Check,
-  DownloadCloud, Monitor, Building2, User, Edit, FileDown, FileSpreadsheet
+  DownloadCloud, Monitor, Building2, User, Edit, FileDown, FileSpreadsheet,
+  Gauge, MessageSquare, ExternalLink
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import type { ReconnectionRequest } from "@/lib/reconnection-service"
@@ -87,6 +88,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useHashState<"list" | "create" | "update">("reconnection", "list")
   const [selected, setSelected] = useState<ReconnectionRequest | null>(null)
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null)
 
   const isAdmin = userRole === "admin" || userRole === "executive"
   const canCreate = userRole === "admin" || userRole === "executive" || !!(permissions && permissions.reconnection?.includes("create"))
@@ -349,7 +351,9 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
       data = data.filter(r =>
         r.consumerId.includes(q) || r.name.toLowerCase().includes(q) ||
         r.mobile.includes(q) || r.agency.toLowerCase().includes(q) ||
-        (r.device && r.device.toLowerCase().includes(q))
+        (r.device && r.device.toLowerCase().includes(q)) ||
+        (r.reading && r.reading.toLowerCase().includes(q)) ||
+        (r.remarks && r.remarks.toLowerCase().includes(q))
       )
     }
     return data
@@ -584,6 +588,39 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
                   </div>
                 )}
 
+                {/* Meter Reading Highlight */}
+                {r.reading && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                        <Gauge className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Reconnection Reading</p>
+                        <p className="text-sm font-bold text-emerald-950 font-mono tracking-tight">{r.reading}</p>
+                      </div>
+                    </div>
+                    {r.status === "reconnected" && (
+                      <span className="text-[10px] font-semibold bg-emerald-100/90 text-emerald-800 px-2 py-0.5 rounded-md">
+                        Recorded
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Remarks Display */}
+                {r.remarks && (
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 space-y-1">
+                    <div className="flex items-center gap-1.5 text-slate-900 font-semibold text-[11px]">
+                      <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
+                      <span>{r.status === "reconnected" ? "Agency Remarks" : "Remarks / Notes"}</span>
+                    </div>
+                    <p className="text-xs text-slate-700 break-words whitespace-pre-wrap leading-relaxed pl-5">
+                      {r.remarks}
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 pt-2 border-t border-dashed">
                   <div>
                     <span className="font-semibold text-gray-500">Created:</span> {formatTs(r.createdAt)}
@@ -591,16 +628,36 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
                   {r.status !== "pending" && r.updatedAt ? (
                     <div>
                       <span className="font-semibold text-emerald-600">Updated:</span> {formatTs(r.updatedAt)}
+                      {r.updatedBy && (
+                        <p className="text-[10px] text-gray-500 truncate" title={r.updatedBy}>
+                          By: {r.updatedBy.replace(/^(agency|admin|executive|operator):/, "")}
+                        </p>
+                      )}
                     </div>
                   ) : null}
                 </div>
 
-                {r.imageUrl && (
-                  <div className="pt-2 pb-1 relative z-10">
-                    <a href={r.imageUrl} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center space-x-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer">
-                      <ImageIcon className="h-3.5 w-3.5" /> <span>View Evidence Image</span>
-                    </a>
+                {/* Evidence Image and Request Image */}
+                {(r.imageUrl || r.requestImageUrl) && (
+                  <div className="pt-2 pb-1 flex flex-wrap gap-2 relative z-10 border-t border-dashed">
+                    {r.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ url: r.imageUrl, title: `Evidence Photo — ${r.name} (${r.consumerId})` })}
+                        className="inline-flex items-center space-x-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition-colors border border-blue-200 cursor-pointer"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" /> <span>{r.status === "door_locked" ? "View Door Lock Photo" : "View Evidence Photo"}</span>
+                      </button>
+                    )}
+                    {r.requestImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ url: r.requestImageUrl, title: `Request Photo — ${r.name} (${r.consumerId})` })}
+                        className="inline-flex items-center space-x-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800 transition-colors border border-purple-200 cursor-pointer"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" /> <span>View Request Photo</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -669,6 +726,33 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
             </Button>
           </div>
         </div>
+      )}
+      {/* Evidence Image Preview Dialog */}
+      {previewImage && (
+        <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden bg-black/95 text-white border-slate-800 rounded-2xl">
+            <DialogHeader className="p-4 bg-slate-900 border-b border-slate-800 flex flex-row items-center justify-between space-y-0">
+              <DialogTitle className="text-sm font-semibold text-slate-100 truncate pr-4">
+                {previewImage.title}
+              </DialogTitle>
+              <a
+                href={previewImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 shrink-0"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Full Size
+              </a>
+            </DialogHeader>
+            <div className="p-2 flex items-center justify-center min-h-[250px] max-h-[75vh] bg-slate-950">
+              <img
+                src={previewImage.url}
+                alt="Evidence preview"
+                className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
