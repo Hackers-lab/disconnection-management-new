@@ -67,10 +67,9 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const body = await request.json()
-    const { action, replacementId, remarks, noteSheetNo } = body
+    const { action, replacementId, remarks, noteSheetNo, status } = body
 
-    if (action === "close") {
+    if (action === "close" || action === "cancel" || status === "closed" || status === "cancelled") {
       const { closeReplacement } = await import("@/lib/meter-replacement-service")
       if (!replacementId || !remarks) {
         return NextResponse.json({ error: "Replacement ID and remarks are required" }, { status: 400 })

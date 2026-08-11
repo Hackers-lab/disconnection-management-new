@@ -724,7 +724,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
         await fetch("/api/meters/replacement", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
+          body: JSON.stringify({ action: "close", replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
         })
       }
 
@@ -752,7 +752,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       const res = await fetch("/api/meters/replacement", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
+        body: JSON.stringify({ action: "close", replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed to cancel proposal")
 

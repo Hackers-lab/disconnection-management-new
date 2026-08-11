@@ -24,7 +24,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const modified = allRecords.filter((rec: any) => {
       if (isAgencyScopeRestricted(session, rec.agency)) return false
       if (!sinceTs) return true
-      const recTs = parseTs(rec.updatedAt || rec.createdAt || "")
+      const recTs = parseTs(rec.finalizedAt || rec.inspectedAt || rec.createdAt || "")
       return recTs >= sinceTs
     })
 

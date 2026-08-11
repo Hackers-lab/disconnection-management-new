@@ -97,15 +97,26 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const canFinalize = isAdminOrExec || !!(permissions?.misc_inspection?.includes("finalize"))
   const canDelete = isAdminOrExec || !!(permissions?.misc_inspection?.includes("delete"))
 
-  const fetchRecords = async () => {
+  const fetchRecords = async (force = false) => {
     setLoading(true)
     try {
+      if (force) {
+        const res = await fetch("/api/misc-inspection")
+        if (res.ok) {
+          const result = await res.json()
+          const items = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
+          setRecords(items)
+          await saveToCache("misc_inspection_cache", items)
+        }
+        return
+      }
+
       const cached = await getFromCache<MiscInspectionRecord[]>("misc_inspection_cache")
       let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         setLoading(false)
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["createdAt", "inspectedAt"])
+        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["createdAt", "inspectedAt", "finalizedAt" as any])
       }
 
       if (lastTs > 0) {
@@ -138,10 +149,13 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
 
   const handleCreateSuccess = (newRecord?: MiscInspectionRecord) => {
     if (newRecord) {
-      setRecords((prev) => [newRecord, ...prev.filter((r) => r.id !== newRecord.id)])
+      setRecords((prev) => {
+        const updated = [newRecord, ...prev.filter((r) => r.id !== newRecord.id)]
+        saveToCache("misc_inspection_cache", updated)
+        return updated
+      })
     }
     setShowCreateForm(false)
-    fetchRecords()
   }
 
   const uniqueAgencies = useMemo(() => {
@@ -187,6 +201,13 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const handleDelete = async (id: string) => {
     if (!confirm(`Are you sure you want to delete inspection record ${id}?`)) return
     try {
+      // 1. Immediately remove from local state and IndexedDB cache so it disappears instantly
+      setRecords(prev => {
+        const updated = prev.filter(r => r.id !== id)
+        saveToCache("misc_inspection_cache", updated)
+        return updated
+      })
+
       const res = await fetch(`/api/misc-inspection/${id}`, { method: "DELETE" })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
@@ -195,9 +216,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       toast.success("Inspection record deleted successfully")
     } catch (err: any) {
       toast.error(err.message || "Failed to delete record")
-    } finally {
-      // Always refresh list to clear phantom/stale cached records
-      fetchRecords()
+      fetchRecords(true) // force refresh if delete failed
     }
   }
 
@@ -348,7 +367,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
           </DropdownMenu>
 
           {/* Refresh Button */}
-          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={fetchRecords} disabled={loading}>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => fetchRecords(true)} disabled={loading}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} />
           </Button>
 
