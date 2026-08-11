@@ -134,26 +134,45 @@ export function MiscInspectionCreateForm({
   const [initialImageUrl, setInitialImageUrl] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 8 * 1024 * 1024) {
-      toast.error("Image file size should be less than 8MB")
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Image file size should be less than 15MB")
       return
     }
     setUploadingImage(true)
-    const reader = new FileReader()
-    reader.onload = () => {
-      setInitialImageUrl(reader.result as string)
-      if (!referenceDocUrl) setReferenceDocUrl(reader.result as string)
+    try {
+      const targetId = consumerId.trim() || referenceNo.trim() || title.trim() || "MISC"
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("consumerId", targetId)
+      formData.append("module", "misc_inspection")
+
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: formData,
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || "Failed to upload image to Google Drive")
+      }
+      const data = await res.json()
+      const url = data.url || data.fileUrl
+      setInitialImageUrl(url)
+      if (!referenceDocUrl) setReferenceDocUrl(url)
+      toast.success("Inspection reference image uploaded to Google Drive!")
+    } catch (err: any) {
+      toast.error(err.message || "Drive upload failed. Using local preview fallback.")
+      const reader = new FileReader()
+      reader.onload = () => {
+        setInitialImageUrl(reader.result as string)
+        if (!referenceDocUrl) setReferenceDocUrl(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    } finally {
       setUploadingImage(false)
-      toast.success("Inspection reference image uploaded!")
     }
-    reader.onerror = () => {
-      setUploadingImage(false)
-      toast.error("Failed to read image file")
-    }
-    reader.readAsDataURL(file)
   }
 
   const handleDocFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,25 +180,31 @@ export function MiscInspectionCreateForm({
     if (!file) return
     setUploadingDoc(true)
     try {
+      const targetId = consumerId.trim() || referenceNo.trim() || title.trim() || "MISC"
       const formData = new FormData()
       formData.append("file", file)
+      formData.append("consumerId", targetId)
+      formData.append("module", "misc_inspection")
+
       const res = await fetch("/api/upload-image", {
         method: "POST",
         body: formData,
       })
-      if (!res.ok) throw new Error("Failed to upload document")
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || "Failed to upload document to Google Drive")
+      }
       const data = await res.json()
       const url = data.url || data.fileUrl
       setReferenceDocUrl(url)
-      setInitialImageUrl(url)
-      toast.success("Reference document uploaded successfully!")
+      if (!initialImageUrl) setInitialImageUrl(url)
+      toast.success("Reference document uploaded to Google Drive!")
     } catch (err: any) {
-      // Fallback to Data URL for client-side preview
+      toast.error(err.message || "Drive upload failed. Using local preview fallback.")
       const reader = new FileReader()
       reader.onload = () => {
         setReferenceDocUrl(reader.result as string)
-        setInitialImageUrl(reader.result as string)
-        toast.success("Reference document attached!")
+        if (!initialImageUrl) setInitialImageUrl(reader.result as string)
       }
       reader.readAsDataURL(file)
     } finally {
