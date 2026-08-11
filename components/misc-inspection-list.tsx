@@ -154,6 +154,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         saveToCache("misc_inspection_cache", updated)
         return updated
       })
+      fetchRecords(true)
     }
     setShowCreateForm(false)
   }
@@ -214,6 +215,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         throw new Error(errData.error || "Failed to delete record")
       }
       toast.success("Inspection record deleted successfully")
+      fetchRecords(true)
     } catch (err: any) {
       toast.error(err.message || "Failed to delete record")
       fetchRecords(true) // force refresh if delete failed
@@ -693,7 +695,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         record={selectedRecord}
         open={showUpdateModal}
         onOpenChange={setShowUpdateModal}
-        onSuccess={fetchRecords}
+        onSuccess={() => fetchRecords(true)}
       />
 
       {/* Details & PDF View Modal */}
@@ -701,7 +703,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         record={selectedRecord}
         open={showViewModal}
         onOpenChange={setShowViewModal}
-        onSuccess={fetchRecords}
+        onSuccess={() => fetchRecords(true)}
         userRole={role}
       />
     </div>

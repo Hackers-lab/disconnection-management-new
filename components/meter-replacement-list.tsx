@@ -176,7 +176,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       setCloseDialogOpen(false)
       setSelectedForClose(null)
       setCloseRemarks("")
-      load(true)
+      load(true, true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to close proposal", variant: "destructive" })
     } finally {
@@ -406,7 +406,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         onSave={(id) => {
           toast({ title: "Proposed replacement created", description: `ID: ${id}` })
           setView("list")
-          load()
+          load(true, true)
         }}
         onCancel={() => setView("list")}
       />
@@ -444,7 +444,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               <Download className="h-4 w-4" />
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
+          <Button size="sm" variant="ghost" onClick={() => load(false, true)} className="shrink-0">
             <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
           </Button>
         </div>
@@ -830,7 +830,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
           workOrderNo={selectedForNoteSheet.workOrderNo}
           isOpen={noteSheetDialogOpen}
           onClose={() => { setNoteSheetDialogOpen(false); setSelectedForNoteSheet(null) }}
-          onSuccess={() => { toast({ title: "Note Sheet updated" }); load(true) }}
+          onSuccess={() => { toast({ title: "Note Sheet updated" }); load(true, true) }}
         />
       )}
     </div>

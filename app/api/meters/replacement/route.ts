@@ -67,6 +67,7 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
+    const body = await request.json()
     const { action, replacementId, remarks, noteSheetNo, status } = body
 
     if (action === "close" || action === "cancel" || status === "closed" || status === "cancelled") {

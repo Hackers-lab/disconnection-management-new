@@ -23,9 +23,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     const modified = allRecords.filter((rec: any) => {
       if (isAgencyScopeRestricted(session, rec.agency)) return false
-      if (!sinceTs) return true
-      const recTs = parseTs(rec.proposedDate || rec.oldMeterReturnDate || "")
-      return recTs >= sinceTs
+      return true
     })
 
     return NextResponse.json(

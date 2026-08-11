@@ -231,13 +231,15 @@ export async function fetchAllMiscInspectionsRaw(spreadsheetId?: string): Promis
     .filter(r => Boolean(r.id && r.id.trim()))
 }
 
-export const getMiscInspections = (spreadsheetId?: string) => {
+const cachedFetchMiscInspections = unstable_cache(
+  async (id: string) => fetchAllMiscInspectionsRaw(id),
+  ["misc_inspections_list"],
+  { tags: [MISC_INSPECTION_TAG], revalidate: 30 * 24 * 60 * 60 }
+)
+
+export function getMiscInspections(spreadsheetId?: string) {
   const id = spreadsheetId || getSpreadsheetId()
-  return unstable_cache(
-    async () => fetchAllMiscInspectionsRaw(id),
-    ["misc_inspections_list", id],
-    { tags: [MISC_INSPECTION_TAG], revalidate: 30 * 24 * 60 * 60 }
-  )()
+  return cachedFetchMiscInspections(id)
 }
 
 export async function getMiscInspectionById(id: string, spreadsheetId?: string): Promise<MiscInspectionRecord | null> {
