@@ -717,6 +717,15 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
     const remarks = prompt(`Cancel proposal/issue for ${issue.consumerName || issue.consumerId}? Enter cancel remarks (required):`)
     if (!remarks || !remarks.trim()) return
 
+    const trimmedRemarks = remarks.trim()
+
+    // 1. Optimistic UI update
+    setReplacements(prev => {
+      const updated = prev.map(r => (r.issueId === issue.issueId || (r.consumerId === issue.consumerId && r.status !== "closed")) ? { ...r, status: "closed", remarks: trimmedRemarks } : r)
+      saveToCache("meter_replacement_data_cache", updated)
+      return updated
+    })
+
     try {
       // 1. Cancel in replacement sheet if proposal exists
       const rep = replacements.find(r => r.issueId === issue.issueId || (r.consumerId === issue.consumerId && r.status !== "closed"))
@@ -724,7 +733,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
         await fetch("/api/meters/replacement", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "close", replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
+          body: JSON.stringify({ action: "close", replacementId: rep.replacementId, status: "closed", remarks: trimmedRemarks })
         })
       }
 
@@ -733,14 +742,17 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
         await fetch("/api/meters/return", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ issueId: issue.issueId, remarks: `Cancelled: ${remarks.trim()}`, faulty: false })
+          body: JSON.stringify({ issueId: issue.issueId, remarks: `Cancelled: ${trimmedRemarks}`, faulty: false })
         })
       }
 
       toast({ title: "Proposal / Issue cancelled successfully" })
+      loadReplacements(true)
       load(true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to cancel proposal", variant: "destructive" })
+      loadReplacements(true)
+      load(true)
     }
   }
 
@@ -748,19 +760,30 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
     const remarks = prompt(`Cancel proposal for ${rep.consumerName || rep.consumerId}? Enter cancel remarks (required):`)
     if (!remarks || !remarks.trim()) return
 
+    const trimmedRemarks = remarks.trim()
+
+    // Optimistic UI update: immediately move to closed in state and IndexedDB cache
+    setReplacements(prev => {
+      const updated = prev.map(r => r.replacementId === rep.replacementId ? { ...r, status: "closed", remarks: trimmedRemarks } : r)
+      saveToCache("meter_replacement_data_cache", updated)
+      return updated
+    })
+
     try {
       const res = await fetch("/api/meters/replacement", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "close", replacementId: rep.replacementId, status: "closed", remarks: remarks.trim() })
+        body: JSON.stringify({ action: "close", replacementId: rep.replacementId, status: "closed", remarks: trimmedRemarks })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed to cancel proposal")
 
       toast({ title: "Proposal cancelled successfully" })
-      loadReplacements()
+      loadReplacements(true)
       load(true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to cancel proposal", variant: "destructive" })
+      loadReplacements(true)
+      load(true)
     }
   }
 
