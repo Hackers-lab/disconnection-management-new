@@ -101,7 +101,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
     setLoading(true)
     try {
       if (force) {
-        const res = await fetch("/api/misc-inspection")
+        const res = await fetch("/api/misc-inspection?bypassCache=true")
         if (res.ok) {
           const result = await res.json()
           const items = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]

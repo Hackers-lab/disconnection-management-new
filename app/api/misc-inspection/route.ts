@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import {
   getMiscInspections,
+  fetchAllMiscInspectionsRaw,
   createMiscInspection,
 } from "@/lib/misc-inspection-service"
 import type { CreateMiscInspectionInput } from "@/lib/misc-inspection-types"
@@ -17,7 +18,9 @@ export const GET = withTenant(async function GET(req: NextRequest) {
   }
 
   try {
-    const allRecords = await getMiscInspections()
+    const { searchParams } = new URL(req.url)
+    const bypassCache = searchParams.get("bypassCache") === "true" || searchParams.get("refresh") === "true"
+    const allRecords = bypassCache ? await fetchAllMiscInspectionsRaw() : await getMiscInspections()
     const session = authRes.session
 
     // Filter by agency scope if restricted
