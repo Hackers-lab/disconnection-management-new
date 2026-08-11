@@ -351,7 +351,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   if (view === "create") return (
     <NscApplicationForm
       agencies={agencies}
-      onSave={rcvNo => { toast({ title: "Application created", description: `Receive No: ${rcvNo}` }); setView("list"); load(true) }}
+      onSave={rcvNo => { toast({ title: "Application created", description: `Receive No: ${rcvNo}` }); setView("list"); load(true, true) }}
       onCancel={() => setView("list")}
     />
   )
@@ -359,7 +359,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   if (view === "inspect" && selected) return (
     <NscInspectForm
       app={selected}
-      onSave={() => { toast({ title: "Inspection submitted" }); setSelected(null); setView("list"); load(true) }}
+      onSave={() => { toast({ title: "Inspection submitted" }); setSelected(null); setView("list"); load(true, true) }}
       onCancel={() => { setSelected(null); setView("list") }}
     />
   )
@@ -368,7 +368,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     <NscProcessForm
       app={selected}
       agencies={agencies}
-      onSave={() => { toast({ title: "Application processed" }); setSelected(null); setView("list"); load(true) }}
+      onSave={() => { toast({ title: "Application processed" }); setSelected(null); setView("list"); load(true, true) }}
       onCancel={() => { setSelected(null); setView("list") }}
     />
   )
@@ -893,7 +893,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
               application={projectDialogApp}
               allApps={apps}
               agencies={agencies}
-              onSuccess={() => { setProjectDialogApp(null); reloadProjects(); load(true) }}
+              onSuccess={() => { setProjectDialogApp(null); reloadProjects(); load(true, true) }}
               onCancel={() => setProjectDialogApp(null)}
             />
           )}
@@ -917,12 +917,12 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
           )}
           {selectedProject && projectAction === "complete" && (
             <AgencyCompleteProjectForm project={selectedProject}
-              onSuccess={() => { setSelectedProject(null); setProjectAction(null); reloadProjects(); load(true) }}
+              onSuccess={() => { setSelectedProject(null); setProjectAction(null); reloadProjects(); load(true, true) }}
               onCancel={() => { setSelectedProject(null); setProjectAction(null) }} />
           )}
           {selectedProject && projectAction === "approve" && (
             <AdminApproveProjectForm project={selectedProject}
-              onSuccess={() => { setSelectedProject(null); setProjectAction(null); reloadProjects(); load(true) }}
+              onSuccess={() => { setSelectedProject(null); setProjectAction(null); reloadProjects(); load(true, true) }}
               onCancel={() => { setSelectedProject(null); setProjectAction(null) }} />
           )}
         </DialogContent>
@@ -933,7 +933,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Import Legacy Applications</DialogTitle></DialogHeader>
           <LegacyImportPanel
-            onSuccess={count => { setShowLegacyImport(false); load(true); toast({ title: `${count} legacy records imported` }) }}
+            onSuccess={count => { setShowLegacyImport(false); load(true, true); toast({ title: `${count} legacy records imported` }) }}
             onCancel={() => setShowLegacyImport(false)}
           />
         </DialogContent>

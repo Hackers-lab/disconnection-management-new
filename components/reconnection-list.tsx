@@ -426,7 +426,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
           toast({ title: "Updated successfully" })
           setSelected(null)
           setView("list")
-          load()
+          load(true, true)
         }}
         onCancel={() => { setSelected(null); setView("list") }}
       />
