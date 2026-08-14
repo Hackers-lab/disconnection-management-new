@@ -57,21 +57,13 @@ export function useModuleVersionSync<T extends Record<string, any>>(
     async (forceBypass = false) => {
       setSyncState("checking")
       try {
-        let cached = (await getFromCache<T[]>(scopedCacheKey)) || []
-        // Migration fallback: check un-scoped cacheKey if scopedCacheKey is empty
-        if (cached.length === 0) {
-          const legacyCached = (await getFromCache<T[]>(cacheKey)) || []
-          if (legacyCached.length > 0) {
-            cached = legacyCached
-            await saveToCache(scopedCacheKey, legacyCached)
-          }
-        }
+        const cached = (await getFromCache<T[]>(cacheKey)) || []
 
         const storedPatchVersion = typeof window !== "undefined"
-          ? Number(localStorage.getItem(`ver_${scopedCacheKey}`) || localStorage.getItem(`ver_${cacheKey}`) || 0)
+          ? Number(localStorage.getItem(`ver_${cacheKey}`) || 0)
           : 0
         const storedBaseVersion = typeof window !== "undefined"
-          ? Number(localStorage.getItem(`base_ver_${scopedCacheKey}`) || localStorage.getItem(`base_ver_${cacheKey}`) || 1)
+          ? Number(localStorage.getItem(`base_ver_${cacheKey}`) || 1)
           : 1
 
         const url = `/api/system/version-check?moduleKey=${encodeURIComponent(moduleKey)}&clientPatchVersion=${storedPatchVersion}&clientBaseVersion=${storedBaseVersion}&force=${forceBypass}`
@@ -116,7 +108,7 @@ export function useModuleVersionSync<T extends Record<string, any>>(
           for (const patch of data.patches) {
             const recordId = patch.recordId
             if (patch.action === "DELETE") {
-              console.log(`[Version Sync] 🗑️ Evicting Tombstone Record ID "${recordId}" from local cache "${scopedCacheKey}".`)
+              console.log(`[Version Sync] 🗑️ Evicting Tombstone Record ID "${recordId}" from local cache "${cacheKey}".`)
               updatedList = updatedList.filter(item => String(item[idKey]) !== String(recordId))
             } else if (patch.action === "UPDATE" && patch.changes) {
               const existingIdx = updatedList.findIndex(item => String(item[idKey]) === String(recordId))
@@ -128,14 +120,14 @@ export function useModuleVersionSync<T extends Record<string, any>>(
             }
           }
 
-          await saveToCache(scopedCacheKey, updatedList)
+          await saveToCache(cacheKey, updatedList)
           if (typeof window !== "undefined") {
-            localStorage.setItem(`ver_${scopedCacheKey}`, String(serverPatchVer))
-            localStorage.setItem(`base_ver_${scopedCacheKey}`, String(serverBaseVer))
+            localStorage.setItem(`ver_${cacheKey}`, String(serverPatchVer))
+            localStorage.setItem(`base_ver_${cacheKey}`, String(serverBaseVer))
           }
           setPatchCount(data.patches.length)
           if (callbackRef.current) callbackRef.current(updatedList)
-          console.log(`[Version Sync] ✅ Successfully applied ${data.patches.length} patch(es) to "${scopedCacheKey}". Local pointer updated to ${serverVerStr}.`)
+          console.log(`[Version Sync] ✅ Successfully applied ${data.patches.length} patch(es) to "${cacheKey}". Local pointer updated to ${serverVerStr}.`)
           setSyncState("updated")
           setTimeout(() => setSyncState("idle"), 3000)
           return
@@ -148,10 +140,10 @@ export function useModuleVersionSync<T extends Record<string, any>>(
             const result = await baseRes.json()
             const freshItems = (Array.isArray(result) ? result : (result.patchData || result.data || [])) as T[]
 
-            await saveToCache(scopedCacheKey, freshItems)
+            await saveToCache(cacheKey, freshItems)
             if (typeof window !== "undefined") {
-              localStorage.setItem(`ver_${scopedCacheKey}`, String(serverPatchVer))
-              localStorage.setItem(`base_ver_${scopedCacheKey}`, String(serverBaseVer))
+              localStorage.setItem(`ver_${cacheKey}`, String(serverPatchVer))
+              localStorage.setItem(`base_ver_${cacheKey}`, String(serverBaseVer))
             }
             if (callbackRef.current) callbackRef.current(freshItems)
             console.log(`[Version Sync] ✅ Downloaded BASE dataset for "${moduleKey}" (${freshItems.length} records). Updated local version to ${serverVerStr}.`)
