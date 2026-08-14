@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
 import { compactBaseVersion } from "@/lib/version-engine"
 
@@ -29,7 +29,8 @@ export const POST = withTenant(async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const moduleKey = searchParams.get("moduleKey") || "all"
-    const tenantId = req.headers.get("x-tenant-id") || "default"
+    const context = getTenantContext()
+    const tenantId = context?.cccCode || req.headers.get("x-tenant-id") || "default"
 
     if (moduleKey === "all") {
       const keys = Object.keys(TAG_MAP)

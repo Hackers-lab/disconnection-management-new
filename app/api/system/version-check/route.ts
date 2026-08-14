@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
 import { getModuleVersions, getDeltaPatchesSince } from "@/lib/version-engine"
 
@@ -11,7 +11,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const moduleKey = searchParams.get("moduleKey")
     const clientPatchVersion = Number(searchParams.get("clientPatchVersion") || 0)
     const clientBaseVersion = Number(searchParams.get("clientBaseVersion") || 1)
-    const tenantId = req.headers.get("x-tenant-id") || "default"
+    const context = getTenantContext()
+    const tenantId = context?.cccCode || req.headers.get("x-tenant-id") || "default"
 
     if (!moduleKey) {
       return NextResponse.json({ error: "moduleKey is required" }, { status: 400 })
