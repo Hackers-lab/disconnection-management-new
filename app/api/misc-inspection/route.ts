@@ -61,7 +61,8 @@ export const POST = withTenant(async function POST(req: NextRequest) {
     const createdBy = authRes.session.userId || authRes.session.username || authRes.session.role || "Admin"
     const newRecord = await createMiscInspection(body, createdBy)
 
-    const tenantId = req.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || req.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "misc-inspection", {
       action: "UPDATE",
       recordId: String(newRecord.id),

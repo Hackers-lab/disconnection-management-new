@@ -3,7 +3,7 @@ import { verifySession } from "@/lib/session"
 import { updateReconnectionStatus, fetchReconnectionData } from "@/lib/reconnection-service"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { roleStorage } from "@/lib/role-storage"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
@@ -55,7 +55,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       remarks,
     })
 
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "reconnection", {
       action: "UPDATE",
       recordId: String(req.consumerId || requestId),

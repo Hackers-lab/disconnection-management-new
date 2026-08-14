@@ -107,7 +107,8 @@ export const DELETE = withTenant(async function DELETE(
       return NextResponse.json({ error: "Inspection record not found" }, { status: 404 })
     }
 
-    const tenantId = req.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || req.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "misc-inspection", {
       action: "DELETE",
       recordId: String(id),
