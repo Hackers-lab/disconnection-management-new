@@ -200,7 +200,7 @@ function parseRow(r: string[], headers: string[]): NSCApplication {
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
-export async function fetchApplicationsRaw(spreadsheetId: string): Promise<NSCApplication[]> {
+export async function _fetchApplicationsRaw(spreadsheetId: string): Promise<NSCApplication[]> {
   const headers = await ensureHeaders(spreadsheetId, NSC_TAB, NSC_HEADERS)
   const lastColLetter = colLetter(headers.length - 1)
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${NSC_TAB}!A:${lastColLetter}` })
@@ -210,9 +210,11 @@ export async function fetchApplicationsRaw(spreadsheetId: string): Promise<NSCAp
     .map(r => parseRow(r.map(String), headers))
 }
 
+export const fetchApplicationsRaw = _fetchApplicationsRaw
+
 // Cached read for list/count endpoints (notifications, GET).
 export const fetchApplications = unstable_cache(
-  async (spreadsheetId: string) => fetchApplicationsRaw(spreadsheetId),
+  async (spreadsheetId: string) => _fetchApplicationsRaw(spreadsheetId),
   ["nsc-data"],
   { revalidate: NSC_REVALIDATE_S, tags: [NSC_TAG] },
 )

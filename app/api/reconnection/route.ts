@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
@@ -52,6 +53,33 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       requestImageUrl: body.requestImageUrl || "",
       remarks:         body.remarks || "",
     })
+
+    const newRecord = {
+      requestId,
+      consumerId:      body.consumerId || "",
+      name:            body.name || "",
+      address:         body.address || "",
+      mobile:          body.mobile || "",
+      agency:          body.agency || "",
+      device:          body.device || "",
+      source:          body.source || "dc_list",
+      requestImageUrl: body.requestImageUrl || "",
+      remarks:         body.remarks || "",
+      status:          "pending",
+      createdAt:       new Date().toISOString(),
+    }
+
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "reconnection", {
+      action: "UPDATE",
+      recordId: String(body.consumerId || requestId),
+      changes: newRecord,
+    }).catch(e => console.warn("Reconnection patch logging failed:", e))
+
+    if (body.agency) {
+      updateBadgeCounts(tenantId, "reconnection", body.agency, 1).catch(e => console.warn("Reconnection badge update failed:", e))
+    }
+
     return NextResponse.json({ success: true, requestId })
   } catch (e: any) {
     console.error("Reconnection create error:", e)

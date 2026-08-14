@@ -4,6 +4,7 @@ import { fetchApplications, fetchApplicationsRaw, createApplication } from "@/li
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -54,6 +55,17 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       officeRefNo:   body.officeRefNo   || "",
       applicationFormUrl: body.applicationFormUrl || "",
     })
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "nsc", {
+      action: "UPDATE",
+      recordId: String(receiveNo),
+      changes: { receiveNo, status: "pending", ...body },
+    }).catch(e => console.warn("NSC creation patch logging failed:", e))
+
+    if (body.agency) {
+      updateBadgeCounts(tenantId, "nsc", body.agency, 1).catch(e => console.warn("NSC badge update failed:", e))
+    }
+
     return NextResponse.json({ success: true, receiveNo })
   } catch (e: any) {
     console.error("NSC create error:", e)

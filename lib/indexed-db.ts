@@ -66,7 +66,6 @@ export async function getFromCache<T>(key: string): Promise<T | null> {
       request.onerror   = () => reject(request.error)
       request.onsuccess = () => {
         const result = request.result ?? null
-        console.log(`[Cache Engine] 📖 Read Key: "${prefixedKey}" -> Found: ${Array.isArray(result) ? `${result.length} items` : result ? "Data object" : "Empty"}`)
         resolve(result)
       }
     })
@@ -78,7 +77,6 @@ export async function getFromCache<T>(key: string): Promise<T | null> {
 
 export function notifyCacheUpdate(key: string) {
   if (typeof window !== "undefined") {
-    console.log(`[Cache Engine] 📢 Broadcasting 'badge_cache_updated' event for Key: "${key}"`)
     window.dispatchEvent(new CustomEvent("badge_cache_updated", { detail: { key } }))
   }
 }
@@ -99,7 +97,6 @@ export async function saveToCache(key: string, data: any): Promise<void> {
       tx.oncomplete = () => resolve()
       tx.onerror    = () => reject(tx.error)
     })
-    console.log(`[Cache Engine] 💾 Saved Key: "${prefixedKey}" (${Array.isArray(data) ? `${data.length} records` : "object"}) at timestamp ${now}`)
     notifyCacheUpdate(key)
   } catch (error) {
     console.warn(`[Cache Engine] ⚠️ Error saving ${prefixedKey} to cache:`, error)

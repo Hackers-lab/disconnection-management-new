@@ -157,13 +157,11 @@ export async function _fetchSafetyTicketsRaw(spreadsheetId: string): Promise<Saf
   return tickets
 }
 
-export const fetchSafetyTickets = (spreadsheetId: string) => {
-  return unstable_cache(
-    async () => _fetchSafetyTicketsRaw(spreadsheetId),
-    ["safety_tickets_list", spreadsheetId],
-    { tags: [SAFETY_TAG], revalidate: 30 * 24 * 60 * 60 }
-  )()
-}
+export const fetchSafetyTickets = unstable_cache(
+  async (spreadsheetId: string) => _fetchSafetyTicketsRaw(spreadsheetId),
+  ["safety_tickets_list"],
+  { tags: [SAFETY_TAG], revalidate: 30 * 24 * 60 * 60 }
+)
 
 export async function createSafetyTicket(
   spreadsheetId: string,

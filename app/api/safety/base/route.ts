@@ -4,6 +4,7 @@ import { checkApiPermission } from "@/lib/permissions"
 import { _fetchSafetyTicketsRaw, createSafetyTicket } from "@/lib/safety-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -55,6 +56,17 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       agency: body.agency || (session.role === "agency" ? session.agencies?.[0] || "" : ""),
       remarks: body.remarks || "",
     })
+
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "safety", {
+      action: "UPDATE",
+      recordId: String(safetyId),
+      changes: { safetyId, ...body },
+    }).catch(e => console.warn("Safety creation patch logging failed:", e))
+
+    if (body.agency) {
+      updateBadgeCounts(tenantId, "safety", body.agency, 1).catch(e => console.warn("Safety badge update failed:", e))
+    }
 
     return NextResponse.json({ success: true, safetyId })
   } catch (error: any) {

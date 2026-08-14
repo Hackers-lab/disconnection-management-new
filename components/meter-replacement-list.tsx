@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, getCacheAgeMs, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { MeterReplacement } from "@/lib/meter-replacement-service"
@@ -96,6 +97,17 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const handleReturnIssuedMeter = async () => {
     if (!selectedForReturn) return
     const targetId = selectedForReturn.issueId || selectedForReturn.replacementId
+    
+    // 1. Optimistic UI update
+    setRecords(prev => {
+      const updated = prev.map(r => (r.replacementId === selectedForReturn.replacementId || r.issueId === targetId) ? { ...r, status: "proposed", serialNo: "", issueId: "" } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setReturnDialogOpen(false)
+    setSelectedForReturn(null)
+    setReturnRemarks("")
+
     setReturning(true)
     try {
       const res = await fetch("/api/meters/return", {
@@ -108,12 +120,9 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed to return meter")
       toast({ title: `Meter ${selectedForReturn.serialNo || ""} returned to stock`, description: "Proposal reset to proposed status." })
-      setReturnDialogOpen(false)
-      setSelectedForReturn(null)
-      setReturnRemarks("")
-      load(true, true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to return meter", variant: "destructive" })
+      load(true, true)
     } finally {
       setReturning(false)
     }
@@ -132,6 +141,17 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   const handleReassignAgency = async () => {
     if (!selectedForReassign) return
+    const targetId = selectedForReassign.replacementId
+
+    // Optimistic UI update
+    setRecords(prev => {
+      const updated = prev.map(r => r.replacementId === targetId ? { ...r, agency: newAgency } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setReassignDialogOpen(false)
+    setSelectedForReassign(null)
+
     setReassigning(true)
     try {
       const res = await fetch("/api/meters/replacement", {
@@ -139,17 +159,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "reassign_agency",
-          replacementId: selectedForReassign.replacementId,
+          replacementId: targetId,
           agency: newAgency
         })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed to reassign agency")
       toast({ title: `Agency updated to "${newAgency || "Unassigned"}"` })
-      setReassignDialogOpen(false)
-      setSelectedForReassign(null)
-      load(true, true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to reassign agency", variant: "destructive" })
+      load(true, true)
     } finally {
       setReassigning(false)
     }
@@ -160,6 +178,19 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       toast({ title: "Please enter remarks for closing", variant: "destructive" })
       return
     }
+    const targetId = selectedForClose.replacementId
+    const remarks = closeRemarks.trim()
+
+    // Optimistic UI update: instantly reflect closed status on screen
+    setRecords(prev => {
+      const updated = prev.map(r => r.replacementId === targetId ? { ...r, status: "closed", remarks } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setCloseDialogOpen(false)
+    setSelectedForClose(null)
+    setCloseRemarks("")
+
     setClosing(true)
     try {
       const res = await fetch("/api/meters/replacement", {
@@ -167,18 +198,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "close",
-          replacementId: selectedForClose.replacementId,
-          remarks: closeRemarks.trim()
+          replacementId: targetId,
+          remarks
         })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
       toast({ title: "Proposal closed successfully" })
-      setCloseDialogOpen(false)
-      setSelectedForClose(null)
-      setCloseRemarks("")
-      load(true)
     } catch (e: any) {
       toast({ title: e.message || "Failed to close proposal", variant: "destructive" })
+      load(true, true)
     } finally {
       setClosing(false)
     }
@@ -247,36 +275,39 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     })
   }
 
+  useModuleVersionSync<MeterReplacement>(
+    "meter-replacement",
+    CACHE_KEY,
+    "replacementId",
+    "/api/meters/replacement?bypassCache=true",
+    (updated) => {
+      setRecords([...updated].reverse())
+    }
+  )
+
   const load = async (silent = false, force = false) => {
     if (!silent) setSyncState("loading")
     try {
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=meter-replacement", { method: "POST" }).catch(() => {})
+      }
+      // 1. Instant render from local IndexedDB cache for 0ms initial display
       const cached = await getFromCache<MeterReplacement[]>(CACHE_KEY)
-      let lastTs = 0
       if (cached && cached.length > 0) {
-        setRecords(cached)
+        const sorted = [...cached].reverse()
+        setRecords(sorted)
         if (!silent) setSyncState("idle")
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["proposedDate"])
       }
 
-      if (lastTs > 0 && !force) {
-        const merged = await PlatformSyncEngine.syncModule<MeterReplacement>({
-          moduleKey: "meter-replacement",
-          cacheKey: CACHE_KEY,
-          idKey: "replacementId",
-          fetchPatchUrl: "/api/meters/replacement/patch",
-        }, lastTs)
-        const sorted = [...merged].reverse()
-        setRecords(sorted)
-      } else {
-        const url = force ? "/api/meters/replacement?bypassCache=true" : "/api/meters/replacement"
-        const res = await fetch(url)
-        if (!res.ok) throw new Error()
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
-        const merged = await mergePatchToCache<MeterReplacement>(CACHE_KEY, patchItems, "replacementId")
-        const sorted = [...merged].reverse()
-        setRecords(sorted)
-      }
+      // 2. Automatically fetch fresh server records to reconcile additions, updates, and deleted items
+      const url = force ? "/api/meters/replacement?bypassCache=true" : "/api/meters/replacement"
+      const res = await fetch(url)
+      if (!res.ok) throw new Error()
+      const result = await res.json()
+      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
+      const sorted = [...patchItems].reverse()
+      setRecords(sorted)
+      await saveToCache(CACHE_KEY, patchItems)
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 3000)
     } catch {
@@ -406,7 +437,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         onSave={(id) => {
           toast({ title: "Proposed replacement created", description: `ID: ${id}` })
           setView("list")
-          load()
+          load(true, true)
         }}
         onCancel={() => setView("list")}
       />
@@ -444,7 +475,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               <Download className="h-4 w-4" />
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => load()} className="shrink-0">
+          <Button size="sm" variant="ghost" onClick={() => load(false, true)} className="shrink-0">
             <RefreshCw className={`h-4 w-4 ${syncState === "loading" ? "animate-spin" : ""}`} />
           </Button>
         </div>
@@ -830,7 +861,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
           workOrderNo={selectedForNoteSheet.workOrderNo}
           isOpen={noteSheetDialogOpen}
           onClose={() => { setNoteSheetDialogOpen(false); setSelectedForNoteSheet(null) }}
-          onSuccess={() => { toast({ title: "Note Sheet updated" }); load(true) }}
+          onSuccess={() => { toast({ title: "Note Sheet updated" }); load(true, true) }}
         />
       )}
     </div>

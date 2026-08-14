@@ -7,6 +7,7 @@ import {
   deleteMiscInspection,
 } from "@/lib/misc-inspection-service"
 import { withTenant } from "@/lib/tenant-context"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -105,6 +106,14 @@ export const DELETE = withTenant(async function DELETE(
     if (!success) {
       return NextResponse.json({ error: "Inspection record not found" }, { status: 404 })
     }
+
+    const tenantId = req.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "misc-inspection", {
+      action: "DELETE",
+      recordId: String(id),
+    }).catch(e => console.warn("Tombstone logging failed:", e))
+
+    updateBadgeCounts(tenantId, "misc_inspection", undefined, -1).catch(e => console.warn("Badge count update failed:", e))
 
     return NextResponse.json({ message: "Inspection record deleted successfully" })
   } catch (error: any) {

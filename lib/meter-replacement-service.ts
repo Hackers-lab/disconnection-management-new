@@ -122,11 +122,11 @@ export async function _fetchReplacementsRaw(spreadsheetId: string): Promise<Mete
     .map(r => parseReplacement(r.map(String)))
 }
 
-export const fetchReplacements = (spreadsheetId: string) => unstable_cache(
-  async () => _fetchReplacementsRaw(spreadsheetId),
-  ["meter-replacements", spreadsheetId],
+export const fetchReplacements = unstable_cache(
+  async (spreadsheetId: string) => _fetchReplacementsRaw(spreadsheetId),
+  ["meter-replacements"],
   { revalidate: REVAL_S, tags: [REPLACEMENT_TAG] }
-)()
+)
 
 async function nextReplacementId(id: string): Promise<string> {
   const all = await _fetchReplacementsRaw(id)

@@ -5,6 +5,7 @@ import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { roleStorage } from "@/lib/role-storage"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -53,6 +54,17 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       reading,
       remarks,
     })
+
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "reconnection", {
+      action: "UPDATE",
+      recordId: String(req.consumerId || requestId),
+      changes: { requestId, status: newStatus, imageUrl, reading, remarks },
+    }).catch(e => console.warn("Reconnection patch logging failed:", e))
+
+    if (req.agency) {
+      updateBadgeCounts(tenantId, "reconnection", req.agency, -1).catch(e => console.warn("Reconnection badge update failed:", e))
+    }
 
     return NextResponse.json({ success: true })
   } catch (e: any) {

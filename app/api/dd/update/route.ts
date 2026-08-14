@@ -5,6 +5,7 @@ import { auth } from "@/lib/google-drive"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { withTenant } from "@/lib/tenant-context"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
   try {
@@ -123,6 +124,18 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     }
 
     invalidateDDCache()
+
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "dd", {
+      action: "UPDATE",
+      recordId: String(body.consumerId),
+      changes: body,
+    }).catch(e => console.warn("DD patch logging failed:", e))
+
+    if (body.agency) {
+      updateBadgeCounts(tenantId, "dd", body.agency, 0).catch(e => console.warn("DD badge update failed:", e))
+    }
+
     return NextResponse.json({ success: true, message: "Sheet updated successfully" })
     
   } catch (error: any) {

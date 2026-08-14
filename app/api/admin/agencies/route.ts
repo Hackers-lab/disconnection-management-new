@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { getAgencies, addAgency, updateAgency, deleteAgency } from "@/lib/agency-storage"
 import { withTenant } from "@/lib/tenant-context"
+import { incrKV, getTenantKey } from "@/lib/kv-store"
 
 export const dynamic = "force-dynamic"
 
@@ -34,6 +35,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
     await addAgency({ name: name.toUpperCase(), description: description || "", isActive: isActive !== false })
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency added successfully" })
   } catch (error) {
     console.error("Error adding agency:", error)
@@ -57,6 +60,8 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
     await updateAgency({ id, name: name.toUpperCase(), description: description || "", isActive: isActive !== false })
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency updated successfully" })
   } catch (error) {
     console.error("Error updating agency:", error)
@@ -81,6 +86,8 @@ export const DELETE = withTenant(async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Agency not found" }, { status: 404 })
     }
     await deleteAgency(id)
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency deleted successfully" })
   } catch (error) {
     console.error("Error deleting agency:", error)

@@ -31,6 +31,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, mergePatchToCache, notifyCacheUpdate } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"
 import { SafetyAgencyDrawer } from "./safety-agency-drawer"
@@ -149,44 +150,31 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
   const [poAmount, setPoAmount] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
+  const { checkVersion } = useModuleVersionSync<SafetyTicket>("safety", "safety_data_cache", "safetyId", (updated) => {
+    setTickets(updated)
+  })
+
+  const loadData = async (force = false) => {
+    setError(null)
+    try {
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=safety", { method: "POST" }).catch(() => {})
+      }
+      await checkVersion(force)
+      if (force) toast({ title: "Safety data resynced & base reset" })
+      setLoading(false)
+      setSyncStatus('updated')
+    } catch (err: any) {
+      console.error(err)
+      if (tickets.length === 0) setError(err.message || "Failed to load Safety data")
+    } finally {
+      setLoading(false)
+      setTimeout(() => setSyncStatus('idle'), 3000)
+    }
+  }
+
   // Data Loading
   useEffect(() => {
-    async function loadData() {
-      setError(null)
-      try {
-        const cached = await getFromCache<SafetyTicket[]>("safety_data_cache")
-        let lastTs = 0
-        if (cached && cached.length > 0) {
-          setTickets(cached)
-          setLoading(false)
-          lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["reportedDate", "physicalRectifiedDate" as any])
-        }
-        setSyncStatus('checking')
-        if (lastTs > 0) {
-          const merged = await PlatformSyncEngine.syncModule<SafetyTicket>({
-            moduleKey: "safety",
-            cacheKey: "safety_data_cache",
-            idKey: "safetyId",
-            fetchPatchUrl: "/api/safety/patch",
-          }, lastTs)
-          setTickets(merged)
-        } else {
-          const res = await fetch("/api/safety/base")
-          if (!res.ok) throw new Error("Failed to fetch safety tickets")
-          const result = await res.json()
-          const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as SafetyTicket[]
-          const merged = await mergePatchToCache<SafetyTicket>("safety_data_cache", patchItems, "safetyId")
-          setTickets(merged)
-        }
-        setSyncStatus('updated')
-      } catch (err: any) {
-        console.error(err)
-        if (tickets.length === 0) setError(err.message || "Failed to load Safety data")
-      } finally {
-        setLoading(false)
-        setTimeout(() => setSyncStatus('idle'), 3000)
-      }
-    }
     loadData()
   }, [refreshKey])
 

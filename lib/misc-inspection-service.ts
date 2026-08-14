@@ -1,7 +1,7 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { revalidateTag, unstable_cache } from "next/cache"
 import { auth } from "./google-drive"
-import { getSpreadsheetId, ensureHeaders, findColumn } from "./google-sheets-api"
+import { getSpreadsheetId, ensureHeaders, findColumn, colLetter } from "./google-sheets-api"
 import type {
   MiscInspectionRecord,
   CreateMiscInspectionInput,
@@ -72,9 +72,10 @@ async function initTab(spreadsheetId: string) {
         requests: [{ addSheet: { properties: { title: MISC_INSPECTION_TAB } } }],
       },
     })
+    const endColLetter = colLetter(MISC_INSPECTION_HEADERS.length - 1)
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${MISC_INSPECTION_TAB}!A1:AH1`,
+      range: `${MISC_INSPECTION_TAB}!A1:${endColLetter}1`,
       valueInputOption: "RAW",
       requestBody: { values: [Array.from(MISC_INSPECTION_HEADERS)] },
     })
@@ -91,7 +92,7 @@ export function invalidateMiscInspectionCache() {
 function parseRecordFromRow(headers: string[], row: any[]): MiscInspectionRecord {
   const getVal = (colName: string) => {
     const idx = findColumn(headers, [colName])
-    return idx !== -1 && row[idx] ? String(row[idx]).trim() : ""
+    return idx !== -1 && row[idx] !== undefined && row[idx] !== null ? String(row[idx]).trim() : ""
   }
 
   let categoryFields: DynamicCategoryFields | undefined
@@ -143,6 +144,66 @@ function parseRecordFromRow(headers: string[], row: any[]): MiscInspectionRecord
   }
 }
 
+/**
+ * Removes any empty/blank rows in the Misc_Inspections tab to prevent gaps in Google Sheets.
+ */
+export async function cleanupBlankRows(spreadsheetId?: string): Promise<number> {
+  try {
+    const id = spreadsheetId || getSpreadsheetId()
+    await initTab(id)
+
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: id })
+    const sheetObj = meta.data.sheets?.find(s => s.properties?.title === MISC_INSPECTION_TAB)
+    if (!sheetObj) return 0
+    const numericSheetId = sheetObj.properties?.sheetId ?? 0
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: id,
+      range: `${MISC_INSPECTION_TAB}!A1:ZZ`,
+    })
+
+    const rows = res.data.values || []
+    if (rows.length < 2) return 0
+
+    const headers = rows[0].map(h => String(h || "").trim())
+    const idColIdx = findColumn(headers, ["ID"])
+
+    const blankRowIndices: number[] = []
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i]
+      const isEmpty = !row || row.length === 0 || row.every(cell => !String(cell || "").trim())
+      const hasNoId = idColIdx !== -1 && (!row[idColIdx] || !String(row[idColIdx]).trim())
+      if (isEmpty || hasNoId) {
+        blankRowIndices.push(i)
+      }
+    }
+
+    if (blankRowIndices.length === 0) return 0
+
+    const deleteRequests = blankRowIndices.reverse().map(idx => ({
+      deleteDimension: {
+        range: {
+          sheetId: numericSheetId,
+          dimension: "ROWS",
+          startIndex: idx,
+          endIndex: idx + 1,
+        },
+      },
+    }))
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: id,
+      requestBody: { requests: deleteRequests },
+    })
+
+    invalidateMiscInspectionCache()
+    return deleteRequests.length
+  } catch (err) {
+    console.warn("cleanupBlankRows error:", err)
+    return 0
+  }
+}
+
 export async function fetchAllMiscInspectionsRaw(spreadsheetId?: string): Promise<MiscInspectionRecord[]> {
   const id = spreadsheetId || getSpreadsheetId()
   await initTab(id)
@@ -156,20 +217,29 @@ export async function fetchAllMiscInspectionsRaw(spreadsheetId?: string): Promis
   if (rows.length < 2) return []
 
   const headers = rows[0].map(h => String(h || "").trim())
+  const idColIdx = findColumn(headers, ["ID"])
   const dataRows = rows.slice(1)
+
+  // Auto cleanup blank rows in background if any are present
+  const hasBlankRows = dataRows.some(row => !row || row.length === 0 || (idColIdx !== -1 && !String(row[idColIdx] || "").trim()))
+  if (hasBlankRows) {
+    cleanupBlankRows(id).catch(e => console.warn("Background cleanup failed:", e))
+  }
 
   return dataRows
     .map(row => parseRecordFromRow(headers, row))
-    .filter(r => Boolean(r.id))
+    .filter(r => Boolean(r.id && r.id.trim()))
 }
 
-export const getMiscInspections = (spreadsheetId?: string) => {
+const cachedFetchMiscInspections = unstable_cache(
+  async (id: string) => fetchAllMiscInspectionsRaw(id),
+  ["misc_inspections_list"],
+  { tags: [MISC_INSPECTION_TAG], revalidate: 30 * 24 * 60 * 60 }
+)
+
+export function getMiscInspections(spreadsheetId?: string) {
   const id = spreadsheetId || getSpreadsheetId()
-  return unstable_cache(
-    async () => fetchAllMiscInspectionsRaw(id),
-    ["misc_inspections_list", id],
-    { tags: [MISC_INSPECTION_TAG], revalidate: 30 * 24 * 60 * 60 }
-  )()
+  return cachedFetchMiscInspections(id)
 }
 
 export async function getMiscInspectionById(id: string, spreadsheetId?: string): Promise<MiscInspectionRecord | null> {
@@ -178,7 +248,7 @@ export async function getMiscInspectionById(id: string, spreadsheetId?: string):
 }
 
 export async function createMiscInspection(
-  input: CreateMiscInspectionInput,
+  input: CreateMiscInspectionInput & { initialImageUrl?: string },
   createdBy: string
 ): Promise<MiscInspectionRecord> {
   const spreadsheetId = getSpreadsheetId()
@@ -186,7 +256,7 @@ export async function createMiscInspection(
 
   let allRecords: MiscInspectionRecord[] = []
   try {
-    allRecords = await fetchAllMiscInspectionsRaw()
+    allRecords = await fetchAllMiscInspectionsRaw(spreadsheetId)
   } catch (e) {
     allRecords = []
   }
@@ -222,6 +292,7 @@ export async function createMiscInspection(
     status: "PENDING_AGENCY",
     createdBy,
     createdAt,
+    sitePhotoUrl: input.initialImageUrl,
     categoryFields: input.categoryFields || {},
     existingMeterNo: input.categoryFields?.meterSerialNo,
     measuredLoadKw: input.categoryFields?.dtrCapacityKva,
@@ -245,10 +316,10 @@ export async function createMiscInspection(
   }
 
   const newRow = new Array(headers.length).fill("")
-  const setVal = (colName: string, val: string | undefined) => {
+  const setVal = (colName: string, val: string | undefined | null) => {
     const idx = findColumn(headers, [colName])
-    if (idx !== -1 && val !== undefined) {
-      newRow[idx] = val
+    if (idx !== -1 && val !== undefined && val !== null) {
+      newRow[idx] = String(val)
     }
   }
 
@@ -269,7 +340,11 @@ export async function createMiscInspection(
   setVal("Status", record.status)
   setVal("Created By", record.createdBy)
   setVal("Created At", record.createdAt)
+  setVal("Site Photo URL", record.sitePhotoUrl)
   setVal("Existing Meter No", record.existingMeterNo)
+  setVal("Meter Reading", record.meterReading)
+  setVal("Measured Load (kW)", record.measuredLoadKw)
+  setVal("Line Length (m)", record.lineLengthMeters)
   setVal("Category Fields JSON", JSON.stringify(record.categoryFields || {}))
 
   await sheets.spreadsheets.values.append({
@@ -316,25 +391,12 @@ export async function updateMiscInspectionByAgency(
   const inspectedAt = nowTs()
   const status: InspectionStatus = "INSPECTED"
 
-  const setVal = (colName: string, val: string | undefined) => {
-    const idx = findColumn(headers, [colName])
-    if (idx !== -1 && val !== undefined) {
-      const colLetter = String.fromCharCode(65 + idx)
-      sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `${MISC_INSPECTION_TAB}!${colLetter}${rowIndex}`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: { values: [[val]] },
-      })
-    }
-  }
-
   // Batch update values
   const updates: { col: number; val: string }[] = []
-  const pushUpdate = (colName: string, val: string | undefined) => {
-    if (val === undefined) return
+  const pushUpdate = (colName: string, val: string | undefined | null) => {
+    if (val === undefined || val === null) return
     const idx = findColumn(headers, [colName])
-    if (idx !== -1) updates.push({ col: idx, val })
+    if (idx !== -1) updates.push({ col: idx, val: String(val) })
   }
 
   pushUpdate("Inspected By", inspectedBy)
@@ -357,14 +419,21 @@ export async function updateMiscInspectionByAgency(
     pushUpdate("Category Fields JSON", JSON.stringify(input.categoryFields))
   }
 
-  const currentRow = [...rows[rowIndex - 1]]
+  const maxCols = Math.max(headers.length, (rows[rowIndex - 1] || []).length)
+  const currentRow = new Array(maxCols).fill("")
+  const oldRow = rows[rowIndex - 1] || []
+  for (let i = 0; i < oldRow.length; i++) {
+    currentRow[i] = oldRow[i] !== undefined && oldRow[i] !== null ? String(oldRow[i]) : ""
+  }
+
   for (const item of updates) {
     currentRow[item.col] = item.val
   }
 
+  const endColLetter = colLetter(currentRow.length - 1)
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${MISC_INSPECTION_TAB}!A${rowIndex}:ZZ${rowIndex}`,
+    range: `${MISC_INSPECTION_TAB}!A${rowIndex}:${endColLetter}${rowIndex}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [currentRow] },
   })
@@ -412,10 +481,10 @@ export async function finalizeMiscInspection(
   }
 
   const updates: { col: number; val: string }[] = []
-  const pushUpdate = (colName: string, val: string | undefined) => {
-    if (val === undefined) return
+  const pushUpdate = (colName: string, val: string | undefined | null) => {
+    if (val === undefined || val === null) return
     const idx = findColumn(headers, [colName])
-    if (idx !== -1) updates.push({ col: idx, val })
+    if (idx !== -1) updates.push({ col: idx, val: String(val) })
   }
 
   pushUpdate("Admin Decision", input.adminDecision)
@@ -425,14 +494,21 @@ export async function finalizeMiscInspection(
   pushUpdate("Finalized At", finalizedAt)
   pushUpdate("Status", newStatus)
 
-  const currentRow = [...rows[rowIndex - 1]]
+  const maxCols = Math.max(headers.length, (rows[rowIndex - 1] || []).length)
+  const currentRow = new Array(maxCols).fill("")
+  const oldRow = rows[rowIndex - 1] || []
+  for (let i = 0; i < oldRow.length; i++) {
+    currentRow[i] = oldRow[i] !== undefined && oldRow[i] !== null ? String(oldRow[i]) : ""
+  }
+
   for (const item of updates) {
     currentRow[item.col] = item.val
   }
 
+  const endColLetter = colLetter(currentRow.length - 1)
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${MISC_INSPECTION_TAB}!A${rowIndex}:ZZ${rowIndex}`,
+    range: `${MISC_INSPECTION_TAB}!A${rowIndex}:${endColLetter}${rowIndex}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [currentRow] },
   })
@@ -445,6 +521,10 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
   const spreadsheetId = getSpreadsheetId()
   await initTab(spreadsheetId)
 
+  const meta = await sheets.spreadsheets.get({ spreadsheetId })
+  const sheetObj = meta.data.sheets?.find(s => s.properties?.title === MISC_INSPECTION_TAB)
+  const numericSheetId = sheetObj?.properties?.sheetId ?? 0
+
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range: `${MISC_INSPECTION_TAB}!A1:ZZ`,
@@ -452,7 +532,6 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
 
   const rows = res.data.values || []
   if (rows.length < 2) {
-    // No data rows — still invalidate cache to clear any phantom records
     invalidateMiscInspectionCache()
     return false
   }
@@ -467,21 +546,33 @@ export async function deleteMiscInspection(id: string): Promise<boolean> {
   let rowIndex = -1
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][idColIdx] || "").trim().toLowerCase() === id.toLowerCase()) {
-      rowIndex = i + 1
+      rowIndex = i // 0-based row index in rows (header is 0, first data row is 1)
       break
     }
   }
 
   if (rowIndex === -1) {
-    // Record not in sheet but may exist in cache — invalidate so phantom disappears
     invalidateMiscInspectionCache()
     return false
   }
 
-  // Clear row content
-  await sheets.spreadsheets.values.clear({
+  // Physically delete the row dimension from the sheet so no blank row remains
+  await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    range: `${MISC_INSPECTION_TAB}!A${rowIndex}:ZZ${rowIndex}`,
+    requestBody: {
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: numericSheetId,
+              dimension: "ROWS",
+              startIndex: rowIndex,
+              endIndex: rowIndex + 1,
+            },
+          },
+        },
+      ],
+    },
   })
 
   invalidateMiscInspectionCache()

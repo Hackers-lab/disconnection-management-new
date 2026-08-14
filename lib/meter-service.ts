@@ -149,17 +149,17 @@ export async function _fetchIssuesRaw(spreadsheetId: string): Promise<MeterIssue
   return (res.data.values || []).slice(1).filter(r => r[0]).map(r => parseIssue(r.map(String)))
 }
 
-export const fetchStock = (spreadsheetId: string) => unstable_cache(
-  async () => _fetchStockRaw(spreadsheetId),
-  ["meter-stock", spreadsheetId],
+export const fetchStock = unstable_cache(
+  async (spreadsheetId: string) => _fetchStockRaw(spreadsheetId),
+  ["meter-stock"],
   { revalidate: METER_REVALIDATE_S, tags: [METER_TAG] },
-)()
+)
 
-export const fetchIssues = (spreadsheetId: string) => unstable_cache(
-  async () => _fetchIssuesRaw(spreadsheetId),
-  ["meter-issues", spreadsheetId],
+export const fetchIssues = unstable_cache(
+  async (spreadsheetId: string) => _fetchIssuesRaw(spreadsheetId),
+  ["meter-issues"],
   { revalidate: METER_REVALIDATE_S, tags: [METER_TAG] },
-)()
+)
 
 // ─── Stock summary ────────────────────────────────────────────────────────────
 export async function getStockSummary(spreadsheetId: string): Promise<StockSummary[]> {

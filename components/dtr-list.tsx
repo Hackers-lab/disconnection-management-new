@@ -523,28 +523,18 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
     if (!silent) setSyncState("loading")
     try {
       const cached = await getFromCache<DTRRecord[]>(CACHE_KEY)
-      let lastTs = 0
       if (cached && cached.length > 0) {
         setRecords(cached)
         if (!silent) setSyncState("idle")
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["verifiedAt", "createdAt" as any])
-      }
-      
-      if (lastTs > 0) {
-        const merged = await PlatformSyncEngine.syncModule<DTRRecord>({
-          moduleKey: "dtr",
-          cacheKey: CACHE_KEY,
-          idKey: "dtrCode",
-          fetchPatchUrl: "/api/dtr/patch",
-        }, lastTs)
-        setRecords(merged)
       } else {
         const res = await fetch("/api/dtr")
-        if (!res.ok) throw new Error()
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as DTRRecord[]
-        const merged = await mergePatchToCache<DTRRecord>(CACHE_KEY, patchItems, "dtrCode")
-        setRecords(merged)
+        if (res.ok) {
+          const result = await res.json()
+          const items = (Array.isArray(result) ? result : (result.patchData || [])) as DTRRecord[]
+          await saveToCache(CACHE_KEY, items)
+          setRecords(items)
+        }
+        if (!silent) setSyncState("idle")
       }
       setSyncState("updated")
       setTimeout(() => setSyncState("idle"), 2500)

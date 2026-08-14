@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import { MiscInspectionRecord, InspectionCategory, InspectionPriority, InspectionStatus } from "@/lib/misc-inspection-types"
 import { MiscInspectionStats } from "@/components/misc-inspection-stats"
 import { MiscInspectionCreateForm } from "@/components/misc-inspection-create-form"
@@ -97,34 +98,18 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const canFinalize = isAdminOrExec || !!(permissions?.misc_inspection?.includes("finalize"))
   const canDelete = isAdminOrExec || !!(permissions?.misc_inspection?.includes("delete"))
 
-  const fetchRecords = async () => {
+  const { checkVersion } = useModuleVersionSync<MiscInspectionRecord>("misc-inspection", "misc_inspection_cache", "id", (updated) => {
+    setRecords(updated)
+  })
+
+  const fetchRecords = async (force = false) => {
     setLoading(true)
     try {
-      const cached = await getFromCache<MiscInspectionRecord[]>("misc_inspection_cache")
-      let lastTs = 0
-      if (cached && cached.length > 0) {
-        setRecords(cached)
-        setLoading(false)
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["createdAt", "inspectedAt"])
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=misc-inspection", { method: "POST" }).catch(() => {})
       }
-
-      if (lastTs > 0) {
-        const merged = await PlatformSyncEngine.syncModule<MiscInspectionRecord>({
-          moduleKey: "misc-inspection",
-          cacheKey: "misc_inspection_cache",
-          idKey: "id",
-          fetchPatchUrl: "/api/misc-inspection/patch",
-        }, lastTs)
-        setRecords(merged)
-      } else {
-        const res = await fetch("/api/misc-inspection")
-        if (res.ok) {
-          const result = await res.json()
-          const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
-          const merged = await mergePatchToCache<MiscInspectionRecord>("misc_inspection_cache", patchItems, "id")
-          setRecords(merged)
-        }
-      }
+      await checkVersion(force)
+      if (force) toast.success("Base dataset resynced and refreshed successfully")
     } catch (err: any) {
       if (records.length === 0) toast.error(err.message || "Failed to load inspections")
     } finally {
@@ -138,10 +123,14 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
 
   const handleCreateSuccess = (newRecord?: MiscInspectionRecord) => {
     if (newRecord) {
-      setRecords((prev) => [newRecord, ...prev.filter((r) => r.id !== newRecord.id)])
+      setRecords((prev) => {
+        const updated = [newRecord, ...prev.filter((r) => r.id !== newRecord.id)]
+        saveToCache("misc_inspection_cache", updated)
+        return updated
+      })
+      fetchRecords(true)
     }
     setShowCreateForm(false)
-    fetchRecords()
   }
 
   const uniqueAgencies = useMemo(() => {
@@ -187,17 +176,23 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const handleDelete = async (id: string) => {
     if (!confirm(`Are you sure you want to delete inspection record ${id}?`)) return
     try {
+      // 1. Immediately remove from local state and IndexedDB cache so it disappears instantly
+      setRecords(prev => {
+        const updated = prev.filter(r => r.id !== id)
+        saveToCache("misc_inspection_cache", updated)
+        return updated
+      })
+
       const res = await fetch(`/api/misc-inspection/${id}`, { method: "DELETE" })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.error || "Failed to delete record")
       }
       toast.success("Inspection record deleted successfully")
+      fetchRecords(true)
     } catch (err: any) {
       toast.error(err.message || "Failed to delete record")
-    } finally {
-      // Always refresh list to clear phantom/stale cached records
-      fetchRecords()
+      fetchRecords(true) // force refresh if delete failed
     }
   }
 
@@ -348,7 +343,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
           </DropdownMenu>
 
           {/* Refresh Button */}
-          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={fetchRecords} disabled={loading}>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => fetchRecords(true)} disabled={loading}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-blue-600" : ""}`} />
           </Button>
 
@@ -674,7 +669,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         record={selectedRecord}
         open={showUpdateModal}
         onOpenChange={setShowUpdateModal}
-        onSuccess={fetchRecords}
+        onSuccess={() => fetchRecords(true)}
       />
 
       {/* Details & PDF View Modal */}
@@ -682,7 +677,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         record={selectedRecord}
         open={showViewModal}
         onOpenChange={setShowViewModal}
-        onSuccess={fetchRecords}
+        onSuccess={() => fetchRecords(true)}
         userRole={role}
       />
     </div>
