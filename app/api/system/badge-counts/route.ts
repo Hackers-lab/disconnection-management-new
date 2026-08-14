@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { verifySession } from "@/lib/session"
 import { getScopedBadgeCounts } from "@/lib/version-engine"
 
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic"
 export const GET = withTenant(async function GET(req: NextRequest) {
   try {
     const session = await verifySession()
-    const tenantId = req.headers.get("x-tenant-id") || "default"
+    const context = getTenantContext()
+    const tenantId = context?.cccCode || req.headers.get("x-tenant-id") || "default"
 
     const role = session?.role
     const agency = session?.agency
