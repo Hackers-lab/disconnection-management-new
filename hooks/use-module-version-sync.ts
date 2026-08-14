@@ -15,6 +15,21 @@ function getCccCodeFromCookie(): string {
   return match && match[1] ? decodeURIComponent(match[1]) : "default"
 }
 
+const MODULE_ENDPOINT_MAP: Record<string, string> = {
+  consumer: "/api/consumers/base",
+  disconnection: "/api/consumers/base",
+  dd: "/api/dd/base",
+  safety: "/api/safety/base",
+  reconnection: "/api/reconnection",
+  "misc-inspection": "/api/misc-inspection",
+  misc_inspection: "/api/misc-inspection",
+  nsc: "/api/nsc",
+  "meter-replacement": "/api/meters/replacement",
+  meter: "/api/meters/stock",
+  dtr: "/api/dtr",
+  material: "/api/material",
+}
+
 export function useModuleVersionSync<T extends Record<string, any>>(
   moduleKey: string,
   cacheKey: string,
@@ -24,7 +39,8 @@ export function useModuleVersionSync<T extends Record<string, any>>(
 ): VersionSyncResult<T> {
   // Support signature overload if fetchBaseUrl is omitted and callback is passed 4th
   const actualCallback = typeof fetchBaseUrl === "function" ? fetchBaseUrl : onRecordsUpdated
-  const actualBaseUrl = typeof fetchBaseUrl === "string" ? fetchBaseUrl : `/api/${moduleKey}?bypassCache=true`
+  const defaultPath = MODULE_ENDPOINT_MAP[moduleKey] || `/api/${moduleKey}`
+  const actualBaseUrl = typeof fetchBaseUrl === "string" ? fetchBaseUrl : `${defaultPath}?bypassCache=true`
 
   const cccCode = typeof window !== "undefined" ? getCccCodeFromCookie() : "default"
   const scopedCacheKey = `${cccCode}_${cacheKey}`
@@ -41,9 +57,22 @@ export function useModuleVersionSync<T extends Record<string, any>>(
     async (forceBypass = false) => {
       setSyncState("checking")
       try {
-        const cached = (await getFromCache<T[]>(scopedCacheKey)) || []
-        const storedPatchVersion = typeof window !== "undefined" ? Number(localStorage.getItem(`ver_${scopedCacheKey}`) || 0) : 0
-        const storedBaseVersion = typeof window !== "undefined" ? Number(localStorage.getItem(`base_ver_${scopedCacheKey}`) || 1) : 1
+        let cached = (await getFromCache<T[]>(scopedCacheKey)) || []
+        // Migration fallback: check un-scoped cacheKey if scopedCacheKey is empty
+        if (cached.length === 0) {
+          const legacyCached = (await getFromCache<T[]>(cacheKey)) || []
+          if (legacyCached.length > 0) {
+            cached = legacyCached
+            await saveToCache(scopedCacheKey, legacyCached)
+          }
+        }
+
+        const storedPatchVersion = typeof window !== "undefined"
+          ? Number(localStorage.getItem(`ver_${scopedCacheKey}`) || localStorage.getItem(`ver_${cacheKey}`) || 0)
+          : 0
+        const storedBaseVersion = typeof window !== "undefined"
+          ? Number(localStorage.getItem(`base_ver_${scopedCacheKey}`) || localStorage.getItem(`base_ver_${cacheKey}`) || 1)
+          : 1
 
         const url = `/api/system/version-check?moduleKey=${encodeURIComponent(moduleKey)}&clientPatchVersion=${storedPatchVersion}&clientBaseVersion=${storedBaseVersion}&force=${forceBypass}`
         const res = await fetch(url)
