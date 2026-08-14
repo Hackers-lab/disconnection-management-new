@@ -1,10 +1,36 @@
-/**
- * Tenant-Scoped KV Store Interface
- * Supports Vercel KV / Upstash Redis with a resilient in-memory fallback for local offline development.
- */
+import { createClient, Client } from "@libsql/client"
 
 // In-memory fallback map for environments without configured external KV credentials
 const memoryStore = new Map<string, { value: any; expiresAt?: number }>()
+
+let tursoClient: Client | null = null
+let tursoTableInitialized = false
+
+function getTursoClient(): Client | null {
+  const url = process.env.TURSO_DATABASE_URL || process.env.TURSO_URL || process.env.LIBSQL_URL
+  const authToken = process.env.TURSO_AUTH_TOKEN || process.env.LIBSQL_AUTH_TOKEN
+  if (!url) return null
+  if (!tursoClient) {
+    tursoClient = createClient({ url, authToken })
+  }
+  return tursoClient
+}
+
+async function ensureTursoTable(client: Client) {
+  if (tursoTableInitialized) return
+  try {
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS system_kv_store (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        expires_at INTEGER
+      );
+    `)
+    tursoTableInitialized = true
+  } catch (err) {
+    console.warn("[kv-store] Error creating system_kv_store table in Turso:", err)
+  }
+}
 
 function getKvApiConfig(): { url?: string; token?: string } {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_REST_URL
@@ -52,6 +78,30 @@ export async function getKV<T>(key: string): Promise<T | null> {
       }
     }
 
+    const turso = getTursoClient()
+    if (turso) {
+      await ensureTursoTable(turso)
+      const res = await turso.execute({
+        sql: "SELECT value, expires_at FROM system_kv_store WHERE key = ?",
+        args: [key],
+      })
+      if (res.rows.length > 0) {
+        const row = res.rows[0]
+        const expiresAt = row.expires_at ? Number(row.expires_at) : undefined
+        if (expiresAt && Date.now() > expiresAt) {
+          await turso.execute({ sql: "DELETE FROM system_kv_store WHERE key = ?", args: [key] })
+          return null
+        }
+        const valStr = String(row.value)
+        try {
+          return JSON.parse(valStr) as T
+        } catch {
+          return valStr as unknown as T
+        }
+      }
+      return null
+    }
+
     // Fallback to in-memory store
     const entry = memoryStore.get(key)
     if (entry) {
@@ -80,6 +130,19 @@ export async function setKV<T>(key: string, value: T, ttlSeconds?: number): Prom
       return
     }
 
+    const turso = getTursoClient()
+    if (turso) {
+      await ensureTursoTable(turso)
+      const jsonVal = JSON.stringify(value)
+      const expiresAt = ttlSeconds ? Date.now() + ttlSeconds * 1000 : null
+      await turso.execute({
+        sql: `INSERT INTO system_kv_store (key, value, expires_at) VALUES (?, ?, ?)
+              ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
+        args: [key, jsonVal, expiresAt],
+      })
+      return
+    }
+
     // Fallback to in-memory store
     const expiresAt = ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined
     memoryStore.set(key, { value, expiresAt })
@@ -93,6 +156,15 @@ export async function incrKV(key: string): Promise<number> {
     if (hasExternalKV()) {
       const res = await kvRestCall("incr", key)
       return Number(res || 1)
+    }
+
+    const turso = getTursoClient()
+    if (turso) {
+      await ensureTursoTable(turso)
+      const current = (await getKV<number>(key)) || 0
+      const next = current + 1
+      await setKV(key, next)
+      return next
     }
 
     // Fallback to in-memory store
@@ -110,6 +182,13 @@ export async function deleteKV(key: string): Promise<void> {
   try {
     if (hasExternalKV()) {
       await kvRestCall("del", key)
+      return
+    }
+
+    const turso = getTursoClient()
+    if (turso) {
+      await ensureTursoTable(turso)
+      await turso.execute({ sql: "DELETE FROM system_kv_store WHERE key = ?", args: [key] })
       return
     }
 
