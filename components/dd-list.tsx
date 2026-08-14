@@ -15,6 +15,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { DeemedVisitData } from "@/lib/dd-service"
 import { DDStats } from "./dd-stats"
 import { DDForm } from "./dd-form"
@@ -119,64 +120,15 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           setLoading(false)
         }
 
-        // 2. Check server version
-        setSyncStatus('checking')
-        const countRes = await fetch("/api/system/row-count?type=dd")
-        if (!countRes.ok) throw new Error(`Row count fetch failed: ${countRes.status}`)
-
-        const countData = await countRes.json().catch(() => ({ count: 0, version: null }))
-        const serverCount = countData?.count ?? 0
-        const serverVersion = countData?.version ?? null
-        const localCount = parseInt(localStorage.getItem(ROW_COUNT_KEY) || "0")
-        const localVersion = localStorage.getItem(VERSION_KEY) || null
-
-        const isCacheEmpty = !cachedData || cachedData.length === 0
-        const isMismatch = serverCount !== localCount || serverVersion !== localVersion
-
-        if (isCacheEmpty || isMismatch) {
-          if (isMismatch) setSyncStatus('found')
-          setSyncStatus('syncing')
-
-          const res = await fetch(`/api/dd/base?t=${serverCount}`)
-          if (!res.ok) throw new Error("Failed to fetch base data")
-          const baseData: DeemedVisitData[] = await res.json().catch(() => [])
-
-          // Preserve local edits (syncing/error + 30s stale-write window)
-          const LOCAL_WIN_MS = 30_000
-          const now = Date.now()
-          const merged = baseData.map(newC => {
-            const existing = consumersRef.current.find(c => c.consumerId === newC.consumerId)
-            if (!existing) return newC
-            const recentLocal = existing._localEditedAt && now - existing._localEditedAt < LOCAL_WIN_MS
-            if (existing._syncStatus === 'syncing' || existing._syncStatus === 'error' || recentLocal) return existing
-            return newC
-          })
-
-          await saveToCache(CACHE_KEY, merged)
-          await saveToCache(BASE_DATE_KEY, new Date().toISOString().split("T")[0])
-          localStorage.setItem(ROW_COUNT_KEY, serverCount.toString())
-          if (serverVersion) localStorage.setItem(VERSION_KEY, serverVersion)
-
-          setConsumers(merged)
-          consumersRef.current = merged
-          setBaseClasses(extractBaseClasses(merged))
-          setSyncStatus('updated')
-          finalStatus = 'updated'
-        } else {
-          // 3. Counts match — check for recent patches
-          setSyncStatus('syncing')
-          const current = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || [])
-          let lastTs = PlatformSyncEngine.extractMaxTimestamp(current, ["disconDate", "createdAt" as any])
-          const merged = await PlatformSyncEngine.syncModule<DeemedVisitData>({
-            moduleKey: "dd",
-            cacheKey: CACHE_KEY,
-            idKey: "consumerId",
-            fetchPatchUrl: "/api/dd/patch",
-          }, lastTs)
-          setConsumers(merged)
-          consumersRef.current = merged
-          setSyncStatus('updated')
-          finalStatus = 'updated'
+        if (!cachedData || cachedData.length === 0) {
+          const res = await fetch("/api/dd/base")
+          if (res.ok) {
+            const baseData: DeemedVisitData[] = await res.json().catch(() => [])
+            await saveToCache(CACHE_KEY, baseData)
+            setConsumers(baseData)
+            consumersRef.current = baseData
+            setBaseClasses(extractBaseClasses(baseData))
+          }
         }
       } catch (err) {
         console.error(err)
@@ -197,6 +149,10 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   function extractBaseClasses(data: DeemedVisitData[]) {
     return Array.from(new Set(data.map(c => (c.baseClass || "").toUpperCase().trim()).filter(Boolean))).sort()
   }
+
+  useModuleVersionSync<DeemedVisitData>("dd", "dd_data_cache", "consumerId", (updated) => {
+    setConsumers(updated)
+  })
 
   // --- Filtering ---
   const filteredConsumers = useMemo(() => {

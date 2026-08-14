@@ -8,6 +8,8 @@ export interface DivisionSearchResult extends ConsumerData {
   cccName: string
 }
 
+export const dynamic = "force-dynamic"
+
 export async function GET(request: Request) {
   const session = await verifySession()
   if (!session) {

@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/session"
 import { fetchReplacements, _fetchReplacementsRaw, addReplacement } from "@/lib/meter-replacement-service"
 import { checkApiPermission } from "@/lib/permissions"
 import { withTenant } from "@/lib/tenant-context"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
 export const dynamic = "force-dynamic"
@@ -76,6 +77,16 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "Replacement ID and remarks are required" }, { status: 400 })
       }
       await closeReplacement(replacementId, remarks)
+
+      const tenantId = request.headers.get("x-tenant-id") || "default"
+      appendDeltaPatch(tenantId, "meter-replacement", {
+        action: "UPDATE",
+        recordId: String(replacementId),
+        changes: { status: "closed", remarks },
+      }).catch(e => console.warn("Patch log error:", e))
+
+      updateBadgeCounts(tenantId, "meter_replacement", undefined, -1).catch(e => console.warn("Badge count error:", e))
+
       return NextResponse.json({ success: true })
     }
 

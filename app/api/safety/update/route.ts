@@ -10,6 +10,7 @@ import {
 } from "@/lib/safety-service"
 import { withTenant } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -94,6 +95,16 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       }
 
       await markPONotRequired(id, safetyId)
+
+      const tenantId = request.headers.get("x-tenant-id") || "default"
+      appendDeltaPatch(tenantId, "safety", {
+        action: "UPDATE",
+        recordId: String(safetyId),
+        changes: body,
+      }).catch(e => console.warn("Safety patch logging failed:", e))
+
+      updateBadgeCounts(tenantId, "safety", body.agency, 0).catch(e => console.warn("Safety badge update failed:", e))
+
       return NextResponse.json({ success: true })
     }
 

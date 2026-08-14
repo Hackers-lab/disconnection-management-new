@@ -334,34 +334,6 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                 if (data) await saveToCache("consumers_data_cache", data)
               }
             } catch (err) { console.error("Auto-fetch consumers failed", err) }
-          } else {
-            // Throttled background delta patch sync (runs max once per 10 mins to preserve bandwidth)
-            const syncKey = "last_dashboard_discon_patch_sync"
-            const lastSync = localStorage.getItem(syncKey)
-            const now = Date.now()
-            if (!lastSync || now - parseInt(lastSync, 10) > 10 * 60 * 1000) {
-              localStorage.setItem(syncKey, now.toString())
-              const maxTs = PlatformSyncEngine.extractMaxTimestamp(data, ["lastUpdated", "createdAt"])
-              PlatformSyncEngine.syncModule<ConsumerData>({
-                moduleKey: "disconnection",
-                cacheKey: "consumers_data_cache",
-                idKey: "consumerId",
-                fetchPatchUrl: "/api/consumers/patch",
-              }, maxTs).then(mergedData => {
-                if (mergedData && Array.isArray(mergedData)) {
-                  const freshCount = mergedData.filter(c => {
-                    const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
-                    if (!isConnected) return false
-                    if (userRole === "admin" || userRole === "viewer") return true
-                    const consumerAgency = (c.agency || "").trim().toUpperCase()
-                    const safeAgencies = userAgencies || []
-                    const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
-                    return userAgenciesUpper.includes(consumerAgency)
-                  }).length
-                  setPendingCount(freshCount)
-                }
-              }).catch(() => {})
-            }
           }
 
           if (!data) data = []

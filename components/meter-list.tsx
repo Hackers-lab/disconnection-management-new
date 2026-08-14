@@ -26,6 +26,7 @@ import { BulkNscUploadModal } from "@/components/bulk-nsc-upload-modal"
 import { printMeterSlip } from "@/components/meter-slip"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { NSCApplication } from "@/lib/nsc-types"
 // xlsx loaded dynamically to reduce initial bundle size
@@ -335,6 +336,10 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       })
       .catch(() => {})
   }, [])
+
+  useModuleVersionSync<MeterReplacement>("meter-replacement", "meter_replacement_data_cache", "replacementId", (updated) => {
+    setReplacements(updated)
+  })
 
   const loadReplacements = async (force = false) => {
     setLoadingReplacements(true)

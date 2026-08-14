@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, getCacheAgeMs, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { MeterReplacement } from "@/lib/meter-replacement-service"
@@ -274,9 +275,22 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     })
   }
 
+  useModuleVersionSync<MeterReplacement>(
+    "meter-replacement",
+    CACHE_KEY,
+    "replacementId",
+    "/api/meters/replacement?bypassCache=true",
+    (updated) => {
+      setRecords([...updated].reverse())
+    }
+  )
+
   const load = async (silent = false, force = false) => {
     if (!silent) setSyncState("loading")
     try {
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=meter-replacement", { method: "POST" }).catch(() => {})
+      }
       // 1. Instant render from local IndexedDB cache for 0ms initial display
       const cached = await getFromCache<MeterReplacement[]>(CACHE_KEY)
       if (cached && cached.length > 0) {

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import { MiscInspectionRecord, InspectionCategory, InspectionPriority, InspectionStatus } from "@/lib/misc-inspection-types"
 import { MiscInspectionStats } from "@/components/misc-inspection-stats"
 import { MiscInspectionCreateForm } from "@/components/misc-inspection-create-form"
@@ -97,25 +98,18 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
   const canFinalize = isAdminOrExec || !!(permissions?.misc_inspection?.includes("finalize"))
   const canDelete = isAdminOrExec || !!(permissions?.misc_inspection?.includes("delete"))
 
+  const { checkVersion } = useModuleVersionSync<MiscInspectionRecord>("misc-inspection", "misc_inspection_cache", "id", (updated) => {
+    setRecords(updated)
+  })
+
   const fetchRecords = async (force = false) => {
     setLoading(true)
     try {
-      // 1. Instant render from local IndexedDB cache for 0ms initial load
-      const cached = await getFromCache<MiscInspectionRecord[]>("misc_inspection_cache")
-      if (cached && cached.length > 0) {
-        setRecords(cached)
-        setLoading(false)
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=misc-inspection", { method: "POST" }).catch(() => {})
       }
-
-      // 2. Automatically fetch fresh server records to reconcile additions, updates, and deleted items
-      const url = force ? "/api/misc-inspection?bypassCache=true" : "/api/misc-inspection"
-      const res = await fetch(url)
-      if (res.ok) {
-        const result = await res.json()
-        const items = (Array.isArray(result) ? result : (result.patchData || [])) as MiscInspectionRecord[]
-        setRecords(items)
-        await saveToCache("misc_inspection_cache", items)
-      }
+      await checkVersion(force)
+      if (force) toast.success("Base dataset resynced and refreshed successfully")
     } catch (err: any) {
       if (records.length === 0) toast.error(err.message || "Failed to load inspections")
     } finally {

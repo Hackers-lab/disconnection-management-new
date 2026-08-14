@@ -7,6 +7,7 @@ import {
 } from "@/lib/misc-inspection-service"
 import type { CreateMiscInspectionInput } from "@/lib/misc-inspection-types"
 import { withTenant } from "@/lib/tenant-context"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -59,6 +60,17 @@ export const POST = withTenant(async function POST(req: NextRequest) {
 
     const createdBy = authRes.session.userId || authRes.session.username || authRes.session.role || "Admin"
     const newRecord = await createMiscInspection(body, createdBy)
+
+    const tenantId = req.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "misc-inspection", {
+      action: "UPDATE",
+      recordId: String(newRecord.id),
+      changes: newRecord,
+    }).catch(e => console.warn("Misc inspection creation patch logging failed:", e))
+
+    if (newRecord.agency) {
+      updateBadgeCounts(tenantId, "misc_inspection", newRecord.agency, 1).catch(e => console.warn("Misc inspection badge update failed:", e))
+    }
 
     return NextResponse.json(newRecord, { status: 201 })
   } catch (error: any) {

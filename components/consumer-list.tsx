@@ -29,6 +29,7 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog"
 import { format } from "date-fns"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import {
   Search,
   Edit,
@@ -243,6 +244,10 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     }
   }, [userRole, agenciesKey])
 
+  useModuleVersionSync<ConsumerData>("consumer", "consumers_data_cache", "consumerId", (updated) => {
+    setConsumers(updated)
+  })
+
   useEffect(() => {
     const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
     const CACHE_KEY = "consumers_data_cache"
@@ -337,97 +342,13 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
           setLoading(true); // Only show spinner if cache is empty
         }
 
-        setSyncStatus('checking');
-
-        const countRes = await fetch(`/api/system/row-count?type=consumer`, { cache: 'no-store' });
-        if (!countRes.ok) throw new Error(`Row count fetch failed: ${countRes.status}`);
-        
-        const countData = await countRes.json().catch(() => ({ count: 0, version: null }));
-        const serverCount = countData?.count ?? 0;
-        const serverVersion = countData?.version ?? null;
-        const localCount = parseInt(localStorage.getItem(ROW_COUNT_KEY) || "0");
-        const localVersion = localStorage.getItem(CONSUMER_VERSION_KEY) || null;
-
-        console.log(`[Data Sync] Row Count Check - Server: ${serverCount}, Local: ${localCount}`);
-        console.log(`[Data Sync] Version Check - Server: ${serverVersion}, Local: ${localVersion}`);
-        
-        const isCacheEmpty = !cachedData || cachedData.length === 0;
-        const isMismatch = serverCount !== localCount || serverVersion !== localVersion;
-        const cacheAgeMs = await getCacheAgeMs("consumers_data_cache");
-        const isCacheStale = cacheAgeMs !== null && cacheAgeMs > 24 * 60 * 60 * 1000; // 24 hours
-        // Detect split state: IndexedDB and localStorage got out of sync (e.g. server returned stale
-        // base data during a previous sync so IndexedDB count != the count we committed to localStorage).
-        const isCacheSplit = cachedData !== null && cachedData.length !== localCount;
-
-        if (isCacheEmpty || isMismatch || isCacheStale || isCacheSplit) {
-          if (isCacheSplit && !isMismatch) {
-            console.log(`[Data Sync] ⚠️ Split state: IndexedDB has ${cachedData?.length} records but localStorage says ${localCount}. Forcing re-download.`);
-            setSyncStatus('found');
+        if (!cachedData || cachedData.length === 0) {
+          const baseResponse = await fetch("/api/consumers/base")
+          if (baseResponse.ok) {
+            const baseData = await baseResponse.json()
+            await saveToCache(CACHE_KEY, baseData)
+            await processData(baseData, cachedAgencies, true)
           }
-          if (isMismatch) {
-             console.log("[Data Sync] Count or Version mismatch. Triggering full download.");
-             setSyncStatus('found');
-          } else if (isCacheStale) {
-             console.log(`[Data Sync] Cache is stale (${Math.round((cacheAgeMs ?? 0) / 3600000)}h old). Triggering full download.`);
-             setSyncStatus('found');
-          } else {
-             console.log("[Data Sync] Cache is empty. Triggering full download.");
-          }
-          setSyncStatus('syncing');
-          try {
-            const baseResponse = await fetch(`/api/consumers/base?v=${serverCount}${serverVersion ? `&h=${serverVersion}` : ''}`);
-            if (!baseResponse.ok) throw new Error("Base fetch failed");
-            
-            const cacheControl = baseResponse.headers.get('Cache-Control');
-            const baseData = await baseResponse.json();
-            console.log(`[Data Sync] Loaded ${baseData.length} records from base.`);
-
-            // Always update the underlying data cache and UI
-            await saveToCache(CACHE_KEY, baseData);
-            await processData(baseData, cachedAgencies, true);
-
-            // Only "commit" the new count/version if the data was complete.
-            // Use baseData.length (actual records received) not serverCount (from a separate API call)
-            // so IndexedDB and localStorage always reflect the same thing even if the server's
-            // Data Cache returned slightly stale data during the base fetch.
-            const isCountConsistent = baseData.length === serverCount;
-            if (cacheControl !== 'no-store' && isCountConsistent) {
-              console.log('[Data Sync] ✅ Integrity check passed. Updating local count and version.');
-              await saveToCache(BASE_DATE_KEY, new Date().toISOString().split("T")[0]);
-              localStorage.setItem(ROW_COUNT_KEY, baseData.length.toString());
-              if (serverVersion) {
-                localStorage.setItem(CONSUMER_VERSION_KEY, serverVersion);
-              }
-              setSyncStatus('updated');
-              finalStatus = 'updated';
-            } else if (!isCountConsistent) {
-              // Base API returned stale count (server Data Cache race). Save the actual count
-              // so IndexedDB and localStorage stay in sync, but don't commit version —
-              // next open will see count mismatch vs server and re-download.
-              console.log(`[Data Sync] ⚠️ Count mismatch: base returned ${baseData.length} records but row-count said ${serverCount}. Will re-check on next sync.`);
-              localStorage.setItem(ROW_COUNT_KEY, baseData.length.toString());
-            } else {
-              console.log('[Data Sync] ⚠️ Integrity check failed (no-store). Local count/version preserved to force re-check on next sync.');
-            }
-          } catch (e) {
-            console.error("Base fetch error:", e);
-            setError("Failed to download list");
-            return;
-          }
-        } else {
-          console.log("[Data Sync] Row counts and versions match. Checking for patches via Sync Engine.");
-          setSyncStatus('syncing');
-          const currentData = consumersRef.current.length > 0 ? consumersRef.current : (cachedData || []);
-          let lastTs = PlatformSyncEngine.extractMaxTimestamp(currentData, ["lastUpdated", "createdAt"]);
-          const mergedData = await PlatformSyncEngine.syncModule<ConsumerData>({
-            moduleKey: "disconnection",
-            cacheKey: CACHE_KEY,
-            idKey: "consumerId",
-            fetchPatchUrl: "/api/consumers/patch",
-          }, lastTs);
-          await processData(mergedData, cachedAgencies, true);
-          setSyncStatus('updated');
-          finalStatus = 'updated';
         }
 
         if ((userRole === "admin" || userRole === "viewer") && !cachedAgencies) {

@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, NSC_CLASSES, normalizeNSCStatus } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { parseTs } from "@/lib/date-utils"
@@ -130,60 +131,20 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   const [downloadReportApp, setDownloadReportApp] = useState<NSCApplication | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
+  const { checkVersion } = useModuleVersionSync<NSCApplication>("nsc", CACHE_KEY, "receiveNo", (updated) => {
+    setApps([...updated].reverse())
+  })
+
   const load = async (silent = false, forceFull = false) => {
     if (!silent) setSyncState("loading")
     try {
       if (forceFull) {
+        await fetch("/api/system/reset-base?moduleKey=nsc", { method: "POST" }).catch(() => {})
         await clearCache(CACHE_KEY)
       }
-      const cached = forceFull ? null : await getFromCache<NSCApplication[]>(CACHE_KEY)
-      let lastTs = 0
-      if (cached && cached.length > 0) {
-        setApps(cached)
-        if (!silent) setSyncState("idle")
-        const tsList = cached.map(r =>
-          Math.max(
-            parseTs(r.createdAt || ""),
-            parseTs(r.inspectedAt || ""),
-            parseTs(r.finalizedAt || ""),
-            parseTs(r.meterIssuedAt || ""),
-            parseTs(r.connectionEffectedAt || ""),
-            parseTs(r.receivedDate || "")
-          )
-        ).filter(Boolean)
-        if (tsList.length > 0) lastTs = Math.max(...tsList)
-
-        // Self-repair: check if cache is corrupted with only completed items or partial records
-        const hasUncompleted = cached.some(a => {
-          const s = normalizeNSCStatus(a.status)
-          return s === "pending" || s === "inspected" || s === "project_required" || s === "project_ongoing"
-        })
-        if (!hasUncompleted || cached.length < 100) {
-          lastTs = 0
-        }
-      }
-
-      if (lastTs > 0 && !forceFull) {
-        const merged = await PlatformSyncEngine.syncModule<NSCApplication>({
-          moduleKey: "nsc",
-          cacheKey: CACHE_KEY,
-          idKey: "receiveNo",
-          fetchPatchUrl: "/api/nsc/patch",
-        }, lastTs)
-        const sorted = [...merged].reverse()
-        setApps(sorted)
-      } else {
-        const res = await fetch("/api/nsc?refresh=true")
-        if (!res.ok) throw new Error()
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as NSCApplication[]
-        await saveToCache<NSCApplication[]>(CACHE_KEY, patchItems)
-        const sorted = [...patchItems].reverse()
-        setApps(sorted)
-      }
-      setSyncState("updated")
-      setTimeout(() => setSyncState("idle"), 3000)
-      window.dispatchEvent(new Event("notif-refresh"))
+      await checkVersion(forceFull)
+      if (forceFull) toast({ title: "NSC data resynced & base reset" })
+      setSyncState("idle")
     } catch {
       setSyncState("idle")
       if (!silent) toast({ title: "Failed to load NSC data", variant: "destructive" })

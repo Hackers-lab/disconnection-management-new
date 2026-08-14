@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { processApplication } from "@/lib/nsc-service"
 import { withTenant } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
   const { authorized, error, status, session } = await checkApiPermission("nsc", "update")
@@ -35,6 +36,16 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       existingConsumerId: body.existingConsumerId ?? undefined,
       finalizedBy:        `${session.role}:${session.username}`,
     })
+
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "nsc", {
+      action: "UPDATE",
+      recordId: String(body.receiveNo),
+      changes: body,
+    }).catch(e => console.warn("NSC patch logging failed:", e))
+
+    updateBadgeCounts(tenantId, "nsc", body.newAgency, 0).catch(e => console.warn("NSC badge update failed:", e))
+
     return NextResponse.json({ success: true })
   } catch (e: any) {
     console.error("NSC process error:", e)

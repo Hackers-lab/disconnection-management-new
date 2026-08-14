@@ -7,6 +7,7 @@ import { verifySession } from "@/lib/session"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { getTenantConfig } from "@/lib/tenant-resolver"
 import { withTenant } from "@/lib/tenant-context"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -51,6 +52,19 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     // Invalidate the warm-function memo so the next /base or /patch read
     // reflects this write immediately within this container.
     invalidateConsumerCache()
+
+    // Push delta patch & update badge counts in Edge KV
+    const tenantId = request.headers.get("x-tenant-id") || "default"
+    appendDeltaPatch(tenantId, "consumer", {
+      action: "UPDATE",
+      recordId: String(consumer.consumerId),
+      changes: consumer,
+    }).catch(e => console.warn("Delta patch logging failed:", e))
+
+    if (consumer.agency) {
+      const isCompleted = consumer.disconStatus?.toLowerCase().includes("disconnected") || consumer.disconStatus?.toLowerCase().includes("paid")
+      updateBadgeCounts(tenantId, "consumer", consumer.agency, isCompleted ? -1 : 0).catch(e => console.warn("Badge count update failed:", e))
+    }
 
     // Log a field-action history event when the status actually changed.
     // Fire-and-forget — non-critical, never blocks the response.

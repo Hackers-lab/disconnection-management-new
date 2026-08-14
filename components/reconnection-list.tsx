@@ -19,6 +19,7 @@ import { ReconnectionUpdateForm } from "@/components/reconnection-update-form"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -94,37 +95,19 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const canCreate = userRole === "admin" || userRole === "executive" || !!(permissions && permissions.reconnection?.includes("create"))
   const PAGE_SIZE = 15
 
-  const load = async (silent = false) => {
+  const { checkVersion } = useModuleVersionSync<ReconnectionRequest>("reconnection", CACHE_KEY, "requestId", (updated) => {
+    setRecords([...updated].reverse())
+  })
+
+  const load = async (silent = false, force = false) => {
     if (!silent) setSyncState("loading")
     try {
-      const cached = await getFromCache<ReconnectionRequest[]>(CACHE_KEY)
-      let lastTs = 0
-      if (cached && cached.length > 0) {
-        setRecords(cached)
-        if (!silent) setSyncState("idle")
-        lastTs = PlatformSyncEngine.extractMaxTimestamp(cached, ["updatedAt", "createdAt"])
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=reconnection", { method: "POST" }).catch(() => {})
       }
-
-      if (lastTs > 0) {
-        const merged = await PlatformSyncEngine.syncModule<ReconnectionRequest>({
-          moduleKey: "reconnection",
-          cacheKey: CACHE_KEY,
-          idKey: "consumerId",
-          fetchPatchUrl: "/api/reconnection/patch",
-        }, lastTs)
-        const sorted = [...merged].reverse()
-        setRecords(sorted)
-      } else {
-        const res = await fetch("/api/reconnection")
-        if (!res.ok) throw new Error()
-        const result = await res.json()
-        const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as ReconnectionRequest[]
-        const merged = await mergePatchToCache<ReconnectionRequest>(CACHE_KEY, patchItems, "requestId")
-        const sorted = [...merged].reverse()
-        setRecords(sorted)
-      }
-      setSyncState("updated")
-      setTimeout(() => setSyncState("idle"), 3000)
+      await checkVersion(force)
+      if (force) toast({ title: "Reconnection data resynced & base reset" })
+      setSyncState("idle")
     } catch {
       setSyncState("idle")
       if (!silent) toast({ title: "Failed to load reconnection data", variant: "destructive" })
@@ -477,7 +460,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
           <div className="flex items-center gap-2">
             <span>{filtered.length} records</span>
             <button
-              onClick={() => load()}
+              onClick={() => load(false, true)}
               disabled={syncState === "loading"}
               className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors disabled:cursor-not-allowed ${syncState === "loading"
                   ? "border-blue-400 bg-blue-50 text-blue-500"
