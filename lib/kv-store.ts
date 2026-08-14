@@ -6,16 +6,26 @@
 // In-memory fallback map for environments without configured external KV credentials
 const memoryStore = new Map<string, { value: any; expiresAt?: number }>()
 
+function getKvApiConfig(): { url?: string; token?: string } {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_REST_URL
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_REST_TOKEN
+  return { url, token }
+}
+
 function hasExternalKV(): boolean {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+  const { url, token } = getKvApiConfig()
+  return Boolean(url && token)
 }
 
 async function kvRestCall(command: string, ...args: (string | number)[]): Promise<any> {
-  const baseUrl = process.env.KV_REST_API_URL?.replace(/\/$/, "")
+  const { url: rawUrl, token } = getKvApiConfig()
+  if (!rawUrl || !token) return null
+
+  const baseUrl = rawUrl.replace(/\/$/, "")
   const url = `${baseUrl}/${command}/${args.map(a => encodeURIComponent(String(a))).join("/")}`
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+      Authorization: `Bearer ${token}`,
     },
     cache: "no-store",
   })
