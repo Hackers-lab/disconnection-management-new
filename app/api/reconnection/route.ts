@@ -73,7 +73,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "reconnection", {
       action: "UPDATE",
-      recordId: String(body.consumerId || requestId),
+      recordId: String(requestId),
       changes: newRecord,
     }).catch(e => console.warn("Reconnection patch logging failed:", e))
 

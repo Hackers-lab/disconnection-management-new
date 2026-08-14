@@ -57,9 +57,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+    const actionType = newStatus === "cancelled" ? "DELETE" : "UPDATE"
     appendDeltaPatch(tenantId, "reconnection", {
-      action: "UPDATE",
-      recordId: String(req.consumerId || requestId),
+      action: actionType,
+      recordId: String(requestId),
       changes: { requestId, status: newStatus, imageUrl, reading, remarks },
     }).catch(e => console.warn("Reconnection patch logging failed:", e))
 
