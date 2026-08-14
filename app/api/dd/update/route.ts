@@ -125,7 +125,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     invalidateDDCache()
 
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "dd", {
       action: "UPDATE",
       recordId: String(body.consumerId),

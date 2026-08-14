@@ -57,7 +57,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       remarks: body.remarks || "",
     })
 
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "safety", {
       action: "UPDATE",
       recordId: String(safetyId),

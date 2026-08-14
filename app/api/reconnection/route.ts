@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
 export const dynamic = "force-dynamic"
@@ -69,7 +69,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       createdAt:       new Date().toISOString(),
     }
 
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "reconnection", {
       action: "UPDATE",
       recordId: String(body.consumerId || requestId),

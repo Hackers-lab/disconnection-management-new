@@ -55,7 +55,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       officeRefNo:   body.officeRefNo   || "",
       applicationFormUrl: body.applicationFormUrl || "",
     })
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     appendDeltaPatch(tenantId, "nsc", {
       action: "UPDATE",
       recordId: String(receiveNo),

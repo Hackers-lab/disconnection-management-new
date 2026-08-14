@@ -78,7 +78,8 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
       }
       await closeReplacement(replacementId, remarks)
 
-      const tenantId = request.headers.get("x-tenant-id") || "default"
+      const tenantContext = getTenantContext()
+      const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
       appendDeltaPatch(tenantId, "meter-replacement", {
         action: "UPDATE",
         recordId: String(replacementId),

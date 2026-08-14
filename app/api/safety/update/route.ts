@@ -96,7 +96,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
       await markPONotRequired(id, safetyId)
 
-      const tenantId = request.headers.get("x-tenant-id") || "default"
+      const tenantContext = getTenantContext()
+      const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
       appendDeltaPatch(tenantId, "safety", {
         action: "UPDATE",
         recordId: String(safetyId),
