@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS app_roles (
 -- 3. Agencies Table
 CREATE TABLE IF NOT EXISTS agencies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vendor_code TEXT UNIQUE NOT NULL,
+    vendor_code TEXT UNIQUE,
     ccc_id INTEGER NOT NULL REFERENCES ccc_registry(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,

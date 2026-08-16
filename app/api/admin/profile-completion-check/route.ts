@@ -16,25 +16,39 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const cccCode = context?.cccCode || session.cccCode || "SYSTEM"
     const isGlobalAdmin = session.role === "superuser" || !cccCode || cccCode === "SYSTEM"
 
-    // 1. Check logged-in admin user details
-    let userRecord: any = null
+    // 1. Fetch all users/officers in this CCC
+    let allUserRows: any[] = []
     try {
-      const userRes = await db.execute({
-        sql: `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role
-              FROM users u WHERE LOWER(u.username) = LOWER(?)`,
-        args: [session.username]
+      const usersRes = await db.execute({
+        sql: `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
+              FROM users u
+              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE ${isGlobalAdmin ? '1=1' : 'c.ccc_code = ? OR u.ccc_id IS NULL'}`,
+        args: isGlobalAdmin ? [] : [cccCode]
       })
-      userRecord = userRes.rows[0] || null
+      allUserRows = usersRes.rows || []
     } catch (err) {
-      console.warn("Turso user check warning:", err)
+      console.warn("Turso users check warning:", err)
     }
 
-    const userMissingFields: string[] = []
-    if (userRecord) {
-      if (!userRecord.full_name || userRecord.full_name === userRecord.username) userMissingFields.push("full_name")
-      if (!userRecord.mobile_number) userMissingFields.push("mobile_number")
-      if (!userRecord.email) userMissingFields.push("email")
-    }
+    const incompleteUsers = allUserRows
+      .map((r: any) => {
+        const missing: string[] = []
+        if (!r.full_name || r.full_name === r.username) missing.push("full_name")
+        if (!r.mobile_number || !/^\d{10}$/.test(String(r.mobile_number).trim())) missing.push("mobile_number")
+        if (!r.email) missing.push("email")
+        return {
+          id: String(r.id),
+          username: String(r.username || ""),
+          fullName: String(r.full_name || ""),
+          email: String(r.email || ""),
+          mobileNumber: String(r.mobile_number || ""),
+          role: String(r.role || "viewer"),
+          cccCode: String(r.ccc_code || cccCode),
+          missingFields: missing
+        }
+      })
+      .filter(u => u.missingFields.length > 0)
 
     // 2. Check contractor agencies in this CCC
     let agencyRows: any[] = []
@@ -54,9 +68,11 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const incompleteAgencies = agencyRows
       .map((r: any) => {
         const missing: string[] = []
-        if (!r.vendor_code) missing.push("vendor_code")
+        const vc = String(r.vendor_code || "").trim()
+        const mob = String(r.mobile_number || "").trim()
+        if (!vc || !/^\d{6}$/.test(vc)) missing.push("vendor_code")
         if (!r.contact_person) missing.push("contact_person")
-        if (!r.mobile_number) missing.push("mobile_number")
+        if (!mob || !/^\d{10}$/.test(mob)) missing.push("mobile_number")
         if (!r.email) missing.push("email")
         return {
           id: String(r.id),
@@ -71,9 +87,9 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       })
       .filter(a => a.missingFields.length > 0)
 
-    const totalCheckItems = 1 + agencyRows.length
-    const incompleteItemsCount = (userMissingFields.length > 0 ? 1 : 0) + incompleteAgencies.length
-    const completedItemsCount = totalCheckItems - incompleteItemsCount
+    const totalCheckItems = allUserRows.length + agencyRows.length
+    const incompleteItemsCount = incompleteUsers.length + incompleteAgencies.length
+    const completedItemsCount = Math.max(0, totalCheckItems - incompleteItemsCount)
     const completionPercentage = totalCheckItems > 0 ? Math.round((completedItemsCount / totalCheckItems) * 100) : 100
 
     return NextResponse.json({
@@ -81,14 +97,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       completionPercentage,
       totalCheckItems,
       incompleteItemsCount,
-      userProfile: userRecord ? {
-        id: String(userRecord.id),
-        username: String(userRecord.username),
-        fullName: String(userRecord.full_name || ""),
-        email: String(userRecord.email || ""),
-        mobileNumber: String(userRecord.mobile_number || ""),
-        missingFields: userMissingFields
-      } : null,
+      incompleteUsers,
       incompleteAgencies
     })
   } catch (e: any) {

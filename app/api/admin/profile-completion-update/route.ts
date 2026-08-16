@@ -21,8 +21,9 @@ export const POST = withTenant(async function POST(req: NextRequest) {
     const cccCode = context?.cccCode || session.cccCode || "SYSTEM"
 
     // 1. Update user profile fields if provided
-    if (userUpdates && userUpdates.id) {
-      const { fullName, mobileNumber, email } = userUpdates
+    const usersToUpdate = Array.isArray(userUpdates) ? userUpdates : (userUpdates ? [userUpdates] : [])
+    for (const u of usersToUpdate) {
+      if (!u.id) continue
       await db.execute({
         sql: `UPDATE users 
               SET full_name = COALESCE(?, full_name),
@@ -30,8 +31,10 @@ export const POST = withTenant(async function POST(req: NextRequest) {
                   email = COALESCE(?, email),
                   updated_at = CURRENT_TIMESTAMP
               WHERE id = ? OR LOWER(username) = LOWER(?)`,
-        args: [fullName || null, mobileNumber || null, email || null, userUpdates.id, session.username]
+        args: [u.fullName || null, u.mobileNumber || null, u.email || null, u.id, u.username || ""]
       })
+    }
+    if (usersToUpdate.length > 0) {
       UserStorage.getInstance().invalidateCache()
     }
 
