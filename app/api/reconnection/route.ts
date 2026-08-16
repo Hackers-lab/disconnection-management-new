@@ -71,14 +71,14 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
-    appendDeltaPatch(tenantId, "reconnection", {
+    await appendDeltaPatch(tenantId, "reconnection", {
       action: "UPDATE",
       recordId: String(requestId),
       changes: newRecord,
     }).catch(e => console.warn("Reconnection patch logging failed:", e))
 
     if (body.agency) {
-      updateBadgeCounts(tenantId, "reconnection", body.agency, 1).catch(e => console.warn("Reconnection badge update failed:", e))
+      await updateBadgeCounts(tenantId, "reconnection", body.agency, 1).catch(e => console.warn("Reconnection badge update failed:", e))
     }
 
     return NextResponse.json({ success: true, requestId })

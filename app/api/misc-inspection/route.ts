@@ -63,14 +63,14 @@ export const POST = withTenant(async function POST(req: NextRequest) {
 
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || req.headers.get("x-tenant-id") || "default"
-    appendDeltaPatch(tenantId, "misc-inspection", {
+    await appendDeltaPatch(tenantId, "misc-inspection", {
       action: "UPDATE",
       recordId: String(newRecord.id),
       changes: newRecord,
     }).catch(e => console.warn("Misc inspection creation patch logging failed:", e))
 
     if (newRecord.agency) {
-      updateBadgeCounts(tenantId, "misc_inspection", newRecord.agency, 1).catch(e => console.warn("Misc inspection badge update failed:", e))
+      await updateBadgeCounts(tenantId, "misc-inspection", newRecord.agency, 1).catch(e => console.warn("Misc inspection badge update failed:", e))
     }
 
     return NextResponse.json(newRecord, { status: 201 })

@@ -244,139 +244,77 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     }
   }, [userRole, agenciesKey])
 
-  useModuleVersionSync<ConsumerData>("consumer", "consumers_data_cache", "consumerId", (updated) => {
-    setConsumers(updated)
-  })
+  const processData = useCallback(async (data: ConsumerData[], isBackgroundUpdate = false) => {
+    await new Promise(resolve => setTimeout(resolve, 0))
 
-  useEffect(() => {
-    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
-    const CACHE_KEY = "consumers_data_cache"
-    const AGENCY_CACHE_KEY = "agencies_data_cache"
-    const BASE_DATE_KEY = "consumers_base_date"
-    const ROW_COUNT_KEY = `${prefix}consumer_row_count`
-    const CONSUMER_VERSION_KEY = `${prefix}consumer_version_hash`
-
-    async function processData(data: ConsumerData[], preloadedAgencies: string[] | null = null, isBackgroundUpdate = false) {
-      // Yield to main thread to prevent UI blocking during heavy processing
-      await new Promise(resolve => setTimeout(resolve, 0));
-
-      // Merge local pending/error/recent-edit states with incoming network data
-      // to prevent "Silent Reversion" — covers both in-flight writes and the
-      // brief window where /patch may serve CDN-cached pre-write data.
-      if (isBackgroundUpdate) {
-        const LOCAL_WIN_WINDOW_MS = 30_000
-        const now = Date.now()
-        data = data.map(newC => {
-          const existing = consumersRef.current.find(c => c.consumerId === newC.consumerId)
-          if (!existing) return newC
-          const recentLocal =
-            existing._localEditedAt && now - existing._localEditedAt < LOCAL_WIN_WINDOW_MS
-          if (existing._syncStatus === 'syncing' || existing._syncStatus === 'error' || recentLocal) {
-            return existing
-          }
-          return newC
-        })
-      }
-
-      // Extract unique baseClasses (ignore empty/null)
-      const uniqueBaseClasses = Array.from(
-        new Set(
-          data
-            .map(c => (c.baseClass || "").toUpperCase().trim())
-            .filter(bc => bc !== "")
-        )
-      ).sort()
-      setBaseClasses(uniqueBaseClasses)
-
-      // Load agencies for admin
-      let agencyList: string[] = []
-      if (preloadedAgencies && preloadedAgencies.length > 0) {
-        agencyList = preloadedAgencies
-      } else if (userRole === "admin" || userRole === "viewer") {
-        // Fallback fetch if not preloaded
-        try {
-          const agenciesResponse = await fetch("/api/admin/agencies")
-          if (agenciesResponse.ok) {
-            const agencyData = await agenciesResponse.json()
-            agencyList = agencyData.filter((a: any) => a.isActive).map((a: any) => a.name)
-          }
-        } catch (error) {
-          console.warn("Failed to load agencies, using default list")
-          agencyList = Array.from(new Set(data.map((c) => c.agency).filter((a): a is string => !!a)))
+    if (isBackgroundUpdate) {
+      const LOCAL_WIN_WINDOW_MS = 30_000
+      const now = Date.now()
+      data = data.map(newC => {
+        const existing = consumersRef.current.find(c => c.consumerId === newC.consumerId)
+        if (!existing) return newC
+        const recentLocal =
+          existing._localEditedAt && now - existing._localEditedAt < LOCAL_WIN_WINDOW_MS
+        if (existing._syncStatus === 'syncing' || existing._syncStatus === 'error' || recentLocal) {
+          return existing
         }
-      } else {
-        agencyList = userAgencies
-      }
-      setAgencies(agencyList)
-
-      
-      // Only reset the range slider on initial load, not during background updates
-      if (!isBackgroundUpdate) {
-        setMinOsd(0)
-      }
-
-      // NOTE: We no longer filter data here. State must hold 100% of rows.
-      // Filtering happens in useMemo (filteredConsumers) below.
-      setConsumers(data)
+        return newC
+      })
     }
 
-    async function loadData() {
-      let finalStatus = 'idle'
-      // Step 1: Instant Load from Cache
-      setError(null)
+    const uniqueBaseClasses = Array.from(
+      new Set(
+        data
+          .map(c => (c.baseClass || "").toUpperCase().trim())
+          .filter(bc => bc !== "")
+      )
+    ).sort()
+    setBaseClasses(uniqueBaseClasses)
 
+    let agencyList: string[] = []
+    if (userRole === "admin" || userRole === "viewer") {
       try {
-        const cachedData = await getFromCache<ConsumerData[]>(CACHE_KEY);
-        let cachedAgencies: string[] | null = null;
-        if (userRole === "admin" || userRole === "viewer") {
-          cachedAgencies = await getFromCache<string[]>(AGENCY_CACHE_KEY);
-        }
-
-        if (cachedData && cachedData.length > 0) {
-          console.log(`[Data Sync] ✅ Cache Hit: Loaded ${cachedData.length} records from IndexedDB.`);
-          await processData(cachedData, cachedAgencies, false);
-          setLoading(false); // Stop spinner immediately if cache exists
-          setIsCachedData(true);
-        } else {
-          console.log("[Data Sync] M Cache Miss: No data in IndexedDB.");
-          setLoading(true); // Only show spinner if cache is empty
-        }
-
-        if (!cachedData || cachedData.length === 0) {
-          const baseResponse = await fetch("/api/consumers/base")
-          if (baseResponse.ok) {
-            const baseData = await baseResponse.json()
-            await saveToCache(CACHE_KEY, baseData)
-            await processData(baseData, cachedAgencies, true)
-          }
-        }
-
-        if ((userRole === "admin" || userRole === "viewer") && !cachedAgencies) {
-           const agenciesRes = await fetch("/api/admin/agencies");
-           if (agenciesRes.ok) {
-             const agencyData = await agenciesRes.json();
-             const freshAgencies = agencyData.filter((a: any) => a.isActive).map((a: any) => a.name);
-             await saveToCache(AGENCY_CACHE_KEY, freshAgencies);
-             setAgencies(freshAgencies);
-          }
+        const agenciesResponse = await fetch("/api/admin/agencies")
+        if (agenciesResponse.ok) {
+          const agencyData = await agenciesResponse.json()
+          agencyList = agencyData.filter((a: any) => a.isActive).map((a: any) => a.name)
         }
       } catch (error) {
-        console.error("💥 Error loading data:", error);
-        if (consumersRef.current.length === 0) {
-          setError(error instanceof Error ? error.message : "Unknown error occurred");
-        }
-      } finally {
-        setLoading(false);
-        if (finalStatus !== 'updated') {
-           setTimeout(() => setSyncStatus('idle'), 2000);
-        } else {
-           setTimeout(() => setSyncStatus('idle'), 4000);
-        }
+        agencyList = Array.from(new Set(data.map((c) => c.agency).filter((a): a is string => !!a)))
       }
+    } else {
+      agencyList = userAgencies
     }
+    setAgencies(agencyList)
+    setConsumers(data)
+    setLoading(false)
+  }, [userRole, agenciesKey])
 
+  const { checkVersion } = useModuleVersionSync<ConsumerData>("consumer", "consumers_data_cache", "consumerId", (updated) => {
+    processData(updated, true)
+  })
+
+  const loadData = useCallback(async (force = false) => {
+    setError(null)
+    try {
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=consumer", { method: "POST" }).catch(() => {})
+      }
+      await checkVersion(force)
+      setLoading(false)
+    } catch (err: any) {
+      console.error("💥 Error loading data:", err)
+      if (consumersRef.current.length === 0) {
+        setError(err instanceof Error ? err.message : "Unknown error occurred")
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [checkVersion])
+
+  useEffect(() => {
     loadData()
-  }, [userRole, agenciesKey, refreshKey]) // Use stable key instead of array reference
+  }, [loadData, refreshKey]) // Use stable key instead of array reference
 
   const clearCache = async () => {
     if (confirm("Are you sure you want to clear the cache and reload?")) {
@@ -392,15 +330,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const handleManualRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     
-    // 💥 HARD RESET: Completely wipe all data (Consumers, Agencies, Dates)
-    // This is more powerful than just setting the date to null.
     await clearAllCache()
-    
-    // Reset sync timer
     globalLastSyncTime = 0
-    
-    // Trigger the reload
-    setRefreshKey((prev) => prev + 1)
+    await loadData(true)
   }
   // Advanced filtering logic
   const filteredConsumers = useMemo(() => {

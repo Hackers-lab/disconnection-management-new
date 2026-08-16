@@ -100,59 +100,36 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   }, [])
 
   // --- Data Loading ---
-  useEffect(() => {
-    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
-    const CACHE_KEY = "dd_data_cache"
-    const BASE_DATE_KEY = "dd_base_date"
-    const ROW_COUNT_KEY = `${prefix}dd_row_count`
-    const VERSION_KEY = `${prefix}dd_version_hash`
-
-    async function loadData() {
-      let finalStatus = 'idle'
-      setError(null)
-      try {
-        // 1. Instant cache hit
-        const cachedData = await getFromCache<DeemedVisitData[]>(CACHE_KEY)
-        if (cachedData && cachedData.length > 0) {
-          setConsumers(cachedData)
-          consumersRef.current = cachedData
-          setBaseClasses(extractBaseClasses(cachedData))
-          setLoading(false)
-        }
-
-        if (!cachedData || cachedData.length === 0) {
-          const res = await fetch("/api/dd/base")
-          if (res.ok) {
-            const baseData: DeemedVisitData[] = await res.json().catch(() => [])
-            await saveToCache(CACHE_KEY, baseData)
-            setConsumers(baseData)
-            consumersRef.current = baseData
-            setBaseClasses(extractBaseClasses(baseData))
-          }
-        }
-      } catch (err) {
-        console.error(err)
-        if (consumersRef.current.length === 0) setError("Failed to load Deemed Visit data")
-      } finally {
-        setLoading(false)
-        if (finalStatus !== 'updated') {
-          setTimeout(() => setSyncStatus('idle'), 2000)
-        } else {
-          setTimeout(() => setSyncStatus('idle'), 4000)
-        }
-      }
-    }
-
-    loadData()
-  }, [refreshKey])
-
   function extractBaseClasses(data: DeemedVisitData[]) {
     return Array.from(new Set(data.map(c => (c.baseClass || "").toUpperCase().trim()).filter(Boolean))).sort()
   }
 
-  useModuleVersionSync<DeemedVisitData>("dd", "dd_data_cache", "consumerId", (updated) => {
+  const { checkVersion } = useModuleVersionSync<DeemedVisitData>("dd", "dd_data_cache", "consumerId", (updated) => {
     setConsumers(updated)
+    consumersRef.current = updated
+    setBaseClasses(extractBaseClasses(updated))
+    setLoading(false)
   })
+
+  const loadData = useCallback(async (force = false) => {
+    setError(null)
+    try {
+      if (force) {
+        await fetch("/api/system/reset-base?moduleKey=dd", { method: "POST" }).catch(() => {})
+      }
+      await checkVersion(force)
+      setLoading(false)
+    } catch (err: any) {
+      console.error(err)
+      if (consumersRef.current.length === 0) setError("Failed to load Deemed Visit data")
+    } finally {
+      setLoading(false)
+    }
+  }, [checkVersion])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData, refreshKey])
 
   // --- Filtering ---
   const filteredConsumers = useMemo(() => {

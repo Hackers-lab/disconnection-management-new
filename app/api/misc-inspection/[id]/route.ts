@@ -109,12 +109,12 @@ export const DELETE = withTenant(async function DELETE(
 
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || req.headers.get("x-tenant-id") || "default"
-    appendDeltaPatch(tenantId, "misc-inspection", {
+    await appendDeltaPatch(tenantId, "misc-inspection", {
       action: "DELETE",
       recordId: String(id),
     }).catch(e => console.warn("Tombstone logging failed:", e))
 
-    updateBadgeCounts(tenantId, "misc_inspection", undefined, -1).catch(e => console.warn("Badge count update failed:", e))
+    await updateBadgeCounts(tenantId, "misc-inspection", undefined, -1).catch(e => console.warn("Badge count update failed:", e))
 
     return NextResponse.json({ message: "Inspection record deleted successfully" })
   } catch (error: any) {
