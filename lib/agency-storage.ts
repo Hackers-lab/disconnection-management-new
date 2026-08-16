@@ -89,6 +89,7 @@ export async function getAgencies() {
       }))
       agenciesCache[cccCode] = tenantAgencies
       agenciesCacheTimestamp[cccCode] = now
+      console.log(`⚡ [Turso SQL] Loaded ${tenantAgencies.length} agencies from agencies table for CCC '${cccCode}'`)
       return tenantAgencies
     }
   } catch (err) {

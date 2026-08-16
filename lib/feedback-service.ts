@@ -56,6 +56,7 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
       }))
       memoryFeedbacksCache = parsedItems
       lastFetchTime = now
+      console.log(`⚡ [Turso SQL] Loaded ${parsedItems.length} approved feedbacks from user_feedbacks table`)
       return parsedItems
     }
   } catch (err) {

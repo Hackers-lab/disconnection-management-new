@@ -68,6 +68,7 @@ export async function getTenantRegistry(bypassCache = false): Promise<Record<str
         }
       }
       if (Object.keys(tenants).length > 0) {
+        console.log(`⚡ [Turso SQL] Loaded ${Object.keys(tenants).length} CCC Tenants from ccc_registry table`)
         registryCache = { tenants, timestamp: Date.now() }
         return tenants
       }
