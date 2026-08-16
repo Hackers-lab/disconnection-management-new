@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { processApplication } from "@/lib/nsc-service"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 

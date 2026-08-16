@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { fetchApplications, fetchApplicationsRaw, createApplication } from "@/lib/nsc-service"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
