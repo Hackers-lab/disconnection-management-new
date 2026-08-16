@@ -5,7 +5,8 @@ import { getSpreadsheetId, getSheetName, findColumn, colLetter, ensureHeaders } 
 import { _fetchMasterRaw } from "@/lib/consumer-master-service"
 import { EXPECTED_CONSUMER_HEADERS, invalidateConsumerCache } from "@/lib/google-sheets"
 import { verifySession } from "@/lib/session"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
+import { compactBaseVersion } from "@/lib/version-engine"
 
 export const maxDuration = 60
 
@@ -113,7 +114,12 @@ export const POST = withTenant(async function POST(req: NextRequest) {
     }
 
     // Invalidate server-side cache so next read reflects updates
-    if (updated > 0) invalidateConsumerCache()
+    if (updated > 0) {
+      invalidateConsumerCache()
+      const tenantContext = getTenantContext()
+      const tenantId = tenantContext?.cccCode || req.headers.get("x-tenant-id") || "default"
+      await compactBaseVersion(tenantId, "consumer").catch(e => console.warn("Base compaction failed:", e))
+    }
 
     return NextResponse.json({
       success: true,
