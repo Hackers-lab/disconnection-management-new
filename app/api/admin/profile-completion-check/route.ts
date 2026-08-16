@@ -23,7 +23,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         sql: `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
               FROM users u
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE ${isGlobalAdmin ? '1=1' : 'c.ccc_code = ? OR u.ccc_id IS NULL'}`,
+              WHERE LOWER(u.role) != 'superuser' AND (${isGlobalAdmin ? '1=1' : 'c.ccc_code = ?'})`,
         args: isGlobalAdmin ? [] : [cccCode]
       })
       allUserRows = usersRes.rows || []

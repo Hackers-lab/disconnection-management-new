@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { ShieldAlert, CheckCircle2, User, Building2, ChevronRight, X, Loader2, Sparkles, AlertCircle } from "lucide-react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { ShieldAlert, CheckCircle2, User, Building2, ChevronRight, X, Loader2, Sparkles, Search, Check, Save } from "lucide-react"
 
 interface IncompleteAgency {
   id: string
@@ -38,9 +38,12 @@ export function AdminSetupGuideBanner() {
   const [setupData, setSetupData] = useState<SetupData | null>(null)
   const [loading, setLoading] = useState(true)
   const [isOpen, setIsOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [savingAll, setSavingAll] = useState(false)
   const [dismissed, setDismissed] = useState(false)
-  const [formErrors, setFormErrors] = useState<string[]>([])
+  const [activeTab, setActiveTab] = useState<"agencies" | "users">("agencies")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [savedSuccessIds, setSavedSuccessIds] = useState<Set<string>>(new Set())
 
   // Form states
   const [usersForm, setUsersForm] = useState<Record<string, { fullName: string; mobileNumber: string; email: string; username: string }>>({})
@@ -90,79 +93,127 @@ export function AdminSetupGuideBanner() {
     fetchCheck()
   }, [fetchCheck])
 
+  // Filtered lists
+  const filteredAgencies = useMemo(() => {
+    if (!setupData) return []
+    return setupData.incompleteAgencies.filter(a =>
+      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (agenciesForm[a.id]?.vendorCode || "").includes(searchQuery)
+    )
+  }, [setupData, searchQuery, agenciesForm])
+
+  const filteredUsers = useMemo(() => {
+    if (!setupData) return []
+    return setupData.incompleteUsers.filter(u =>
+      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (usersForm[u.id]?.fullName || "").toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [setupData, searchQuery, usersForm])
+
   if (loading || !setupData || !setupData.hasIncompleteDetails || dismissed) {
     return null
   }
 
-  const validateForms = (): boolean => {
-    const errors: string[] = []
+  // Save a single agency card
+  const handleSaveAgency = async (agencyId: string) => {
+    const aState = agenciesForm[agencyId]
+    if (!aState) return
 
-    // Validate agencies
-    Object.entries(agenciesForm).forEach(([id, val]) => {
-      const agencyName = setupData.incompleteAgencies.find(a => a.id === id)?.name || "Agency"
-      const vc = (val.vendorCode || "").trim()
-      const mob = (val.mobileNumber || "").trim()
+    const vc = (aState.vendorCode || "").trim()
+    const mob = (aState.mobileNumber || "").trim()
 
-      if (!vc) {
-        errors.push(`${agencyName}: Vendor Code is required.`)
-      } else if (!/^\d{6}$/.test(vc)) {
-        errors.push(`${agencyName}: Vendor Code must be exactly 6 digits (e.g. 104921).`)
-      }
-
-      if (!mob) {
-        errors.push(`${agencyName}: Mobile Number is required.`)
-      } else if (!/^\d{10}$/.test(mob)) {
-        errors.push(`${agencyName}: Mobile Number must be 10 digits.`)
-      }
-    })
-
-    // Validate users
-    Object.entries(usersForm).forEach(([id, val]) => {
-      const username = setupData.incompleteUsers.find(u => u.id === id)?.username || "Officer"
-      const mob = (val.mobileNumber || "").trim()
-
-      if (!mob) {
-        errors.push(`Officer (${username}): Mobile Number is required.`)
-      } else if (!/^\d{10}$/.test(mob)) {
-        errors.push(`Officer (${username}): Mobile Number must be 10 digits.`)
-      }
-    })
-
-    setFormErrors(errors)
-    return errors.length === 0
-  }
-
-  const handleSave = async () => {
-    if (!validateForms()) return
+    if (!/^\d{6}$/.test(vc) || !/^\d{10}$/.test(mob)) return
 
     try {
-      setSaving(true)
-      const userUpdates = Object.entries(usersForm).map(([id, val]) => ({
-        id,
-        ...val,
-      }))
-      const agencyUpdates = Object.entries(agenciesForm).map(([id, val]) => ({
-        id,
-        ...val,
-      }))
-
+      setSavingId(agencyId)
       const res = await fetch("/api/admin/profile-completion-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userUpdates,
-          agencyUpdates,
+          agencyUpdates: [{ id: agencyId, ...aState }],
         }),
       })
 
-      if (!res.ok) throw new Error("Save failed")
+      if (!res.ok) throw new Error("Save agency failed")
+
+      setSavedSuccessIds(prev => new Set(prev).add(agencyId))
+      await fetchCheck()
+    } catch (err) {
+      console.error("Failed to save agency:", err)
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  // Save a single user card
+  const handleSaveUser = async (userId: string) => {
+    const uState = usersForm[userId]
+    if (!uState) return
+
+    const mob = (uState.mobileNumber || "").trim()
+    if (!/^\d{10}$/.test(mob)) return
+
+    try {
+      setSavingId(userId)
+      const res = await fetch("/api/admin/profile-completion-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userUpdates: [{ id: userId, ...uState }],
+        }),
+      })
+
+      if (!res.ok) throw new Error("Save user failed")
+
+      setSavedSuccessIds(prev => new Set(prev).add(userId))
+      await fetchCheck()
+    } catch (err) {
+      console.error("Failed to save user:", err)
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  // Save all valid items in batch
+  const handleSaveAllValid = async () => {
+    const validAgencyUpdates: any[] = []
+    Object.entries(agenciesForm).forEach(([id, val]) => {
+      const vc = (val.vendorCode || "").trim()
+      const mob = (val.mobileNumber || "").trim()
+      if (/^\d{6}$/.test(vc) && /^\d{10}$/.test(mob)) {
+        validAgencyUpdates.push({ id, ...val })
+      }
+    })
+
+    const validUserUpdates: any[] = []
+    Object.entries(usersForm).forEach(([id, val]) => {
+      const mob = (val.mobileNumber || "").trim()
+      if (/^\d{10}$/.test(mob)) {
+        validUserUpdates.push({ id, ...val })
+      }
+    })
+
+    if (validAgencyUpdates.length === 0 && validUserUpdates.length === 0) return
+
+    try {
+      setSavingAll(true)
+      const res = await fetch("/api/admin/profile-completion-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userUpdates: validUserUpdates,
+          agencyUpdates: validAgencyUpdates,
+        }),
+      })
+
+      if (!res.ok) throw new Error("Batch save failed")
 
       await fetchCheck()
       setIsOpen(false)
     } catch (err) {
-      console.error("Failed to save setup updates:", err)
+      console.error("Failed to batch save:", err)
     } finally {
-      setSaving(false)
+      setSavingAll(false)
     }
   }
 
@@ -185,14 +236,14 @@ export function AdminSetupGuideBanner() {
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-                Please complete missing 6-digit Vendor Codes and 10-digit Mobile Numbers for agencies & officers in your Customer Care Center.
+                Please enter 6-digit vendor codes and 10-digit mobile numbers for contractor agencies and officers. You can save items individually at any time.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:self-center">
             <button
-              onClick={() => { setFormErrors([]); setIsOpen(true); }}
+              onClick={() => setIsOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-700 active:scale-95 dark:bg-amber-500 dark:hover:bg-amber-600"
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -210,10 +261,10 @@ export function AdminSetupGuideBanner() {
         </div>
       </div>
 
-      {/* Quick Fill Drawer / Dialog Modal */}
+      {/* Setup Drawer / Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800">
+          <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
               <div className="flex items-center gap-2.5">
@@ -222,10 +273,10 @@ export function AdminSetupGuideBanner() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                    Complete CCC Officer & Agency Details
+                    CCC Profile & Agency Setup
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Enter mandatory 6-digit vendor codes and 10-digit mobile numbers for your CCC.
+                    Save individual items as you enter details. Mandatory fields are marked with red asterisks (*).
                   </p>
                 </div>
               </div>
@@ -237,212 +288,335 @@ export function AdminSetupGuideBanner() {
               </button>
             </div>
 
-            {/* Form Validation Errors */}
-            {formErrors.length > 0 && (
-              <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-                <div className="font-semibold flex items-center gap-1.5 mb-1">
-                  <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  Please correct the following errors:
-                </div>
-                <ul className="list-disc list-inside space-y-0.5">
-                  {formErrors.map((err, idx) => (
-                    <li key={idx}>{err}</li>
-                  ))}
-                </ul>
+            {/* Navigation Tabs & Search Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-100 px-6 py-3 bg-gray-50/50 gap-3 dark:bg-gray-800/20 dark:border-gray-800">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab("agencies")}
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    activeTab === "agencies"
+                      ? "bg-amber-500 text-white shadow-sm dark:bg-amber-600"
+                      : "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  <Building2 className="h-4 w-4" />
+                  Contractor Agencies ({setupData.incompleteAgencies.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab("users")}
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    activeTab === "users"
+                      ? "bg-amber-500 text-white shadow-sm dark:bg-amber-600"
+                      : "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  <User className="h-4 w-4" />
+                  CCC Officers & Staff ({setupData.incompleteUsers.length})
+                </button>
               </div>
-            )}
+
+              {/* Search Filter */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder={`Search ${activeTab === "agencies" ? "agencies" : "officers"}...`}
+                  className="w-full rounded-lg border border-gray-300 bg-white pl-8 pr-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                />
+              </div>
+            </div>
 
             {/* Scrollable Form Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* CCC Officers Section */}
-              {setupData.incompleteUsers.length > 0 && (
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[55vh]">
+              {/* Tab 1: Contractor Agencies */}
+              {activeTab === "agencies" && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                    <User className="h-4 w-4 text-amber-500" />
-                    CCC Officers & Staff Accounts ({setupData.incompleteUsers.length})
-                  </div>
-                  {setupData.incompleteUsers.map((usr) => {
-                    const uState = usersForm[usr.id] || { fullName: "", mobileNumber: "", email: "", username: usr.username }
-                    const mobVal = (uState.mobileNumber || "").trim()
-                    const isMobValid = /^\d{10}$/.test(mobVal)
+                  {filteredAgencies.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-gray-500 dark:text-gray-400">
+                      No matching agencies found needing attention.
+                    </div>
+                  ) : (
+                    filteredAgencies.map((agency) => {
+                      const aState = agenciesForm[agency.id] || { vendorCode: "", contactPerson: "", mobileNumber: "", email: "" }
+                      const vcVal = (aState.vendorCode || "").trim()
+                      const mobVal = (aState.mobileNumber || "").trim()
+                      const isVcValid = /^\d{6}$/.test(vcVal)
+                      const isMobValid = /^\d{10}$/.test(mobVal)
+                      const isCardReady = isVcValid && isMobValid
+                      const isSaving = savingId === agency.id
+                      const isJustSaved = savedSuccessIds.has(agency.id)
 
-                    return (
-                      <div key={usr.id} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-800/40">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="font-semibold text-xs text-gray-900 dark:text-gray-100">
-                            {usr.username} <span className="text-gray-400 font-normal">({usr.role.toUpperCase()})</span>
-                          </h5>
-                          <span className="text-[10px] text-gray-400">CCC: {usr.cccCode}</span>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Full Name</label>
-                            <input
-                              type="text"
-                              value={uState.fullName}
-                              onChange={e => setUsersForm({
-                                ...usersForm,
-                                [usr.id]: { ...uState, fullName: e.target.value }
-                              })}
-                              placeholder="Officer Full Name"
-                              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">
-                              Mobile Number <span className="text-red-500 font-bold">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              maxLength={10}
-                              value={uState.mobileNumber}
-                              onChange={e => setUsersForm({
-                                ...usersForm,
-                                [usr.id]: { ...uState, mobileNumber: e.target.value.replace(/\D/g, "") }
-                              })}
-                              placeholder="10-digit mobile number"
-                              className={`mt-1 w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none dark:bg-gray-900 dark:text-gray-100 ${
-                                !isMobValid ? "border-red-500 ring-1 ring-red-500/50" : "border-gray-300 focus:border-amber-500 dark:border-gray-700"
+                      return (
+                        <div
+                          key={agency.id}
+                          className={`rounded-xl border p-4 transition-all ${
+                            isJustSaved
+                              ? "border-emerald-500/50 bg-emerald-50/20 dark:border-emerald-500/30"
+                              : isCardReady
+                              ? "border-amber-500/40 bg-amber-50/20 dark:border-amber-500/30"
+                              : "border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-800/30"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-semibold text-xs text-gray-900 dark:text-gray-100">
+                                {agency.name}
+                              </h5>
+                              <span className="text-[10px] text-gray-400">({agency.cccCode})</span>
+                              {isCardReady && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                  <Check className="h-3 w-3" /> Ready to Save
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSaveAgency(agency.id)}
+                              disabled={!isCardReady || isSaving}
+                              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                                isCardReady
+                                  ? "bg-amber-600 text-white shadow-sm hover:bg-amber-700 active:scale-95 dark:bg-amber-500 dark:hover:bg-amber-600"
+                                  : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"
                               }`}
-                            />
+                            >
+                              {isSaving ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isJustSaved ? (
+                                <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                              ) : (
+                                <Save className="h-3 w-3" />
+                              )}
+                              {isJustSaved ? "Saved" : "Save Item"}
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Email Address</label>
-                            <input
-                              type="email"
-                              value={uState.email}
-                              onChange={e => setUsersForm({
-                                ...usersForm,
-                                [usr.id]: { ...uState, email: e.target.value }
-                              })}
-                              placeholder="officer@wbsedcl.in"
-                              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                            />
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">
+                                Vendor Code (6-Digit) <span className="text-red-500 font-bold">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={6}
+                                value={aState.vendorCode}
+                                onChange={e => setAgenciesForm({
+                                  ...agenciesForm,
+                                  [agency.id]: { ...aState, vendorCode: e.target.value.replace(/\D/g, "") }
+                                })}
+                                placeholder="e.g. 104921"
+                                className={`mt-1 w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none dark:bg-gray-900 dark:text-gray-100 ${
+                                  !isVcValid ? "border-red-500 ring-1 ring-red-500/50" : "border-gray-300 focus:border-amber-500 dark:border-gray-700"
+                                }`}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">
+                                Mobile Number (10-Digit) <span className="text-red-500 font-bold">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={10}
+                                value={aState.mobileNumber}
+                                onChange={e => setAgenciesForm({
+                                  ...agenciesForm,
+                                  [agency.id]: { ...aState, mobileNumber: e.target.value.replace(/\D/g, "") }
+                                })}
+                                placeholder="10-digit mobile number"
+                                className={`mt-1 w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none dark:bg-gray-900 dark:text-gray-100 ${
+                                  !isMobValid ? "border-red-500 ring-1 ring-red-500/50" : "border-gray-300 focus:border-amber-500 dark:border-gray-700"
+                                }`}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Contact Person Name</label>
+                              <input
+                                type="text"
+                                value={aState.contactPerson}
+                                onChange={e => setAgenciesForm({
+                                  ...agenciesForm,
+                                  [agency.id]: { ...aState, contactPerson: e.target.value }
+                                })}
+                                placeholder="Contact Person Name"
+                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Email Address</label>
+                              <input
+                                type="email"
+                                value={aState.email}
+                                onChange={e => setAgenciesForm({
+                                  ...agenciesForm,
+                                  [agency.id]: { ...aState, email: e.target.value }
+                                })}
+                                placeholder="agency@example.com"
+                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               )}
 
-              {/* Contractor Agencies Section */}
-              {setupData.incompleteAgencies.length > 0 && (
+              {/* Tab 2: CCC Officers & Staff */}
+              {activeTab === "users" && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                    <Building2 className="h-4 w-4 text-amber-500" />
-                    Contractor Agencies ({setupData.incompleteAgencies.length})
-                  </div>
-                  {setupData.incompleteAgencies.map((agency) => {
-                    const aState = agenciesForm[agency.id] || { vendorCode: "", contactPerson: "", mobileNumber: "", email: "" }
-                    const vcVal = (aState.vendorCode || "").trim()
-                    const mobVal = (aState.mobileNumber || "").trim()
-                    const isVcValid = /^\d{6}$/.test(vcVal)
-                    const isMobValid = /^\d{10}$/.test(mobVal)
+                  {filteredUsers.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-gray-500 dark:text-gray-400">
+                      No matching officers found needing attention.
+                    </div>
+                  ) : (
+                    filteredUsers.map((usr) => {
+                      const uState = usersForm[usr.id] || { fullName: "", mobileNumber: "", email: "", username: usr.username }
+                      const mobVal = (uState.mobileNumber || "").trim()
+                      const isMobValid = /^\d{10}$/.test(mobVal)
+                      const isSaving = savingId === usr.id
+                      const isJustSaved = savedSuccessIds.has(usr.id)
 
-                    return (
-                      <div key={agency.id} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-800/40">
-                        <h5 className="font-semibold text-xs text-gray-900 dark:text-gray-100 mb-2">
-                          {agency.name} <span className="text-gray-400 font-normal">({agency.cccCode})</span>
-                        </h5>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">
-                              Vendor Code (6-Digit) <span className="text-red-500 font-bold">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              maxLength={6}
-                              value={aState.vendorCode}
-                              onChange={e => setAgenciesForm({
-                                ...agenciesForm,
-                                [agency.id]: { ...aState, vendorCode: e.target.value.replace(/\D/g, "") }
-                              })}
-                              placeholder="e.g. 104921"
-                              className={`mt-1 w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none dark:bg-gray-900 dark:text-gray-100 ${
-                                !isVcValid ? "border-red-500 ring-1 ring-red-500/50" : "border-gray-300 focus:border-amber-500 dark:border-gray-700"
+                      return (
+                        <div
+                          key={usr.id}
+                          className={`rounded-xl border p-4 transition-all ${
+                            isJustSaved
+                              ? "border-emerald-500/50 bg-emerald-50/20 dark:border-emerald-500/30"
+                              : isMobValid
+                              ? "border-amber-500/40 bg-amber-50/20 dark:border-amber-500/30"
+                              : "border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-800/30"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-semibold text-xs text-gray-900 dark:text-gray-100">
+                                {usr.username}
+                              </h5>
+                              <span className="text-[10px] text-gray-400 font-medium font-mono">[{usr.role.toUpperCase()}]</span>
+                              <span className="text-[10px] text-gray-400">({usr.cccCode})</span>
+                              {isMobValid && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                  <Check className="h-3 w-3" /> Ready to Save
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSaveUser(usr.id)}
+                              disabled={!isMobValid || isSaving}
+                              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                                isMobValid
+                                  ? "bg-amber-600 text-white shadow-sm hover:bg-amber-700 active:scale-95 dark:bg-amber-500 dark:hover:bg-amber-600"
+                                  : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600"
                               }`}
-                            />
+                            >
+                              {isSaving ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isJustSaved ? (
+                                <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                              ) : (
+                                <Save className="h-3 w-3" />
+                              )}
+                              {isJustSaved ? "Saved" : "Save Item"}
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Contact Person Name</label>
-                            <input
-                              type="text"
-                              value={aState.contactPerson}
-                              onChange={e => setAgenciesForm({
-                                ...agenciesForm,
-                                [agency.id]: { ...aState, contactPerson: e.target.value }
-                              })}
-                              placeholder="Contact Person Full Name"
-                              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">
-                              Mobile Number (10-Digit) <span className="text-red-500 font-bold">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              maxLength={10}
-                              value={aState.mobileNumber}
-                              onChange={e => setAgenciesForm({
-                                ...agenciesForm,
-                                [agency.id]: { ...aState, mobileNumber: e.target.value.replace(/\D/g, "") }
-                              })}
-                              placeholder="10-digit mobile number"
-                              className={`mt-1 w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none dark:bg-gray-900 dark:text-gray-100 ${
-                                !isMobValid ? "border-red-500 ring-1 ring-red-500/50" : "border-gray-300 focus:border-amber-500 dark:border-gray-700"
-                              }`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Email Address</label>
-                            <input
-                              type="email"
-                              value={aState.email}
-                              onChange={e => setAgenciesForm({
-                                ...agenciesForm,
-                                [agency.id]: { ...aState, email: e.target.value }
-                              })}
-                              placeholder="agency@example.com"
-                              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                            />
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Full Name</label>
+                              <input
+                                type="text"
+                                value={uState.fullName}
+                                onChange={e => setUsersForm({
+                                  ...usersForm,
+                                  [usr.id]: { ...uState, fullName: e.target.value }
+                                })}
+                                placeholder="Officer Full Name"
+                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">
+                                Mobile Number (10-Digit) <span className="text-red-500 font-bold">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                maxLength={10}
+                                value={uState.mobileNumber}
+                                onChange={e => setUsersForm({
+                                  ...usersForm,
+                                  [usr.id]: { ...uState, mobileNumber: e.target.value.replace(/\D/g, "") }
+                                })}
+                                placeholder="10-digit mobile number"
+                                className={`mt-1 w-full rounded-lg border bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none dark:bg-gray-900 dark:text-gray-100 ${
+                                  !isMobValid ? "border-red-500 ring-1 ring-red-500/50" : "border-gray-300 focus:border-amber-500 dark:border-gray-700"
+                                }`}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 dark:text-gray-400">Email Address</label>
+                              <input
+                                type="email"
+                                value={uState.email}
+                                onChange={e => setUsersForm({
+                                  ...usersForm,
+                                  [usr.id]: { ...uState, email: e.target.value }
+                                })}
+                                placeholder="officer@wbsedcl.in"
+                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:border-amber-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               )}
             </div>
 
             {/* Footer Actions */}
-            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-500 dark:hover:bg-amber-600"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Saving to Turso...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Save & Complete Setup
-                  </>
-                )}
-              </button>
+            <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-gray-800">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                You can save cards individually or batch save all completed items.
+              </span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAllValid}
+                  disabled={savingAll}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-500 dark:hover:bg-amber-600"
+                >
+                  {savingAll ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Saving Valid Items...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Save All Valid Items
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
