@@ -32,13 +32,14 @@ async function reseedAgenciesFromSheets() {
     await db.execute('PRAGMA busy_timeout = 5000');
   } catch {}
 
-  // 1. Clear existing agency data to fix bad mappings
-  console.log('🧹 Clearing existing agencies and agency_aliases tables...');
+  // 1. Clear existing agency data and reset auto-increment counter to 1
+  console.log('🧹 Clearing existing agencies and resetting ID sequence to 1...');
   await db.execute('PRAGMA foreign_keys = OFF');
   await db.execute('DELETE FROM agency_aliases');
   await db.execute('DELETE FROM agencies');
+  await db.execute("DELETE FROM sqlite_sequence WHERE name = 'agencies' OR name = 'agency_aliases'");
   await db.execute('PRAGMA foreign_keys = ON');
-  console.log('✅ Tables cleared.');
+  console.log('✅ Tables cleared and ID sequence reset to 1.');
 
   if (!process.env.GOOGLE_SHEETS_PRIVATE_KEY || !process.env.MASTER_CONFIG_SHEET) {
     console.warn('⚠️ Google Sheets credentials missing in environment.');
