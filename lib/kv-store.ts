@@ -1,29 +1,13 @@
 import { createClient, Client } from "@libsql/client"
+import { db } from "./db"
 
 // In-memory fallback map for environments without configured external KV credentials
 const memoryStore = new Map<string, { value: any; expiresAt?: number }>()
 
-let tursoClient: Client | null = null
 let tursoTableInitialized = false
 
 function getTursoClient(): Client | null {
-  const url =
-    process.env.TURSO_DATABASE_URL ||
-    process.env.TURSO_URL ||
-    process.env.LIBSQL_URL ||
-    process.env.STORAGE_DATABASE_URL ||
-    process.env.STORAGE_URL ||
-    process.env.TURSO_DATABASE_URL_URL
-  const authToken =
-    process.env.TURSO_AUTH_TOKEN ||
-    process.env.LIBSQL_AUTH_TOKEN ||
-    process.env.STORAGE_AUTH_TOKEN ||
-    process.env.TURSO_AUTH_TOKEN_TOKEN
-  if (!url) return null
-  if (!tursoClient) {
-    tursoClient = createClient({ url, authToken })
-  }
-  return tursoClient
+  return db as any
 }
 
 async function ensureTursoTable(client: Client) {
