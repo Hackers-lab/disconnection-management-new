@@ -1,5 +1,6 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { getSpreadsheetId } from "./google-sheets-api"
+import { db } from "./db"
 
 const SHEET_ID = process.env.USERS_SHEET!
 const SHEET_NAME = "AppRoles"
@@ -291,6 +292,35 @@ export class RoleStorage {
     const now = Date.now()
     if (this._cache[spreadsheetId] && (now - (this._cacheTimestamp[spreadsheetId] || 0) < this.CACHE_TTL_MS)) {
       return this._cache[spreadsheetId]
+    }
+
+    // 1. Try querying Turso app_roles table first
+    try {
+      const res = await db.execute({
+        sql: `SELECT r.role, r.permissions_json 
+              FROM app_roles r 
+              LEFT JOIN ccc_registry c ON r.ccc_id = c.id 
+              WHERE c.spreadsheet_id = ? OR r.ccc_id IS NULL`,
+        args: [spreadsheetId]
+      })
+      if (res.rows && res.rows.length > 0) {
+        const roles: RolePermissions[] = res.rows.map((row: any) => {
+          const role = String(row.role || "").trim()
+          let parsed: Record<string, string[]> = {}
+          try {
+            parsed = JSON.parse(String(row.permissions_json || "{}"))
+          } catch {
+            parsed = {}
+          }
+          return { role, ...parsed } as RolePermissions
+        })
+        console.log(`⚡ [Turso SQL] Loaded ${roles.length} role permissions from app_roles table`)
+        this._cache[spreadsheetId] = roles
+        this._cacheTimestamp[spreadsheetId] = now
+        return roles
+      }
+    } catch (err) {
+      console.warn("Turso app_roles query failed, falling back to Sheets:", err)
     }
     const sheets = await getSheetsClient()
     await this._ensureTab(sheets, spreadsheetId)
