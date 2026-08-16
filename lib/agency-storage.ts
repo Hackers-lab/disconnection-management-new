@@ -72,11 +72,15 @@ export async function getAgencies() {
 
   // Try Turso SQL Database primary read
   try {
+    const isSystem = cccCode === "SYSTEM"
     const res = await db.execute({
-      sql: `SELECT a.id, a.name, a.description, a.is_active, c.ccc_code as cccCode, a.vendor_code 
-            FROM agencies a LEFT JOIN ccc_registry c ON a.ccc_id = c.id 
-            WHERE c.ccc_code = ? OR c.ccc_code IS NULL OR a.ccc_id IS NULL`,
-      args: [cccCode]
+      sql: isSystem 
+        ? `SELECT a.id, a.name, a.description, a.is_active, c.ccc_code as cccCode, a.vendor_code 
+           FROM agencies a LEFT JOIN ccc_registry c ON a.ccc_id = c.id`
+        : `SELECT a.id, a.name, a.description, a.is_active, c.ccc_code as cccCode, a.vendor_code 
+           FROM agencies a LEFT JOIN ccc_registry c ON a.ccc_id = c.id 
+           WHERE c.ccc_code = ?`,
+      args: isSystem ? [] : [cccCode]
     })
     if (res.rows && res.rows.length > 0) {
       const tenantAgencies = res.rows.map((r: any) => ({

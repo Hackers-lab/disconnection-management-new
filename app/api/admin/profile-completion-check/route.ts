@@ -42,8 +42,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       const agencyRes = await db.execute({
         sql: `SELECT a.id, a.name, a.vendor_code, a.contact_person, a.mobile_number, a.email, a.is_active, c.ccc_code
               FROM agencies a
-              LEFT JOIN ccc_registry c ON a.ccc_id = c.id
-              WHERE (${isGlobalAdmin ? '1=1' : 'c.ccc_code = ? OR a.ccc_id IS NULL'}) AND a.is_active = 1`,
+              INNER JOIN ccc_registry c ON a.ccc_id = c.id
+              WHERE ${isGlobalAdmin ? '1=1' : 'c.ccc_code = ?'} AND a.is_active = 1`,
         args: isGlobalAdmin ? [] : [cccCode]
       })
       agencyRows = agencyRes.rows || []
