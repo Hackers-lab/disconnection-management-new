@@ -2,6 +2,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { auth } from "./google-drive"
 import { getSpreadsheetId } from "./google-sheets-api"
 import { getTenantRegistry } from "./tenant-resolver"
+import { db } from "./db"
 
 export interface FeedbackItem {
   id: string
@@ -36,6 +37,29 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
   const now = Date.now()
   if (memoryFeedbacksCache && now - lastFetchTime < CACHE_TTL_MS) {
     return memoryFeedbacksCache
+  }
+
+  // 1. Try querying Turso user_feedbacks table first
+  try {
+    const res = await db.execute("SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code FROM user_feedbacks f LEFT JOIN ccc_registry c ON f.ccc_id = c.id WHERE LOWER(f.status) = 'approved'")
+    if (res.rows && res.rows.length > 0) {
+      const parsedItems: FeedbackItem[] = res.rows.map((row: any) => ({
+        id: String(row.feedback_id || ""),
+        username: String(row.username || ""),
+        name: String(row.full_name || row.username || "Officer"),
+        supplyOffice: String(row.supply_office || ""),
+        cccCode: String(row.ccc_code || ""),
+        rating: Number(row.rating || 5),
+        comment: String(row.comment || ""),
+        createdAt: String(row.created_at || ""),
+        status: "approved",
+      }))
+      memoryFeedbacksCache = parsedItems
+      lastFetchTime = now
+      return parsedItems
+    }
+  } catch (err) {
+    console.warn("Turso user_feedbacks query failed, falling back to Sheets:", err)
   }
 
   try {

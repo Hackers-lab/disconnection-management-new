@@ -20,6 +20,9 @@ out/
 # Vercel
 .vercel
 
+# Databases
+*.db
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts

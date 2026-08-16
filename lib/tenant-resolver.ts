@@ -1,6 +1,7 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 import { decrypt } from "./encryption"
+import { db } from "./db"
 
 const MASTER_CONFIG_SHEET = process.env.MASTER_CONFIG_SHEET!
 const REGISTRY_TAB = "CCC_Registry"
@@ -39,6 +40,40 @@ export function invalidateTenantCache() {
 export async function getTenantRegistry(bypassCache = false): Promise<Record<string, TenantConfig>> {
   if (!bypassCache && registryCache && Date.now() - registryCache.timestamp < CACHE_TTL_MS) {
     return registryCache.tenants
+  }
+
+  // 1. Try querying Turso ccc_registry table first
+  try {
+    const res = await db.execute("SELECT ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token FROM ccc_registry")
+    if (res.rows && res.rows.length > 0) {
+      const tenants: Record<string, TenantConfig> = {}
+      for (const row of res.rows) {
+        const cccCode = String(row.ccc_code || "").trim()
+        if (!cccCode) continue
+        const encryptedToken = String(row.drive_refresh_token || "").trim()
+        let googleDriveRefreshToken = ""
+        if (encryptedToken) {
+          try {
+            googleDriveRefreshToken = decrypt(encryptedToken)
+          } catch {
+            googleDriveRefreshToken = encryptedToken // Raw token if unencrypted
+          }
+        }
+        tenants[cccCode] = {
+          cccCode,
+          cccName: String(row.ccc_name || "").trim(),
+          spreadsheetId: String(row.spreadsheet_id || "").trim(),
+          driveFolderId: String(row.drive_folder_id || "").trim(),
+          googleDriveRefreshToken,
+        }
+      }
+      if (Object.keys(tenants).length > 0) {
+        registryCache = { tenants, timestamp: Date.now() }
+        return tenants
+      }
+    }
+  } catch (err) {
+    console.warn("Turso ccc_registry lookup failed, falling back to Master Sheet:", err)
   }
 
   if (!MASTER_CONFIG_SHEET) {

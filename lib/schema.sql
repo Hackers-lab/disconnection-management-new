@@ -389,3 +389,71 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 20. User Feedbacks Table
+CREATE TABLE IF NOT EXISTS user_feedbacks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feedback_id TEXT UNIQUE,
+    user_id TEXT REFERENCES users(id),
+    username TEXT NOT NULL,
+    full_name TEXT,
+    supply_office TEXT,
+    ccc_id INTEGER REFERENCES ccc_registry(id),
+    rating INTEGER DEFAULT 5,
+    comment TEXT NOT NULL,
+    status TEXT DEFAULT 'approved',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON user_feedbacks (status);
+
+-- 21. Miscellaneous Inspections Table
+CREATE TABLE IF NOT EXISTS misc_inspections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    inspection_id TEXT UNIQUE,
+    reference_no TEXT,
+    reference_doc_url TEXT,
+    category TEXT NOT NULL,                  -- SHIFTING, METER_CHECK, NETWORK_LINE, DTR_LOAD, NSC_DRAWING, GENERAL
+    title TEXT NOT NULL,
+    description TEXT,
+    consumer_id TEXT,
+    dtr_id TEXT,
+    applicant_name TEXT,
+    address TEXT,
+    mobile TEXT,
+    priority TEXT DEFAULT 'MEDIUM',
+    agency_id INTEGER REFERENCES agencies(id),
+    target_completion_date TEXT,
+    status TEXT DEFAULT 'PENDING_AGENCY',
+    created_by TEXT,
+    site_image_ids_json TEXT,                -- Array of Drive Image IDs
+    agency_decision TEXT,
+    agency_remarks TEXT,
+    inspected_at TEXT,
+    inspected_by TEXT,
+    admin_decision TEXT,
+    admin_remarks TEXT,
+    dynamic_fields_json TEXT,                -- Dynamic Category Specific Fields JSON
+    ccc_id INTEGER NOT NULL REFERENCES ccc_registry(id) ON DELETE CASCADE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_misc_ccc ON misc_inspections (ccc_id);
+
+-- 22. Field Audit History Logs Table
+CREATE TABLE IF NOT EXISTS field_history_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ccc_id INTEGER NOT NULL REFERENCES ccc_registry(id) ON DELETE CASCADE,
+    consumer_id TEXT NOT NULL,
+    name TEXT,
+    action TEXT NOT NULL,
+    old_status TEXT,
+    new_status TEXT,
+    old_osd REAL,
+    old_notes TEXT,
+    old_image_url TEXT,
+    changed_by TEXT,
+    event_date TEXT,
+    timestamp INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_history_ccc_consumer ON field_history_logs (ccc_id, consumer_id);
