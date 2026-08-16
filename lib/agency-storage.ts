@@ -73,8 +73,9 @@ export async function getAgencies() {
   // Try Turso SQL Database primary read
   try {
     const res = await db.execute({
-      sql: `SELECT id, name, description, is_active, ccc_code as cccCode, vendor_code 
-            FROM agencies WHERE ccc_code = ? OR ccc_code = 'SYSTEM'`,
+      sql: `SELECT a.id, a.name, a.description, a.is_active, c.ccc_code as cccCode, a.vendor_code 
+            FROM agencies a LEFT JOIN ccc_registry c ON a.ccc_id = c.id 
+            WHERE c.ccc_code = ? OR c.ccc_code IS NULL OR a.ccc_id IS NULL`,
       args: [cccCode]
     })
     if (res.rows && res.rows.length > 0) {

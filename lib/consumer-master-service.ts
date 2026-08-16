@@ -141,7 +141,7 @@ export async function fetchMasterCount(spreadsheetId: string): Promise<number> {
     const context = getTenantContext()
     const cccCode = context?.cccCode || "6612107"
     const res = await db.execute({
-      sql: "SELECT COUNT(*) as count FROM master_consumers WHERE ccc_code = ?",
+      sql: "SELECT COUNT(*) as count FROM master_consumers WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ?)",
       args: [cccCode]
     })
     if (res.rows && res.rows[0]) {

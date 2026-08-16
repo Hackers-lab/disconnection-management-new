@@ -72,10 +72,10 @@ export class UserStorage {
     // Try Turso SQL Database primary read
     try {
       const res = await db.execute({
-        sql: `SELECT id, username, password_hash as password, role, ccc_code as cccCode, 
-                     full_name as name, subscription_status as subStatus, 
-                     subscription_expires_at as subExpiresAt, bypass_subscription as bypassSub 
-              FROM users`,
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id`,
         args: []
       })
       if (res.rows && res.rows.length > 0) {
