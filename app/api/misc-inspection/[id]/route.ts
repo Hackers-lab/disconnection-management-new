@@ -6,7 +6,7 @@ import {
   finalizeMiscInspection,
   deleteMiscInspection,
 } from "@/lib/misc-inspection-service"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"

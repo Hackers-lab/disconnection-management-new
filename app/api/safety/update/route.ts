@@ -8,7 +8,7 @@ import {
   markPONotRequired,
   updateSafetyAgency,
 } from "@/lib/safety-service"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 

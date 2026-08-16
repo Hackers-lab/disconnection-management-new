@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { fetchReplacements, _fetchReplacementsRaw, addReplacement } from "@/lib/meter-replacement-service"
 import { checkApiPermission } from "@/lib/permissions"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 

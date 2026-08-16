@@ -3,7 +3,7 @@ import { DeemedVisitData, invalidateDDCache, fetchDDData } from "@/lib/dd-servic
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { auth } from "@/lib/google-drive"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
