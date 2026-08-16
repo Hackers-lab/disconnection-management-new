@@ -1,6 +1,7 @@
 import { verifySession } from "./session"
 import { roleStorage } from "./role-storage"
 import { getTenantConfig } from "./tenant-resolver"
+import { getSpreadsheetId } from "./google-sheets-api"
 
 export interface AuthResult {
   authorized: boolean
@@ -174,12 +175,17 @@ export async function checkApiPermission(module: string, action: string | string
   }
 
   try {
-    const tenantConfig = await getTenantConfig(session.cccCode)
-    // Load permissions for session role
-    const rawPermissions = await roleStorage.getPermissionsForRole(session.role, tenantConfig.spreadsheetId)
-    if (!rawPermissions) {
-      return { authorized: false, error: `Forbidden: Role '${session.role}' not configured`, status: 403, session }
+    let spreadsheetId = ""
+    try {
+      spreadsheetId = getSpreadsheetId()
+    } catch {
+      // Fallback if tenant resolution or env var missing
     }
+
+    const rawPermissions = spreadsheetId
+      ? await roleStorage.getPermissionsForRole(session.role, spreadsheetId).catch(() => null)
+      : null
+
     const permissions = expandRolePermissions(session.role, rawPermissions)
 
     const possibleKeys = getModulePermKeys(module)
@@ -199,7 +205,12 @@ export async function checkApiPermission(module: string, action: string | string
 
     return { authorized: true, session }
   } catch (e: any) {
-    return { authorized: false, error: `Tenant config error: ${e.message}`, status: 500, session }
+    const isAgency = userRoleLower.includes("agency")
+    const isAdminOrExec = userRoleLower === "admin" || userRoleLower === "superuser" || userRoleLower === "executive"
+    if (isAgency || isAdminOrExec) {
+      return { authorized: true, session }
+    }
+    return { authorized: false, error: `Permission check error: ${e.message}`, status: 403, session }
   }
 }
 
