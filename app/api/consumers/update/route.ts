@@ -1,11 +1,10 @@
 // app/api/consumers/update/route.ts
 import { type NextRequest, NextResponse } from "next/server"
-import { updateConsumerInGoogleSheet } from "@/lib/google-sheets-api" // Changed import
+import { updateConsumerInGoogleSheet, getSpreadsheetId } from "@/lib/google-sheets-api"
 import { invalidateConsumerCache, fetchConsumerData, type ConsumerData } from "@/lib/google-sheets"
 import { appendHistory, nowTimestamp, invalidateHistoryCache } from "@/lib/consumer-history"
 import { verifySession } from "@/lib/session"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
-import { getTenantConfig } from "@/lib/tenant-resolver"
 import { withTenant } from "@/lib/tenant-context"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
@@ -27,8 +26,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     }
 
     const consumer: UpdatePayload = await request.json()
-    const tenantConfig = await getTenantConfig(session.cccCode)
-    const spreadsheetId = tenantConfig.spreadsheetId
+    const spreadsheetId = getSpreadsheetId()
 
     // Scoping check for agency/executive roles
     const allConsumers = await fetchConsumerData(spreadsheetId)
