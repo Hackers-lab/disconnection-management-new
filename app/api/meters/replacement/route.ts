@@ -80,13 +80,13 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
 
       const tenantContext = getTenantContext()
       const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
-      appendDeltaPatch(tenantId, "meter-replacement", {
+      await appendDeltaPatch(tenantId, "meter-replacement", {
         action: "UPDATE",
         recordId: String(replacementId),
         changes: { status: "closed", remarks },
       }).catch(e => console.warn("Patch log error:", e))
 
-      updateBadgeCounts(tenantId, "meter_replacement", undefined, -1).catch(e => console.warn("Badge count error:", e))
+      await updateBadgeCounts(tenantId, "meter-replacement", undefined, -1).catch(e => console.warn("Badge count error:", e))
 
       return NextResponse.json({ success: true })
     }

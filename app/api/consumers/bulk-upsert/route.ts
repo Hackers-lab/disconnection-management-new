@@ -11,7 +11,8 @@ import {
 import { EXPECTED_CONSUMER_HEADERS, invalidateConsumerCache } from "@/lib/google-sheets"
 import { appendHistory, nowTimestamp, invalidateHistoryCache } from "@/lib/consumer-history"
 import { verifySession } from "@/lib/session"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
+import { compactBaseVersion } from "@/lib/version-engine"
 
 export const maxDuration = 60
 
@@ -359,6 +360,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     }
 
     invalidateConsumerCache()
+
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+    await compactBaseVersion(tenantId, "consumer").catch(e => console.warn("Base compaction failed:", e))
 
     // 8. Fire-and-forget history (non-critical, doesn't block response)
     if (historyEntries.length > 0) {

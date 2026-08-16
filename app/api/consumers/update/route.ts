@@ -56,7 +56,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     // Push delta patch & update badge counts in Edge KV
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
-    appendDeltaPatch(tenantId, "consumer", {
+    await appendDeltaPatch(tenantId, "consumer", {
       action: "UPDATE",
       recordId: String(consumer.consumerId),
       changes: consumer,
@@ -64,7 +64,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     if (consumer.agency) {
       const isCompleted = consumer.disconStatus?.toLowerCase().includes("disconnected") || consumer.disconStatus?.toLowerCase().includes("paid")
-      updateBadgeCounts(tenantId, "consumer", consumer.agency, isCompleted ? -1 : 0).catch(e => console.warn("Badge count update failed:", e))
+      await updateBadgeCounts(tenantId, "consumer", consumer.agency, isCompleted ? -1 : 0).catch(e => console.warn("Badge count update failed:", e))
     }
 
     // Log a field-action history event when the status actually changed.

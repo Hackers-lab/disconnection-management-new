@@ -98,13 +98,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
       const tenantContext = getTenantContext()
       const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
-      appendDeltaPatch(tenantId, "safety", {
+      await appendDeltaPatch(tenantId, "safety", {
         action: "UPDATE",
         recordId: String(safetyId),
         changes: body,
       }).catch(e => console.warn("Safety patch logging failed:", e))
 
-      updateBadgeCounts(tenantId, "safety", body.agency, 0).catch(e => console.warn("Safety badge update failed:", e))
+      await updateBadgeCounts(tenantId, "safety", body.agency, 0).catch(e => console.warn("Safety badge update failed:", e))
 
       return NextResponse.json({ success: true })
     }

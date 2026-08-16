@@ -39,13 +39,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
-    appendDeltaPatch(tenantId, "nsc", {
+    await appendDeltaPatch(tenantId, "nsc", {
       action: "UPDATE",
       recordId: String(body.receiveNo),
       changes: body,
     }).catch(e => console.warn("NSC patch logging failed:", e))
 
-    updateBadgeCounts(tenantId, "nsc", body.newAgency, 0).catch(e => console.warn("NSC badge update failed:", e))
+    await updateBadgeCounts(tenantId, "nsc", body.newAgency, 0).catch(e => console.warn("NSC badge update failed:", e))
 
     return NextResponse.json({ success: true })
   } catch (e: any) {
