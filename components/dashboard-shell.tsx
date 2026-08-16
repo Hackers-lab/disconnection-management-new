@@ -2,6 +2,7 @@
 
 import { Header } from "@/components/header"
 import { ViewType } from "@/components/app-sidebar"
+import { AdminSetupGuideBanner } from "@/components/admin-setup-guide"
 
 interface DashboardShellProps {
   role: string
@@ -49,6 +50,9 @@ export function DashboardShell({
       <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden ${
         activeView === "home" ? "py-6 bg-gradient-to-b from-slate-50/80 via-slate-100/40 to-slate-50/80 rounded-3xl" : "pt-2 pb-6"
       }`}>
+        {(role === "admin" || role === "superuser" || permissions?.admin?.includes("read")) && (
+          <AdminSetupGuideBanner />
+        )}
         {/* Render whatever is passed as children (Menu, List, etc.) */}
         {children} 
       </main>
