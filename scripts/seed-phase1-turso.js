@@ -114,10 +114,11 @@ async function runPhase1Seed() {
 
         // Get ccc_id from registry
         let cccId = null;
-        if (cccCode) {
+        const targetCode = cccCode || (/^\d+$/.test(username) ? username : null);
+        if (targetCode) {
           const cccRes = await db.execute({
             sql: `SELECT id FROM ccc_registry WHERE ccc_code = ?`,
-            args: [cccCode],
+            args: [targetCode],
           });
           cccId = cccRes.rows[0]?.id || null;
         }
@@ -138,7 +139,9 @@ async function runPhase1Seed() {
           args: [userId, username, passwordHash, fullName, role, mobile || null, email || null, cccId, status],
         });
       }
-      console.log(`✅ Seeded ${usersRes.data.values.length} user accounts.`);
+      // Auto-match any admin accounts whose username is a CCC code
+      await db.execute(`UPDATE users SET ccc_id = (SELECT id FROM ccc_registry WHERE ccc_registry.ccc_code = users.username) WHERE role = 'admin' AND ccc_id IS NULL AND username IN (SELECT ccc_code FROM ccc_registry)`);
+      console.log(`✅ Seeded ${usersRes.data.values.length} user accounts and resolved CCC assignments.`);
     }
 
     // ── 3.3 Seed User Feedbacks (user_feedbacks) ──
