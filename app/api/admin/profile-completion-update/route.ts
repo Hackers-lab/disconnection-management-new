@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
-import { getSession } from "@/lib/session"
+import { verifySession } from "@/lib/session"
 import { db } from "@/lib/db"
 import { invalidateAgencyCache } from "@/lib/agency-storage"
 import { UserStorage } from "@/lib/user-storage"
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 
 export const POST = withTenant(async function POST(req: NextRequest) {
   try {
-    const session = await getSession()
+    const session = await verifySession()
     if (!session || !session.username) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
-import { getSession } from "@/lib/session"
+import { verifySession } from "@/lib/session"
 import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
 export const GET = withTenant(async function GET(req: NextRequest) {
   try {
-    const session = await getSession()
+    const session = await verifySession()
     if (!session || !session.username) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
