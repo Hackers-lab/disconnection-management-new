@@ -252,7 +252,12 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     const now = new Date();
     const formattedDate = now.toLocaleDateString("en-GB").replace(/\//g, "-");
-    setFormData((prev) => ({ ...prev, disconStatus: status, disconDate: formattedDate }));
+    setFormData((prev) => ({ 
+      ...prev, 
+      disconStatus: status, 
+      disconDate: formattedDate,
+      paidDate: (status === "paid" || status === "agency paid") ? formattedDate : prev.paidDate
+    }));
     setStatusChanged(true);
   }
   

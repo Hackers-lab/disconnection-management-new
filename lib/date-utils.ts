@@ -147,16 +147,18 @@ export function getPaymentDuesBreakdown(consumer: {
       currentOsd,
       paidAmt: 0,
       remainingPending: currentOsd,
-      paidDate: consumer.paidDate || "",
+      paidDate: consumer.paidDate?.trim() || consumer.disconDate?.trim() || "",
       uploadDate: consumer.lastUpdated || "",
     }
   }
 
-  const paidTs = consumer.paidDate ? parseTs(consumer.paidDate) : 0
+  // The effective date of payment is paidDate, falling back to disconDate
+  const effectivePaidDate = consumer.paidDate?.trim() || consumer.disconDate?.trim() || ""
+  const paidTs = effectivePaidDate ? parseTs(effectivePaidDate) : 0
   const uploadTs = consumer.lastUpdated ? parseTs(consumer.lastUpdated) : 0
 
   // If upload date is available and payment was made strictly before the upload date
-  // e.g. paid on 15.08.2026 (paidTs), new list uploaded on 17.08.2026 (uploadTs)
+  // e.g. paid on 10.08.2026 (paidTs), new list uploaded on 17.08.2026 (uploadTs)
   const isPaidBeforeUpload = uploadTs > 0 && paidTs > 0 && uploadTs > paidTs
 
   if (isPaidBeforeUpload) {
@@ -166,7 +168,7 @@ export function getPaymentDuesBreakdown(consumer: {
       currentOsd,
       paidAmt,
       remainingPending: currentOsd, // Fresh OSD from latest list is already the pending amount
-      paidDate: consumer.paidDate || "",
+      paidDate: effectivePaidDate,
       uploadDate: consumer.lastUpdated || "",
     }
   }
@@ -177,7 +179,7 @@ export function getPaymentDuesBreakdown(consumer: {
     currentOsd,
     paidAmt,
     remainingPending: Math.max(0, currentOsd - paidAmt),
-    paidDate: consumer.paidDate || "",
+    paidDate: effectivePaidDate,
     uploadDate: consumer.lastUpdated || "",
   }
 }
