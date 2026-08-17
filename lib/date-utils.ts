@@ -123,3 +123,61 @@ export function sanitizeDisconDate(rawDate: string | null | undefined): string {
 
   return clean
 }
+
+/**
+ * Calculates dues and determines if a recorded payment is applicable against the current OSD.
+ * If payment was made BEFORE the latest list upload date (uploadTs > paidTs), the fresh
+ * D2 Net O/S from the latest list upload already reflects that payment in the billing system,
+ * so the payment amount should NOT be deducted from the new OSD again.
+ */
+export function getPaymentDuesBreakdown(consumer: {
+  d2NetOS?: string
+  paidAmount?: string
+  paidDate?: string
+  lastUpdated?: string
+  disconDate?: string
+}) {
+  const currentOsd = Number.parseFloat(consumer.d2NetOS || "0") || 0
+  const paidAmt = Number.parseFloat(consumer.paidAmount || "0") || 0
+
+  if (paidAmt <= 0) {
+    return {
+      hasPayment: false,
+      isPaidAfterUpload: true,
+      currentOsd,
+      paidAmt: 0,
+      remainingPending: currentOsd,
+      paidDate: consumer.paidDate || "",
+      uploadDate: consumer.lastUpdated || "",
+    }
+  }
+
+  const paidTs = consumer.paidDate ? parseTs(consumer.paidDate) : 0
+  const uploadTs = consumer.lastUpdated ? parseTs(consumer.lastUpdated) : 0
+
+  // If upload date is available and payment was made strictly before the upload date
+  // e.g. paid on 15.08.2026 (paidTs), new list uploaded on 17.08.2026 (uploadTs)
+  const isPaidBeforeUpload = uploadTs > 0 && paidTs > 0 && uploadTs > paidTs
+
+  if (isPaidBeforeUpload) {
+    return {
+      hasPayment: true,
+      isPaidAfterUpload: false,
+      currentOsd,
+      paidAmt,
+      remainingPending: currentOsd, // Fresh OSD from latest list is already the pending amount
+      paidDate: consumer.paidDate || "",
+      uploadDate: consumer.lastUpdated || "",
+    }
+  }
+
+  return {
+    hasPayment: true,
+    isPaidAfterUpload: true,
+    currentOsd,
+    paidAmt,
+    remainingPending: Math.max(0, currentOsd - paidAmt),
+    paidDate: consumer.paidDate || "",
+    uploadDate: consumer.lastUpdated || "",
+  }
+}

@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { getPaymentDuesBreakdown } from "@/lib/date-utils"
 
 import { Lock } from "lucide-react"
 
@@ -476,48 +477,59 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
       </Card>
 
       {/* --- PAYMENT INFO --- */}
-      {(consumer.paidAmount || consumer.paidDate || consumer.outstandingAfter || consumer.paymentSource) && (
-        <Card className="border-emerald-150 bg-emerald-50/30 shadow-sm rounded-2xl overflow-hidden">
-          <CardContent className="p-4 space-y-2 text-sm">
-            <div className="flex items-center gap-2 text-emerald-800 font-semibold">
-              <IndianRupee className="h-4 w-4" />
-              Payment on Record
-              {consumer.paidType && (
-                <span className="ml-auto text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">
-                  {consumer.paidType}
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-y-1.5 gap-x-4 text-xs text-emerald-900">
-              {consumer.paidAmount && (
-                <div><span className="text-emerald-700 font-semibold">Amount:</span> <strong>₹{Number(consumer.paidAmount).toLocaleString("en-IN")}</strong></div>
-              )}
-              {consumer.paidDate && (
-                <div><span className="text-emerald-700 font-semibold">Paid on:</span> <strong>{consumer.paidDate}</strong></div>
-              )}
-              {consumer.outstandingAfter && Number(consumer.outstandingAfter) > 0 && (
-                <div className="col-span-2"><span className="text-emerald-700 font-semibold">Outstanding after:</span> <strong className="text-red-750">₹{Number(consumer.outstandingAfter).toLocaleString("en-IN")}</strong></div>
-              )}
-              {consumer.paymentSource && (
-                <div className="col-span-2"><span className="text-emerald-700 font-semibold">Source:</span> <strong>{consumer.paymentSource}</strong></div>
-              )}
-              {(userRole === "admin" || userRole === "viewer" || userRole === "executive") && (
-                <div className="col-span-2 mt-2">
-                  <Label className="text-[10px] uppercase tracking-wide text-emerald-700 font-bold">Next Payment Date</Label>
-                  <Input
-                    type="text"
-                    placeholder="DD-MM-YYYY"
-                    value={formData.nextPaymentDate || ""}
-                    onChange={(e) => setFormData(prev => ({ ...prev, nextPaymentDate: e.target.value }))}
-                    className="h-9 mt-1 bg-white rounded-xl border-slate-200 focus-visible:ring-emerald-500"
-                    disabled={userRole === "viewer"}
-                  />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {(() => {
+        const breakdown = getPaymentDuesBreakdown(consumer)
+        const hasPaymentInfo = consumer.paidAmount || consumer.paidDate || consumer.outstandingAfter || consumer.paymentSource
+        if (!hasPaymentInfo) return null
+
+        return (
+          <Card className="border-emerald-150 bg-emerald-50/30 shadow-sm rounded-2xl overflow-hidden">
+            <CardContent className="p-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-emerald-800 font-semibold">
+                <IndianRupee className="h-4 w-4" />
+                Payment on Record
+                {consumer.paidType && (
+                  <span className="ml-auto text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900">
+                    {consumer.paidType}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-y-1.5 gap-x-4 text-xs text-emerald-900">
+                {consumer.paidAmount && (
+                  <div><span className="text-emerald-700 font-semibold">{breakdown.isPaidAfterUpload ? "Amount:" : "Prev Paid Amount:"}</span> <strong>₹{Number(consumer.paidAmount).toLocaleString("en-IN")}</strong></div>
+                )}
+                {consumer.paidDate && (
+                  <div><span className="text-emerald-700 font-semibold">Paid on:</span> <strong>{consumer.paidDate}</strong></div>
+                )}
+                {breakdown.isPaidAfterUpload && consumer.outstandingAfter && Number(consumer.outstandingAfter) > 0 && (
+                  <div className="col-span-2"><span className="text-emerald-700 font-semibold">Outstanding after:</span> <strong className="text-red-750">₹{Number(consumer.outstandingAfter).toLocaleString("en-IN")}</strong></div>
+                )}
+                {!breakdown.isPaidAfterUpload && (
+                  <div className="col-span-2 text-[11px] text-amber-800 bg-amber-50/80 p-2 rounded-lg border border-amber-200/60 leading-tight">
+                    ℹ️ Payment occurred on {breakdown.paidDate} prior to latest list upload ({breakdown.uploadDate}). Current OSD ₹{breakdown.currentOsd.toLocaleString("en-IN")} reflects fresh dues.
+                  </div>
+                )}
+                {consumer.paymentSource && (
+                  <div className="col-span-2"><span className="text-emerald-700 font-semibold">Source:</span> <strong>{consumer.paymentSource}</strong></div>
+                )}
+                {(userRole === "admin" || userRole === "viewer" || userRole === "executive") && (
+                  <div className="col-span-2 mt-2">
+                    <Label className="text-[10px] uppercase tracking-wide text-emerald-700 font-bold">Next Payment Date</Label>
+                    <Input
+                      type="text"
+                      placeholder="DD-MM-YYYY"
+                      value={formData.nextPaymentDate || ""}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nextPaymentDate: e.target.value }))}
+                      className="h-9 mt-1 bg-white rounded-xl border-slate-200 focus-visible:ring-emerald-500"
+                      disabled={userRole === "viewer"}
+                    />
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* --- 2. UPDATE ACTION & EVIDENCE --- */}
       <Card className="bg-white border-slate-100 shadow-sm rounded-2xl overflow-hidden">

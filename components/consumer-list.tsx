@@ -72,7 +72,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
-import { parseTs } from "@/lib/date-utils"
+import { parseTs, getPaymentDuesBreakdown } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
@@ -1349,10 +1349,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 )}
 
                 {(() => {
+                  const breakdown = getPaymentDuesBreakdown(consumer)
                   const status = (consumer.disconStatus || "").toLowerCase()
-                  const paidAmt = Number.parseFloat(consumer.paidAmount || "0")
-                  const currentOsd = Number.parseFloat(consumer.d2NetOS || "0")
-                  const hasPaidRecord = status === "paid" || status === "agency paid" || paidAmt > 0
+                  const hasPaidRecord = status === "paid" || status === "agency paid" || breakdown.paidAmt > 0
                   
                   if (!hasPaidRecord) {
                     return (
@@ -1360,7 +1359,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         <IndianRupee className="h-4 w-4 text-gray-400 shrink-0" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-red-600">
-                            ₹{currentOsd.toLocaleString()}
+                            ₹{breakdown.currentOsd.toLocaleString()}
                           </p>
                           <p className="text-xs text-gray-500">Outstanding Dues (Issued for Disconnection)</p>
                         </div>
@@ -1368,25 +1367,18 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     )
                   }
 
-                  // Determine date sequence if paidDate and issue/discon date are available
-                  const paidDateObj = consumer.paidDate ? new Date(consumer.paidDate.split("-").reverse().join("-")) : null
-                  const disconDateObj = consumer.disconDate ? new Date(consumer.disconDate.split("-").reverse().join("-")) : null
-                  
-                  const isPaidAfterIssue = paidDateObj && disconDateObj ? paidDateObj.getTime() >= disconDateObj.getTime() : true
-                  const remainingPending = Math.max(0, currentOsd - paidAmt)
-
                   return (
                     <div className="space-y-1.5 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-1.5">
                           <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
                           <span className="text-sm font-extrabold text-emerald-700">
-                            Paid: ₹{paidAmt.toLocaleString()}
+                            {breakdown.isPaidAfterUpload ? `Paid: ₹${breakdown.paidAmt.toLocaleString()}` : `Prev Paid: ₹${breakdown.paidAmt.toLocaleString()}`}
                           </span>
                         </div>
-                        {consumer.paidDate && (
+                        {breakdown.paidDate && (
                           <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                            📅 {consumer.paidDate}
+                            📅 {breakdown.paidDate}
                           </span>
                         )}
                       </div>
@@ -1394,21 +1386,21 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] border-t border-emerald-200/60 font-medium">
                         <div className="text-slate-600">
                           <span className="block text-[10px] text-slate-400 uppercase">OSD</span>
-                          ₹{currentOsd.toLocaleString()}
+                          ₹{breakdown.currentOsd.toLocaleString()}
                         </div>
                         <div className="text-emerald-700">
-                          <span className="block text-[10px] text-emerald-600/70 uppercase">Paid</span>
-                          ₹{paidAmt.toLocaleString()}
+                          <span className="block text-[10px] text-emerald-600/70 uppercase">{breakdown.isPaidAfterUpload ? "Paid" : "Prev Paid"}</span>
+                          ₹{breakdown.paidAmt.toLocaleString()}
                         </div>
-                        <div className={remainingPending > 0 ? "text-red-600 font-bold" : "text-emerald-700"}>
+                        <div className={breakdown.remainingPending > 0 ? "text-red-600 font-bold" : "text-emerald-700"}>
                           <span className="block text-[10px] text-slate-400 uppercase">Pending</span>
-                          ₹{remainingPending.toLocaleString()}
+                          ₹{breakdown.remainingPending.toLocaleString()}
                         </div>
                       </div>
 
-                      {!isPaidAfterIssue && (
-                        <p className="text-[10px] text-amber-700 italic pt-0.5">
-                          ⚠️ Payment was recorded before current cycle issuance. OSD reflects fresh dues.
+                      {!breakdown.isPaidAfterUpload && (
+                        <p className="text-[10px] text-amber-800 font-medium pt-0.5 leading-tight">
+                          ℹ️ Payment of ₹{breakdown.paidAmt.toLocaleString()} on {breakdown.paidDate} was prior to list upload ({breakdown.uploadDate}). Current OSD reflects fresh dues.
                         </p>
                       )}
                     </div>
@@ -1548,11 +1540,20 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         ) : "-"}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <div className="font-medium text-red-600">₹{Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()}</div>
-                        {consumer.paidAmount && Number(consumer.paidAmount) > 0 && (
-                          <div className="text-xs font-bold text-emerald-600">Paid: ₹{Number.parseFloat(consumer.paidAmount).toLocaleString()}</div>
-                        )}
-                        <div className="text-xs text-gray-500">{consumer.agency}</div>
+                        {(() => {
+                          const breakdown = getPaymentDuesBreakdown(consumer)
+                          return (
+                            <>
+                              <div className="font-medium text-red-600">₹{breakdown.currentOsd.toLocaleString()}</div>
+                              {breakdown.paidAmt > 0 && (
+                                <div className={`text-xs font-bold ${breakdown.isPaidAfterUpload ? "text-emerald-600" : "text-slate-400"}`}>
+                                  {breakdown.isPaidAfterUpload ? `Paid: ₹${breakdown.paidAmt.toLocaleString()}` : `Prev Paid: ₹${breakdown.paidAmt.toLocaleString()}`}
+                                </div>
+                              )}
+                              <div className="text-xs text-gray-500">{consumer.agency}</div>
+                            </>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                          <Badge className={`${getStatusColor(consumer.disconStatus)} whitespace-nowrap`}>{consumer.disconStatus}</Badge>
