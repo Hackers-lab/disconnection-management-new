@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { submitInspection } from "@/lib/nsc-service"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
+import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
   const { authorized, error, status, session } = await checkApiPermission("nsc", ["inspect", "update"])
@@ -45,6 +46,46 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       latitude:          body.latitude          || "",
       longitude:         body.longitude         || "",
     })
+
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+    await appendDeltaPatch(tenantId, "nsc", {
+      action: "UPDATE",
+      recordId: String(body.receiveNo),
+      changes: {
+        receiveNo: body.receiveNo,
+        status: "inspected",
+        verifyName: body.verifyName || "",
+        verifyCO: body.verifyCO || "",
+        verifyAddress: body.verifyAddress || "",
+        verifyClass: body.verifyClass || "",
+        existingMeter: body.existingMeter || "no",
+        existingMeterNo: body.existingMeterNo || "",
+        existingMeterImg: body.existingMeterImg || "",
+        validPartition: body.validPartition || "yes",
+        partitionImg: body.partitionImg || "",
+        dispute: body.dispute || "",
+        load: body.load || "",
+        serviceLength: body.serviceLength || "",
+        poleRequired: body.poleRequired || "no",
+        poleDrawingImg: body.poleDrawingImg || "",
+        dtrCapacity: body.dtrCapacity || "",
+        dtrLoad: body.dtrLoad || "",
+        siteImg: body.siteImg,
+        inspectionFormImg: body.inspectionFormImg,
+        agencyDecision: body.agencyDecision,
+        agencyRemarks: body.agencyRemarks || "",
+        inspectedBy: `${session.role}:${session.username}`,
+        latitude: body.latitude || "",
+        longitude: body.longitude || "",
+      },
+    }).catch(e => console.warn("NSC inspect patch logging failed:", e))
+
+    const agency = session.agencies?.[0]
+    if (agency) {
+      await updateBadgeCounts(tenantId, "nsc", agency, -1).catch(e => console.warn("NSC badge update failed:", e))
+    }
+
     return NextResponse.json({ success: true })
   } catch (e: any) {
     console.error("NSC inspect error:", e)

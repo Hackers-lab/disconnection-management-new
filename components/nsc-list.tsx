@@ -320,7 +320,14 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   if (view === "inspect" && selected) return (
     <NscInspectForm
       app={selected}
-      onSave={() => { toast({ title: "Inspection submitted" }); setSelected(null); setView("list"); load(true, true) }}
+      onSave={() => {
+        const inspectedReceiveNo = selected.receiveNo
+        setApps(prev => prev.map(a => a.receiveNo === inspectedReceiveNo ? { ...a, status: "inspected" } : a))
+        toast({ title: "Inspection submitted" })
+        setSelected(null)
+        setView("list")
+        load(true, true)
+      }}
       onCancel={() => { setSelected(null); setView("list") }}
     />
   )
@@ -329,7 +336,14 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     <NscProcessForm
       app={selected}
       agencies={agencies}
-      onSave={() => { toast({ title: "Application processed" }); setSelected(null); setView("list"); load(true, true) }}
+      onSave={() => {
+        const processedReceiveNo = selected.receiveNo
+        setApps(prev => prev.map(a => a.receiveNo === processedReceiveNo ? { ...a, status: "quotation_issued" } : a))
+        toast({ title: "Application processed" })
+        setSelected(null)
+        setView("list")
+        load(true, true)
+      }}
       onCancel={() => { setSelected(null); setView("list") }}
     />
   )
