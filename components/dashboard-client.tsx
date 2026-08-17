@@ -510,7 +510,12 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
           "Status": status,
           "Count": rows.length,
           "Total OSD (₹)": rows.reduce((s, c) => s + Number(c.d2NetOS || 0), 0),
-          "Total Paid Amount (₹)": rows.reduce((s, c) => s + (c.paidAmount && c.paidAmount.trim() !== "" ? Number(c.paidAmount) : 0), 0),
+          "Total Paid Amount (₹)": rows.reduce((s, c) => {
+            const rawPaid = c.paidAmount && c.paidAmount.trim() !== "" ? Number(c.paidAmount) : 0
+            const os = Number(c.d2NetOS || 0)
+            const actual = rawPaid > 0 && os > 0 ? Math.min(rawPaid, os) : (rawPaid || os)
+            return s + actual
+          }, 0),
         }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Status Summary");
 
