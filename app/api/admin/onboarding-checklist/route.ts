@@ -80,9 +80,11 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       })
       const sheetTitles = (meta.data.sheets || []).map(s => s.properties?.title || "")
 
-      // Check Zone Map
-      const zoneTab = sheetTitles.find(t => /^(agencyzonemap|zonemap|zone_map)$/i.test(t)) || "AgencyZoneMap"
-      if (sheetTitles.includes(zoneTab)) {
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+      // Check Zone Map (AgencyZoneMap / ZoneMap)
+      const zoneTab = sheetTitles.find(t => ["agencyzonemap", "zonemap"].includes(norm(t)))
+      if (zoneTab) {
         try {
           const zoneResp = await sheets.spreadsheets.values.get({
             spreadsheetId,
@@ -94,9 +96,9 @@ export const GET = withTenant(async function GET(request: NextRequest) {
         } catch {}
       }
 
-      // Check DC List (Sheet1 / Disconnection)
-      const dcTab = sheetTitles.find(t => /^(sheet1|disconnection)$/i.test(t)) || "Sheet1"
-      if (sheetTitles.includes(dcTab)) {
+      // Check DC List (Sheet1 / Disconnection / DCList)
+      const dcTab = sheetTitles.find(t => ["sheet1", "disconnection", "dclist"].includes(norm(t)))
+      if (dcTab) {
         try {
           const dcResp = await sheets.spreadsheets.values.get({
             spreadsheetId,
@@ -108,9 +110,9 @@ export const GET = withTenant(async function GET(request: NextRequest) {
         } catch {}
       }
 
-      // Check Master Data (DD / ConsumerMaster / DDMaster)
-      const masterTab = sheetTitles.find(t => /^(consumermaster|dd|ddmaster|master)$/i.test(t)) || "ConsumerMaster"
-      if (sheetTitles.includes(masterTab)) {
+      // Check Master Data (Consumer_Master / ConsumerMaster / DD / DDMaster / Master)
+      const masterTab = sheetTitles.find(t => ["consumermaster", "dd", "ddmaster", "master"].includes(norm(t)))
+      if (masterTab) {
         try {
           const masterResp = await sheets.spreadsheets.values.get({
             spreadsheetId,
