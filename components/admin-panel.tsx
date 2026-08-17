@@ -146,6 +146,7 @@ const normalizeHeader = (s: string) => String(s || "").toLowerCase().replace(/[^
 
 interface AdminPanelProps {
   onClose: () => void
+  initialView?: ViewType
 }
 
 type ViewType = "menu" | "users" | "agencies" | "payments" | "dcList" | "zoneMap" | "roles" | "google-onboarding"
@@ -167,7 +168,7 @@ interface Agency {
 
 
 
-export function AdminPanel({ onClose }: AdminPanelProps) {
+export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
     const [sheetName, setSheetName] = useState("Sheet1"); // Default sheet name
     const [isUploading, setIsUploading] = useState(false);
@@ -475,7 +476,12 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       })
     }
 
-  const [view, setView] = useHashState<ViewType>("admin", "menu")
+  const [view, setView] = useHashState<ViewType>("admin", initialView || "menu")
+  useEffect(() => {
+    if (initialView) {
+      setView(initialView)
+    }
+  }, [initialView, setView])
   const [users, setUsers] = useState<User[]>([])
 
   // Google integration status state
