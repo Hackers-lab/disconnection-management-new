@@ -5,7 +5,7 @@ import { checkApiPermission } from "@/lib/permissions"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
-  const { authorized, error, status, session } = await checkApiPermission("nsc", "update")
+  const { authorized, error, status, session } = await checkApiPermission("nsc", ["process", "update"])
   if (!authorized) {
     return NextResponse.json({ error }, { status: status || 403 })
   }

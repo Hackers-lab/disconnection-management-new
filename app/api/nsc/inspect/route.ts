@@ -4,7 +4,7 @@ import { withTenant } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
-  const { authorized, error, status, session } = await checkApiPermission("nsc", "update")
+  const { authorized, error, status, session } = await checkApiPermission("nsc", ["inspect", "update"])
   if (!authorized) {
     return NextResponse.json({ error }, { status: status || 403 })
   }
