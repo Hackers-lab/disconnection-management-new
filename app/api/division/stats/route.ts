@@ -134,7 +134,7 @@ export async function GET(request: Request) {
 
           if (pd > 0 || status === "paid" || status === "agency paid") {
             paidCount++
-            const actualPaid = pd
+            const actualPaid = (pd > 0 && os > 0) ? Math.min(pd, os) : (pd || os)
             paidAmount += actualPaid
             agencyMap[ag].paidCount++
             agencyMap[ag].paidAmount += actualPaid

@@ -168,9 +168,10 @@ export function DashboardStats({ consumers, loading = false, onStatusSelect }: D
       agencyReport[agency].notAttended++
       agencyReport[agency].notAttendedAmount += outstanding
     } else if (status === "paid" || status === "agency paid" || status.startsWith("paid")) {
-      const actualPaid = consumer.paidAmount && consumer.paidAmount.trim() !== ""
+      const rawPaid = consumer.paidAmount && consumer.paidAmount.trim() !== ""
         ? Number.parseFloat(consumer.paidAmount)
         : 0
+      const actualPaid = rawPaid > 0 && outstanding > 0 ? Math.min(rawPaid, outstanding) : (rawPaid || outstanding)
       stats.paid++
       stats.paidAmount += actualPaid
       agencyReport[agency].paid++
