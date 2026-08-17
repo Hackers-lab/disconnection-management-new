@@ -117,7 +117,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
         requestBody: {
-          valueInputOption: "USER_ENTERED",
+          valueInputOption: "RAW",
           data: dataToUpdate
         }
       })
