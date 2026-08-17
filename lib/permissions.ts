@@ -65,7 +65,8 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
 
     // NSC Auto-Expansion
     if (mod === "nsc") {
-      if (actSet.has("update")) {
+      if (actSet.has("update") || actSet.has("inspect") || actSet.has("agency_complete") || actSet.has("process")) {
+        actSet.add("update")
         if (isAgency) {
           actSet.add("inspect")
           actSet.add("agency_complete")
@@ -78,6 +79,10 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
         }
       }
       if (isAdminOrExec) {
+        actSet.add("read")
+        actSet.add("create")
+        actSet.add("update")
+        actSet.add("delete")
         actSet.add("inspect")
         actSet.add("process")
         actSet.add("project_create")
@@ -126,6 +131,17 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     }
 
     expanded[mod] = Array.from(actSet)
+  }
+
+  // Ensure nsc default fallback if not explicitly defined in perms
+  if (!expanded.nsc || expanded.nsc.length === 0) {
+    if (isAgency) {
+      expanded.nsc = ["read", "inspect", "agency_complete", "update"]
+    } else if (isAdminOrExec) {
+      expanded.nsc = ["read", "create", "update", "delete", "inspect", "process", "project_create", "po_entry", "admin_approve"]
+    } else if (roleLower === "viewer") {
+      expanded.nsc = ["read"]
+    }
   }
 
   // Ensure misc_inspection default fallback if not explicitly defined in perms
