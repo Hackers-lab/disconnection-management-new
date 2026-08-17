@@ -2,6 +2,7 @@ import { revalidateTag } from "next/cache"
 import * as fs from "fs"
 import * as path from "path"
 import * as os from "os"
+import { sanitizeDisconDate } from "./date-utils"
 
 // Tag used to invalidate the shared Data Cache after any consumer write.
 export const CONSUMERS_TAG = "consumers"
@@ -432,7 +433,7 @@ async function _fetchConsumerDataRaw(spreadsheetId: string): Promise<ConsumerDat
           d2NetOS: cleanedOSD, // Use cleaned numeric value
           disconStatus:
             columnIndices.disconStatus >= 0 ? values[columnIndices.disconStatus] || "connected" : "connected",
-          disconDate: columnIndices.disconDate >= 0 ? values[columnIndices.disconDate] || "" : "",
+          disconDate: sanitizeDisconDate(columnIndices.disconDate >= 0 ? values[columnIndices.disconDate] || "" : ""),
           gisPole: columnIndices.gisPole >= 0 ? values[columnIndices.gisPole] || "" : "",
           mobileNumber: columnIndices.mobileNumber >= 0 ? values[columnIndices.mobileNumber] || "" : "",
           latitude: columnIndices.latitude >= 0 ? values[columnIndices.latitude] || "" : "",
@@ -444,7 +445,7 @@ async function _fetchConsumerDataRaw(spreadsheetId: string): Promise<ConsumerDat
           imageUrl: columnIndices.imageUrl >= 0 ? values[columnIndices.imageUrl] || "" : "",
           priority: columnIndices.priority >= 0 ? values[columnIndices.priority] || "" : "",
           paidAmount: columnIndices.paidAmount >= 0 ? values[columnIndices.paidAmount] || "" : "",
-          paidDate: columnIndices.paidDate >= 0 ? values[columnIndices.paidDate] || "" : "",
+          paidDate: sanitizeDisconDate(columnIndices.paidDate >= 0 ? values[columnIndices.paidDate] || "" : ""),
           paidType: (columnIndices.paidType >= 0 ? (values[columnIndices.paidType] || "") : "") as ConsumerData["paidType"],
           outstandingAfter: columnIndices.outstandingAfter >= 0 ? values[columnIndices.outstandingAfter] || "" : "",
           nextPaymentDate: columnIndices.nextPaymentDate >= 0 ? values[columnIndices.nextPaymentDate] || "" : "",

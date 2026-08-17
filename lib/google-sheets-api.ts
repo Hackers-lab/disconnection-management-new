@@ -172,7 +172,7 @@ export async function updateConsumerInGoogleSheet(consumer: ConsumerData, spread
     if (dataToUpdate.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
-        requestBody: { valueInputOption: "USER_ENTERED", data: dataToUpdate },
+        requestBody: { valueInputOption: "RAW", data: dataToUpdate },
       })
     }
 
