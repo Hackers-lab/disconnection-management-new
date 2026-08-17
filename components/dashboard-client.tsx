@@ -33,6 +33,7 @@ const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashbo
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
+import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
 
 // UI Components for the Dialog
 import { Button } from "@/components/ui/button"
@@ -60,6 +61,8 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [activeView, setActiveViewInternal] = useState<ViewType | "home">("home")
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
+  const [showGuideModal, setShowGuideModal] = useState(false)
+  const [adminInitialView, setAdminInitialView] = useState<any>(undefined)
 
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(true)
@@ -91,18 +94,57 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     checkTenantStatus()
   }, [role])
 
-  // Check for success=true query parameter on mount
+  // Check onboarding checklist and success param on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       if (params.get("success") === "true") {
         setShowSuccessModal(true)
+        setShowGuideModal(true)
         // Clean up search params to avoid popping up again on refresh
         const cleanUrl = window.location.pathname + window.location.hash
         window.history.replaceState(null, "", cleanUrl)
       }
     }
-  }, [])
+
+    if (role === "admin") {
+      const checkOnboardingGuide = async () => {
+        try {
+          const res = await fetch("/api/admin/onboarding-checklist")
+          if (res.ok) {
+            const data = await res.json()
+            if (data.isLinked && !data.allCompleted) {
+              const seen = sessionStorage.getItem("setup_guide_dismissed")
+              if (!seen) {
+                setShowGuideModal(true)
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to check onboarding checklist", e)
+        }
+      }
+      checkOnboardingGuide()
+    }
+  }, [role])
+
+  const handleGuideNavigate = (targetView: string) => {
+    if (targetView.startsWith("admin:")) {
+      const subView = targetView.split(":")[1]
+      setAdminInitialView(subView as any)
+      setActiveViewInternal("admin")
+      if (typeof window !== "undefined") {
+        window.history.pushState(null, "", `#admin/${subView}`)
+      }
+    } else if (targetView === "consumerMaster") {
+      setActiveViewInternal("consumerMaster")
+      if (typeof window !== "undefined") {
+        window.history.pushState(null, "", "#consumerMaster")
+      }
+    } else {
+      setActiveView(targetView as any)
+    }
+  }
 
   // Handle setting active view and updating hash/history
   const setActiveView = (newView: ViewType | "home") => {
@@ -1461,7 +1503,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         )}
 
         {activeView === "admin" && (
-           <AdminPanel onClose={() => setActiveView("home")} />
+           <AdminPanel 
+             onClose={() => {
+               setAdminInitialView(undefined)
+               setActiveView("home")
+             }} 
+             initialView={adminInitialView}
+           />
         )}
 
         {activeView === "profile" && (
@@ -1657,12 +1705,24 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
               <DialogDescription id="success-description" className="text-slate-400 pt-2 text-sm leading-relaxed text-center">
                 Your subdivision Customer Care Center (CCC) database has been set up successfully.
                 <br /><br />
-                The system has cloned the master spreadsheet template and created your cloud storage folders. You can now start managing records.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="mt-6">
-              <Button onClick={() => setShowSuccessModal(false)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2">
-                Go to Dashboard Home
+            <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-col">
+              <Button 
+                onClick={() => {
+                  setShowSuccessModal(false)
+                  setShowGuideModal(true)
+                }} 
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2"
+              >
+                Start Setup Checklist (5 Steps) →
+              </Button>
+              <Button 
+                variant="ghost"
+                onClick={() => setShowSuccessModal(false)} 
+                className="w-full text-slate-400 hover:text-white text-xs"
+              >
+                Dismiss
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1724,7 +1784,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
                 onClick={async () => {
                   await logout()
                   window.location.href = "/"
-                }}
+                }} 
                 variant="outline"
                 className="w-full bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white font-semibold py-2.5 rounded-lg transition-all duration-150"
               >
@@ -1733,6 +1793,16 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Interactive Setup & Onboarding Guide for Admin */}
+        {role === "admin" && (
+          <OnboardingGuideDialog
+            open={showGuideModal}
+            onOpenChange={setShowGuideModal}
+            onNavigate={handleGuideNavigate}
+            role={role}
+          />
+        )}
 
         {/* Floating 5-Star Rating Pill Overlay */}
         <FloatingRatingPill />
