@@ -139,7 +139,10 @@ export function OnboardingGuideDialog({
   const completedCount = steps.filter((s) => s.completed).length
   const totalSteps = steps.length
   const progressPercent = Math.round((completedCount / totalSteps) * 100)
-  const allCompleted = completedCount === totalSteps
+  const allCompleted = data?.allCompleted ?? (completedCount === totalSteps && data !== null)
+
+  // Do not show the popup or floating pill if every step is completed
+  if (allCompleted) return null
 
   return (
     <>
@@ -148,27 +151,14 @@ export function OnboardingGuideDialog({
         <div className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-40 animate-in fade-in slide-in-from-bottom-3 duration-200">
           <Button
             onClick={() => onOpenChange(true)}
-            className={`shadow-lg flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold border transition-all ${
-              allCompleted
-                ? "bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                : "bg-slate-900 text-white border-slate-700 hover:bg-slate-800"
-            }`}
+            className="shadow-lg flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold border transition-all bg-slate-900 text-white border-slate-700 hover:bg-slate-800"
           >
-            {allCompleted ? (
-              <>
-                <Check className="h-3.5 w-3.5 text-emerald-500 stroke-[3]" />
-                <span>Setup Done (5/5)</span>
-              </>
-            ) : (
-              <>
-                <div className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                </div>
-                <span>⚡ Setup ({completedCount}/{totalSteps})</span>
-                <ChevronRight className="h-3.5 w-3.5 opacity-60 ml-0.5" />
-              </>
-            )}
+            <div className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </div>
+            <span>⚡ Setup ({completedCount}/{totalSteps})</span>
+            <ChevronRight className="h-3.5 w-3.5 opacity-60 ml-0.5" />
           </Button>
         </div>
       )}
@@ -216,13 +206,6 @@ export function OnboardingGuideDialog({
 
           {/* Compact 5-Step Single-Line List */}
           <div className="p-3 space-y-1.5">
-            {allCompleted && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-2 text-emerald-900 text-xs font-semibold mb-1">
-                <PartyPopper className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>All 5 setup steps completed!</span>
-              </div>
-            )}
-
             {steps.map((step) => {
               const isDone = step.completed
               return (
