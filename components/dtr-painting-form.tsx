@@ -29,14 +29,7 @@ interface Props {
   onCancel: () => void
 }
 
-function getGoogleDriveDirectLink(url: string): string {
-  if (!url) return ""
-  const clean = url.trim()
-  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
-    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
-  }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
-}
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: Props) {
   const [painting, setPainting] = useState<string>("Done")
@@ -304,6 +297,7 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
               <div className="relative rounded-2xl overflow-hidden border mt-3 max-h-64 bg-slate-100 flex items-center justify-center">
                 <img 
                   src={previewUrl || getGoogleDriveDirectLink(imageUrl)} 
+                  onError={(e) => handleImageError(e, imageUrl)}
                   alt="DTR painting" 
                   className={`max-h-64 object-contain ${uploading ? 'opacity-40' : ''}`} 
                 />

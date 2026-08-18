@@ -28,14 +28,7 @@ const CACHE_KEY = "material_data_cache"
 type MainView = "menu" | "stock" | "settings" | "receive" | "issue"
 type SettingsSubTab = "catalogue" | "transactions"
 
-function getGoogleDriveDirectLink(url: string): string {
-  if (!url) return ""
-  const clean = url.trim()
-  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
-    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
-  }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
-}
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 interface Props {
   userRole: string

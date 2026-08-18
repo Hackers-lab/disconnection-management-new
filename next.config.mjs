@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  compress: true,
   serverExternalPackages: ["pdf-parse"],
   eslint: {
     ignoreDuringBuilds: true,
