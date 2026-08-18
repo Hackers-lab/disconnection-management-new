@@ -192,3 +192,44 @@ export async function deleteKV(key: string): Promise<void> {
     console.warn(`[kv-store] Error deleting key "${key}":`, err)
   }
 }
+
+/**
+ * Fetch all KV entries matching a tenant prefix (e.g. "tenant_") for high-efficiency batch reporting.
+ */
+export async function getAllTenantKV(prefix = "tenant_"): Promise<Record<string, any>> {
+  const result: Record<string, any> = {}
+  try {
+    const turso = getTursoClient()
+    if (turso) {
+      await ensureTursoTable(turso)
+      const res = await turso.execute({
+        sql: "SELECT key, value, expires_at FROM system_kv_store WHERE key LIKE ?",
+        args: [`${prefix}%`],
+      })
+      for (const row of res.rows) {
+        const expiresAt = row.expires_at ? Number(row.expires_at) : undefined
+        if (expiresAt && Date.now() > expiresAt) continue
+        const key = String(row.key)
+        const valStr = String(row.value)
+        try {
+          result[key] = JSON.parse(valStr)
+        } catch {
+          result[key] = valStr
+        }
+      }
+      return result
+    }
+  } catch (err) {
+    console.warn(`[kv-store] Error in getAllTenantKV Turso query:`, err)
+  }
+
+  // Fallback to in-memory store
+  for (const [k, v] of memoryStore.entries()) {
+    if (k.startsWith(prefix)) {
+      if (v.expiresAt && Date.now() > v.expiresAt) continue
+      result[k] = v.value
+    }
+  }
+  return result
+}
+
