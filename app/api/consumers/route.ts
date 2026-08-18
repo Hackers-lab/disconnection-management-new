@@ -70,7 +70,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     return NextResponse.json(data, {
       status: 200,
       headers: {
-        "Cache-Control": "public, max-age=10, s-maxage=30, stale-while-revalidate=59",
+        "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+        "Vary": "Cookie, Authorization",
       },
     })
   } catch (error) {

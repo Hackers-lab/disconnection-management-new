@@ -36,7 +36,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     return NextResponse.json(result, {
       headers: {
         'X-Total-Count': String(data.length),
-        'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=300',
+        'Cache-Control': 'private, no-cache, no-store, max-age=0, must-revalidate',
+        'Vary': 'Cookie, Authorization',
       }
     })
   } catch (e: any) {

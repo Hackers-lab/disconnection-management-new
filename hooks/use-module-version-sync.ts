@@ -1,18 +1,12 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache, getCccPrefix } from "@/lib/indexed-db"
 
 export interface VersionSyncResult<T> {
   syncState: "idle" | "checking" | "patching" | "updated" | "error"
   patchCount: number
   checkVersion: (forceBypass?: boolean) => Promise<void>
-}
-
-function getCccCodeFromCookie(): string {
-  if (typeof document === "undefined") return "default"
-  const match = document.cookie.match(/(?:^|; )cccCode=([^;]*)/)
-  return match && match[1] ? decodeURIComponent(match[1]) : "default"
 }
 
 const MODULE_ENDPOINT_MAP: Record<string, string> = {
@@ -42,9 +36,6 @@ export function useModuleVersionSync<T extends Record<string, any>>(
   const defaultPath = MODULE_ENDPOINT_MAP[moduleKey] || `/api/${moduleKey}`
   const actualBaseUrl = typeof fetchBaseUrl === "string" ? fetchBaseUrl : `${defaultPath}?bypassCache=true`
 
-  const cccCode = typeof window !== "undefined" ? getCccCodeFromCookie() : "default"
-  const scopedCacheKey = `${cccCode}_${cacheKey}`
-
   const callbackRef = useRef(actualCallback)
   useEffect(() => {
     callbackRef.current = actualCallback
@@ -57,16 +48,21 @@ export function useModuleVersionSync<T extends Record<string, any>>(
     async (forceBypass = false) => {
       setSyncState("checking")
       try {
+        const prefix = typeof window !== "undefined" ? getCccPrefix() : ""
+        const patchVerKey = prefix ? `ver_${prefix}_${cacheKey}` : `ver_${cacheKey}`
+        const baseVerKey = prefix ? `base_ver_${prefix}_${cacheKey}` : `base_ver_${cacheKey}`
+
         const cached = (await getFromCache<T[]>(cacheKey)) || []
 
-        const storedPatchVersion = typeof window !== "undefined"
-          ? Number(localStorage.getItem(`ver_${cacheKey}`) || 0)
+        // If local cache is completely empty, start version check from 0 to guarantee base download
+        const storedPatchVersion = (cached.length > 0 && typeof window !== "undefined")
+          ? Number(localStorage.getItem(patchVerKey) || 0)
           : 0
-        const storedBaseVersion = typeof window !== "undefined"
-          ? Number(localStorage.getItem(`base_ver_${cacheKey}`) || 1)
+        const storedBaseVersion = (cached.length > 0 && typeof window !== "undefined")
+          ? Number(localStorage.getItem(baseVerKey) || 1)
           : 1
 
-        const url = `/api/system/version-check?moduleKey=${encodeURIComponent(moduleKey)}&clientPatchVersion=${storedPatchVersion}&clientBaseVersion=${storedBaseVersion}&force=${forceBypass}`
+        const url = `/api/system/version-check?moduleKey=${encodeURIComponent(moduleKey)}&clientPatchVersion=${storedPatchVersion}&clientBaseVersion=${storedBaseVersion}&force=${forceBypass || cached.length === 0}`
         const res = await fetch(url)
         if (!res.ok) {
           setSyncState("idle")
@@ -76,17 +72,18 @@ export function useModuleVersionSync<T extends Record<string, any>>(
         const data = await res.json()
         const serverBaseVer = data.serverBaseVersion ?? 1
         const serverPatchVer = data.serverPatchVersion ?? 0
-        const clientBaseVer = typeof window !== "undefined" ? Number(localStorage.getItem(`base_ver_${cacheKey}`) || 1) : 1
+        const clientBaseVer = storedBaseVersion
 
         const localVerStr = `v${clientBaseVer}.${storedPatchVersion}`
         const serverVerStr = `v${serverBaseVer}.${serverPatchVer}`
 
         console.log(
           `[Version Sync] 🔍 Module: "${moduleKey}" | Local Ver: ${localVerStr} | Server Ver: ${serverVerStr} | Status: ${
-            data.upToDate && !forceBypass ? "MATCH (Up to Date)" : `MISMATCH (${data.syncMode || "BASE"})`
+            data.upToDate && !forceBypass && cached.length > 0 ? "MATCH (Up to Date)" : `MISMATCH (${data.syncMode || "BASE"})`
           }`
         )
 
+        // Case 1: Already up-to-date AND has cached records
         if (data.upToDate && cached.length > 0 && !forceBypass) {
           console.log(`[Version Sync] ✅ "${moduleKey}" is already up-to-date (${localVerStr}). 0 bytes downloaded.`)
           if (callbackRef.current) callbackRef.current(cached)
@@ -94,7 +91,8 @@ export function useModuleVersionSync<T extends Record<string, any>>(
           return
         }
 
-        if (data.syncMode === "PATCH" && Array.isArray(data.patches) && data.patches.length > 0) {
+        // Case 2: Incremental Delta Patch (only if we already have the base cached)
+        if (data.syncMode === "PATCH" && Array.isArray(data.patches) && data.patches.length > 0 && cached.length > 0) {
           setSyncState("patching")
           const jsonString = JSON.stringify(data.patches)
           const patchSizeBytes = typeof TextEncoder !== "undefined" ? new TextEncoder().encode(jsonString).length : jsonString.length
@@ -122,8 +120,8 @@ export function useModuleVersionSync<T extends Record<string, any>>(
 
           await saveToCache(cacheKey, updatedList)
           if (typeof window !== "undefined") {
-            localStorage.setItem(`ver_${cacheKey}`, String(serverPatchVer))
-            localStorage.setItem(`base_ver_${cacheKey}`, String(serverBaseVer))
+            localStorage.setItem(patchVerKey, String(serverPatchVer))
+            localStorage.setItem(baseVerKey, String(serverBaseVer))
           }
           setPatchCount(data.patches.length)
           if (callbackRef.current) callbackRef.current(updatedList)
@@ -133,7 +131,8 @@ export function useModuleVersionSync<T extends Record<string, any>>(
           return
         }
 
-        if (data.syncMode === "BASE" || forceBypass || cached.length === 0) {
+        // Case 3: Full BASE dataset download
+        if (data.syncMode === "BASE" || forceBypass || cached.length === 0 || !data.upToDate) {
           console.log(`[Version Sync] 🔄 Action: Downloading full BASE dataset for "${moduleKey}" from ${actualBaseUrl}...`)
           const baseRes = await fetch(actualBaseUrl)
           if (baseRes.ok) {
@@ -142,8 +141,8 @@ export function useModuleVersionSync<T extends Record<string, any>>(
 
             await saveToCache(cacheKey, freshItems)
             if (typeof window !== "undefined") {
-              localStorage.setItem(`ver_${cacheKey}`, String(serverPatchVer))
-              localStorage.setItem(`base_ver_${cacheKey}`, String(serverBaseVer))
+              localStorage.setItem(patchVerKey, String(serverPatchVer))
+              localStorage.setItem(baseVerKey, String(serverBaseVer))
             }
             if (callbackRef.current) callbackRef.current(freshItems)
             console.log(`[Version Sync] ✅ Downloaded BASE dataset for "${moduleKey}" (${freshItems.length} records). Updated local version to ${serverVerStr}.`)

@@ -139,24 +139,31 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
         if (!myAgencies.includes((c.agency || "").toUpperCase())) return false
       }
 
-      const searchLower = searchTerm.toLowerCase()
-      const matchesSearch = !searchTerm ||
-        c.name.toLowerCase().includes(searchLower) ||
-        c.consumerId.toLowerCase().includes(searchLower) ||
-        c.address.toLowerCase().includes(searchLower) ||
-        (c.device || "").toLowerCase().includes(searchLower) ||
-        (c.agency || "").toLowerCase().includes(searchLower)
+      const searchLower = String(searchTerm || "").trim().toLowerCase()
+      const consumerName = String(c?.name || "").toLowerCase()
+      const consumerId = String(c?.consumerId || "").toLowerCase()
+      const consumerAddress = String(c?.address || "").toLowerCase()
+      const consumerDevice = String(c?.device || "").toLowerCase()
+      const consumerAgency = String(c?.agency || "").toLowerCase()
 
-      const matchesAgency = filters.agency === "All Agencies" || c.agency === filters.agency
-      const matchesStatus = filters.status === "All Status" || c.disconStatus === filters.status
-      const matchesBaseClass = filters.baseClass === "All Classes" || (c.baseClass || "").toUpperCase() === filters.baseClass.toUpperCase()
+      const matchesSearch = !searchLower ||
+        consumerName.includes(searchLower) ||
+        consumerId.includes(searchLower) ||
+        consumerAddress.includes(searchLower) ||
+        consumerDevice.includes(searchLower) ||
+        consumerAgency.includes(searchLower)
+
+      const matchesAgency = filters.agency === "All Agencies" || String(c?.agency || "").trim().toUpperCase() === String(filters.agency || "").trim().toUpperCase()
+      const matchesStatus = filters.status === "All Status" || String(c?.disconStatus || "").trim().toLowerCase() === String(filters.status || "").trim().toLowerCase()
+      const matchesBaseClass = filters.baseClass === "All Classes" || String(c?.baseClass || "").trim().toUpperCase() === String(filters.baseClass || "").trim().toUpperCase()
 
       const matchesDate = !dateFilter.isActive || (() => {
         if (!c.disconDate) return false
-        let dateStr = c.disconDate
-        if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+        let dateStr = String(c.disconDate).trim().replace(/[./]/g, "-")
+        if (dateStr.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
           const [d, m, y] = dateStr.split("-")
-          dateStr = `${y}-${m}-${d}`
+          const pad = (n: string) => n.padStart(2, "0")
+          dateStr = `${y}-${pad(m)}-${pad(d)}`
         }
         const d = new Date(dateStr)
         if (isNaN(d.getTime())) return false
@@ -170,15 +177,15 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   }, [consumers, searchTerm, filters, userRole, userAgencies, dateFilter])
 
   const uniqueAgencies = useMemo(() =>
-    Array.from(new Set(consumers.map(c => c.agency).filter(Boolean))).sort(),
+    Array.from(new Set(consumers.map(c => String(c?.agency || "").trim()).filter(Boolean))).sort(),
   [consumers])
 
   const uniqueStatuses = useMemo(() =>
-    Array.from(new Set(consumers.map(c => c.disconStatus).filter(Boolean))).sort(),
+    Array.from(new Set(consumers.map(c => String(c?.disconStatus || "").trim()).filter(Boolean))).sort(),
   [consumers])
 
   const getStatusColor = (status: string) => {
-    const s = (status || "").toLowerCase()
+    const s = String(status || "").trim().toLowerCase()
     if (s === "deemed disconnected") return "bg-red-100 text-red-800"
     if (s === "connected (meter running)" || s === "physically live") return "bg-yellow-100 text-yellow-800"
     if (s === "disconnected (using neighbor source)" || s.includes("enjoying power")) return "bg-orange-100 text-orange-800"
@@ -199,9 +206,10 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
     return (consumer.disconStatus || "").trim().toLowerCase() !== "deemed disconnected"
   }
 
-  const getValidUrl = (url: string | undefined) => {
-    if (!url) return "#"
+  const getValidUrl = (url: any) => {
+    if (!url || typeof url !== "string") return "#"
     const clean = url.trim()
+    if (!clean || clean === "#") return "#"
     return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
   }
 

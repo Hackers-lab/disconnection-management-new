@@ -88,9 +88,10 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
 
   // Normalize a stored image link the same way the consumer list does, so the
   // "View Uploaded Image" link opens the Drive/share URL in a new tab.
-  const getValidUrl = (url: string | undefined) => {
-    if (!url) return "#"
+  const getValidUrl = (url: any) => {
+    if (!url || typeof url !== "string") return "#"
     const clean = url.trim()
+    if (!clean || clean === "#") return "#"
     if (clean.startsWith("http://") || clean.startsWith("https://")) return clean
     return `https://${clean}`
   }
@@ -172,19 +173,22 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
       const uploadData = new FormData()
       uploadData.append("file", processedFile)
       uploadData.append("consumerId", consumer.consumerId)
+      uploadData.append("module", "disconnection")
+      uploadData.append("moduleName", "disconnection")
 
       const response = await fetch("/api/upload-image", { method: "POST", body: uploadData })
       const result = await response.json()
 
-      if (result.success || result.url) {
-        setFormData(prev => ({ ...prev, imageUrl: result.url }))
+      if (response.ok && (result.success || result.url)) {
+        setFormData(prev => ({ ...prev, imageUrl: result.url || "" }))
       } else {
-        alert("Upload failed. Please try again.")
+        const errorMsg = result?.error || result?.details || "Upload failed. Please try again."
+        alert(`Image upload error: ${errorMsg}`)
         setPreviewUrl(null)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload failed", error)
-      alert("Image upload failed. Please try again.")
+      alert(`Image upload failed: ${error?.message || "Please check network and try again."}`)
       setPreviewUrl(null)
     } finally {
       setUploading(false)
@@ -316,9 +320,11 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
       }
     }
 
+    const { image: _unusedImageFile, ...cleanData } = formData;
     const updatedConsumer: ConsumerData = {
       ...consumer,
-      ...formData,
+      ...cleanData,
+      imageUrl: cleanData.imageUrl || "",
       lastUpdated: new Date().toISOString().split("T")[0],
     }
     onSave(updatedConsumer);
