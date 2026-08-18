@@ -111,6 +111,18 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
     setLoading(false)
   })
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<DeemedVisitData[]>("dd_data_cache").then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0 && consumersRef.current.length === 0) {
+        setConsumers(cached)
+        consumersRef.current = cached
+        setBaseClasses(extractBaseClasses(cached))
+        setLoading(false)
+      }
+    }).catch(() => {})
+  }, [])
+
   const loadData = useCallback(async (force = false) => {
     setError(null)
     try {
@@ -118,17 +130,20 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
         await fetch("/api/system/reset-base?moduleKey=dd", { method: "POST" }).catch(() => {})
       }
       await checkVersion(force)
-      setLoading(false)
     } catch (err: any) {
       console.error(err)
       if (consumersRef.current.length === 0) setError("Failed to load Deemed Visit data")
     } finally {
-      setLoading(false)
+      if (consumersRef.current.length > 0) {
+        setLoading(false)
+      }
     }
   }, [checkVersion])
 
   useEffect(() => {
-    loadData()
+    if (refreshKey > 0) {
+      loadData()
+    }
   }, [loadData, refreshKey])
 
   // --- Filtering ---

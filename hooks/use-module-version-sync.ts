@@ -43,9 +43,33 @@ export function useModuleVersionSync<T extends Record<string, any>>(
 
   const [syncState, setSyncState] = useState<"idle" | "checking" | "patching" | "updated" | "error">("idle")
   const [patchCount, setPatchCount] = useState(0)
+  const isCheckingRef = useRef(false)
+
+  // 1. Instant Cache Hydration on Mount (< 15ms)
+  useEffect(() => {
+    let isMounted = true
+    const hydrateFromCache = async () => {
+      try {
+        const cached = await getFromCache<T[]>(cacheKey)
+        if (isMounted && cached && Array.isArray(cached) && cached.length > 0) {
+          if (callbackRef.current) {
+            callbackRef.current(cached)
+          }
+        }
+      } catch (e) {
+        console.warn(`[useModuleVersionSync] ⚠️ Cache hydration error for "${moduleKey}":`, e)
+      }
+    }
+    hydrateFromCache()
+    return () => {
+      isMounted = false
+    }
+  }, [cacheKey, moduleKey])
 
   const checkVersion = useCallback(
     async (forceBypass = false) => {
+      if (isCheckingRef.current && !forceBypass) return
+      isCheckingRef.current = true
       setSyncState("checking")
       try {
         const prefix = typeof window !== "undefined" ? getCccPrefix() : ""
@@ -53,6 +77,11 @@ export function useModuleVersionSync<T extends Record<string, any>>(
         const baseVerKey = prefix ? `base_ver_${prefix}_${cacheKey}` : `base_ver_${cacheKey}`
 
         const cached = (await getFromCache<T[]>(cacheKey)) || []
+
+        // Immediately ensure component has cached data before network query
+        if (cached.length > 0 && !forceBypass && callbackRef.current) {
+          callbackRef.current(cached)
+        }
 
         // If local cache is completely empty, start version check from 0 to guarantee base download
         const storedPatchVersion = (cached.length > 0 && typeof window !== "undefined")
@@ -146,13 +175,18 @@ export function useModuleVersionSync<T extends Record<string, any>>(
             }
             if (callbackRef.current) callbackRef.current(freshItems)
             console.log(`[Version Sync] ✅ Downloaded BASE dataset for "${moduleKey}" (${freshItems.length} records). Updated local version to ${serverVerStr}.`)
+            setSyncState("updated")
+            setTimeout(() => setSyncState("idle"), 3000)
+          } else {
+            setSyncState("idle")
           }
-          setSyncState("idle")
         }
       } catch (err) {
         console.warn(`[useModuleVersionSync] Error syncing module "${moduleKey}":`, err)
         setSyncState("error")
         setTimeout(() => setSyncState("idle"), 3000)
+      } finally {
+        isCheckingRef.current = false
       }
     },
     [moduleKey, cacheKey, String(idKey), actualBaseUrl]

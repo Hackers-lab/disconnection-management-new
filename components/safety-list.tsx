@@ -146,7 +146,18 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
 
   const { checkVersion } = useModuleVersionSync<SafetyTicket>("safety", "safety_data_cache", "safetyId", (updated) => {
     setTickets(updated)
+    setLoading(false)
   })
+
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<SafetyTicket[]>("safety_data_cache").then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setTickets(cached)
+        setLoading(false)
+      }
+    }).catch(() => {})
+  }, [])
 
   const loadData = async (force = false) => {
     setError(null)
@@ -162,14 +173,18 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       console.error(err)
       if (tickets.length === 0) setError(err.message || "Failed to load Safety data")
     } finally {
-      setLoading(false)
+      if (tickets.length > 0) {
+        setLoading(false)
+      }
       setTimeout(() => setSyncStatus('idle'), 3000)
     }
   }
 
   // Data Loading
   useEffect(() => {
-    loadData()
+    if (refreshKey > 0) {
+      loadData()
+    }
   }, [refreshKey])
 
   // Filtering and Sorting (Last to first order - newest first)

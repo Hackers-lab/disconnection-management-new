@@ -97,10 +97,21 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
 
   const { checkVersion } = useModuleVersionSync<ReconnectionRequest>("reconnection", CACHE_KEY, "requestId", (updated) => {
     setRecords([...updated].reverse())
+    setSyncState("idle")
   })
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<ReconnectionRequest[]>(CACHE_KEY).then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setRecords([...cached].reverse())
+        setSyncState("idle")
+      }
+    }).catch(() => {})
+  }, [])
+
   const load = async (silent = false, force = false) => {
-    if (!silent) setSyncState("loading")
+    if (!silent && records.length === 0) setSyncState("loading")
     try {
       if (force) {
         await fetch("/api/system/reset-base?moduleKey=reconnection", { method: "POST" }).catch(() => {})
@@ -110,11 +121,9 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
       setSyncState("idle")
     } catch {
       setSyncState("idle")
-      if (!silent) toast({ title: "Failed to load reconnection data", variant: "destructive" })
+      if (!silent && records.length === 0) toast({ title: "Failed to load reconnection data", variant: "destructive" })
     }
   }
-
-  useEffect(() => { load() }, [])
 
   // ── Processed Records with Virtual Pending and Overdue ────────────────────
   const processedRecords = useMemo(() => {
