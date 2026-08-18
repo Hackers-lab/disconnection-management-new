@@ -32,6 +32,7 @@ export interface ConsumerData {
   longitude: string
   agency?: string
   lastUpdated?: string
+  uploadDate?: string
   notes?: string
   reading?: string
   imageUrl?: string
@@ -322,6 +323,7 @@ const COLUMN_MAPPINGS = {
   imageUrl: ["image", "photo", "link", "url", "imageurl", "imagelink"],
   notes: ["notes"],
   lastUpdated: ["last updated", "last_updated", "timestamp", "modified", "updated_at"],
+  uploadDate: ["upload date", "uploaddate", "list upload date", "list_upload_date", "dc upload date"],
   // Item 5: admin urgency flag.
   priority: ["priority"],
   // Items 3 + 13: payment-tracking columns.
@@ -340,7 +342,7 @@ export const EXPECTED_CONSUMER_HEADERS = [
   "Base Class", "Class", "Nature of Conn", "Gov/Non-Gov", "Device",
   "O/S Duedate Range", "D2 Net O/S", "Discon Status", "Discon Date",
   "GIS Pole", "Mobile Number", "Latitude", "Longitude",
-  "Agency", "Reading", "Image", "Notes", "Last Updated",
+  "Agency", "Reading", "Image", "Notes", "Last Updated", "Upload Date",
   // Item 5 + items 3/13 — appended only if missing
   "Priority",
   "Paid Amount", "Paid Date", "Paid Type",
@@ -417,6 +419,9 @@ async function _fetchConsumerDataRaw(spreadsheetId: string): Promise<ConsumerDat
            lastUpdatedVal = `${y}-${m}-${d}`;
         }
 
+        // Determine Upload Date
+        const uploadDateVal = columnIndices.uploadDate >= 0 ? values[columnIndices.uploadDate] || "" : ""
+
         // Create consumer object
         const consumer: ConsumerData = {
           offCode: columnIndices.offCode >= 0 ? values[columnIndices.offCode] || "" : "",
@@ -440,6 +445,7 @@ async function _fetchConsumerDataRaw(spreadsheetId: string): Promise<ConsumerDat
           longitude: columnIndices.longitude >= 0 ? values[columnIndices.longitude] || "" : "",
           agency: columnIndices.agency >= 0 ? values[columnIndices.agency] || "" : "",
           lastUpdated: lastUpdatedVal,
+          uploadDate: uploadDateVal,
           notes: columnIndices.notes >= 0 ? values[columnIndices.notes] || "" : "",
           reading: columnIndices.reading >= 0 ? values[columnIndices.reading] || "" : "",
           imageUrl: columnIndices.imageUrl >= 0 ? values[columnIndices.imageUrl] || "" : "",

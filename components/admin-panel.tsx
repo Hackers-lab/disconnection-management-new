@@ -294,14 +294,14 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 "off_code","MRU","Consumer Id","Name","Address","Base Class","Class",
                 "Nature of Conn","Gov/Non-Gov","Device","O/S Duedate Range","D2 Net O/S",
                 "Discon Status","Discon Date","GIS Pole","Mobile Number","Latitude","Longitude",
-                "Agency","Reading","Image","Notes","Last Updated","Priority",
+                "Agency","Reading","Image","Notes","Last Updated","Upload Date","Priority",
                 "Paid Amount","Paid Date","Paid Type","Outstanding After","Next Payment Date","Payment Source",
             ];
             const rows = cached.map(c => [
                 c.offCode,c.mru,c.consumerId,c.name,c.address,c.baseClass,c.class,
                 c.natureOfConn,c.govNonGov,c.device,c.osDuedateRange,c.d2NetOS,
                 c.disconStatus,c.disconDate,c.gisPole,c.mobileNumber,c.latitude,c.longitude,
-                c.agency,c.reading,c.imageUrl,c.notes,c.lastUpdated,c.priority,
+                c.agency,c.reading,c.imageUrl,c.notes,c.lastUpdated,c.uploadDate || "",c.priority,
                 c.paidAmount,c.paidDate,c.paidType,c.outstandingAfter,c.nextPaymentDate,c.paymentSource,
             ]);
             const wb = XLSX.utils.book_new();
