@@ -1,6 +1,6 @@
 import { GoogleAuth, OAuth2Client } from "google-auth-library"
-import { drive as googleDrive } from "@googleapis/drive"
-import { Readable, PassThrough } from "stream"
+import { drive as googleDrive, drive_v3 } from "@googleapis/drive"
+import { Readable } from "stream"
 import { getTenantContext } from "./tenant-context"
 import { invalidateTenantCache } from "./tenant-resolver"
 
@@ -11,10 +11,39 @@ const client_id = process.env.GOOGLE_CLIENT_ID
 const client_secret = process.env.GOOGLE_CLIENT_SECRET
 const refresh_token = process.env.GOOGLE_REFRESH_TOKEN
 
-// Dynamic Auth Delegate class
-class DynamicAuth extends GoogleAuth {
-  private defaultAuth: any
+export function getDefaultAuthClient(): OAuth2Client | GoogleAuth {
+  if (client_id && client_secret && refresh_token) {
+    const oauth2Client = new OAuth2Client(client_id, client_secret)
+    oauth2Client.setCredentials({ refresh_token })
+    return oauth2Client
+  }
+  return new GoogleAuth({
+    credentials: {
+      client_email,
+      private_key: private_key?.replace(/\\n/g, "\n"),
+    },
+    scopes: [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/spreadsheets",
+    ],
+  })
+}
 
+export function getActiveAuthClient(): OAuth2Client | GoogleAuth {
+  const context = getTenantContext()
+  if (context?.googleDriveRefreshToken) {
+    const oauth2Client = new OAuth2Client(
+      process.env.GOOGLE_CLIENT_ID || client_id,
+      process.env.GOOGLE_CLIENT_SECRET || client_secret
+    )
+    oauth2Client.setCredentials({ refresh_token: context.googleDriveRefreshToken })
+    return oauth2Client
+  }
+  return getDefaultAuthClient()
+}
+
+// Dynamic Auth Delegate class for Google Sheets API consumers
+class DynamicAuth extends GoogleAuth {
   constructor() {
     super({
       scopes: [
@@ -22,47 +51,18 @@ class DynamicAuth extends GoogleAuth {
         "https://www.googleapis.com/auth/spreadsheets",
       ],
     })
-    this.defaultAuth =
-      client_id && client_secret && refresh_token
-        ? (() => {
-            const oauth2Client = new OAuth2Client(client_id, client_secret)
-            oauth2Client.setCredentials({ refresh_token })
-            return oauth2Client
-          })()
-        : new GoogleAuth({
-            credentials: {
-              client_email,
-              private_key: private_key?.replace(/\\n/g, "\n"),
-            },
-            scopes: [
-              "https://www.googleapis.com/auth/drive",
-              "https://www.googleapis.com/auth/spreadsheets",
-            ],
-          })
-  }
-
-  private getActiveAuth() {
-    const context = getTenantContext()
-    if (context?.googleDriveRefreshToken) {
-      const oauth2Client = new OAuth2Client(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-      )
-      oauth2Client.setCredentials({ refresh_token: context.googleDriveRefreshToken })
-      return oauth2Client
-    }
-    return this.defaultAuth
   }
 
   override async getRequestHeaders(url?: string): Promise<any> {
-    const active = this.getActiveAuth()
+    const active = getActiveAuthClient()
     if (typeof active.getRequestHeaders === "function") {
       try {
         return await active.getRequestHeaders(url)
       } catch (err: any) {
-        if (active !== this.defaultAuth && typeof this.defaultAuth.getRequestHeaders === "function") {
+        const defaultAuth = getDefaultAuthClient()
+        if (typeof defaultAuth.getRequestHeaders === "function") {
           console.warn("[DynamicAuth] Active OAuth getRequestHeaders failed, falling back to defaultAuth:", err?.message || err)
-          return await this.defaultAuth.getRequestHeaders(url)
+          return await defaultAuth.getRequestHeaders(url)
         }
         throw err
       }
@@ -71,7 +71,7 @@ class DynamicAuth extends GoogleAuth {
   }
 
   override async request(opts: any): Promise<any> {
-    const active = this.getActiveAuth()
+    const active = getActiveAuthClient()
     if (typeof active.request === "function") {
       try {
         return await active.request(opts)
@@ -82,12 +82,13 @@ class DynamicAuth extends GoogleAuth {
         const statusCode = err?.status || err?.code || err?.response?.status
         const isPermissionOrNotFound = (statusCode === 403 || statusCode === 404 || statusCode === 401) && !isQuotaError
 
-        if (active !== this.defaultAuth && isPermissionOrNotFound && typeof this.defaultAuth.request === "function") {
+        const defaultAuth = getDefaultAuthClient()
+        if (active !== defaultAuth && isPermissionOrNotFound && typeof defaultAuth.request === "function") {
           console.warn(
-            `[DynamicAuth] Active OAuth client request returned HTTP ${statusCode}. Falling back to Service Account (defaultAuth)...`,
+            `[DynamicAuth] Active OAuth client request returned HTTP ${statusCode}. Falling back to defaultAuth...`,
             opts?.url
           )
-          return await this.defaultAuth.request(opts)
+          return await defaultAuth.request(opts)
         }
 
         if (isQuotaError) {
@@ -103,7 +104,10 @@ class DynamicAuth extends GoogleAuth {
 
 export const auth = new DynamicAuth()
 
-const drive = googleDrive({ version: "v3", auth })
+export function getDriveClient(useDefaultFallback = false): drive_v3.Drive {
+  const authClient = useDefaultFallback ? getDefaultAuthClient() : getActiveAuthClient()
+  return googleDrive({ version: "v3", auth: authClient as any })
+}
 
 function detectFolderForModule(consumerId: string, moduleName?: string): string {
   if (moduleName) return moduleName.trim().toLowerCase()
@@ -146,11 +150,11 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
     if (!hasServiceAccount && !hasOAuth && !context?.googleDriveRefreshToken) {
       throw new Error(
-        "Missing Google credentials. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN in .env.local or link a Google account",
+        "Missing Google credentials. Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN in .env.local or link a Google account in the tenant registry",
       )
     }
 
-    // Convert File to Buffer/Stream
+    // Convert File to Buffer
     const arrayBuffer = await file.arrayBuffer()
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
       throw new Error("Uploaded image file is empty (0 bytes). Please select a valid photo.")
@@ -166,6 +170,9 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
     if (!rootFolderId) {
       throw new Error("GOOGLE_DRIVE_FOLDER_ID is not set in .env.local and no tenant folder is provisioned")
     }
+
+    // Instantiate clean drive client with tenant-specific OAuth credentials
+    let drive = getDriveClient(false)
 
     // Determine subfolder based on module name
     let targetFolderId = rootFolderId
@@ -204,7 +211,6 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
         }
       } catch (err) {
         console.error(`Failed to locate or create Drive subfolder '${folderName}':`, err)
-        // Fallback to uploading to root folder
         targetFolderId = rootFolderId
       }
     }
@@ -228,7 +234,27 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
         supportsAllDrives: true,
       })
     } catch (createErr: any) {
-      if (targetFolderId !== rootFolderId) {
+      const errMsg = String(createErr?.message || createErr?.cause?.message || "").toLowerCase()
+      if (errMsg.includes("quota") || errMsg.includes("storage")) {
+        invalidateTenantCache()
+        throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
+      }
+
+      // If tenant OAuth failed, try with fallback default auth
+      if (context?.googleDriveRefreshToken) {
+        console.warn("Tenant Google Drive OAuth upload failed, attempting fallback default auth...", createErr?.message)
+        try {
+          const fallbackDrive = getDriveClient(true)
+          response = await fallbackDrive.files.create({
+            requestBody: { name: fileName, parents: [rootFolderId] },
+            media: { mimeType: file.type || "image/jpeg", body: Readable.from(buffer) },
+            fields: "id, webViewLink",
+            supportsAllDrives: true,
+          })
+        } catch (fallbackErr) {
+          throw createErr
+        }
+      } else if (targetFolderId !== rootFolderId) {
         console.warn(`Upload to subfolder failed, retrying to root folder '${rootFolderId}'...`, createErr?.message)
         response = await drive.files.create({
           requestBody: { name: fileName, parents: [rootFolderId] },
@@ -257,7 +283,7 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
       console.warn("Failed to set public permission on uploaded Drive file:", permError)
     }
 
-    // Return a direct view URL instead of the webViewLink (which is a HTML page)
+    // Return direct view URL
     return `https://drive.google.com/uc?export=view&id=${fileId}`
   } catch (error: any) {
     console.error("Drive upload failed:", error)
@@ -272,6 +298,7 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
 export async function renameDriveFile(fileId: string, newName: string): Promise<void> {
   try {
+    const drive = getDriveClient(false)
     await drive.files.update({
       fileId: fileId,
       requestBody: {
