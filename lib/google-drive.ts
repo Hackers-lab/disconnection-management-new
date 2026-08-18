@@ -215,55 +215,59 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
       }
     }
 
-    const fileMetadata = {
-      name: fileName,
-      parents: [targetFolderId],
-    }
-
-    const media = {
-      mimeType: file.type || "image/jpeg",
-      body: Readable.from(buffer),
-    }
-
-    let response
-    try {
-      response = await drive.files.create({
-        requestBody: fileMetadata,
-        media: media,
+    // Helper to upload with specified parents or to root
+    const uploadWithClient = async (
+      client: drive_v3.Drive,
+      parents: string[] | undefined
+    ) => {
+      const metadata: drive_v3.Params$Resource$Files$Create["requestBody"] = {
+        name: fileName,
+        ...(parents && parents.length > 0 ? { parents } : {}),
+      }
+      return await client.files.create({
+        requestBody: metadata,
+        media: { mimeType: file.type || "image/jpeg", body: Readable.from(buffer) },
         fields: "id, webViewLink",
         supportsAllDrives: true,
       })
-    } catch (createErr: any) {
-      const errMsg = String(createErr?.message || createErr?.cause?.message || "").toLowerCase()
-      if (errMsg.includes("quota") || errMsg.includes("storage")) {
+    }
+
+    let response: any = null
+
+    // Attempt 1: Upload to targetFolderId (subfolder or tenant driveFolderId)
+    try {
+      response = await uploadWithClient(drive, [targetFolderId])
+    } catch (err1: any) {
+      const msg1 = String(err1?.message || "").toLowerCase()
+      if (msg1.includes("quota") || msg1.includes("storage")) {
         invalidateTenantCache()
         throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
       }
 
-      // If tenant OAuth failed, try with fallback default auth
-      if (context?.googleDriveRefreshToken) {
-        console.warn("Tenant Google Drive OAuth upload failed, attempting fallback default auth...", createErr?.message)
+      console.warn(`Upload to target folder '${targetFolderId}' failed (${err1?.message}). Trying tenant Drive root...`)
+
+      // Attempt 2: Upload to root of active tenant Drive account
+      try {
+        response = await uploadWithClient(drive, undefined)
+      } catch (err2: any) {
+        console.warn(`Upload to tenant Drive root failed (${err2?.message}). Attempting fallback default auth...`)
+
+        // Attempt 3: Fallback auth to process.env.GOOGLE_DRIVE_FOLDER_ID or fallback root
         try {
           const fallbackDrive = getDriveClient(true)
-          response = await fallbackDrive.files.create({
-            requestBody: { name: fileName, parents: [rootFolderId] },
-            media: { mimeType: file.type || "image/jpeg", body: Readable.from(buffer) },
-            fields: "id, webViewLink",
-            supportsAllDrives: true,
-          })
-        } catch (fallbackErr) {
-          throw createErr
+          const envFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
+          if (envFolderId && envFolderId !== targetFolderId) {
+            try {
+              response = await uploadWithClient(fallbackDrive, [envFolderId])
+            } catch {
+              response = await uploadWithClient(fallbackDrive, undefined)
+            }
+          } else {
+            response = await uploadWithClient(fallbackDrive, undefined)
+          }
+        } catch (finalErr: any) {
+          throw err1 // Re-throw original error if all fallbacks fail
         }
-      } else if (targetFolderId !== rootFolderId) {
-        console.warn(`Upload to subfolder failed, retrying to root folder '${rootFolderId}'...`, createErr?.message)
-        response = await drive.files.create({
-          requestBody: { name: fileName, parents: [rootFolderId] },
-          media: { mimeType: file.type || "image/jpeg", body: Readable.from(buffer) },
-          fields: "id, webViewLink",
-          supportsAllDrives: true,
-        })
-      } else {
-        throw createErr
       }
     }
 
