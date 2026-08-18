@@ -266,14 +266,17 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
     attemptSync(updatedConsumer, 3)
   }
 
+  const lastRefreshTimeRef = useRef<number>(0)
+
   const handleManualRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
-    await clearAllCache()
-    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
-    localStorage.removeItem(`${prefix}dd_row_count`)
-    localStorage.removeItem(`${prefix}dd_version_hash`)
-    setLoading(true)
-    setRefreshKey(k => k + 1)
+    const now = Date.now()
+    if (now - lastRefreshTimeRef.current < 10_000) {
+      toast({ title: "Already Up to Date", description: "Checked just now. All records are synced." })
+      return
+    }
+    lastRefreshTimeRef.current = now
+    await loadData(false)
   }
 
   if (loading && consumers.length === 0) {

@@ -485,42 +485,21 @@ const MOCK_CONSUMERS: ConsumerData[] = [
   },
 ]
 
-export async function fetchConsumerData(spreadsheetId: string): Promise<ConsumerData[]> {
+export async function fetchConsumerData(spreadsheetId: string, bypassCache = false): Promise<ConsumerData[]> {
   try {
     if (!spreadsheetId) {
       throw new Error("spreadsheetId parameter is required")
     }
 
-    const cached = await getCachedData(spreadsheetId)
-    const now = Date.now()
-    const cacheExpiryMs = CONSUMER_REVALIDATE_S * 1000
-
-    if (cached) {
-      const isExpired = now - cached.timestamp > cacheExpiryMs
-      if (isExpired) {
-        // Cache has expired. Trigger background revalidation to prevent blocking the user request.
-        if (!backgroundFetching[spreadsheetId] && !activeFetches[spreadsheetId]) {
-          backgroundFetching[spreadsheetId] = true
-          
-          _fetchConsumerDataRaw(spreadsheetId)
-            .then(async (freshData) => {
-              await writeCache(spreadsheetId, freshData)
-              console.log(`[Cache] Successfully revalidated consumer data in background for spreadsheet: ${spreadsheetId}`)
-            })
-            .catch((err) => {
-              console.error(`[Cache] Background revalidation failed for spreadsheet: ${spreadsheetId}`, err)
-            })
-            .finally(() => {
-              delete backgroundFetching[spreadsheetId]
-            })
-        }
+    if (!bypassCache) {
+      const cached = await getCachedData(spreadsheetId)
+      if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+        return cached.data
       }
-      // Return cached (potentially stale) data immediately
-      return cached.data
     }
 
-    // Cache is completely cold. Must fetch synchronously.
-    // Use request coalescing to share active fetches.
+    // Cache is cold or explicitly bypassed by admin sync. Fetch synchronously.
+    // Use request coalescing to share active fetches across concurrent requests.
     if (!activeFetches[spreadsheetId]) {
       activeFetches[spreadsheetId] = _fetchConsumerDataRaw(spreadsheetId)
         .then(async (freshData) => {

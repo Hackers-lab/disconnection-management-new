@@ -289,6 +289,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     setLoading(false)
   }, [userRole, agenciesKey])
 
+  const lastRefreshTimeRef = useRef<number>(0)
+
   const { checkVersion } = useModuleVersionSync<ConsumerData>("consumer", "consumers_data_cache", "consumerId", (updated) => {
     processData(updated, true)
   })
@@ -296,9 +298,6 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const loadData = useCallback(async (force = false) => {
     setError(null)
     try {
-      if (force) {
-        await fetch("/api/system/reset-base?moduleKey=consumer", { method: "POST" }).catch(() => {})
-      }
       await checkVersion(force)
       setLoading(false)
     } catch (err: any) {
@@ -329,9 +328,15 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const handleManualRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     
-    await clearAllCache()
-    globalLastSyncTime = 0
-    await loadData(true)
+    const now = Date.now()
+    if (now - lastRefreshTimeRef.current < 10_000) {
+      toast({ title: "Already Up to Date", description: "Checked just now. All records are synced." })
+      return
+    }
+    lastRefreshTimeRef.current = now
+
+    // Safely check server version (both base & patch) without wiping local database
+    await loadData(false)
   }
   // Advanced filtering logic
   const filteredConsumers = useMemo(() => {

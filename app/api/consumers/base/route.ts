@@ -14,7 +14,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     let data = []
     try {
       const spreadsheetId = getSpreadsheetId()
-      data = await fetchConsumerData(spreadsheetId)
+      const bypassCache = req.nextUrl.searchParams.get("bypassCache") === "true"
+      data = await fetchConsumerData(spreadsheetId, bypassCache)
 
       // Filter by agency scoping if role has restricted agencies
       if (session?.agencies && session.agencies.length > 0) {
