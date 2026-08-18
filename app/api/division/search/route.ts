@@ -23,7 +23,8 @@ export async function GET(request: Request) {
   if (!query || query.length < 3) {
     return NextResponse.json({ results: [] }, {
       headers: {
-        "Cache-Control": "public, max-age=60, s-maxage=120",
+        "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+        "Vary": "Cookie, Authorization",
       },
     })
   }
@@ -73,7 +74,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ results: searchResults.slice(0, 50) }, {
       headers: {
-        "Cache-Control": "public, max-age=15, s-maxage=30, stale-while-revalidate=120",
+        "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
+        "Vary": "Cookie, Authorization",
       },
     })
   } catch (error: any) {

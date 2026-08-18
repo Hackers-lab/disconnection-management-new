@@ -339,133 +339,153 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     let dataToFilter = consumers;
     
     if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive") {
-       const userAgenciesUpper = userAgencies.map(a => a.toUpperCase())
+       const userAgenciesUpper = userAgencies.map(a => String(a || "").trim().toUpperCase())
        dataToFilter = consumers.filter(c => {
-          const consumerAgency = (c.agency || "").toUpperCase()
-          return userAgenciesUpper.includes(consumerAgency) && c.disconStatus !== "&"
+          const consumerAgency = String(c?.agency || "").trim().toUpperCase()
+          const disconStatus = String(c?.disconStatus || "").trim()
+          return userAgenciesUpper.includes(consumerAgency) && disconStatus !== "&"
        })
     }
 
     return dataToFilter.filter((consumer) => {
-    // Basic search term filter
-    // Date range filter  
-    function normalizeDate(dateValue: string | Date | null | undefined): string | null {
-      if (!dateValue) return null;
+      // Date range filter helper
+      function normalizeDate(dateValue: any): string | null {
+        if (!dateValue) return null;
 
-      // If it's already a Date object
-      if (dateValue instanceof Date) {
-        return dateValue.toISOString().split('T')[0]; // YYYY-MM-DD
+        // If it's already a Date object
+        if (dateValue instanceof Date) {
+          if (isNaN(dateValue.getTime())) return null;
+          const pad = (n: number) => String(n).padStart(2, "0");
+          return `${dateValue.getFullYear()}-${pad(dateValue.getMonth() + 1)}-${pad(dateValue.getDate())}`; // Local YYYY-MM-DD
+        }
+
+        const dateStr = String(dateValue).trim();
+        if (!dateStr || dateStr === "-") return null;
+
+        // If it's a string in YYYY-MM-DD format
+        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+          const [year, month, day] = dateStr.split("-");
+          const pad = (n: string) => n.padStart(2, "0");
+          return `${year}-${pad(month)}-${pad(day)}`;
+        }
+
+        // If it's a string in DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY format
+        const cleanDelim = dateStr.replace(/[./]/g, "-");
+        if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(cleanDelim)) {
+          const [day, month, year] = cleanDelim.split("-");
+          const pad = (n: string) => n.padStart(2, "0");
+          return `${year}-${pad(month)}-${pad(day)}`;
+        }
+
+        // If it's some other format, try to parse
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
+        }
+
+        return null;
       }
 
-      // If it's a string in YYYY-MM-DD format
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
-        return dateValue; // already in correct format
-      }
+      const matchesDateRange =
+        !dateFilter.isActive ||
+        (() => {
+          const disconDateNorm = normalizeDate(consumer.disconDate);
+          const fromNorm = normalizeDate(dateFilter.from);
+          const toNorm = normalizeDate(dateFilter.to);
 
-      // If it's a string in DD-MM-YYYY format
-      if (/^\d{2}-\d{2}-\d{4}$/.test(dateValue)) {
-        const [day, month, year] = dateValue.split("-");
-        return `${year}-${month}-${day}`; // convert to YYYY-MM-DD
-      }
+          if (!disconDateNorm) return false; // skip if no valid date
 
-      // If it's some other format, try to parse
-      const parsed = new Date(dateValue);
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString().split('T')[0];
-      }
+          return (
+            (!fromNorm || disconDateNorm >= fromNorm) &&
+            (!toNorm || disconDateNorm <= toNorm)
+          );
+        })();
 
-      return null; // Unknown format
-    }
+      const consumerName = String(consumer?.name || "").toLowerCase()
+      const consumerId = String(consumer?.consumerId || "").toLowerCase()
+      const consumerAddress = String(consumer?.address || "").toLowerCase()
+      const consumerDevice = String(consumer?.device || "").toLowerCase()
+      const consumerMobile = String(consumer?.mobileNumber || "").toLowerCase()
+      const consumerAgency = String(consumer?.agency || "").toLowerCase()
+      const searchLower = String(searchTerm || "").trim().toLowerCase()
 
+      const matchesSearch =
+        !searchLower ||
+        consumerName.includes(searchLower) ||
+        consumerId.includes(searchLower) ||
+        consumerAddress.includes(searchLower) ||
+        consumerDevice.includes(searchLower) ||
+        consumerMobile.includes(searchLower) ||
+        consumerAgency.includes(searchLower)
 
-    const matchesDateRange =
-      !dateFilter.isActive ||
-      (() => {
-        const disconDateNorm = normalizeDate(consumer.disconDate);
-        const fromNorm = normalizeDate(dateFilter.from);
-        const toNorm = normalizeDate(dateFilter.to);
+      // Base class filter (case-insensitive & trimmed)
+      const consumerBaseClassUpper = String(consumer?.baseClass || "").trim().toUpperCase()
+      const matchesBaseClass = 
+        filters.baseClass.length === 0 || 
+        filters.baseClass.some(bc => consumerBaseClassUpper === String(bc || "").trim().toUpperCase())
 
-        if (!disconDateNorm) return false; // skip if no valid date
+      // Agency filter (case-insensitive & trimmed)
+      const consumerAgencyUpper = String(consumer?.agency || "").trim().toUpperCase()
+      const matchesAgency =
+        filters.agency.length === 0 || 
+        filters.agency.some(ag => consumerAgencyUpper === String(ag || "").trim().toUpperCase())
 
-        return (
-          (!fromNorm || disconDateNorm >= fromNorm) &&
-          (!toNorm || disconDateNorm <= toNorm)
-        );
-      })();
+      // MRU / Zone filter (case-insensitive & trimmed)
+      const consumerMruUpper = String(consumer?.mru || "").trim().toUpperCase()
+      const matchesMru = 
+        filters.mru.length === 0 || 
+        filters.mru.some(m => consumerMruUpper === String(m || "").trim().toUpperCase())
 
-    const matchesSearch =
-      !searchTerm ||
-      consumer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consumer.consumerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consumer.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consumer.device.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consumer.mobileNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (consumer.agency || "").toLowerCase().includes(searchTerm.toLowerCase())
-    
+      // Address fuzzy match
+      const addressFilterLower = String(filters.address || "").trim().toLowerCase()
+      const matchesAddress = !addressFilterLower || consumerAddress.includes(addressFilterLower)
 
-    // Base class filter
-    const matchesBaseClass = 
-      filters.baseClass.length === 0 || 
-      filters.baseClass.some(bc => (consumer.baseClass || "").toUpperCase() === bc.toUpperCase())
+      // Name filter
+      const nameFilterLower = String(filters.name || "").trim().toLowerCase()
+      const matchesName = !nameFilterLower || consumerName.includes(nameFilterLower)
 
-    // Agency filter (case-insensitive)
-    const matchesAgency =
-      filters.agency.length === 0 || 
-      filters.agency.some(ag => (consumer.agency || "").toUpperCase() === ag.toUpperCase())
+      // Consumer ID exact match
+      const consumerIdFilterLower = String(filters.consumerId || "").trim().toLowerCase()
+      const matchesConsumerId =
+        !consumerIdFilterLower || consumerId.includes(consumerIdFilterLower)
 
-    // MRU / Zone filter (case-insensitive & trimmed)
-    const matchesMru = 
-      filters.mru.length === 0 || 
-      filters.mru.some(m => (consumer.mru || "").trim().toUpperCase() === m.trim().toUpperCase())
+      // Status filter (case-insensitive & trimmed; "paid" matches "paid", "agency paid", and startsWith("paid"))
+      const consumerStatusLc = String(consumer?.disconStatus || "").trim().toLowerCase()
+      const matchesStatus =
+        filters.status.length === 0 ||
+        filters.status.some(st => {
+          const filterStatusLc = String(st || "").trim().toLowerCase()
+          return filterStatusLc === "paid"
+            ? consumerStatusLc === "paid" || consumerStatusLc === "agency paid" || consumerStatusLc.startsWith("paid")
+            : consumerStatusLc === filterStatusLc
+        })
 
-    // Address fuzzy match
-    const matchesAddress = !filters.address || consumer.address.toLowerCase().includes(filters.address.toLowerCase())
+      // OSD range filter
+      const consumerOsd = Number.parseFloat(String(consumer?.d2NetOS || "0")) || 0
+      const matchesOsd = consumerOsd >= minOsd
 
-    // Name filter
-    const matchesName = !filters.name || consumer.name.toLowerCase().includes(filters.name.toLowerCase())
+      // Exclude filters
+      const excludeDeemedDisconnection =
+        !excludeFilters.excludeDeemedDisconnection || consumerStatusLc !== "deemed disconnection"
 
-    // Consumer ID exact match
-    const matchesConsumerId =
-      !filters.consumerId || consumer.consumerId.toLowerCase().includes(filters.consumerId.toLowerCase())
+      const excludeTemproryDisconnected =
+        !excludeFilters.excludeTemproryDisconnected || !consumerStatusLc.includes("temprory")
 
-    // Status filter (case-insensitive; "paid" matches both "paid" and "agency paid")
-    const consumerStatusLc = (consumer.disconStatus || "").toLowerCase()
-    const matchesStatus =
-      filters.status.length === 0 ||
-      filters.status.some(st => {
-        const filterStatusLc = st.toLowerCase()
-        return filterStatusLc === "paid"
-          ? consumerStatusLc === "paid" || consumerStatusLc === "agency paid"
-          : consumerStatusLc === filterStatusLc
-      })
-
-    // OSD range filter
-    const consumerOsd = Number.parseFloat(consumer.d2NetOS || "0")
-    const matchesOsd = consumerOsd >= minOsd
-
-    // Exclude filters
-    const excludeDeemedDisconnection =
-      !excludeFilters.excludeDeemedDisconnection || consumer.disconStatus.toLowerCase() !== "deemed disconnection"
-
-    const excludeTemproryDisconnected =
-      !excludeFilters.excludeTemproryDisconnected || !consumer.disconStatus.toLowerCase().includes("temprory")
-
-
-
-    return (
-      matchesSearch &&
-      matchesAgency &&
-      matchesMru &&
-      matchesAddress &&
-      matchesBaseClass &&
-      matchesName &&
-      matchesConsumerId &&
-      matchesStatus &&
-      matchesOsd &&
-      matchesDateRange &&
-      excludeDeemedDisconnection &&
-      excludeTemproryDisconnected
-    )
+      return (
+        matchesSearch &&
+        matchesAgency &&
+        matchesMru &&
+        matchesAddress &&
+        matchesBaseClass &&
+        matchesName &&
+        matchesConsumerId &&
+        matchesStatus &&
+        matchesOsd &&
+        matchesDateRange &&
+        excludeDeemedDisconnection &&
+        excludeTemproryDisconnected
+      )
     })
   }, [consumers, searchTerm, filters, minOsd, excludeFilters, dateFilter, userRole, userAgencies])
 
@@ -473,76 +493,87 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   // Base scoped dataset according to user role & permission
   const scopedConsumers = useMemo(() => {
     if (userRole === "admin" || userRole === "viewer") return consumers
-    const upper = userAgencies.map(a => a.toUpperCase())
+    const upper = userAgencies.map(a => String(a || "").trim().toUpperCase())
     if (userRole === "executive") {
       return consumers.filter(c => {
-        const ca = (c.agency || "").toUpperCase()
-        return upper.includes(ca) || c.disconStatus?.toLowerCase() === "bill dispute"
+        const ca = String(c?.agency || "").trim().toUpperCase()
+        const st = String(c?.disconStatus || "").trim().toLowerCase()
+        return upper.includes(ca) || st === "bill dispute"
       })
     }
-    return consumers.filter(c => upper.includes((c.agency || "").toUpperCase()) && c.disconStatus !== "&")
+    return consumers.filter(c => {
+      const ca = String(c?.agency || "").trim().toUpperCase()
+      const st = String(c?.disconStatus || "").trim()
+      return upper.includes(ca) && st !== "&"
+    })
   }, [consumers, userRole, userAgencies])
 
   // Available agencies: dynamically scoped by selected MRU, status, baseClass
   const availableAgencies = useMemo(() => {
     let pool = scopedConsumers
     if (filters.mru.length > 0) {
-      const mruUpper = filters.mru.map(m => m.toUpperCase())
-      pool = pool.filter(c => mruUpper.includes((c.mru || "").toUpperCase()))
+      const mruUpper = filters.mru.map(m => String(m || "").trim().toUpperCase())
+      pool = pool.filter(c => mruUpper.includes(String(c?.mru || "").trim().toUpperCase()))
     }
     if (filters.status.length > 0) {
-      const statusLower = filters.status.map(s => s.toLowerCase())
-      pool = pool.filter(c => statusLower.includes((c.disconStatus || "").toLowerCase()))
+      const statusLower = filters.status.map(s => String(s || "").trim().toLowerCase())
+      pool = pool.filter(c => {
+        const st = String(c?.disconStatus || "").trim().toLowerCase()
+        return statusLower.some(s => s === "paid" ? st === "paid" || st === "agency paid" || st.startsWith("paid") : st === s)
+      })
     }
     if (filters.baseClass.length > 0) {
-      const bcUpper = filters.baseClass.map(b => b.toUpperCase())
-      pool = pool.filter(c => bcUpper.includes((c.baseClass || "").toUpperCase()))
+      const bcUpper = filters.baseClass.map(b => String(b || "").trim().toUpperCase())
+      pool = pool.filter(c => bcUpper.includes(String(c?.baseClass || "").trim().toUpperCase()))
     }
-    const set = new Set(pool.map(c => c.agency).filter((a): a is string => Boolean(a)))
+    const set = new Set(pool.map(c => String(c?.agency || "").trim()).filter(Boolean))
     const fullList = agencies.length > 0 ? agencies : Array.from(set).sort()
     if (filters.mru.length === 0 && filters.status.length === 0 && filters.baseClass.length === 0) {
       return fullList
     }
-    return fullList.filter(a => set.has(a))
+    return fullList.filter(a => set.has(String(a || "").trim()))
   }, [scopedConsumers, agencies, filters.mru, filters.status, filters.baseClass])
 
   // Available MRUs (Zones): dynamically scoped by selected agency, status, baseClass
   const availableMrus = useMemo(() => {
     let pool = scopedConsumers
     if (filters.agency.length > 0) {
-      const agUpper = filters.agency.map(a => a.toUpperCase())
-      pool = pool.filter(c => agUpper.includes((c.agency || "").toUpperCase()))
+      const agUpper = filters.agency.map(a => String(a || "").trim().toUpperCase())
+      pool = pool.filter(c => agUpper.includes(String(c?.agency || "").trim().toUpperCase()))
     }
     if (filters.status.length > 0) {
-      const statusLower = filters.status.map(s => s.toLowerCase())
-      pool = pool.filter(c => statusLower.includes((c.disconStatus || "").toLowerCase()))
+      const statusLower = filters.status.map(s => String(s || "").trim().toLowerCase())
+      pool = pool.filter(c => {
+        const st = String(c?.disconStatus || "").trim().toLowerCase()
+        return statusLower.some(s => s === "paid" ? st === "paid" || st === "agency paid" || st.startsWith("paid") : st === s)
+      })
     }
     if (filters.baseClass.length > 0) {
-      const bcUpper = filters.baseClass.map(b => b.toUpperCase())
-      pool = pool.filter(c => bcUpper.includes((c.baseClass || "").toUpperCase()))
+      const bcUpper = filters.baseClass.map(b => String(b || "").trim().toUpperCase())
+      pool = pool.filter(c => bcUpper.includes(String(c?.baseClass || "").trim().toUpperCase()))
     }
-    return Array.from(new Set(pool.map(c => (c.mru || "").trim()).filter(Boolean))).sort()
+    return Array.from(new Set(pool.map(c => String(c?.mru || "").trim()).filter(Boolean))).sort()
   }, [scopedConsumers, filters.agency, filters.status, filters.baseClass])
 
   // Available Statuses: dynamically scoped by selected agency, MRU, baseClass
   const availableStatuses = useMemo(() => {
     let pool = scopedConsumers
     if (filters.agency.length > 0) {
-      const agUpper = filters.agency.map(a => a.toUpperCase())
-      pool = pool.filter(c => agUpper.includes((c.agency || "").toUpperCase()))
+      const agUpper = filters.agency.map(a => String(a || "").trim().toUpperCase())
+      pool = pool.filter(c => agUpper.includes(String(c?.agency || "").trim().toUpperCase()))
     }
     if (filters.mru.length > 0) {
-      const mruUpper = filters.mru.map(m => m.toUpperCase())
-      pool = pool.filter(c => mruUpper.includes((c.mru || "").toUpperCase()))
+      const mruUpper = filters.mru.map(m => String(m || "").trim().toUpperCase())
+      pool = pool.filter(c => mruUpper.includes(String(c?.mru || "").trim().toUpperCase()))
     }
     if (filters.baseClass.length > 0) {
-      const bcUpper = filters.baseClass.map(b => b.toUpperCase())
-      pool = pool.filter(c => bcUpper.includes((c.baseClass || "").toUpperCase()))
+      const bcUpper = filters.baseClass.map(b => String(b || "").trim().toUpperCase())
+      pool = pool.filter(c => bcUpper.includes(String(c?.baseClass || "").trim().toUpperCase()))
     }
     const ALL_POSSIBLE_STATUSES = [
       "connected", "disconnected", "office team", "bill dispute", "pending", "paid", "not found"
     ]
-    const presentSet = new Set(pool.map(c => (c.disconStatus || "").toLowerCase().trim()).filter(Boolean))
+    const presentSet = new Set(pool.map(c => String(c?.disconStatus || "").trim().toLowerCase()).filter(Boolean))
     return ALL_POSSIBLE_STATUSES.filter(s => {
       if (s === "paid") {
         return presentSet.has("paid") || presentSet.has("agency paid") || Array.from(presentSet).some(p => p.startsWith("paid"))
@@ -556,18 +587,21 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const availableBaseClasses = useMemo(() => {
     let pool = scopedConsumers
     if (filters.agency.length > 0) {
-      const agUpper = filters.agency.map(a => a.toUpperCase())
-      pool = pool.filter(c => agUpper.includes((c.agency || "").toUpperCase()))
+      const agUpper = filters.agency.map(a => String(a || "").trim().toUpperCase())
+      pool = pool.filter(c => agUpper.includes(String(c?.agency || "").trim().toUpperCase()))
     }
     if (filters.mru.length > 0) {
-      const mruUpper = filters.mru.map(m => m.toUpperCase())
-      pool = pool.filter(c => mruUpper.includes((c.mru || "").toUpperCase()))
+      const mruUpper = filters.mru.map(m => String(m || "").trim().toUpperCase())
+      pool = pool.filter(c => mruUpper.includes(String(c?.mru || "").trim().toUpperCase()))
     }
     if (filters.status.length > 0) {
-      const statusLower = filters.status.map(s => s.toLowerCase())
-      pool = pool.filter(c => statusLower.includes((c.disconStatus || "").toLowerCase()))
+      const statusLower = filters.status.map(s => String(s || "").trim().toLowerCase())
+      pool = pool.filter(c => {
+        const st = String(c?.disconStatus || "").trim().toLowerCase()
+        return statusLower.some(s => s === "paid" ? st === "paid" || st === "agency paid" || st.startsWith("paid") : st === s)
+      })
     }
-    return Array.from(new Set(pool.map(c => (c.baseClass || "").toUpperCase().trim()).filter(Boolean))).sort()
+    return Array.from(new Set(pool.map(c => String(c?.baseClass || "").trim().toUpperCase()).filter(Boolean))).sort()
   }, [scopedConsumers, filters.agency, filters.mru, filters.status])
 
   // Auto-prune effect hooks to keep selected filters valid when parent dependencies change
@@ -601,36 +635,37 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
   const sortedConsumers = useMemo(() => [...filteredConsumers].sort((a, b) => {
     // 0. Urgent rows always appear first (admin-set priority flag)
-    const urgentA = (a.priority || "").toLowerCase() === "urgent"
-    const urgentB = (b.priority || "").toLowerCase() === "urgent"
+    const urgentA = String(a?.priority || "").trim().toLowerCase() === "urgent"
+    const urgentB = String(b?.priority || "").trim().toLowerCase() === "urgent"
     if (urgentA && !urgentB) return -1
     if (!urgentA && urgentB) return 1
 
     // 1. Connected next
-    const isConnectedA = (a.disconStatus || "").toLowerCase() === "connected"
-    const isConnectedB = (b.disconStatus || "").toLowerCase() === "connected"
+    const isConnectedA = String(a?.disconStatus || "").trim().toLowerCase() === "connected"
+    const isConnectedB = String(b?.disconStatus || "").trim().toLowerCase() === "connected"
     if (isConnectedA && !isConnectedB) return -1
     if (!isConnectedA && isConnectedB) return 1
 
     // 2. MRU A-Z sort (when active, groups by MRU before applying OSD)
     if (sortByMRU) {
-      const mruCmp = (a.mru || "").localeCompare(b.mru || "")
+      const mruCmp = String(a?.mru || "").localeCompare(String(b?.mru || ""))
       if (mruCmp !== 0) return mruCmp
     }
 
     // 3. OSD Sort
     if (sortByOSD === "none") return 0
-    const aOsd = Number.parseFloat(a.d2NetOS || "0")
-    const bOsd = Number.parseFloat(b.d2NetOS || "0")
+    const aOsd = Number.parseFloat(String(a?.d2NetOS || "0")) || 0
+    const bOsd = Number.parseFloat(String(b?.d2NetOS || "0")) || 0
     if (sortByOSD === "asc") return aOsd - bOsd
     if (sortByOSD === "desc") return bOsd - aOsd
     return 0
   }), [filteredConsumers, sortByOSD, sortByMRU])
 
-    // Helper to ensure links work even if "https://" is missing in the sheet
-  const getValidUrl = (url: string | undefined) => {
-    if (!url) return "#";
+  // Helper to ensure links work even if "https://" is missing in the sheet
+  const getValidUrl = (url: any) => {
+    if (!url || typeof url !== "string") return "#";
     const cleanUrl = url.trim();
+    if (!cleanUrl || cleanUrl === "#") return "#";
     if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
       return cleanUrl;
     }
@@ -680,27 +715,31 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
   const handleUpdateConsumer = async (updatedConsumer: ConsumerData) => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    // Clean binary File object if attached in form
+    const cleanedConsumer: ConsumerData = { ...updatedConsumer }
+    if ('image' in cleanedConsumer) {
+      delete (cleanedConsumer as any).image
+    }
     // Capture the pre-edit state so the server can log an accurate old→new
     // history entry without an extra sheet read.
-    const prev = consumers.find((c) => c.consumerId === updatedConsumer.consumerId)
+    const prev = consumers.find((c) => c.consumerId === cleanedConsumer.consumerId)
     const withPrev: any = {
-      ...updatedConsumer,
+      ...cleanedConsumer,
       previousStatus: prev?.disconStatus ?? "",
       previousOsd: prev?.d2NetOS ?? "",
       previousNotes: prev?.notes ?? "",
     }
     // 1. Optimistic Update: Mark as syncing and stamp a local-edit timestamp
-    //    so a stale CDN-cached patch fetch can't overwrite this row.
+    //    so a stale patch fetch can't overwrite this row.
     const syncingConsumer: ConsumerData = {
-      ...updatedConsumer,
+      ...cleanedConsumer,
       _syncStatus: 'syncing',
       _localEditedAt: Date.now(),
     };
     
     setConsumers((prev) => {
       const newList = prev
-        .map((c) => (c.consumerId === updatedConsumer.consumerId ? syncingConsumer : c))
-        // .filter((c) => userRole === "admin" || c.disconStatus !== "&"); // Removed to prevent accidental data loss
+        .map((c) => (c.consumerId === cleanedConsumer.consumerId ? syncingConsumer : c))
       saveToCache("consumers_data_cache", newList);
       return newList;
     });
@@ -1025,7 +1064,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <span className="text-[10px] text-muted-foreground uppercase font-bold">From</span>
                       <Input
                         type="date"
-                        value={dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : ''}
+                        value={dateFilter.from instanceof Date && !isNaN(dateFilter.from.getTime()) ? format(dateFilter.from, 'yyyy-MM-dd') : ''}
                         onChange={(e) => setDateFilter(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : null, isActive: true }))}
                         className="h-8"
                       />
@@ -1034,7 +1073,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <span className="text-[10px] text-muted-foreground uppercase font-bold">To</span>
                       <Input
                         type="date"
-                        value={dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : ''}
+                        value={dateFilter.to instanceof Date && !isNaN(dateFilter.to.getTime()) ? format(dateFilter.to, 'yyyy-MM-dd') : ''}
                         onChange={(e) => setDateFilter(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : null, isActive: true }))}
                         className="h-8"
                       />
@@ -1875,9 +1914,10 @@ function ConsumerHistoryDialog({ consumer, onClose }: { consumer: ConsumerData; 
     return { label: (h.action || "Updated").replace(/_/g, " "), Icon: Clock, color: "text-gray-500", ring: "bg-gray-100" }
   }
 
-  const getValidUrl = (url: string | undefined) => {
-    if (!url) return "#"
+  const getValidUrl = (url: any) => {
+    if (!url || typeof url !== "string") return "#"
     const clean = url.trim()
+    if (!clean || clean === "#") return "#"
     if (clean.startsWith("http://") || clean.startsWith("https://")) return clean
     return `https://${clean}`
   }

@@ -238,14 +238,30 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
       body: stream,
     }
 
-    const response = await drive.files.create({
-      requestBody: fileMetadata,
-      media: media,
-      fields: "id, webViewLink",
-      supportsAllDrives: true,
-    })
+    let response
+    try {
+      response = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: "id, webViewLink",
+        supportsAllDrives: true,
+      })
+    } catch (createErr: any) {
+      if (targetFolderId !== rootFolderId) {
+        console.warn(`Upload to subfolder failed, retrying to root folder '${rootFolderId}'...`, createErr?.message)
+        const fallbackStream = new BufferStream(buffer)
+        response = await drive.files.create({
+          requestBody: { name: fileName, parents: [rootFolderId] },
+          media: { mimeType: file.type || "image/jpeg", body: fallbackStream },
+          fields: "id, webViewLink",
+          supportsAllDrives: true,
+        })
+      } else {
+        throw createErr
+      }
+    }
 
-    const fileId = response.data.id
+    const fileId = response?.data?.id
     if (!fileId) throw new Error("No file ID returned from Drive")
 
     // Make the file publicly readable so it can be displayed in the app

@@ -18,18 +18,19 @@ export function nowDate(): string {
   return nowTs().split(" ")[0]
 }
 
-/** Parse "DD-MM-YYYY HH:MM", "DD-MM-YYYY", ISO string, etc. → epoch ms */
-export function parseTs(ts: string): number {
+/** Parse "DD-MM-YYYY HH:MM", "DD-MM-YYYY", ISO string, Date object, etc. → epoch ms */
+export function parseTs(ts: any): number {
   if (!ts) return 0
+  if (ts instanceof Date) return isNaN(ts.getTime()) ? 0 : ts.getTime()
   try {
-    const trimmed = ts.trim()
+    const trimmed = String(ts).trim()
     if (!trimmed) return 0
     if (trimmed.includes("T") || (trimmed.includes("-") && trimmed.indexOf("-") === 4)) {
       const parsed = new Date(trimmed).getTime()
       if (!isNaN(parsed)) return parsed
     }
     const [datePart, timePart = "00:00"] = trimmed.split(" ")
-    const parts = datePart.split("-").map(Number)
+    const parts = (datePart || "").split("-").map(Number)
     if (parts.length === 3) {
       const [d, m, y] = parts
       const [h = 0, min = 0] = (timePart || "00:00").split(":").map(Number)
@@ -59,9 +60,14 @@ export function currentFY(): string {
  * Detects dates that were flipped by Google Sheets US locale (e.g. Month > currentMonth in the current year)
  * and safely un-flips Day and Month back to their actual values.
  */
-export function sanitizeDisconDate(rawDate: string | null | undefined): string {
-  if (!rawDate || typeof rawDate !== "string") return ""
-  const trimmed = rawDate.trim()
+export function sanitizeDisconDate(rawDate: any): string {
+  if (!rawDate) return ""
+  if (rawDate instanceof Date) {
+    if (isNaN(rawDate.getTime())) return ""
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${pad(rawDate.getDate())}-${pad(rawDate.getMonth() + 1)}-${rawDate.getFullYear()}`
+  }
+  const trimmed = String(rawDate).trim()
   if (!trimmed || trimmed === "-") return ""
 
   // Standardize delimiters
@@ -131,14 +137,18 @@ export function sanitizeDisconDate(rawDate: string | null | undefined): string {
  * so the payment amount should NOT be deducted from the new OSD again.
  */
 export function getPaymentDuesBreakdown(consumer: {
-  d2NetOS?: string
-  paidAmount?: string
-  paidDate?: string
-  lastUpdated?: string
-  disconDate?: string
+  d2NetOS?: any
+  paidAmount?: any
+  paidDate?: any
+  lastUpdated?: any
+  disconDate?: any
 }) {
-  const currentOsd = Number.parseFloat(consumer.d2NetOS || "0") || 0
-  const paidAmt = Number.parseFloat(consumer.paidAmount || "0") || 0
+  const currentOsd = Number.parseFloat(String(consumer?.d2NetOS ?? "0")) || 0
+  const paidAmt = Number.parseFloat(String(consumer?.paidAmount ?? "0")) || 0
+  const paidDateStr = String(consumer?.paidDate ?? "").trim()
+  const disconDateStr = String(consumer?.disconDate ?? "").trim()
+  const effectivePaidDate = paidDateStr || disconDateStr || ""
+  const uploadDateStr = String(consumer?.lastUpdated ?? "").trim()
 
   if (paidAmt <= 0) {
     return {
@@ -147,15 +157,13 @@ export function getPaymentDuesBreakdown(consumer: {
       currentOsd,
       paidAmt: 0,
       remainingPending: currentOsd,
-      paidDate: consumer.paidDate?.trim() || consumer.disconDate?.trim() || "",
-      uploadDate: consumer.lastUpdated || "",
+      paidDate: effectivePaidDate,
+      uploadDate: uploadDateStr,
     }
   }
 
-  // The effective date of payment is paidDate, falling back to disconDate
-  const effectivePaidDate = consumer.paidDate?.trim() || consumer.disconDate?.trim() || ""
   const paidTs = effectivePaidDate ? parseTs(effectivePaidDate) : 0
-  const uploadTs = consumer.lastUpdated ? parseTs(consumer.lastUpdated) : 0
+  const uploadTs = uploadDateStr ? parseTs(uploadDateStr) : 0
 
   // If upload date is available and payment was made strictly before the upload date
   // e.g. paid on 10.08.2026 (paidTs), new list uploaded on 17.08.2026 (uploadTs)
@@ -169,7 +177,7 @@ export function getPaymentDuesBreakdown(consumer: {
       paidAmt,
       remainingPending: currentOsd, // Fresh OSD from latest list is already the pending amount
       paidDate: effectivePaidDate,
-      uploadDate: consumer.lastUpdated || "",
+      uploadDate: uploadDateStr,
     }
   }
 
@@ -180,6 +188,6 @@ export function getPaymentDuesBreakdown(consumer: {
     paidAmt,
     remainingPending: Math.max(0, currentOsd - paidAmt),
     paidDate: effectivePaidDate,
-    uploadDate: consumer.lastUpdated || "",
+    uploadDate: uploadDateStr,
   }
 }
