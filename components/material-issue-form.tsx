@@ -12,14 +12,7 @@ import type { Material, MaterialStock } from "@/lib/material-types"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
 
 
-function getGoogleDriveDirectLink(url: string): string {
-  if (!url) return ""
-  const clean = url.trim()
-  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
-    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
-  }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
-}
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 interface Props {
   catalogue: Material[]

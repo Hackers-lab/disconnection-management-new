@@ -51,14 +51,7 @@ import {
   BarChart3
 } from "lucide-react"
 
-function getGoogleDriveDirectLink(url: string): string {
-  if (!url) return ""
-  const clean = url.trim()
-  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
-    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
-  }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
-}
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 interface Props {
   userRole: string
@@ -1020,6 +1013,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
                         <div className="rounded-xl overflow-hidden border max-h-48 flex items-center justify-center bg-white shadow-sm">
                           <img 
                             src={getGoogleDriveDirectLink(viewingDtr.paintingImage)} 
+                            onError={(e) => handleImageError(e, viewingDtr.paintingImage)}
                             alt="DTR evidence" 
                             className="max-h-48 object-contain cursor-pointer" 
                             onClick={() => window.open(viewingDtr.paintingImage, "_blank")}

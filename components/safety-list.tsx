@@ -39,20 +39,14 @@ import { SafetyForm } from "./safety-form"
 import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 const NearbySafetyMap = dynamic(
   () => import("./nearby-safety-map").then((mod) => mod.NearbySafetyMap),
   { ssr: false }
 )
 
-export function getGoogleDriveDirectLink(url: string | undefined): string {
-  if (!url) return ""
-  const clean = url.trim()
-  if (clean.includes("drive.google.com") || clean.includes("docs.google.com")) {
-    return `/api/image-proxy?url=${encodeURIComponent(clean)}`
-  }
-  return clean.startsWith("http://") || clean.startsWith("https://") ? clean : `https://${clean}`
-}
+export { getGoogleDriveDirectLink }
 
 interface SafetyListProps {
   userRole: string
@@ -1096,7 +1090,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                       onClick={() => setPreviewImage({ url: selectedForView.beforeImageUrl!, title: "Before Inspection Photo", ticketId: selectedForView.safetyId, type: "Before" })}
                       className="cursor-pointer border border-black rounded-lg overflow-hidden bg-slate-50 hover:opacity-90 transition-opacity"
                     >
-                      <img src={getGoogleDriveDirectLink(selectedForView.beforeImageUrl)} alt="Before" className="w-full h-20 object-cover" />
+                      <img src={getGoogleDriveDirectLink(selectedForView.beforeImageUrl)} onError={(e) => handleImageError(e, selectedForView.beforeImageUrl)} alt="Before" className="w-full h-20 object-cover" />
                       <p className="p-1 text-[9px] font-bold text-center bg-slate-900 text-white">Before Photo 🔍</p>
                     </div>
                   ) : <div className="border border-black rounded-lg h-20 flex items-center justify-center text-[9px] text-slate-400 text-center p-1">No Before Photo</div>}
@@ -1106,7 +1100,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                       onClick={() => setPreviewImage({ url: selectedForView.drawingUrl!, title: "Work Drawing / SLD", ticketId: selectedForView.safetyId, type: "Drawing" })}
                       className="cursor-pointer border border-black rounded-lg overflow-hidden bg-purple-50 hover:opacity-90 transition-opacity"
                     >
-                      <img src={getGoogleDriveDirectLink(selectedForView.drawingUrl)} alt="Drawing" className="w-full h-20 object-cover" />
+                      <img src={getGoogleDriveDirectLink(selectedForView.drawingUrl)} onError={(e) => handleImageError(e, selectedForView.drawingUrl)} alt="Drawing" className="w-full h-20 object-cover" />
                       <p className="p-1 text-[9px] font-bold text-center bg-purple-950 text-white">Drawing / SLD 🔍</p>
                     </div>
                   ) : <div className="border border-black rounded-lg h-20 flex items-center justify-center text-[9px] text-slate-400 text-center p-1">No Drawing</div>}
@@ -1116,7 +1110,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                       onClick={() => setPreviewImage({ url: selectedForView.afterImageUrl!, title: "Rectified Site Photo", ticketId: selectedForView.safetyId, type: "Rectified" })}
                       className="cursor-pointer border border-black rounded-xl overflow-hidden bg-emerald-50 hover:opacity-90 transition-opacity"
                     >
-                      <img src={getGoogleDriveDirectLink(selectedForView.afterImageUrl)} alt="After" className="w-full h-20 object-cover" />
+                      <img src={getGoogleDriveDirectLink(selectedForView.afterImageUrl)} onError={(e) => handleImageError(e, selectedForView.afterImageUrl)} alt="After" className="w-full h-20 object-cover" />
                       <p className="p-1 text-[9px] font-bold text-center bg-emerald-950 text-white">After Photo 🔍</p>
                     </div>
                   ) : <div className="border border-black rounded-lg h-20 flex items-center justify-center text-[9px] text-slate-400 text-center p-1">No After Photo</div>}
