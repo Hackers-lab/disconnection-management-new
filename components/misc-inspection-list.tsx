@@ -100,10 +100,21 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
 
   const { checkVersion } = useModuleVersionSync<MiscInspectionRecord>("misc-inspection", "misc_inspection_cache", "id", (updated) => {
     setRecords(updated)
+    setLoading(false)
   })
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<MiscInspectionRecord[]>("misc_inspection_cache").then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setRecords(cached)
+        setLoading(false)
+      }
+    }).catch(() => {})
+  }, [])
+
   const fetchRecords = async (force = false) => {
-    setLoading(true)
+    if (records.length === 0) setLoading(true)
     try {
       if (force) {
         await fetch("/api/system/reset-base?moduleKey=misc-inspection", { method: "POST" }).catch(() => {})
@@ -113,7 +124,9 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
     } catch (err: any) {
       if (records.length === 0) toast.error(err.message || "Failed to load inspections")
     } finally {
-      setLoading(false)
+      if (records.length > 0) {
+        setLoading(false)
+      }
     }
   }
 

@@ -243,13 +243,29 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     }
   }, [userRole, agenciesKey])
 
-  const processData = useCallback(async (data: ConsumerData[], isBackgroundUpdate = false) => {
-    await new Promise(resolve => setTimeout(resolve, 0))
+  // Fetch active agencies for admin/viewer in background without blocking consumer render
+  useEffect(() => {
+    if (userRole === "admin" || userRole === "viewer") {
+      fetch("/api/admin/agencies")
+        .then(res => res.ok ? res.json() : [])
+        .then(agencyData => {
+          const activeAgencies = agencyData.filter((a: any) => a.isActive).map((a: any) => a.name)
+          if (activeAgencies.length > 0) {
+            setAgencies(activeAgencies)
+          }
+        })
+        .catch(() => {})
+    } else {
+      setAgencies(userAgencies)
+    }
+  }, [userRole, agenciesKey])
 
-    if (isBackgroundUpdate) {
+  const processData = useCallback((data: ConsumerData[], isBackgroundUpdate = false) => {
+    let processedData = data
+    if (isBackgroundUpdate && consumersRef.current.length > 0) {
       const LOCAL_WIN_WINDOW_MS = 30_000
       const now = Date.now()
-      data = data.map(newC => {
+      processedData = data.map(newC => {
         const existing = consumersRef.current.find(c => c.consumerId === newC.consumerId)
         if (!existing) return newC
         const recentLocal =
@@ -263,31 +279,24 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
     const uniqueBaseClasses = Array.from(
       new Set(
-        data
+        processedData
           .map(c => (c.baseClass || "").toUpperCase().trim())
           .filter(bc => bc !== "")
       )
     ).sort()
     setBaseClasses(uniqueBaseClasses)
 
-    let agencyList: string[] = []
-    if (userRole === "admin" || userRole === "viewer") {
-      try {
-        const agenciesResponse = await fetch("/api/admin/agencies")
-        if (agenciesResponse.ok) {
-          const agencyData = await agenciesResponse.json()
-          agencyList = agencyData.filter((a: any) => a.isActive).map((a: any) => a.name)
-        }
-      } catch (error) {
-        agencyList = Array.from(new Set(data.map((c) => c.agency).filter((a): a is string => !!a)))
+    setAgencies(prev => {
+      if (prev.length > 0) return prev
+      if (userRole === "admin" || userRole === "viewer") {
+        return Array.from(new Set(processedData.map((c) => c.agency).filter((a): a is string => !!a)))
       }
-    } else {
-      agencyList = userAgencies
-    }
-    setAgencies(agencyList)
-    setConsumers(data)
+      return userAgencies
+    })
+
+    setConsumers(processedData)
     setLoading(false)
-  }, [userRole, agenciesKey])
+  }, [userRole, userAgencies])
 
   const lastRefreshTimeRef = useRef<number>(0)
 
@@ -295,24 +304,36 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     processData(updated, true)
   })
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<ConsumerData[]>("consumers_data_cache").then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0 && consumersRef.current.length === 0) {
+        processData(cached, false)
+      }
+    }).catch(() => {})
+  }, [processData])
+
   const loadData = useCallback(async (force = false) => {
     setError(null)
     try {
       await checkVersion(force)
-      setLoading(false)
     } catch (err: any) {
       console.error("💥 Error loading data:", err)
       if (consumersRef.current.length === 0) {
         setError(err instanceof Error ? err.message : "Unknown error occurred")
       }
     } finally {
-      setLoading(false)
+      if (consumersRef.current.length > 0) {
+        setLoading(false)
+      }
     }
   }, [checkVersion])
 
   useEffect(() => {
-    loadData()
-  }, [loadData, refreshKey]) // Use stable key instead of array reference
+    if (refreshKey > 0) {
+      loadData()
+    }
+  }, [loadData, refreshKey])
 
   const clearCache = async () => {
     if (confirm("Are you sure you want to clear the cache and reload?")) {

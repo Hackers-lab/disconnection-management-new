@@ -100,7 +100,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     
     // 1. Optimistic UI update
     setRecords(prev => {
-      const updated = prev.map(r => (r.replacementId === selectedForReturn.replacementId || r.issueId === targetId) ? { ...r, status: "proposed", serialNo: "", issueId: "" } : r)
+      const updated = prev.map(r => (r.replacementId === selectedForReturn.replacementId || r.issueId === targetId) ? { ...r, status: "proposed" as const, serialNo: "", issueId: "" } : r)
       saveToCache(CACHE_KEY, updated)
       return updated
     })
@@ -183,7 +183,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
     // Optimistic UI update: instantly reflect closed status on screen
     setRecords(prev => {
-      const updated = prev.map(r => r.replacementId === targetId ? { ...r, status: "closed", remarks } : r)
+      const updated = prev.map(r => r.replacementId === targetId ? { ...r, status: "closed" as const, remarks } : r)
       saveToCache(CACHE_KEY, updated)
       return updated
     })
@@ -275,18 +275,19 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     })
   }
 
-  useModuleVersionSync<MeterReplacement>(
+  const { checkVersion } = useModuleVersionSync<MeterReplacement>(
     "meter-replacement",
     CACHE_KEY,
     "replacementId",
     "/api/meters/replacement?bypassCache=true",
     (updated) => {
       setRecords([...updated].reverse())
+      setSyncState("idle")
     }
   )
 
   const load = async (silent = false, force = false) => {
-    if (!silent) setSyncState("loading")
+    if (!silent && records.length === 0) setSyncState("loading")
     try {
       if (force) {
         await fetch("/api/system/reset-base?moduleKey=meter-replacement", { method: "POST" }).catch(() => {})
@@ -299,20 +300,10 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         if (!silent) setSyncState("idle")
       }
 
-      // 2. Automatically fetch fresh server records to reconcile additions, updates, and deleted items
-      const url = force ? "/api/meters/replacement?bypassCache=true" : "/api/meters/replacement"
-      const res = await fetch(url)
-      if (!res.ok) throw new Error()
-      const result = await res.json()
-      const patchItems = (Array.isArray(result) ? result : (result.patchData || [])) as MeterReplacement[]
-      const sorted = [...patchItems].reverse()
-      setRecords(sorted)
-      await saveToCache(CACHE_KEY, patchItems)
-      setSyncState("updated")
-      setTimeout(() => setSyncState("idle"), 3000)
+      await checkVersion(force)
     } catch {
       setSyncState("idle")
-      if (!silent) toast({ title: "Failed to load replacement list", variant: "destructive" })
+      if (!silent && records.length === 0) toast({ title: "Failed to load replacement list", variant: "destructive" })
     }
   }
 

@@ -128,30 +128,38 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   const [editingRefApp, setEditingRefApp]       = useState<NSCApplication | null>(null)
   const [refNoInput, setRefNoInput]             = useState("")
   const [savingRefNo, setSavingRefNo]           = useState(false)
-  const [downloadReportApp, setDownloadReportApp] = useState<NSCApplication | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const { checkVersion } = useModuleVersionSync<NSCApplication>("nsc", CACHE_KEY, "receiveNo", (updated) => {
     setApps([...updated].reverse())
+    setSyncState("idle")
   })
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<NSCApplication[]>(CACHE_KEY).then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setApps([...cached].reverse())
+        setSyncState("idle")
+      }
+    }).catch(() => {})
+  }, [])
+
   const load = async (silent = false, forceFull = false) => {
-    if (!silent) setSyncState("loading")
+    if (!silent && apps.length === 0) setSyncState("loading")
     try {
       if (forceFull) {
         await fetch("/api/system/reset-base?moduleKey=nsc", { method: "POST" }).catch(() => {})
-        await clearCache(CACHE_KEY)
+        await saveToCache(CACHE_KEY, [])
       }
       await checkVersion(forceFull)
       if (forceFull) toast({ title: "NSC data resynced & base reset" })
       setSyncState("idle")
     } catch {
       setSyncState("idle")
-      if (!silent) toast({ title: "Failed to load NSC data", variant: "destructive" })
+      if (!silent && apps.length === 0) toast({ title: "Failed to load NSC data", variant: "destructive" })
     }
   }
-
-  useEffect(() => { load() }, [])
 
   // Load projects
   useEffect(() => {
@@ -956,6 +964,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 // ── Reports panel ──────────────────────────────────────────────────────────────
 function NscReports({ apps }: { apps: NSCApplication[] }) {
   const { toast } = useToast()
+  const [downloadReportApp, setDownloadReportApp] = useState<NSCApplication | null>(null)
 
   const total     = apps.length
   const pending   = apps.filter(a => a.status === "pending").length
