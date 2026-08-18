@@ -324,6 +324,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
     const updatedConsumer: ConsumerData = {
       ...consumer,
       ...cleanData,
+      uploadDate: consumer.uploadDate || "",
       imageUrl: cleanData.imageUrl || "",
       lastUpdated: new Date().toISOString().split("T")[0],
     }

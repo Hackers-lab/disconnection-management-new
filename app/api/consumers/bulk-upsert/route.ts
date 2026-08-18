@@ -118,15 +118,22 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       ensureHistoryTab(spreadsheetId),
     ])
 
-    // 2. Find needed column indices.
-    const idColIndex      = findColumn(headers, ["consumerId","consumer id","consumer_id"])
-    const statusColIndex  = findColumn(headers, ["discon status","disconnection status","status"])
-    const agencyColIndex  = findColumn(headers, ["agency"])
-    const notesColIndex   = findColumn(headers, ["notes","remarks","comments"])
-    const osdColIndex     = findColumn(headers, ["d2 net o/s","d2 net os","outstanding"])
-    const lastUpdColIndex = findColumn(headers, ["last updated","lastupdated","updatedAt","timestamp"])
-    const nameColIndex    = findColumn(headers, ["name","consumer name"])
-    const imageColIndex   = findColumn(headers, ["image","image url","imageurl","photo","evidence"])
+    const idColIndex        = findColumn(headers, ["consumerId","consumer id","consumer_id"])
+    const statusColIndex    = findColumn(headers, ["discon status","disconnection status","status"])
+    const agencyColIndex    = findColumn(headers, ["agency"])
+    const notesColIndex     = findColumn(headers, ["notes","remarks","comments"])
+    const osdColIndex       = findColumn(headers, ["d2 net o/s","d2 net os","outstanding"])
+    const lastUpdColIndex   = findColumn(headers, ["last updated","lastupdated","updatedAt","timestamp"])
+    const uploadDateColIdx  = findColumn(headers, ["upload date", "uploaddate", "list upload date", "list_upload_date", "dc upload date"])
+    const nameColIndex      = findColumn(headers, ["name","consumer name"])
+    const imageColIndex     = findColumn(headers, ["image","image url","imageurl","photo","evidence"])
+
+    const paidAmtColIndex   = findColumn(headers, ["paid amount", "paidamount", "amount paid"])
+    const paidDateColIndex  = findColumn(headers, ["paid date", "paiddate", "payment date"])
+    const paidTypeColIndex  = findColumn(headers, ["paid type", "paidtype", "payment type"])
+    const outAfterColIndex  = findColumn(headers, ["outstanding after", "outstandingafter"])
+    const nextPayColIndex   = findColumn(headers, ["next payment date", "nextpaymentdate"])
+    const paySrcColIndex    = findColumn(headers, ["payment source", "paymentsource"])
 
     if (idColIndex === -1) {
       return NextResponse.json({ error: "Consumer ID column not found" }, { status: 500 })
@@ -217,6 +224,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         if (statusColIndex !== -1) newRow[statusColIndex] = "connected"
         if (agencyColIndex !== -1 && mappedAgency) { newRow[agencyColIndex] = mappedAgency; autoAssignedCount++ }
         if (lastUpdColIndex !== -1) newRow[lastUpdColIndex] = todayStr
+        if (uploadDateColIdx !== -1) newRow[uploadDateColIdx] = todayStr
         insertRows.push(newRow)
       } else {
         // UPDATE: existing consumer
@@ -281,8 +289,18 @@ export const POST = withTenant(async function POST(request: NextRequest) {
               updateWrites.push({ range: `'${sheetName}'!${colLetter(sc)}${existing.row}`, values: [[val ?? ""]] })
             }
           })
-          if (shouldReset && statusColIndex !== -1) {
-            updateWrites.push({ range: `'${sheetName}'!${colLetter(statusColIndex)}${existing.row}`, values: [["connected"]] })
+          if (shouldReset) {
+            if (statusColIndex !== -1) {
+              updateWrites.push({ range: `'${sheetName}'!${colLetter(statusColIndex)}${existing.row}`, values: [["connected"]] })
+            }
+            // Clear prior cycle payment fields
+            if (paidAmtColIndex !== -1) updateWrites.push({ range: `'${sheetName}'!${colLetter(paidAmtColIndex)}${existing.row}`, values: [[""]] })
+            if (paidDateColIndex !== -1) updateWrites.push({ range: `'${sheetName}'!${colLetter(paidDateColIndex)}${existing.row}`, values: [[""]] })
+            if (paidTypeColIndex !== -1) updateWrites.push({ range: `'${sheetName}'!${colLetter(paidTypeColIndex)}${existing.row}`, values: [[""]] })
+            if (outAfterColIndex !== -1) updateWrites.push({ range: `'${sheetName}'!${colLetter(outAfterColIndex)}${existing.row}`, values: [[""]] })
+            if (nextPayColIndex !== -1) updateWrites.push({ range: `'${sheetName}'!${colLetter(nextPayColIndex)}${existing.row}`, values: [[""]] })
+            if (paySrcColIndex !== -1) updateWrites.push({ range: `'${sheetName}'!${colLetter(paySrcColIndex)}${existing.row}`, values: [[""]] })
+
             const snap = historyEntries.slice().reverse().find(h => h.consumerId === consumerId)
             if (snap) snap.newStatus = "connected"
           }
@@ -293,6 +311,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         }
         if (lastUpdColIndex !== -1) {
           updateWrites.push({ range: `'${sheetName}'!${colLetter(lastUpdColIndex)}${existing.row}`, values: [[todayStr]] })
+        }
+        if (uploadDateColIdx !== -1) {
+          updateWrites.push({ range: `'${sheetName}'!${colLetter(uploadDateColIdx)}${existing.row}`, values: [[todayStr]] })
         }
       }
     }

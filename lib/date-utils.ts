@@ -131,16 +131,52 @@ export function sanitizeDisconDate(rawDate: any): string {
 }
 
 /**
+ * Normalizes any flexible date representation (DD-MM-YYYY, YYYY-MM-DD, ISO, Date object, etc.)
+ * into a canonical "YYYY-MM-DD" calendar date string without timezone skew.
+ */
+export function normalizeCalendarDate(rawDate: any): string | null {
+  if (!rawDate) return null
+  if (rawDate instanceof Date) {
+    if (isNaN(rawDate.getTime())) return null
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${rawDate.getFullYear()}-${pad(rawDate.getMonth() + 1)}-${pad(rawDate.getDate())}`
+  }
+  const clean = String(rawDate).trim().replace(/[./]/g, "-")
+  if (!clean || clean === "-") return null
+
+  // YYYY-MM-DD format
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(clean)) {
+    const [y, m, d] = clean.split("-").map(Number)
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${y}-${pad(m)}-${pad(d)}`
+  }
+
+  // DD-MM-YYYY or MM-DD-YYYY
+  const parts = clean.split("-").map(Number)
+  if (parts.length >= 3) {
+    let [d, m, y] = parts
+    if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+      if (y < 100) y += 2000
+      const pad = (n: number) => String(n).padStart(2, "0")
+      return `${y}-${pad(m)}-${pad(d)}`
+    }
+  }
+  return null
+}
+
+/**
  * Calculates dues and determines if a recorded payment is applicable against the current OSD.
- * If payment was made BEFORE the latest list upload date (uploadTs > paidTs), the fresh
- * D2 Net O/S from the latest list upload already reflects that payment in the billing system,
- * so the payment amount should NOT be deducted from the new OSD again.
+ * - If payment was made strictly BEFORE the DC list upload date (paidDate < uploadDate),
+ *   the current D2 Net O/S is fresh dues, so remaining pending = currentOsd.
+ * - If payment was made ON or AFTER the list upload date (paidDate >= uploadDate),
+ *   or if uploadDate is blank/not set, payment is deducted from current OSD.
  */
 export function getPaymentDuesBreakdown(consumer: {
   d2NetOS?: any
   paidAmount?: any
   paidDate?: any
   lastUpdated?: any
+  uploadDate?: any
   disconDate?: any
 }) {
   const currentOsd = Number.parseFloat(String(consumer?.d2NetOS ?? "0")) || 0
@@ -148,7 +184,7 @@ export function getPaymentDuesBreakdown(consumer: {
   const paidDateStr = String(consumer?.paidDate ?? "").trim()
   const disconDateStr = String(consumer?.disconDate ?? "").trim()
   const effectivePaidDate = paidDateStr || disconDateStr || ""
-  const uploadDateStr = String(consumer?.lastUpdated ?? "").trim()
+  const uploadDateStr = String(consumer?.uploadDate ?? "").trim()
 
   if (paidAmt <= 0) {
     return {
@@ -162,12 +198,11 @@ export function getPaymentDuesBreakdown(consumer: {
     }
   }
 
-  const paidTs = effectivePaidDate ? parseTs(effectivePaidDate) : 0
-  const uploadTs = uploadDateStr ? parseTs(uploadDateStr) : 0
+  const normPaidDate = normalizeCalendarDate(effectivePaidDate)
+  const normUploadDate = normalizeCalendarDate(uploadDateStr)
 
-  // If upload date is available and payment was made strictly before the upload date
-  // e.g. paid on 10.08.2026 (paidTs), new list uploaded on 17.08.2026 (uploadTs)
-  const isPaidBeforeUpload = uploadTs > 0 && paidTs > 0 && uploadTs > paidTs
+  // Payment is strictly prior to upload ONLY if uploadDate is explicitly set and paidDate is strictly before it
+  const isPaidBeforeUpload = !!normUploadDate && !!normPaidDate && normPaidDate < normUploadDate
 
   if (isPaidBeforeUpload) {
     return {
@@ -175,7 +210,7 @@ export function getPaymentDuesBreakdown(consumer: {
       isPaidAfterUpload: false,
       currentOsd,
       paidAmt,
-      remainingPending: currentOsd, // Fresh OSD from latest list is already the pending amount
+      remainingPending: currentOsd, // Fresh OSD from latest list
       paidDate: effectivePaidDate,
       uploadDate: uploadDateStr,
     }
