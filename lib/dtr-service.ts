@@ -69,9 +69,16 @@ async function ensureHeaders(spreadsheetId: string) {
       return
     }
 
+    const cleanTab = TAB.trim().toLowerCase()
+    const matchedSheet = meta.data.sheets?.find(
+      (s) => (s.properties?.title || "").trim().toLowerCase() === cleanTab
+    )
+    const actualTab = matchedSheet?.properties?.title || TAB
+    const sheetId = matchedSheet?.properties?.sheetId ?? 0
+
     const headerResp = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `'${TAB}'!1:1`,
+      range: `'${actualTab}'!1:1`,
     })
     const existing = (headerResp.data.values?.[0] || []).map(String)
     const existingNorm = new Set(existing.map(norm))
@@ -81,34 +88,52 @@ async function ensureHeaders(spreadsheetId: string) {
 
     // Ensure sheet has enough columns to accommodate the new headers
     const requiredCols = existing.length + missing.length
-    try {
-      const sheet = meta.data.sheets?.find((s) => s.properties?.title === TAB)
-      if (sheet) {
-        const currentCols = sheet.properties?.gridProperties?.columnCount || 0
-        if (currentCols < requiredCols) {
-          console.log(`Resizing sheet "${TAB}" columns from ${currentCols} to ${requiredCols}...`)
+    const currentCols = matchedSheet?.properties?.gridProperties?.columnCount || 0
+    const targetCols = Math.max(requiredCols + 15, 35)
+
+    if (currentCols < requiredCols || currentCols < 35) {
+      try {
+        console.log(`Resizing sheet "${actualTab}" columns from ${currentCols} to ${targetCols}...`)
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                updateSheetProperties: {
+                  properties: {
+                    sheetId,
+                    gridProperties: {
+                      columnCount: targetCols,
+                    },
+                  },
+                  fields: "gridProperties.columnCount",
+                },
+              },
+            ],
+          },
+        })
+      } catch (err: any) {
+        console.error(`Failed to resize columns for sheet "${actualTab}":`, err.message || err)
+        try {
+          const addCount = Math.max(targetCols - currentCols, missing.length + 10)
           await sheets.spreadsheets.batchUpdate({
             spreadsheetId,
             requestBody: {
               requests: [
                 {
-                  updateSheetProperties: {
-                    properties: {
-                      sheetId: sheet.properties?.sheetId,
-                      gridProperties: {
-                        columnCount: requiredCols,
-                      },
-                    },
-                    fields: "gridProperties.columnCount",
+                  appendDimension: {
+                    sheetId,
+                    dimension: "COLUMNS",
+                    length: addCount,
                   },
                 },
               ],
             },
           })
+        } catch (appendErr: any) {
+          console.error(`Failed to append columns to "${actualTab}":`, appendErr.message || appendErr)
         }
       }
-    } catch (err: any) {
-      console.error(`Failed to resize columns for sheet "${TAB}":`, err.message || err)
     }
 
     // Append missing headers
@@ -116,7 +141,7 @@ async function ensureHeaders(spreadsheetId: string) {
     const endCol = colLetter(existing.length + missing.length - 1)
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `'${TAB}'!${startCol}1:${endCol}1`,
+      range: `'${actualTab}'!${startCol}1:${endCol}1`,
       valueInputOption: "RAW",
       requestBody: { values: [missing] },
     })
