@@ -42,28 +42,38 @@ export interface VercelUsageResponse {
   metrics: VercelMetricItem[]
   spikedMetrics: VercelMetricItem[]
   lastChecked: number
-  source: "live_api" | "estimated"
+  source: "live_api" | "manual_kv" | "default"
+  debugInfo?: {
+    tokenPresent: boolean
+    teamIdPresent: boolean
+    apiStatus?: string
+    apiError?: string
+    keysFound?: string[]
+  }
 }
 
-// Fallback limits for Vercel Hobby & Pro plans
-const HOBBY_LIMITS = {
-  bandwidthBytes: 100 * 1024 * 1024 * 1024, // 100 GB
-  serverlessGbHrs: 100, // 100 GB-Hrs
-  serverlessInvocations: 100000, // 100k
-  edgeRequests: 1000000, // 1M
-  edgeMiddlewareInvocations: 1000000, // 1M
-  imageOptimization: 1000, // 1,000 source images
-  fastOriginTransferBytes: 10 * 1024 * 1024 * 1024, // 10 GB
-  buildMinutes: 6000, // 6,000 min
-  webAnalyticsEvents: 2500, // 2,500 events
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B"
-  const k = 1024
-  const sizes = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+// Standard Vercel Limits in human units
+const PLAN_LIMITS = {
+  hobby: {
+    fastOriginTransferGB: 10, // 10 GB
+    bandwidthGB: 100, // 100 GB
+    serverlessGbHrs: 100, // 100 GB-Hrs
+    serverlessInvocations: 100000, // 100k
+    edgeRequests: 1000000, // 1M
+    imageOptimization: 1000, // 1,000 images
+    edgeMiddlewareInvocations: 1000000, // 1M
+    buildMinutes: 6000, // 6,000 min
+  },
+  pro: {
+    fastOriginTransferGB: 100,
+    bandwidthGB: 1000,
+    serverlessGbHrs: 1000,
+    serverlessInvocations: 1000000,
+    edgeRequests: 10000000,
+    imageOptimization: 5000,
+    edgeMiddlewareInvocations: 10000000,
+    buildMinutes: 24000,
+  },
 }
 
 function getSeverity(percent: number): "normal" | "warning" | "high" | "critical" {
@@ -71,6 +81,29 @@ function getSeverity(percent: number): "normal" | "warning" | "high" | "critical
   if (percent >= 75) return "high"
   if (percent >= 50) return "warning"
   return "normal"
+}
+
+// Universal parser for Vercel values (handles GB, raw bytes, seconds, and counts)
+function parseVercelValue(rawVal: any, unitType: "gb" | "count" | "time"): number {
+  if (rawVal === undefined || rawVal === null) return 0
+  let num = typeof rawVal === "number" ? rawVal : parseFloat(String(rawVal))
+  if (isNaN(num)) return 0
+
+  if (unitType === "gb") {
+    // If value is > 10000, it's in raw bytes -> convert to GB
+    if (num > 10000) {
+      num = num / (1024 * 1024 * 1024)
+    }
+    // Round to 2 decimal places
+    return Math.round(num * 100) / 100
+  }
+
+  if (unitType === "time") {
+    // If value is > 10000, it might be in seconds -> convert to GB-Hrs or min
+    return Math.round(num * 10) / 10
+  }
+
+  return Math.round(num)
 }
 
 export async function GET(request: NextRequest) {
@@ -99,7 +132,10 @@ export async function GET(request: NextRequest) {
       (await getKV<string>("system_config:vercel_project_id")) ||
       ""
 
-    // Current billing cycle dates (Vercel cycles monthly based on calendar month or account creation)
+    // Get any saved manual / snapshot metrics from KV
+    const savedManualMetrics = (await getKV<Record<string, number>>("system_config:vercel_manual_metrics")) || {}
+
+    // Current billing cycle dates
     const now = new Date()
     const cycleStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const cycleEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
@@ -109,9 +145,11 @@ export async function GET(request: NextRequest) {
     const percentElapsed = Math.round((daysElapsed / totalDays) * 100)
 
     let planName = "Hobby (Free)"
-    let rawMetrics: Record<string, any> = {}
-    let source: "live_api" | "estimated" = "estimated"
+    let rawMetricsMap: Record<string, any> = {}
+    let source: "live_api" | "manual_kv" | "default" = "default"
     let isConfigured = Boolean(token && token.trim())
+    let apiStatus = "not_configured"
+    let apiError: string | undefined
 
     // 2. Query Live Vercel API if Token is available
     if (isConfigured) {
@@ -129,104 +167,223 @@ export async function GET(request: NextRequest) {
           if (userData?.user?.billing?.plan) {
             planName = userData.user.billing.plan === "pro" ? "Pro Plan" : `${userData.user.billing.plan} Plan`
           }
+          apiStatus = "user_ok"
         }
 
-        // 2b. Fetch Vercel Usage API
-        const usageUrl = `https://api.vercel.com/v2/usage${teamParam}`
-        const usageRes = await fetch(usageUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        })
+        // 2b. Attempt to fetch Vercel Usage API endpoints
+        const endpoints = [
+          `https://api.vercel.com/v2/usage${teamParam}`,
+          `https://api.vercel.com/v1/billing/usage${teamParam}`,
+          `https://api.vercel.com/v1/usage${teamParam}`,
+        ]
 
-        if (usageRes.ok) {
-          const usageData = await usageRes.json()
-          source = "live_api"
-          if (usageData?.metrics) {
-            rawMetrics = usageData.metrics
-          }
-        } else {
-          // Fallback to v1 usage
-          const v1Url = `https://api.vercel.com/v1/usage${teamParam}`
-          const v1Res = await fetch(v1Url, {
-            headers: { Authorization: `Bearer ${token}` },
-            cache: "no-store",
-          })
-          if (v1Res.ok) {
-            const v1Data = await v1Res.json()
-            source = "live_api"
-            rawMetrics = v1Data?.metrics || v1Data || {}
+        for (const ep of endpoints) {
+          try {
+            const usageRes = await fetch(ep, {
+              headers: { Authorization: `Bearer ${token}` },
+              cache: "no-store",
+            })
+
+            if (usageRes.ok) {
+              const usageData = await usageRes.json()
+              source = "live_api"
+              apiStatus = "usage_ok"
+
+              // Flatten metrics into dictionary
+              if (usageData?.metrics) {
+                if (Array.isArray(usageData.metrics)) {
+                  for (const m of usageData.metrics) {
+                    if (m && m.name) rawMetricsMap[m.name] = m.value ?? m
+                  }
+                } else if (typeof usageData.metrics === "object") {
+                  Object.assign(rawMetricsMap, usageData.metrics)
+                }
+              }
+
+              if (usageData?.services && Array.isArray(usageData.services)) {
+                for (const s of usageData.services) {
+                  if (s && s.name) rawMetricsMap[s.name] = s.value ?? s
+                }
+              }
+
+              if (usageData?.totals && typeof usageData.totals === "object") {
+                Object.assign(rawMetricsMap, usageData.totals)
+              }
+
+              if (Object.keys(usageData).length > 0) {
+                Object.assign(rawMetricsMap, usageData)
+              }
+              break
+            }
+          } catch {
+            // try next endpoint
           }
         }
-      } catch (apiErr) {
-        console.warn("[Vercel Usage API] Failed to fetch live Vercel metrics:", apiErr)
+      } catch (apiErr: any) {
+        console.warn("[Vercel Usage API] Live fetch error:", apiErr)
+        apiError = apiErr?.message || "Failed to fetch live API"
       }
     }
 
-    // 3. Assemble Normalized Metric Definitions
-    // Helper to safely extract usage value and limit from raw Vercel response or fallback
-    const extractUsage = (metricKey: string, defaultLimit: number, rawKeyAlternative?: string) => {
-      const item = rawMetrics[metricKey] || (rawKeyAlternative ? rawMetrics[rawKeyAlternative] : null)
-      if (item && typeof item === "object") {
-        const val = typeof item.value === "number" ? item.value : (Number(item.value) || 0)
-        const lim = typeof item.limit === "number" ? item.limit : (Number(item.limit) || defaultLimit)
-        return { value: val, limit: lim }
+    // 3. Fallback to / Merge with Saved Manual Metrics from KV if live API is missing specific readings
+    if (Object.keys(savedManualMetrics).length > 0) {
+      if (source !== "live_api") {
+        source = "manual_kv"
       }
-      if (typeof item === "number") {
-        return { value: item, limit: defaultLimit }
+      for (const [k, v] of Object.entries(savedManualMetrics)) {
+        if (rawMetricsMap[k] === undefined || rawMetricsMap[k] === 0) {
+          rawMetricsMap[k] = v
+        }
       }
-      return { value: 0, limit: defaultLimit }
     }
 
-    // Metric 1: Fast Data Transfer / Bandwidth
-    const bandwidthData = extractUsage("bandwidth", HOBBY_LIMITS.bandwidthBytes, "fastDataTransfer")
-    const bandwidthUsed = bandwidthData.value
-    const bandwidthLimit = bandwidthData.limit
+    // Helper to find a metric value by trying multiple aliases
+    const findMetric = (aliases: string[], fallbackVal = 0): number => {
+      for (const alias of aliases) {
+        if (rawMetricsMap[alias] !== undefined) {
+          const val = rawMetricsMap[alias]
+          if (val && typeof val === "object" && val.value !== undefined) {
+            return Number(val.value) || 0
+          }
+          const num = typeof val === "number" ? val : parseFloat(String(val))
+          if (!isNaN(num)) return num
+        }
+      }
+      return fallbackVal
+    }
+
+    // 4. Extract and Normalize All 8 Core Resources
+    const limits = planName.toLowerCase().includes("pro") ? PLAN_LIMITS.pro : PLAN_LIMITS.hobby
+
+    // 1. Fast Origin Transfer (Default fallback 9.44 GB if user specified or saved)
+    const rawOrigin = findMetric([
+      "fastOriginTransfer",
+      "fast_origin_transfer",
+      "fast-origin-transfer",
+      "fastOriginTransferGB",
+      "fastOriginTransferBytes",
+      "originTransfer",
+      "origin_transfer",
+      "fastOrigin",
+    ], savedManualMetrics.fastOriginTransfer ?? 0)
+    const fastOriginUsed = parseVercelValue(rawOrigin, "gb")
+    const fastOriginLimit = limits.fastOriginTransferGB
+    const fastOriginPct = Math.round((fastOriginUsed / Math.max(fastOriginLimit, 1)) * 1000) / 10
+
+    // 2. Fast Data Transfer / Bandwidth
+    const rawBandwidth = findMetric([
+      "bandwidth",
+      "fastDataTransfer",
+      "fast_data_transfer",
+      "fast-data-transfer",
+      "bandwidthBytes",
+      "bandwidthGB",
+      "dataTransfer",
+    ], savedManualMetrics.bandwidth ?? 0)
+    const bandwidthUsed = parseVercelValue(rawBandwidth, "gb")
+    const bandwidthLimit = limits.bandwidthGB
     const bandwidthPct = Math.round((bandwidthUsed / Math.max(bandwidthLimit, 1)) * 1000) / 10
 
-    // Metric 2: Serverless Function Execution (GB-Hours)
-    const fnExecData = extractUsage("serverlessFunctionExecution", HOBBY_LIMITS.serverlessGbHrs, "functionExecution")
-    const fnExecUsed = fnExecData.value
-    const fnExecLimit = fnExecData.limit
+    // 3. Serverless Function Execution (GB-Hours)
+    const rawFnExec = findMetric([
+      "serverlessFunctionExecution",
+      "functionExecution",
+      "serverless_function_execution",
+      "serverlessExecution",
+      "computeGbHrs",
+      "compute",
+    ], savedManualMetrics.serverlessExecution ?? 0)
+    const fnExecUsed = parseVercelValue(rawFnExec, "gb")
+    const fnExecLimit = limits.serverlessGbHrs
     const fnExecPct = Math.round((fnExecUsed / Math.max(fnExecLimit, 1)) * 1000) / 10
 
-    // Metric 3: Serverless Function Invocations
-    const fnInvocData = extractUsage("serverlessFunctionInvocations", HOBBY_LIMITS.serverlessInvocations, "invocations")
-    const fnInvocUsed = fnInvocData.value
-    const fnInvocLimit = fnInvocData.limit
+    // 4. Serverless Function Invocations
+    const rawFnInvoc = findMetric([
+      "serverlessFunctionInvocations",
+      "invocations",
+      "serverless_function_invocations",
+      "serverlessInvocations",
+      "functionInvocations",
+    ], savedManualMetrics.serverlessInvocations ?? 0)
+    const fnInvocUsed = parseVercelValue(rawFnInvoc, "count")
+    const fnInvocLimit = limits.serverlessInvocations
     const fnInvocPct = Math.round((fnInvocUsed / Math.max(fnInvocLimit, 1)) * 1000) / 10
 
-    // Metric 4: Edge Requests
-    const edgeReqData = extractUsage("edgeRequests", HOBBY_LIMITS.edgeRequests, "edgeRequest")
-    const edgeReqUsed = edgeReqData.value
-    const edgeReqLimit = edgeReqData.limit
+    // 5. Edge Requests
+    const rawEdgeReq = findMetric([
+      "edgeRequests",
+      "edgeRequest",
+      "edge_requests",
+      "edge_request",
+    ], savedManualMetrics.edgeRequests ?? 0)
+    const edgeReqUsed = parseVercelValue(rawEdgeReq, "count")
+    const edgeReqLimit = limits.edgeRequests
     const edgeReqPct = Math.round((edgeReqUsed / Math.max(edgeReqLimit, 1)) * 1000) / 10
 
-    // Metric 5: Edge Middleware Invocations
-    const edgeMwData = extractUsage("edgeMiddlewareInvocations", HOBBY_LIMITS.edgeMiddlewareInvocations)
-    const edgeMwUsed = edgeMwData.value
-    const edgeMwLimit = edgeMwData.limit
-    const edgeMwPct = Math.round((edgeMwUsed / Math.max(edgeMwLimit, 1)) * 1000) / 10
-
-    // Metric 6: Image Optimization (Source Images)
-    const imgData = extractUsage("imageOptimization", HOBBY_LIMITS.imageOptimization, "images")
-    const imgUsed = imgData.value
-    const imgLimit = imgData.limit
+    // 6. Image Optimization
+    const rawImages = findMetric([
+      "imageOptimization",
+      "images",
+      "image_optimization",
+      "sourceImages",
+    ], savedManualMetrics.imageOptimization ?? 0)
+    const imgUsed = parseVercelValue(rawImages, "count")
+    const imgLimit = limits.imageOptimization
     const imgPct = Math.round((imgUsed / Math.max(imgLimit, 1)) * 1000) / 10
 
-    // Metric 7: Fast Origin Transfer
-    const originData = extractUsage("fastOriginTransfer", HOBBY_LIMITS.fastOriginTransferBytes)
-    const originUsed = originData.value
-    const originLimit = originData.limit
-    const originPct = Math.round((originUsed / Math.max(originLimit, 1)) * 1000) / 10
+    // 7. Edge Middleware Invocations
+    const rawEdgeMw = findMetric([
+      "edgeMiddlewareInvocations",
+      "edge_middleware_invocations",
+      "middlewareInvocations",
+    ], savedManualMetrics.edgeMiddleware ?? 0)
+    const edgeMwUsed = parseVercelValue(rawEdgeMw, "count")
+    const edgeMwLimit = limits.edgeMiddlewareInvocations
+    const edgeMwPct = Math.round((edgeMwUsed / Math.max(edgeMwLimit, 1)) * 1000) / 10
 
-    // Metric 8: Build Minutes
-    const buildData = extractUsage("buildMinutes", HOBBY_LIMITS.buildMinutes, "buildTime")
-    const buildUsed = buildData.value
-    const buildLimit = buildData.limit
+    // 8. Build Minutes
+    const rawBuild = findMetric([
+      "buildMinutes",
+      "buildTime",
+      "build_minutes",
+      "builds",
+    ], savedManualMetrics.buildMinutes ?? 0)
+    const buildUsed = parseVercelValue(rawBuild, "time")
+    const buildLimit = limits.buildMinutes
     const buildPct = Math.round((buildUsed / Math.max(buildLimit, 1)) * 1000) / 10
 
-    // Assemble Metric Items
+    // 5. Construct Normalized Metrics List
     const allMetrics: VercelMetricItem[] = [
+      {
+        id: "fast_origin_transfer",
+        name: "Fast Origin Transfer",
+        category: "bandwidth",
+        used: fastOriginUsed,
+        limit: fastOriginLimit,
+        unit: "GB",
+        formattedUsed: `${fastOriginUsed.toFixed(2)} GB`,
+        formattedLimit: `${fastOriginLimit} GB`,
+        percent: fastOriginPct,
+        isSpiked: fastOriginPct >= 50,
+        severity: getSeverity(fastOriginPct),
+        description: "Data transfer from Serverless API Functions / ISR to Vercel's Global Edge Network.",
+        recommendation: "Enable caching on Google Sheet read queries and compress heavy JSON API responses to prevent reaching 10 GB limit.",
+      },
+      {
+        id: "bandwidth",
+        name: "Fast Data Transfer (Bandwidth)",
+        category: "bandwidth",
+        used: bandwidthUsed,
+        limit: bandwidthLimit,
+        unit: "GB",
+        formattedUsed: `${bandwidthUsed.toFixed(1)} GB`,
+        formattedLimit: `${bandwidthLimit} GB`,
+        percent: bandwidthPct,
+        isSpiked: bandwidthPct >= 50,
+        severity: getSeverity(bandwidthPct),
+        description: "Outgoing HTTP egress to client browsers and mobile field workers.",
+        recommendation: "Ensure IndexedDB delta patching is enabled to prevent repeated full-dataset downloads.",
+      },
       {
         id: "serverless_execution",
         name: "Serverless Function Execution",
@@ -239,38 +396,8 @@ export async function GET(request: NextRequest) {
         percent: fnExecPct,
         isSpiked: fnExecPct >= 50,
         severity: getSeverity(fnExecPct),
-        description: "CPU & Memory execution time consumed by Next.js Serverless API endpoints.",
-        recommendation: "Use server-side caching on Google Sheet fetch endpoints to reduce execution duration.",
-      },
-      {
-        id: "bandwidth",
-        name: "Fast Data Transfer (Bandwidth)",
-        category: "bandwidth",
-        used: bandwidthUsed,
-        limit: bandwidthLimit,
-        unit: "Bytes",
-        formattedUsed: formatBytes(bandwidthUsed),
-        formattedLimit: formatBytes(bandwidthLimit),
-        percent: bandwidthPct,
-        isSpiked: bandwidthPct >= 50,
-        severity: getSeverity(bandwidthPct),
-        description: "Outgoing HTTP egress and page/data transfer to users and field workers.",
-        recommendation: "Ensure IndexedDB delta patching is enabled to prevent repeated full-dataset downloads.",
-      },
-      {
-        id: "image_optimization",
-        name: "Image Optimization",
-        category: "media",
-        used: imgUsed,
-        limit: imgLimit,
-        unit: "Images",
-        formattedUsed: `${imgUsed.toLocaleString()} images`,
-        formattedLimit: `${imgLimit.toLocaleString()} images`,
-        percent: imgPct,
-        isSpiked: imgPct >= 50,
-        severity: getSeverity(imgPct),
-        description: "Unique source photos transformed and compressed by Next.js Image Optimization.",
-        recommendation: "Deliver high-resolution consumer site photos via direct CDN links rather than server re-encoding.",
+        description: "CPU & Memory execution duration consumed by Next.js Serverless API endpoints.",
+        recommendation: "Use short-lived server caching on Google Sheet fetches to avoid idle wait times.",
       },
       {
         id: "serverless_invocations",
@@ -284,8 +411,23 @@ export async function GET(request: NextRequest) {
         percent: fnInvocPct,
         isSpiked: fnInvocPct >= 50,
         severity: getSeverity(fnInvocPct),
-        description: "Total number of serverless backend route calls executed.",
-        recommendation: "Batch API requests and use client-side IndexedDB caching.",
+        description: "Total count of backend API route invocations executed this cycle.",
+        recommendation: "Consolidate polling and sync intervals across active browser tabs.",
+      },
+      {
+        id: "image_optimization",
+        name: "Image Optimization",
+        category: "media",
+        used: imgUsed,
+        limit: imgLimit,
+        unit: "Images",
+        formattedUsed: `${imgUsed.toLocaleString()} images`,
+        formattedLimit: `${imgLimit.toLocaleString()} images`,
+        percent: imgPct,
+        isSpiked: imgPct >= 50,
+        severity: getSeverity(imgPct),
+        description: "Unique source images transformed and optimized by Next.js Image Service.",
+        recommendation: "Serve static assets with long cache headers or link direct CDN assets.",
       },
       {
         id: "edge_requests",
@@ -316,20 +458,6 @@ export async function GET(request: NextRequest) {
         description: "Authentication and tenant routing middleware checks performed at edge.",
       },
       {
-        id: "fast_origin_transfer",
-        name: "Fast Origin Transfer",
-        category: "bandwidth",
-        used: originUsed,
-        limit: originLimit,
-        unit: "Bytes",
-        formattedUsed: formatBytes(originUsed),
-        formattedLimit: formatBytes(originLimit),
-        percent: originPct,
-        isSpiked: originPct >= 50,
-        severity: getSeverity(originPct),
-        description: "Transfer volume between Vercel Edge CDN nodes and Serverless origins.",
-      },
-      {
         id: "build_minutes",
         name: "Build Minutes",
         category: "build",
@@ -345,14 +473,12 @@ export async function GET(request: NextRequest) {
       },
     ]
 
-    // Filter to spiked metrics only (>= 50%)
+    // Spiked metrics specifically >= 50%
     const spikedMetrics = allMetrics.filter(m => m.percent >= 50)
-
-    // Sort spiked metrics descending by percentage
     spikedMetrics.sort((a, b) => b.percent - a.percent)
     allMetrics.sort((a, b) => b.percent - a.percent)
 
-    // Find highest metric
+    // Highest metric
     const highestMetric = allMetrics.length > 0 && allMetrics[0].percent > 0
       ? { name: allMetrics[0].name, percent: allMetrics[0].percent }
       : null
@@ -361,16 +487,15 @@ export async function GET(request: NextRequest) {
     let burnRateStatus: "safe" | "elevated" | "critical" = "safe"
     const hasCritical = allMetrics.some(m => m.percent >= 90)
     const hasHigh = allMetrics.some(m => m.percent >= 75)
-    const hasElevatedBurn = allMetrics.some(m => m.percent > percentElapsed + 25)
 
     if (hasCritical) {
       burnRateStatus = "critical"
-    } else if (hasHigh || hasElevatedBurn || spikedMetrics.length > 0) {
+    } else if (hasHigh || spikedMetrics.length > 0) {
       burnRateStatus = "elevated"
     }
 
     const responseData: VercelUsageResponse = {
-      configured: isConfigured,
+      configured: isConfigured || Object.keys(savedManualMetrics).length > 0,
       plan: planName,
       billingPeriod: {
         start: cycleStart.toISOString().split("T")[0],
@@ -389,6 +514,13 @@ export async function GET(request: NextRequest) {
       spikedMetrics,
       lastChecked: Date.now(),
       source,
+      debugInfo: {
+        tokenPresent: Boolean(token),
+        teamIdPresent: Boolean(teamId),
+        apiStatus,
+        apiError,
+        keysFound: Object.keys(rawMetricsMap),
+      },
     }
 
     return NextResponse.json(responseData)
@@ -406,22 +538,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { action, token, teamId, projectId } = body
+    const { action, token, teamId, projectId, metrics } = body
 
     if (action === "save_config") {
       if (token !== undefined) {
-        if (token.trim()) {
-          await setKV("system_config:vercel_token", token.trim())
-        } else {
-          // If empty string passed, clear token
-          await setKV("system_config:vercel_token", "")
-        }
+        await setKV("system_config:vercel_token", token.trim())
       }
-
       if (teamId !== undefined) {
         await setKV("system_config:vercel_team_id", teamId.trim())
       }
-
       if (projectId !== undefined) {
         await setKV("system_config:vercel_project_id", projectId.trim())
       }
@@ -429,6 +554,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "Vercel API credentials updated successfully in system KV.",
+      })
+    }
+
+    // Direct save / sync of manual readings (e.g. Fast Origin = 9.44, Bandwidth = 45, etc.)
+    if (action === "save_metrics") {
+      if (metrics && typeof metrics === "object") {
+        const existing = (await getKV<Record<string, number>>("system_config:vercel_manual_metrics")) || {}
+        const updated = { ...existing, ...metrics }
+        await setKV("system_config:vercel_manual_metrics", updated)
+        return NextResponse.json({
+          success: true,
+          message: "Usage readings updated successfully.",
+          metrics: updated,
+        })
+      }
+      return NextResponse.json({ error: "Invalid metrics payload" }, { status: 400 })
+    }
+
+    // Test live token connection
+    if (action === "test_token") {
+      const testToken = token || (await getKV<string>("system_config:vercel_token")) || ""
+      if (!testToken) {
+        return NextResponse.json({ success: false, error: "No token provided to test." })
+      }
+
+      const teamParam = teamId ? `?teamId=${encodeURIComponent(teamId)}` : ""
+      const userRes = await fetch(`https://api.vercel.com/v2/user${teamParam}`, {
+        headers: { Authorization: `Bearer ${testToken}` },
+        cache: "no-store",
+      })
+
+      if (!userRes.ok) {
+        const errJson = await userRes.json().catch(() => ({}))
+        return NextResponse.json({
+          success: false,
+          error: errJson?.error?.message || `Vercel API returned status ${userRes.status}`,
+        })
+      }
+
+      const userData = await userRes.json()
+      return NextResponse.json({
+        success: true,
+        user: userData?.user?.username || userData?.user?.email || "Connected",
+        plan: userData?.user?.billing?.plan || "Hobby",
       })
     }
 
