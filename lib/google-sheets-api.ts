@@ -58,9 +58,27 @@ export async function ensureHeaders(
   sheetName: string,
   expected: readonly string[]
 ): Promise<string[]> {
+  // 1. Fetch spreadsheet metadata to resolve the exact sheet title and ID
+  const meta = await sheets.spreadsheets.get({ spreadsheetId })
+  const cleanName = (sheetName || "").trim().toLowerCase()
+  
+  // Find matching sheet using case-insensitive and trimmed title comparison
+  let matchedSheet = meta.data.sheets?.find(
+    (s) => (s.properties?.title || "").trim().toLowerCase() === cleanName
+  )
+  
+  // If not matched directly and default "Sheet1" requested, fallback to the first sheet
+  if (!matchedSheet && (cleanName === "sheet1" || cleanName === "sheet 1" || !cleanName) && meta.data.sheets?.length) {
+    matchedSheet = meta.data.sheets[0]
+  }
+
+  const actualSheetTitle = matchedSheet?.properties?.title || sheetName
+  const sheetId = matchedSheet?.properties?.sheetId ?? 0
+
+  // 2. Read existing header row using resolved sheet title
   const headerResp = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `'${sheetName}'!1:1`,
+    range: `'${actualSheetTitle}'!1:1`,
   })
   const existing = (headerResp.data.values?.[0] || []).map((h) => String(h ?? ""))
   const existingNorm = new Set(existing.map(norm))
@@ -68,44 +86,62 @@ export async function ensureHeaders(
   const missing = expected.filter((h) => !existingNorm.has(norm(h)))
   if (missing.length === 0) return existing
 
-  // Ensure sheet has enough columns to accommodate the new headers
+  // 3. Ensure sheet has plenty of columns to accommodate new headers
   const requiredCols = existing.length + missing.length
-  try {
-    const meta = await sheets.spreadsheets.get({ spreadsheetId })
-    const sheet = meta.data.sheets?.find((s) => s.properties?.title === sheetName)
-    if (sheet) {
-      const currentCols = sheet.properties?.gridProperties?.columnCount || 0
-      if (currentCols < requiredCols) {
-        console.log(`Resizing sheet "${sheetName}" columns from ${currentCols} to ${requiredCols}...`)
+  const currentCols = matchedSheet?.properties?.gridProperties?.columnCount || 0
+  const targetCols = Math.max(requiredCols + 15, 45) // generous buffer (at least 45 columns)
+
+  if (currentCols < requiredCols || currentCols < 45) {
+    try {
+      console.log(`Expanding sheet "${actualSheetTitle}" grid from ${currentCols} to ${targetCols} columns...`)
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId,
+                  gridProperties: {
+                    columnCount: targetCols,
+                  },
+                },
+                fields: "gridProperties.columnCount",
+              },
+            },
+          ],
+        },
+      })
+    } catch (resizeErr: any) {
+      console.warn(`Grid resize via updateSheetProperties failed for "${actualSheetTitle}":`, resizeErr?.message || resizeErr)
+      try {
+        const addCount = Math.max(targetCols - currentCols, missing.length + 15)
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId,
           requestBody: {
             requests: [
               {
-                updateSheetProperties: {
-                  properties: {
-                    sheetId: sheet.properties?.sheetId,
-                    gridProperties: {
-                      columnCount: requiredCols,
-                    },
-                  },
-                  fields: "gridProperties.columnCount",
+                appendDimension: {
+                  sheetId,
+                  dimension: "COLUMNS",
+                  length: addCount,
                 },
               },
             ],
           },
         })
+      } catch (appendErr: any) {
+        console.error(`Failed to append columns to "${actualSheetTitle}":`, appendErr?.message || appendErr)
       }
     }
-  } catch (err: any) {
-    console.error(`Failed to resize columns for sheet "${sheetName}":`, err.message || err)
   }
 
+  // 4. Append missing headers
   const startCol = colLetter(existing.length)
   const endCol = colLetter(existing.length + missing.length - 1)
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!${startCol}1:${endCol}1`,
+    range: `'${actualSheetTitle}'!${startCol}1:${endCol}1`,
     valueInputOption: "RAW",
     requestBody: { values: [missing as string[]] },
   })
