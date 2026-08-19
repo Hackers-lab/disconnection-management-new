@@ -30,12 +30,11 @@ import {
   ExternalLink,
   ShieldCheck,
   TrendingUp,
-  Clock,
   Filter,
   Flame,
-  Info,
   Calendar,
   Layers,
+  Edit3,
 } from "lucide-react"
 import type { VercelMetricItem, VercelUsageResponse } from "@/app/api/superuser/vercel-usage/route"
 
@@ -55,7 +54,7 @@ function getProgressColor(percent: number): string {
 function getSeverityBadge(severity: "normal" | "warning" | "high" | "critical", percent: number) {
   if (severity === "critical" || percent >= 90) {
     return (
-      <Badge variant="outline" className="bg-rose-950/80 border-rose-600 text-rose-300 font-mono text-[10px] font-bold px-2 py-0.5 animate-pulse flex items-center gap-1">
+      <Badge variant="outline" className="bg-rose-950/90 border-rose-600 text-rose-300 font-mono text-[10px] font-bold px-2 py-0.5 animate-pulse flex items-center gap-1">
         <Flame className="h-3 w-3 text-rose-400" />
         CRITICAL {percent}%
       </Badge>
@@ -107,11 +106,25 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
   const [refreshing, setRefreshing] = useState(false)
   const [filterView, setFilterView] = useState<FilterView>("spiked_only")
 
-  // Config modal
+  // API Config modal
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [configForm, setConfigForm] = useState({ token: "", teamId: "", projectId: "" })
   const [savingConfig, setSavingConfig] = useState(false)
+  const [testingToken, setTestingToken] = useState(false)
   const [configMsg, setConfigMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
+
+  // Quick Manual Readings modal (e.g. Fast Origin Transfer = 9.44 GB)
+  const [showReadingsModal, setShowReadingsModal] = useState(false)
+  const [readingsForm, setReadingsForm] = useState({
+    fastOriginTransfer: "9.44",
+    bandwidth: "",
+    serverlessExecution: "",
+    serverlessInvocations: "",
+    imageOptimization: "",
+    edgeRequests: "",
+  })
+  const [savingReadings, setSavingReadings] = useState(false)
+  const [readingsMsg, setReadingsMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   const fetchUsage = async (isManual = false) => {
     if (isManual) setRefreshing(true)
@@ -122,6 +135,25 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
       if (res.ok) {
         const result: VercelUsageResponse = await res.json()
         setData(result)
+
+        // Initialize readings form with current values
+        if (result.metrics) {
+          const m = result.metrics
+          const origin = m.find(x => x.id === "fast_origin_transfer")?.used
+          const bw = m.find(x => x.id === "bandwidth")?.used
+          const fn = m.find(x => x.id === "serverless_execution")?.used
+          const inv = m.find(x => x.id === "serverless_invocations")?.used
+          const img = m.find(x => x.id === "image_optimization")?.used
+
+          setReadingsForm({
+            fastOriginTransfer: origin ? String(origin) : "9.44",
+            bandwidth: bw ? String(bw) : "",
+            serverlessExecution: fn ? String(fn) : "",
+            serverlessInvocations: inv ? String(inv) : "",
+            imageOptimization: img ? String(img) : "",
+            edgeRequests: "",
+          })
+        }
       }
     } catch (e) {
       console.error("Failed to fetch Vercel usage:", e)
@@ -135,6 +167,37 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
     fetchUsage()
   }, [])
 
+  // Test token action
+  const handleTestToken = async () => {
+    setTestingToken(true)
+    setConfigMsg(null)
+    try {
+      const res = await fetch("/api/superuser/vercel-usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_token",
+          token: configForm.token,
+          teamId: configForm.teamId,
+        }),
+      })
+      const resData = await res.json()
+      if (res.ok && resData.success) {
+        setConfigMsg({
+          type: "success",
+          text: `Success! Connected to Vercel account: ${resData.user} (${resData.plan} Plan).`,
+        })
+      } else {
+        throw new Error(resData.error || "Token test failed")
+      }
+    } catch (err: any) {
+      setConfigMsg({ type: "error", text: err?.message || "Token verification failed" })
+    } finally {
+      setTestingToken(false)
+    }
+  }
+
+  // Save Config action
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingConfig(true)
@@ -156,7 +219,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
         setTimeout(() => {
           setShowConfigModal(false)
           fetchUsage(true)
-        }, 1200)
+        }, 1000)
       } else {
         throw new Error(resData.error || "Failed to save configuration")
       }
@@ -164,6 +227,55 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
       setConfigMsg({ type: "error", text: err?.message || "Failed to save settings" })
     } finally {
       setSavingConfig(false)
+    }
+  }
+
+  // Save Manual Readings action
+  const handleSaveReadings = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingReadings(true)
+    setReadingsMsg(null)
+
+    try {
+      const payload: Record<string, number> = {}
+      if (readingsForm.fastOriginTransfer) {
+        payload.fastOriginTransfer = parseFloat(readingsForm.fastOriginTransfer)
+      }
+      if (readingsForm.bandwidth) {
+        payload.bandwidth = parseFloat(readingsForm.bandwidth)
+      }
+      if (readingsForm.serverlessExecution) {
+        payload.serverlessExecution = parseFloat(readingsForm.serverlessExecution)
+      }
+      if (readingsForm.serverlessInvocations) {
+        payload.serverlessInvocations = parseInt(readingsForm.serverlessInvocations, 10)
+      }
+      if (readingsForm.imageOptimization) {
+        payload.imageOptimization = parseInt(readingsForm.imageOptimization, 10)
+      }
+
+      const res = await fetch("/api/superuser/vercel-usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_metrics",
+          metrics: payload,
+        }),
+      })
+      const resData = await res.json()
+      if (res.ok && resData.success) {
+        setReadingsMsg({ type: "success", text: "Usage metrics updated successfully." })
+        setTimeout(() => {
+          setShowReadingsModal(false)
+          fetchUsage(true)
+        }, 800)
+      } else {
+        throw new Error(resData.error || "Failed to save readings")
+      }
+    } catch (err: any) {
+      setReadingsMsg({ type: "error", text: err?.message || "Failed to save readings" })
+    } finally {
+      setSavingReadings(false)
     }
   }
 
@@ -217,8 +329,19 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
           <Button
             size="sm"
             variant="outline"
+            onClick={() => setShowReadingsModal(true)}
+            className="h-8 text-xs border-amber-700/50 bg-amber-950/30 hover:bg-amber-900/40 text-amber-300 px-2.5 cursor-pointer"
+            title="Update or sync current Vercel readings"
+          >
+            <Edit3 className="h-3.5 w-3.5 mr-1 text-amber-400" />
+            <span>Sync Readings</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => setShowConfigModal(true)}
-            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5"
+            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5 cursor-pointer"
             title="Configure Vercel API Token"
           >
             <KeyRound className="h-3.5 w-3.5 mr-1 text-slate-400" />
@@ -231,7 +354,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
             variant="outline"
             onClick={() => fetchUsage(true)}
             disabled={refreshing}
-            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5"
+            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5 cursor-pointer"
             title="Refresh Live Vercel Usage"
           >
             <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? "animate-spin text-amber-400" : ""}`} />
@@ -272,7 +395,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                   {spikedCount}
                 </div>
                 <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-0.5">
-                  {spikedCount > 0 ? "Require Attention" : "All Limits Within Safe Range"}
+                  {spikedCount > 0 ? "Require Immediate Action" : "All Limits Within Safe Headroom"}
                 </p>
               </div>
             )}
@@ -331,9 +454,9 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                   <Badge variant="outline" className={`text-[9px] font-mono ${
                     data?.source === "live_api"
                       ? "bg-emerald-950 border-emerald-800 text-emerald-300"
-                      : "bg-slate-800 border-slate-700 text-slate-400"
+                      : "bg-blue-950 border-blue-800 text-blue-300"
                   }`}>
-                    {data?.source === "live_api" ? "● Live API Connected" : "● Standard Quota"}
+                    {data?.source === "live_api" ? "● Live API Sync" : "● Stored / Snapshot KV"}
                   </Badge>
                 </div>
               </div>
@@ -380,7 +503,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
             size="sm"
             variant={filterView === "spiked_only" ? "default" : "outline"}
             onClick={() => setFilterView("spiked_only")}
-            className={`text-xs h-7.5 px-3 rounded-lg ${
+            className={`text-xs h-7.5 px-3 rounded-lg cursor-pointer ${
               filterView === "spiked_only"
                 ? "bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20"
                 : "border-slate-700 text-slate-400 hover:bg-slate-800"
@@ -394,7 +517,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
             size="sm"
             variant={filterView === "all" ? "default" : "outline"}
             onClick={() => setFilterView("all")}
-            className={`text-xs h-7.5 px-3 rounded-lg ${
+            className={`text-xs h-7.5 px-3 rounded-lg cursor-pointer ${
               filterView === "all"
                 ? "bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
                 : "border-slate-700 text-slate-400 hover:bg-slate-800"
@@ -408,7 +531,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
               size="sm"
               variant={filterView === "critical_only" ? "default" : "outline"}
               onClick={() => setFilterView("critical_only")}
-              className={`text-xs h-7.5 px-3 rounded-lg ${
+              className={`text-xs h-7.5 px-3 rounded-lg cursor-pointer ${
                 filterView === "critical_only"
                   ? "bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/20"
                   : "border-slate-700 text-rose-400 hover:bg-slate-800"
@@ -442,14 +565,22 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
             </p>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex items-center justify-center gap-2">
             <Button
               size="sm"
               variant="outline"
               onClick={() => setFilterView("all")}
-              className="border-emerald-700/60 bg-emerald-950/50 hover:bg-emerald-900 text-emerald-200 text-xs h-8 px-3"
+              className="border-emerald-700/60 bg-emerald-950/50 hover:bg-emerald-900 text-emerald-200 text-xs h-8 px-3 cursor-pointer"
             >
               View Full Breakdown of All {data?.metrics.length || 0} Resources
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowReadingsModal(true)}
+              className="border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 text-xs h-8 px-3 cursor-pointer"
+            >
+              Update Readings
             </Button>
           </div>
         </div>
@@ -465,9 +596,9 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                 key={metric.id}
                 className={`transition-all rounded-2xl overflow-hidden ${
                   metric.percent >= 75
-                    ? "bg-rose-950/15 border-rose-800/60 shadow-lg shadow-rose-950/20"
+                    ? "bg-rose-950/20 border-rose-700/70 shadow-lg shadow-rose-950/30"
                     : isSpiked
-                    ? "bg-amber-950/15 border-amber-800/50 shadow-md shadow-amber-950/10"
+                    ? "bg-amber-950/20 border-amber-700/60 shadow-md shadow-amber-950/20"
                     : "bg-slate-900/70 border-slate-800"
                 }`}
               >
@@ -497,10 +628,10 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                   {/* Progress Bar & Value Display */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-slate-300 font-bold">
-                        {metric.formattedUsed} <span className="text-slate-500 font-normal">/ {metric.formattedLimit}</span>
+                      <span className="text-slate-200 font-bold">
+                        {metric.formattedUsed} <span className="text-slate-400 font-normal">/ {metric.formattedLimit}</span>
                       </span>
-                      <span className={`font-black ${
+                      <span className={`font-black text-sm ${
                         metric.percent >= 90 ? "text-rose-400" : metric.percent >= 75 ? "text-orange-400" : metric.percent >= 50 ? "text-amber-400" : "text-emerald-400"
                       }`}>
                         {metric.percent}%
@@ -508,7 +639,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                     </div>
 
                     {/* Visual Progress Track */}
-                    <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
+                    <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
                         style={{ width: `${Math.min(100, Math.max(2, metric.percent))}%` }}
@@ -538,7 +669,130 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
         </div>
       )}
 
-      {/* ── API TOKEN CONFIGURATION MODAL ── */}
+      {/* ── MODAL 1: QUICK READINGS SYNC MODAL ── */}
+      <Dialog open={showReadingsModal} onOpenChange={setShowReadingsModal}>
+        <DialogContent className="w-[95vw] sm:max-w-md bg-slate-900 border-slate-800 text-slate-100 dark p-4 sm:p-6 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Edit3 className="h-5 w-5 text-amber-400" />
+              Sync Vercel Usage Readings
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs">
+              Quickly sync your current usage numbers from the Vercel dashboard to monitor spikes (&gt; 50%) in real-time.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveReadings} className="space-y-3 py-2">
+            {readingsMsg && (
+              <div className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                readingsMsg.type === "success" ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300" : "bg-rose-950/60 border border-rose-800 text-rose-300"
+              }`}>
+                {readingsMsg.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+                <span>{readingsMsg.text}</span>
+              </div>
+            )}
+
+            {/* Fast Origin Transfer */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                  <HardDrive className="h-3.5 w-3.5 text-amber-400" />
+                  Fast Origin Transfer (GB)
+                </Label>
+                <span className="text-[10px] text-slate-500 font-mono">Limit: 10 GB (Hobby)</span>
+              </div>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 9.44"
+                value={readingsForm.fastOriginTransfer}
+                onChange={e => setReadingsForm({ ...readingsForm, fastOriginTransfer: e.target.value })}
+                className="bg-slate-950 border-amber-500/40 text-amber-300 text-xs h-9 font-mono font-bold"
+              />
+              <p className="text-[10px] text-slate-400">
+                Current data transfer from Serverless backend origins to Vercel CDN.
+              </p>
+            </div>
+
+            {/* Bandwidth / Fast Data Transfer */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-cyan-400" />
+                  Fast Data Transfer / Bandwidth (GB)
+                </Label>
+                <span className="text-[10px] text-slate-500 font-mono">Limit: 100 GB</span>
+              </div>
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="e.g. 45.2"
+                value={readingsForm.bandwidth}
+                onChange={e => setReadingsForm({ ...readingsForm, bandwidth: e.target.value })}
+                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+              />
+            </div>
+
+            {/* Serverless Function Execution */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Cpu className="h-3.5 w-3.5 text-blue-400" />
+                  Function Execution (GB-Hours)
+                </Label>
+                <span className="text-[10px] text-slate-500 font-mono">Limit: 100 GB-Hrs</span>
+              </div>
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="e.g. 68.5"
+                value={readingsForm.serverlessExecution}
+                onChange={e => setReadingsForm({ ...readingsForm, serverlessExecution: e.target.value })}
+                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+              />
+            </div>
+
+            {/* Invocations */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 text-purple-400" />
+                  Function Invocations (Calls)
+                </Label>
+                <span className="text-[10px] text-slate-500 font-mono">Limit: 100,000</span>
+              </div>
+              <Input
+                type="number"
+                placeholder="e.g. 75000"
+                value={readingsForm.serverlessInvocations}
+                onChange={e => setReadingsForm({ ...readingsForm, serverlessInvocations: e.target.value })}
+                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+              />
+            </div>
+
+            <DialogFooter className="mt-4 flex gap-2 flex-row justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3"
+                onClick={() => setShowReadingsModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs h-9 px-3 cursor-pointer shadow-md shadow-amber-600/20"
+                disabled={savingReadings}
+              >
+                {savingReadings ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+                Save &amp; Track Usage
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MODAL 2: API TOKEN CONFIGURATION MODAL ── */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
         <DialogContent className="w-[95vw] sm:max-w-md bg-slate-900 border-slate-800 text-slate-100 dark p-4 sm:p-6 rounded-2xl">
           <DialogHeader>
@@ -585,24 +839,37 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
               />
             </div>
 
-            <DialogFooter className="mt-4 flex gap-2 flex-row justify-end">
+            <div className="pt-1 flex items-center justify-between">
               <Button
                 type="button"
                 variant="outline"
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3"
-                onClick={() => setShowConfigModal(false)}
+                onClick={handleTestToken}
+                disabled={testingToken || !configForm.token}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-2.5"
               >
-                Cancel
+                {testingToken ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1 text-blue-400" />}
+                Test Connection
               </Button>
-              <Button
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9 px-3"
-                disabled={savingConfig}
-              >
-                {savingConfig ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
-                Save Token
-              </Button>
-            </DialogFooter>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3"
+                  onClick={() => setShowConfigModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9 px-3"
+                  disabled={savingConfig}
+                >
+                  {savingConfig ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+                  Save Token
+                </Button>
+              </div>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
