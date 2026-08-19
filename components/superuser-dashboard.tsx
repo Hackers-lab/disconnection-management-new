@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
+import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { 
   Building2, 
   Users, 
@@ -33,6 +34,7 @@ import {
   ExternalLink, 
   Database,
   Sparkles,
+  Flame,
   Eye,
   EyeOff,
   Search,
@@ -78,7 +80,8 @@ interface TenantStats {
 }
 
 export function SuperuserDashboard() {
-  const [activeTab, setActiveTab] = useState<"overview" | "module_versions">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "module_versions" | "vercel_usage">("overview")
+  const [vercelSpikeCount, setVercelSpikeCount] = useState<number | null>(null)
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [masterSheetId, setMasterSheetId] = useState<string>("")
   const [users, setUsers] = useState<User[]>([])
@@ -210,10 +213,23 @@ export function SuperuserDashboard() {
     }
   }
 
+  const fetchVercelSummary = async () => {
+    try {
+      const res = await fetch("/api/superuser/vercel-usage")
+      if (res.ok) {
+        const d = await res.json()
+        setVercelSpikeCount(d?.summary?.totalSpikedCount ?? 0)
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   useEffect(() => {
     fetchTenants()
     fetchUsers()
     fetchStats()
+    fetchVercelSummary()
   }, [])
 
   const togglePasswordVisibility = (userId: string) => {
@@ -619,12 +635,66 @@ export function SuperuserDashboard() {
               KV Report
             </Badge>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("vercel_usage")}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              activeTab === "vercel_usage"
+                ? "bg-amber-600 text-white shadow-md shadow-amber-600/25"
+                : "bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+            }`}
+          >
+            <Flame className="h-4 w-4 text-amber-400" />
+            <span>Vercel Usage (&gt;50% Spikes)</span>
+            <Badge
+              variant="outline"
+              className={`text-[10px] ml-1 px-1.5 py-0 ${
+                activeTab === "vercel_usage"
+                  ? "bg-amber-700/80 border-amber-400/30 text-white"
+                  : vercelSpikeCount && vercelSpikeCount > 0
+                  ? "bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold animate-pulse"
+                  : "bg-slate-800 border-slate-700 text-slate-400"
+              }`}
+            >
+              {vercelSpikeCount !== null && vercelSpikeCount > 0 ? `${vercelSpikeCount} Spikes` : "Usage"}
+            </Badge>
+          </button>
         </div>
 
         {activeTab === "module_versions" ? (
           <SupplyModuleVersionsReport onBackToDashboard={() => setActiveTab("overview")} />
+        ) : activeTab === "vercel_usage" ? (
+          <VercelUsageMonitor onBackToDashboard={() => setActiveTab("overview")} />
         ) : (
           <>
+            {/* VERCEL USAGE SPIKE ALERT BANNER IF SPIKES > 0 */}
+            {vercelSpikeCount !== null && vercelSpikeCount > 0 && (
+              <div className="bg-amber-950/25 border border-amber-800/60 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md shadow-amber-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+                    <Flame className="h-5 w-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-amber-200">
+                      Vercel Infrastructure Spike Alert ({vercelSpikeCount} resource{vercelSpikeCount > 1 ? "s" : ""} &gt; 50% limit)
+                    </h3>
+                    <p className="text-[11px] text-amber-300/80 mt-0.5">
+                      One or more serverless/bandwidth resources have crossed 50% of your Vercel plan quota.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setActiveTab("vercel_usage")}
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs h-8 px-3 shrink-0 shadow-md shadow-amber-600/20 cursor-pointer"
+                >
+                  <Flame className="h-3.5 w-3.5 mr-1" />
+                  View Spiked Resources
+                </Button>
+              </div>
+            )}
+
             {/* KPI OVERVIEW METRICS GRID - Live Authenticated Counts */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
           {/* Card 1: Total CCCs */}
