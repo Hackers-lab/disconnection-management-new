@@ -4,6 +4,7 @@ import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { checkApiPermission } from "@/lib/permissions"
 import { compactBaseVersion } from "@/lib/version-engine"
 import { invalidateConsumerCache } from "@/lib/google-sheets"
+import { invalidateDDCache } from "@/lib/dd-service"
 
 export const dynamic = "force-dynamic"
 
@@ -35,6 +36,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
 
     // Clear server in-memory sheet cache so next base read pulls fresh Google Sheet
     invalidateConsumerCache()
+    invalidateDDCache()
 
     if (moduleKey === "all") {
       const keys = Object.keys(TAG_MAP)
