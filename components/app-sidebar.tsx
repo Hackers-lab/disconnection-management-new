@@ -17,16 +17,18 @@ import {
   Gauge,
   ShieldAlert,
   RefreshCw,
+  Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useState, useEffect } from "react"
-import { getFromCache } from "@/lib/indexed-db"
+import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
+import { matchesAgency } from "@/lib/permissions"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection" | "icds"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -44,16 +46,55 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const [meterPendingCount, setMeterPendingCount] = useState(0)
   const [safetyPendingCount, setSafetyPendingCount] = useState(0)
   const [miscPendingCount, setMiscPendingCount] = useState(0)
+  const [icdsPendingCount, setIcdsPendingCount] = useState(0)
   const [loadingCounts, setLoadingCounts] = useState<Record<string, boolean>>({
     disconnection: true,
     deemed: true,
     meter: true,
     safety: true,
     "misc-inspection": true,
+    icds: true,
   })
 
   // Helper calculators for module counts from IndexedDB
-  const upperAgencies = (agencies || []).map(a => a.trim().toUpperCase())
+  const upperAgencies = (agencies || []).map((a) => a.trim()).filter(Boolean)
+
+  const loadIcdsFromCache = async () => {
+    try {
+      let cached = await getFromCache<any[]>("icds_data_cache")
+      if (!cached || !Array.isArray(cached) || cached.length === 0) {
+        const res = await fetch(`/api/icds?t=${Date.now()}`)
+        if (res.ok) {
+          const freshData = await res.json()
+          if (Array.isArray(freshData)) {
+            cached = freshData
+            await saveToCache("icds_data_cache", freshData)
+          }
+        }
+      }
+
+      if (cached && Array.isArray(cached)) {
+        const isAgency = userRole === "agency"
+        const count = cached.filter((r) => {
+          if (isAgency && r.assignedAgency) {
+            const recAgency = String(r.assignedAgency || "").trim()
+            if (upperAgencies.length > 0 && !upperAgencies.some((ua) => matchesAgency(recAgency, ua))) {
+              return false
+            }
+          }
+          return r.stage !== "COMPLETED"
+        }).length
+        setIcdsPendingCount(count)
+        return true
+      }
+      return false
+    } catch (e) {
+      console.error("Error loading ICDS counts in sidebar:", e)
+      return false
+    } finally {
+      setLoadingCounts((prev) => ({ ...prev, icds: false }))
+    }
+  }
 
   const loadSafetyFromCache = async () => {
     const cached = await getFromCache<any[]>("safety_data_cache")
@@ -148,6 +189,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     async function initCounts() {
       try {
         await Promise.all([
+          loadIcdsFromCache(),
           loadSafetyFromCache(),
           loadMiscFromCache(),
           loadDdFromCache(),
@@ -167,7 +209,9 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       const key = (e as CustomEvent).detail?.key
       if (!key) return
 
-      if (key === "safety_data_cache") {
+      if (key === "icds_data_cache") {
+        loadIcdsFromCache()
+      } else if (key === "safety_data_cache") {
         loadSafetyFromCache()
       } else if (key === "misc_inspection_cache") {
         loadMiscFromCache()
@@ -244,6 +288,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       icon: ClipboardCheck,
     },
     {
+      id: "icds",
+      label: "ICDS Electrification",
+      icon: Building2,
+    },
+    {
       id: "meter-replacement",
       label: "Replacement List",
       icon: ClipboardCheck,
@@ -276,6 +325,8 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       {menuItems.map((item) => {
         const permKey = item.id.replace(/-/g, "_")
         const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || (permissions && (
+          (permissions[item.id] && permissions[item.id].length > 0) || 
+          (permissions[permKey] && permissions[permKey].length > 0) ||
           permissions[item.id]?.includes("read") || 
           permissions[permKey]?.includes("read") ||
           (item.id === "material" && permissions[item.id]?.length > 0) ||
@@ -322,6 +373,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
             {item.id === "misc-inspection" && (
               <Badge variant={miscPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
                 {miscPendingCount}
+              </Badge>
+            )}
+            {item.id === "icds" && (
+              <Badge variant={icdsPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
+                {icdsPendingCount}
               </Badge>
             )}
           </Button>

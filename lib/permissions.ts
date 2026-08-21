@@ -27,6 +27,9 @@ function getModulePermKeys(module: string): string[] {
   if (norm === "misc_inspection" || norm === "misc" || norm === "misc_inspections") {
     keys.push("misc_inspection", "misc", "misc_inspections")
   }
+  if (norm === "icds" || norm === "icds_electrification") {
+    keys.push("icds", "icds_electrification")
+  }
 
   return Array.from(new Set(keys))
 }
@@ -130,6 +133,17 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
       }
     }
 
+    // ICDS Electrification Auto-Expansion
+    if (mod === "icds" || mod === "icds_electrification") {
+      if (actSet.size > 0) {
+        actSet.add("read")
+      }
+      if (actSet.has("update") || actSet.has("execute") || actSet.has("install")) {
+        actSet.add("execute")
+        actSet.add("install")
+      }
+    }
+
     expanded[mod] = Array.from(actSet)
   }
 
@@ -163,6 +177,19 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
       expanded.meter_replacement = ["read", "create", "update", "delete", "issue", "install", "return", "finalize"]
     } else if (roleLower === "viewer") {
       expanded.meter_replacement = ["read"]
+    }
+  }
+
+  // Ensure icds default fallback only if not explicitly defined in perms
+  if (perms.icds === undefined && perms.icds_electrification === undefined) {
+    if (isAgency) {
+      expanded.icds = ["read", "inspect", "execute", "install", "certify"]
+    } else if (isAdminOrExec) {
+      expanded.icds = ["read", "create", "update", "delete", "inspect", "process", "execute", "install", "certify"]
+    } else if (roleLower === "viewer" || roleLower === "reader") {
+      expanded.icds = ["read"]
+    } else if (roleLower === "store_keeper") {
+      expanded.icds = ["read", "process"]
     }
   }
 
@@ -231,6 +258,30 @@ export async function checkApiPermission(module: string, action: string | string
 }
 
 /**
+ * Safely tests whether a record agency matches a user/assigned agency identifier.
+ * Uses exact case-insensitive match or whole-word token matching.
+ * Guarantees that short names like "SA" do NOT match "SAMAD", while still
+ * matching "SA" with "SA Agency" or "M/S SA".
+ */
+export function matchesAgency(recordAgency?: string, userAgency?: string): boolean {
+  const rec = String(recordAgency || "").trim().toLowerCase()
+  const usr = String(userAgency || "").trim().toLowerCase()
+  if (!rec || !usr) return false
+  if (rec === usr) return true
+
+  // Word boundary regex: ensures 'sa' only matches 'sa' or 'sa agency' / 'm/s sa', never 'samad'
+  const escapedUsr = usr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const wordBoundaryRegex = new RegExp(`(^|\\s|[-_/.,])${escapedUsr}($|\\s|[-_/.,])`, "i")
+  if (wordBoundaryRegex.test(rec)) return true
+
+  const escapedRec = rec.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const recBoundaryRegex = new RegExp(`(^|\\s|[-_/.,])${escapedRec}($|\\s|[-_/.,])`, "i")
+  if (recBoundaryRegex.test(usr)) return true
+
+  return false
+}
+
+/**
  * Returns true if the user's role is restricted to a set of agencies
  * and the record's agency does not match any of them.
  */
@@ -239,13 +290,26 @@ export function isAgencyScopeRestricted(session: any, recordAgency: string | und
   const roleLower = (session.role || "").toLowerCase()
   if (roleLower === "admin" || roleLower === "superuser") return false // Admins are never restricted
 
+  const cleanRecord = String(recordAgency || "").trim()
+
+  // Collect all possible agency identifiers for the user (assigned agencies + username)
+  const userAgencies: string[] = []
+  if (session.agencies && Array.isArray(session.agencies)) {
+    session.agencies.forEach((a: string) => {
+      if (a && typeof a === "string" && a.trim()) {
+        userAgencies.push(a.trim())
+      }
+    })
+  }
+  if (session.username && typeof session.username === "string" && session.username.trim()) {
+    userAgencies.push(session.username.trim())
+  }
+
   // If user has assigned agencies (e.g. Agency, Executive roles), enforce they can only see/update theirs
-  if (session.agencies && session.agencies.length > 0) {
-    const cleanRecord = String(recordAgency || "").trim().toUpperCase()
-    const userAgenciesUpper = session.agencies.map((a: string) => String(a || "").trim().toUpperCase())
-    
-    // If the record has no agency assigned, restrict agency users from editing/viewing it unless it maps to them
-    return !userAgenciesUpper.includes(cleanRecord)
+  if (userAgencies.length > 0) {
+    if (!cleanRecord) return true
+    const isMatch = userAgencies.some((ua) => matchesAgency(cleanRecord, ua))
+    return !isMatch
   }
 
   // If the user has no assigned agencies but has a role like agency, it should restrict them by default
@@ -255,3 +319,4 @@ export function isAgencyScopeRestricted(session: any, recordAgency: string | und
 
   return false
 }
+

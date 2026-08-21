@@ -316,6 +316,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const loadData = useCallback(async (force = false) => {
     setError(null)
     try {
+      if (force && (userRole === "admin" || userRole === "executive")) {
+        await fetch("/api/system/reset-base?moduleKey=consumer", { method: "POST" }).catch(() => {})
+      }
       await checkVersion(force)
     } catch (err: any) {
       console.error("💥 Error loading data:", err)
@@ -327,7 +330,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         setLoading(false)
       }
     }
-  }, [checkVersion])
+  }, [checkVersion, userRole])
 
   useEffect(() => {
     if (refreshKey > 0) {
@@ -338,6 +341,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const clearCache = async () => {
     if (confirm("Are you sure you want to clear the cache and reload?")) {
       try {
+        if (userRole === "admin" || userRole === "executive") {
+          await fetch("/api/system/reset-base?moduleKey=consumer", { method: "POST" }).catch(() => {})
+        }
         await clearAllCache()
         window.location.reload()
       } catch (e) {
@@ -356,8 +362,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     }
     lastRefreshTimeRef.current = now
 
-    // Safely check server version (both base & patch) without wiping local database
-    await loadData(false)
+    // For admin/executive, force a base reset + version bump so sheet updates sync for everyone
+    const isElevated = userRole === "admin" || userRole === "executive"
+    await loadData(isElevated)
   }
   // Advanced filtering logic
   const filteredConsumers = useMemo(() => {

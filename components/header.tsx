@@ -470,6 +470,9 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const handleGlobalRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
     if (confirm("Sync fresh data from server? This will reload the page.")) {
+      if (userRole === "admin" || userRole === "executive" || isAdminUser) {
+        await fetch("/api/system/reset-base?moduleKey=all", { method: "POST" }).catch(() => {})
+      }
       await clearAllCache()
       
       const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""

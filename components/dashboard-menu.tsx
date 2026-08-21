@@ -21,12 +21,14 @@ import {
   Phone,
   Package,
   FileCheck2,
-  ShieldAlert
+  ShieldAlert,
+  Building2
 } from "lucide-react"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
+import { matchesAgency } from "@/lib/permissions"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -47,11 +49,13 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [materialPendingCount, setMaterialPendingCount] = useState<number>(0)
   const [safetyPendingCount, setSafetyPendingCount] = useState<number>(0)
   const [miscPendingCount, setMiscPendingCount] = useState<number>(0)
+  const [icdsPendingCount, setIcdsPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
   const [showDevModal, setShowDevModal] = useState(false)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
     safety: true,
     "misc-inspection": true,
+    icds: true,
     disconnection: true,
     reconnection: true,
     deemed: true,
@@ -139,6 +143,17 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       color: "text-blue-600",
       bgColor: "bg-blue-50",
       borderColor: "hover:border-blue-400 hover:shadow-blue-500/10",
+      allowed: ["all"],
+      status: "live"
+    },
+    {
+      id: "icds",
+      title: "ICDS Electrification",
+      description: "Manage Anganwadi center wiring, smart meters & service certification (EDD/49)",
+      icon: Building2,
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50",
+      borderColor: "hover:border-emerald-400 hover:shadow-emerald-500/10",
       allowed: ["all"],
       status: "live"
     },
@@ -236,12 +251,49 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
       // Read local IndexedDB caches first for instant 0ms counts
       try {
-        let [miscCached, safetyCached] = await Promise.all([
+        let [miscCached, safetyCached, icdsCached] = await Promise.all([
           getFromCache<any[]>("misc_inspection_cache"),
           getFromCache<any[]>("safety_data_cache"),
+          getFromCache<any[]>("icds_data_cache"),
         ])
 
-        const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
+        const upperAgencies = (userAgencies || []).map((a) => a.trim().toUpperCase()).filter(Boolean)
+
+        // Fallback auto-fetch for ICDS Electrification if local cache is empty
+        if (!icdsCached || !Array.isArray(icdsCached) || icdsCached.length === 0) {
+          try {
+            setLoadingModules((prev) => ({ ...prev, icds: true }))
+            const res = await fetch(`/api/icds?t=${Date.now()}`)
+            if (res.ok) {
+              const freshData = await res.json()
+              if (Array.isArray(freshData)) {
+                icdsCached = freshData
+                await saveToCache("icds_data_cache", freshData)
+                notifyCacheUpdate("icds_data_cache")
+              }
+            }
+          } catch (err) {
+            console.error("Auto-fetch ICDS failed", err)
+          } finally {
+            setLoadingModules((prev) => ({ ...prev, icds: false }))
+          }
+        } else {
+          setLoadingModules((prev) => ({ ...prev, icds: false }))
+        }
+
+        if (icdsCached && Array.isArray(icdsCached)) {
+          const isAgency = userRole === "agency"
+          const count = icdsCached.filter((r) => {
+            if (isAgency && r.assignedAgency) {
+              const recAgency = String(r.assignedAgency || "").trim()
+              if (userAgencies.length > 0 && !userAgencies.some((ua) => matchesAgency(recAgency, ua))) {
+                return false
+              }
+            }
+            return r.stage !== "COMPLETED"
+          }).length
+          setIcdsPendingCount(count)
+        }
 
         // Fallback auto-fetch for Misc Inspection if local cache is empty
         if (!miscCached || miscCached.length === 0) {
@@ -641,7 +693,19 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         if (!key) return
         const upperAgencies = (userAgencies || []).map(a => a.trim().toUpperCase())
 
-        if (key === "safety_data_cache") {
+        if (key === "icds_data_cache") {
+          const cached = await getFromCache<any[]>("icds_data_cache")
+          if (cached && Array.isArray(cached)) {
+            const isAgency = userRole === "agency"
+            const count = cached.filter(r => {
+              if (isAgency && r.assignedAgency) {
+                if (!upperAgencies.includes((r.assignedAgency || "").trim().toUpperCase())) return false
+              }
+              return r.stage === "PENDING_INSPECTION" || r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" || r.stage === "WO_ISSUED"
+            }).length
+            setIcdsPendingCount(count)
+          }
+        } else if (key === "safety_data_cache") {
           const cached = await getFromCache<any[]>("safety_data_cache")
           if (cached && Array.isArray(cached)) {
             const isAgency = userRole === "agency"
@@ -724,7 +788,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     loadPendingCount()
   }, [userRole, JSON.stringify(userAgencies), Boolean(permissions)])
 
-  const totalPendingActionCount = pendingCount + reconnectionPendingCount + ddPendingCount + safetyPendingCount + dtrPendingCount + replacementPendingCount
+  const totalPendingActionCount = pendingCount + reconnectionPendingCount + ddPendingCount + safetyPendingCount + dtrPendingCount + replacementPendingCount + icdsPendingCount
 
   return (
     <>
@@ -739,6 +803,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             {modules.map((module) => {
               const permKey = module.id.replace(/-/g, "_")
               const hasAccess = userRole === "admin" || userRole === "superuser" || module.id === "home" || (permissions && (
+                (permissions[module.id] && permissions[module.id].length > 0) || 
+                (permissions[permKey] && permissions[permKey].length > 0) ||
                 permissions[module.id]?.includes("read") || 
                 permissions[permKey]?.includes("read") ||
                 (module.id === "material" && permissions[module.id]?.length > 0) ||
@@ -750,6 +816,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
               let count = 0
               if (module.id === "safety") count = safetyPendingCount
               else if (module.id === "misc-inspection") count = miscPendingCount
+              else if (module.id === "icds") count = icdsPendingCount
               else if (module.id === "disconnection") count = pendingCount
               else if (module.id === "deemed") count = ddPendingCount
               else if (module.id === "reconnection") count = reconnectionPendingCount

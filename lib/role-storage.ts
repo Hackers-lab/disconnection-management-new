@@ -26,6 +26,7 @@ export interface RolePermissions {
   osd?: string[]
   safety?: string[]
   misc_inspection?: string[]
+  icds?: string[]
 }
 
 const MODULES = [
@@ -43,6 +44,7 @@ const MODULES = [
   "osd",
   "safety",
   "misc_inspection",
+  "icds",
 ] as const
 
 const DEFAULT_ROLES: RolePermissions[] = [
@@ -62,6 +64,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     osd: ["read", "download"],
     safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
     misc_inspection: ["read", "create", "update", "delete", "inspect", "finalize"],
+    icds: ["read", "create", "update", "delete", "inspect", "install", "certify"],
   },
   {
     role: "viewer",
@@ -79,6 +82,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     osd: ["read", "download"],
     safety: ["read"],
     misc_inspection: ["read"],
+    icds: ["read"],
   },
   {
     role: "agency",
@@ -96,6 +100,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     osd: ["read", "download"],
     safety: ["read", "create", "update"],
     misc_inspection: ["read", "inspect", "update"],
+    icds: ["read", "inspect", "install", "certify", "update"],
   },
   {
     role: "technical",
