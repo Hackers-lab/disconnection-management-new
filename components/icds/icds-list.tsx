@@ -65,6 +65,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { matchesAgency } from "@/lib/permissions"
 
 const CACHE_KEY = "icds_data_cache"
 const PAGE_SIZE = 24
@@ -200,15 +201,13 @@ export function IcdsList({
           ...(effectiveAgencies || []),
           ...(username ? [username] : []),
         ]
-          .map((a) => String(a || "").trim().toUpperCase())
+          .map((a) => String(a || "").trim())
           .filter(Boolean)
 
         if (userAgencies.length > 0) {
-          const recAgency = String(r.assignedAgency || "").trim().toUpperCase()
+          const recAgency = String(r.assignedAgency || "").trim()
           if (!recAgency) return false
-          const matches = userAgencies.some(
-            (ua) => recAgency === ua || recAgency.startsWith(ua) || recAgency.includes(ua) || ua.includes(recAgency)
-          )
+          const matches = userAgencies.some((ua) => matchesAgency(recAgency, ua))
           if (!matches) return false
         }
       }

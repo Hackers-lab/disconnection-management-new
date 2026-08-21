@@ -25,6 +25,7 @@ import { useState, useEffect } from "react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
+import { matchesAgency } from "@/lib/permissions"
 
 // Define the available views
 export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection" | "icds"
@@ -56,7 +57,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   })
 
   // Helper calculators for module counts from IndexedDB
-  const upperAgencies = (agencies || []).map((a) => a.trim().toUpperCase()).filter(Boolean)
+  const upperAgencies = (agencies || []).map((a) => a.trim()).filter(Boolean)
 
   const loadIcdsFromCache = async () => {
     try {
@@ -76,8 +77,8 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
         const isAgency = userRole === "agency"
         const count = cached.filter((r) => {
           if (isAgency && r.assignedAgency) {
-            const recAgency = (r.assignedAgency || "").trim().toUpperCase()
-            if (upperAgencies.length > 0 && !upperAgencies.some((ua) => recAgency === ua || recAgency.includes(ua) || ua.includes(recAgency))) {
+            const recAgency = String(r.assignedAgency || "").trim()
+            if (upperAgencies.length > 0 && !upperAgencies.some((ua) => matchesAgency(recAgency, ua))) {
               return false
             }
           }

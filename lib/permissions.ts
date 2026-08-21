@@ -258,6 +258,30 @@ export async function checkApiPermission(module: string, action: string | string
 }
 
 /**
+ * Safely tests whether a record agency matches a user/assigned agency identifier.
+ * Uses exact case-insensitive match or whole-word token matching.
+ * Guarantees that short names like "SA" do NOT match "SAMAD", while still
+ * matching "SA" with "SA Agency" or "M/S SA".
+ */
+export function matchesAgency(recordAgency?: string, userAgency?: string): boolean {
+  const rec = String(recordAgency || "").trim().toLowerCase()
+  const usr = String(userAgency || "").trim().toLowerCase()
+  if (!rec || !usr) return false
+  if (rec === usr) return true
+
+  // Word boundary regex: ensures 'sa' only matches 'sa' or 'sa agency' / 'm/s sa', never 'samad'
+  const escapedUsr = usr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const wordBoundaryRegex = new RegExp(`(^|\\s|[-_/.,])${escapedUsr}($|\\s|[-_/.,])`, "i")
+  if (wordBoundaryRegex.test(rec)) return true
+
+  const escapedRec = rec.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const recBoundaryRegex = new RegExp(`(^|\\s|[-_/.,])${escapedRec}($|\\s|[-_/.,])`, "i")
+  if (recBoundaryRegex.test(usr)) return true
+
+  return false
+}
+
+/**
  * Returns true if the user's role is restricted to a set of agencies
  * and the record's agency does not match any of them.
  */
@@ -266,28 +290,25 @@ export function isAgencyScopeRestricted(session: any, recordAgency: string | und
   const roleLower = (session.role || "").toLowerCase()
   if (roleLower === "admin" || roleLower === "superuser") return false // Admins are never restricted
 
-  const cleanRecord = String(recordAgency || "").trim().toUpperCase()
+  const cleanRecord = String(recordAgency || "").trim()
 
   // Collect all possible agency identifiers for the user (assigned agencies + username)
   const userAgencies: string[] = []
   if (session.agencies && Array.isArray(session.agencies)) {
     session.agencies.forEach((a: string) => {
       if (a && typeof a === "string" && a.trim()) {
-        userAgencies.push(a.trim().toUpperCase())
+        userAgencies.push(a.trim())
       }
     })
   }
   if (session.username && typeof session.username === "string" && session.username.trim()) {
-    userAgencies.push(session.username.trim().toUpperCase())
+    userAgencies.push(session.username.trim())
   }
 
   // If user has assigned agencies (e.g. Agency, Executive roles), enforce they can only see/update theirs
   if (userAgencies.length > 0) {
     if (!cleanRecord) return true
-    const isMatch = userAgencies.some((ua) => {
-      if (!ua) return false
-      return cleanRecord === ua || cleanRecord.startsWith(ua) || cleanRecord.includes(ua) || ua.includes(cleanRecord)
-    })
+    const isMatch = userAgencies.some((ua) => matchesAgency(cleanRecord, ua))
     return !isMatch
   }
 
@@ -298,3 +319,4 @@ export function isAgencyScopeRestricted(session: any, recordAgency: string | und
 
   return false
 }
+

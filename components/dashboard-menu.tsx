@@ -28,6 +28,7 @@ import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
+import { matchesAgency } from "@/lib/permissions"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -284,8 +285,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           const isAgency = userRole === "agency"
           const count = icdsCached.filter((r) => {
             if (isAgency && r.assignedAgency) {
-              const recAgency = (r.assignedAgency || "").trim().toUpperCase()
-              if (upperAgencies.length > 0 && !upperAgencies.some((ua) => recAgency === ua || recAgency.includes(ua) || ua.includes(recAgency))) {
+              const recAgency = String(r.assignedAgency || "").trim()
+              if (userAgencies.length > 0 && !userAgencies.some((ua) => matchesAgency(recAgency, ua))) {
                 return false
               }
             }
