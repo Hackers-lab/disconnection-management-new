@@ -6,6 +6,7 @@ import { getMiscInspections } from "@/lib/misc-inspection-service"
 import { fetchSafetyTickets } from "@/lib/safety-service"
 import { fetchReplacements } from "@/lib/meter-replacement-service"
 import { fetchDTRData } from "@/lib/dtr-service"
+import { getIcdsRecords } from "@/lib/icds-service"
 
 export const dynamic = "force-dynamic"
 
@@ -17,7 +18,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       safetyPending: 0,
       meterPending: 0,
       dtrPaintingPending: 0,
-      dtrPending: 0
+      dtrPending: 0,
+      icdsPending: 0,
     })
   }
 
@@ -25,11 +27,12 @@ export const GET = withTenant(async function GET(req: NextRequest) {
   const spreadsheetId = getSpreadsheetId()
 
   try {
-    const [miscRecords, safetyRecords, meterRecords, dtrRecords] = await Promise.all([
+    const [miscRecords, safetyRecords, meterRecords, dtrRecords, icdsRecords] = await Promise.all([
       getMiscInspections(spreadsheetId).catch(() => []),
       fetchSafetyTickets(spreadsheetId).catch(() => []),
       fetchReplacements(spreadsheetId).catch(() => []),
       fetchDTRData(spreadsheetId).catch(() => []),
+      getIcdsRecords().catch(() => []),
     ])
 
     const miscPending = miscRecords.filter((r: any) => {
@@ -52,6 +55,11 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       return (r.painting || "").toLowerCase() !== "done"
     }).length
 
+    const icdsPending = icdsRecords.filter((r: any) => {
+      if (isAgencyScopeRestricted(session, r.assignedAgency)) return false
+      return r.stage !== "COMPLETED"
+    }).length
+
     return NextResponse.json(
       {
         miscPending,
@@ -59,6 +67,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         meterPending,
         dtrPaintingPending,
         dtrPending: dtrRecords.filter((r: any) => (r.status || "").toUpperCase() !== "EXIST").length,
+        icdsPending,
       },
       {
         headers: {

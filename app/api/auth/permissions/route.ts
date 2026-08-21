@@ -34,6 +34,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
           admin: ["read", "create", "update", "delete"],
           meter_replacement: ["read", "create", "update", "delete"],
           material: ["read", "create", "update", "delete"],
+          icds: ["read", "create", "update", "delete", "inspect", "process", "execute", "install", "certify"],
         }
       } else {
         permissions = null
@@ -55,6 +56,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
           admin: [],
           meter_replacement: [],
           material: [],
+          icds: [],
         },
         isSubscribed: session.isSubscribed,
         subscriptionExpiresAt: session.subscriptionExpiresAt,

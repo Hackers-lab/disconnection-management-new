@@ -29,6 +29,7 @@ const MeterReplacementList = dynamic(() => import("@/components/meter-replacemen
 const MaterialList = dynamic(() => import("@/components/material-list").then(m => ({ default: m.MaterialList })), { ssr: false })
 const SafetyList = dynamic(() => import("@/components/safety-list").then(m => ({ default: m.SafetyList })), { ssr: false })
 const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-list").then(m => ({ default: m.MiscInspectionList })), { ssr: false })
+const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
 
@@ -1492,6 +1493,10 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
 
         {activeView === "misc-inspection" && (
           <MiscInspectionList role={role} agencies={agencies} permissions={permissions} />
+        )}
+
+        {activeView === "icds" && (
+          <IcdsList role={role} agencies={agencies} permissions={permissions} username={profileName || agencies[0] || role} />
         )}
 
         {activeView === "osd" && (

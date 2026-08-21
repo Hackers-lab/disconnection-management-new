@@ -122,4 +122,15 @@ export const MODULE_REGISTRY: Record<string, PlatformModuleManifest> = {
     cacheKey: "material_stock_cache",
     permissions: ["read", "create", "update"],
   },
+  icds: {
+    id: "icds",
+    title: "ICDS Electrification",
+    sheetTab: "ICDS_Electrification",
+    primaryKey: "id",
+    idPrefix: "ICDS-",
+    cacheKey: "icds_data_cache",
+    permissions: ["read", "create", "update", "inspect", "install", "certify"],
+    badgeRule: { targetStatus: ["PENDING_INSPECTION", "INSPECTED", "APPLICATION_PENDING", "WO_ISSUED"], agencyScoped: true },
+  },
 }
+

@@ -56,6 +56,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     material: ["read", "create", "update", "delete", "receive", "issue", "stock", "settings"],
     safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
     misc_inspection: ["read", "create", "update", "delete"],
+    icds: ["read", "create", "update", "delete", "inspect", "process", "execute", "install", "certify"],
   },
   executive: {
     disconnection: ["read", "create", "update"],
@@ -71,6 +72,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     material: ["read", "create", "update", "receive", "issue", "stock"],
     safety: ["read", "create", "update", "approve_notesheet", "issue_po", "finalize"],
     misc_inspection: ["read", "create", "update"],
+    icds: ["read", "create", "update", "inspect", "process", "execute", "install", "certify"],
   },
   agency: {
     disconnection: ["read", "update"],
@@ -86,6 +88,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     material: ["read", "update", "receive", "issue", "stock"],
     safety: ["read", "create", "update"],
     misc_inspection: ["read", "create", "update"],
+    icds: ["read", "inspect", "execute", "install", "certify"],
   },
   store_keeper: {
     disconnection: ["read"],
@@ -100,6 +103,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     dtr_painting: ["read"],
     material: ["read", "create", "update", "receive", "issue", "stock"],
     misc_inspection: ["read"],
+    icds: ["read", "process"],
   },
   reader: {
     disconnection: ["read"],
@@ -114,6 +118,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     dtr_painting: ["read"],
     material: ["read"],
     misc_inspection: ["read"],
+    icds: ["read"],
   },
   viewer: {
     disconnection: ["read"],
@@ -128,6 +133,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     dtr_painting: ["read"],
     material: ["read"],
     misc_inspection: ["read"],
+    icds: ["read"],
   },
 }
 
@@ -2925,6 +2931,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     { id: "dtr_painting", name: "DTR Painting" },
                     { id: "safety", name: "Safety Inspection" },
                     { id: "misc_inspection", name: "Misc Inspections" },
+                    { id: "icds", name: "ICDS Electrification" },
                     { id: "meter", name: "Meter Management" },
                     { id: "meter_replacement", name: "Replacement List" },
                     { id: "nsc", name: "NSC Management" },
@@ -2962,7 +2969,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {modulesList.filter(m => !["nsc", "meter_replacement"].includes(m.id)).map((mod) => {
+                          {modulesList.filter(m => !["nsc", "meter_replacement", "icds"].includes(m.id)).map((mod) => {
                             const curPerms = roleData[mod.id] || []
                             return (
                               <TableRow key={mod.id}>
@@ -2992,6 +2999,37 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <div className="pt-2 border-t space-y-4">
                         <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Workflow Specific Sub-Action Permissions</h4>
                         
+                        {/* ICDS Electrification Granular */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                          <p className="text-xs font-bold text-emerald-800">ICDS Electrification Flow Sub-Actions</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            {[
+                              { id: "read", label: "Read (View Centers & Reports)" },
+                              { id: "create", label: "Create / Bulk Upload Centers" },
+                              { id: "update", label: "Edit Master Data (Pencil)" },
+                              { id: "delete", label: "Delete Center Record" },
+                              { id: "inspect", label: "Stage 1: Primary Feasibility Inspection" },
+                              { id: "process", label: "Stage 2: Admin CRM & WO Issue" },
+                              { id: "execute", label: "Stage 3: Physical Meter & CSR Wiring" },
+                              { id: "certify", label: "Stage 4: Handover & PDF Certificate" },
+                            ].map(sub => {
+                              const checked = (roleData["icds"] || []).includes(sub.id)
+                              return (
+                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-emerald-50/50">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={selectedRole === "admin"}
+                                    onChange={() => togglePerm("icds", sub.id)}
+                                    className="h-3.5 w-3.5 rounded text-emerald-600"
+                                  />
+                                  <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+
                         {/* NSC Granular */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                           <p className="text-xs font-bold text-blue-800">NSC Management Sub-Actions</p>
