@@ -694,7 +694,7 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
             onChange={e => setSelectedModuleKey(e.target.value)}
             className="bg-slate-950 border border-slate-700 text-slate-200 text-xs h-7.5 px-2 rounded-lg outline-none cursor-pointer hover:border-slate-600"
           >
-            <option value="all">All Modules (10)</option>
+            <option value="all">All Modules ({modulesList.length})</option>
             {modulesList.map(m => (
               <option key={m.key} value={m.key}>
                 {m.label}

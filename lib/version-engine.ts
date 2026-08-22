@@ -58,6 +58,23 @@ export async function appendDeltaPatch(
   const updatedLog = [...existingLog, patchItem].slice(-200) // Keep last 200 patches for compaction threshold
   await setKV(logKey, updatedLog)
 
+  // Asynchronously record live user activity in presence service
+  try {
+    import("@/lib/session")
+      .then(async ({ verifySession }) => {
+        const session = await verifySession()
+        if (session?.userId) {
+          const { updateUserAction } = await import("@/lib/presence-service")
+          const actionLabel =
+            payload.action === "DELETE"
+              ? `Deleted ${moduleKey.toUpperCase()} #${payload.recordId}`
+              : `Updated ${moduleKey.toUpperCase()} #${payload.recordId}`
+          updateUserAction(session.userId, actionLabel, moduleKey).catch(() => {})
+        }
+      })
+      .catch(() => {})
+  } catch {}
+
   return patchItem
 }
 
@@ -198,6 +215,14 @@ export const SYSTEM_MODULE_REGISTRY: SystemModuleMeta[] = [
     shortLabel: "NSC",
     aliases: ["nsc"],
     description: "New service connection workflow, quotation, inspection, and release",
+    category: "operations",
+  },
+  {
+    key: "icds",
+    label: "ICDS Electrification",
+    shortLabel: "ICDS",
+    aliases: ["icds", "icds-electrification", "icds_electrification"],
+    description: "Anganwadi electrification workflow, feasibility survey, estimate, execution, and certification",
     category: "operations",
   },
   {

@@ -55,7 +55,7 @@ export function DashboardShell({
 
         {/* Real-time Visitor Count & Live Users in simple text at the bottom */}
         <div className="py-4 mt-6 border-t border-slate-200/60">
-          <VisitorLiveCounter />
+          <VisitorLiveCounter activeModule={activeView} />
         </div>
       </main>
     </>

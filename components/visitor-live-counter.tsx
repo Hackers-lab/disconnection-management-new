@@ -4,9 +4,11 @@ import { useState, useEffect, useRef } from "react"
 
 interface VisitorLiveCounterProps {
   className?: string
+  activeModule?: string
+  action?: string
 }
 
-export function VisitorLiveCounter({ className = "" }: VisitorLiveCounterProps) {
+export function VisitorLiveCounter({ className = "", activeModule, action }: VisitorLiveCounterProps) {
   const [stats, setStats] = useState<{ totalVisitors: number; liveUsers: number } | null>(null)
   const cidRef = useRef<string>("")
   const lastPingRef = useRef<number>(0)
@@ -40,9 +42,11 @@ export function VisitorLiveCounter({ className = "" }: VisitorLiveCounterProps) 
     const sendHeartbeat = async (initial = false) => {
       try {
         const initParam = initial && isNewVisit ? "&init=1" : ""
+        const modParam = activeModule ? `&module=${encodeURIComponent(activeModule)}` : ""
+        const actParam = action ? `&action=${encodeURIComponent(action)}` : ""
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 2500)
-        const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}`, {
+        const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}${modParam}${actParam}`, {
           cache: "no-store",
           signal: controller.signal,
         })
@@ -59,7 +63,7 @@ export function VisitorLiveCounter({ className = "" }: VisitorLiveCounterProps) 
       }
     }
 
-    // Initial ping
+    // Initial or module change ping
     sendHeartbeat(true)
 
     // 4. Periodic heartbeat interval (every 45 seconds while tab is active)
