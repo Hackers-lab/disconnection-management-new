@@ -1,4 +1,4 @@
-import { createClient, Client } from "@libsql/client"
+import { createClient, type Client } from "@libsql/client"
 
 // In-memory fallback map for environments without configured external KV credentials
 const memoryStore = new Map<string, { value: any; expiresAt?: number }>()

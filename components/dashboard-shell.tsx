@@ -2,6 +2,7 @@
 
 import { Header } from "@/components/header"
 import { ViewType } from "@/components/app-sidebar"
+import { VisitorLiveCounter } from "@/components/visitor-live-counter"
 
 interface DashboardShellProps {
   role: string
@@ -51,7 +52,12 @@ export function DashboardShell({
       }`}>
         {/* Render whatever is passed as children (Menu, List, etc.) */}
         {children} 
+
+        {/* Real-time Visitor Count & Live Users in simple text at the bottom */}
+        <div className="py-4 mt-6 border-t border-slate-200/60">
+          <VisitorLiveCounter />
+        </div>
       </main>
     </>
   )
-}
+}
