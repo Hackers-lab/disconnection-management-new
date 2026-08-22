@@ -9,8 +9,11 @@ export const maxDuration = 10
 // In-memory cache for ultra-fast, non-blocking response (sub-5ms)
 const localPresenceMap = new Map<string, number>()
 const PRESENCE_TIMEOUT_MS = 120_000 // 2 minutes window for live users
-let memoryVisitorCounter = 14352
-let isCounterLoaded = false
+
+const BASELINE_VISITORS = 15000
+let memoryVisitorCounter = BASELINE_VISITORS
+let lastSyncedTime = 0
+const SYNC_INTERVAL_MS = 5000 // Sync from central store every 5 seconds
 
 function cleanClientId(id: string): string {
   return String(id || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64)
@@ -24,16 +27,43 @@ function pruneLocalPresence(now: number) {
   }
 }
 
-// Background sync for persistent visitor counter
-if (!isCounterLoaded) {
-  isCounterLoaded = true
-  getKV<number>("system:total_visitors")
-    .then((val) => {
-      if (val && typeof val === "number" && val > memoryVisitorCounter) {
-        memoryVisitorCounter = val
-      }
-    })
-    .catch(() => {})
+async function getSynchronizedVisitorCount(isNewVisit: boolean): Promise<number> {
+  const now = Date.now()
+
+  if (isNewVisit) {
+    try {
+      const current = await getKV<number>("system:total_visitors")
+      const base = typeof current === "number" && current >= BASELINE_VISITORS ? current : BASELINE_VISITORS
+      const next = base + 1
+      await setKV("system:total_visitors", next)
+      memoryVisitorCounter = next
+      lastSyncedTime = now
+      return next
+    } catch {
+      memoryVisitorCounter += 1
+      return memoryVisitorCounter
+    }
+  }
+
+  // If synced within the last 5 seconds, use memory cache for instant response
+  if (now - lastSyncedTime < SYNC_INTERVAL_MS && memoryVisitorCounter >= BASELINE_VISITORS) {
+    return memoryVisitorCounter
+  }
+
+  try {
+    const current = await getKV<number>("system:total_visitors")
+    if (typeof current === "number" && current >= BASELINE_VISITORS) {
+      memoryVisitorCounter = current
+    } else {
+      await setKV("system:total_visitors", BASELINE_VISITORS)
+      memoryVisitorCounter = BASELINE_VISITORS
+    }
+    lastSyncedTime = now
+  } catch {
+    // Keep in-memory fallback
+  }
+
+  return memoryVisitorCounter
 }
 
 export async function GET(req: NextRequest) {
@@ -46,11 +76,8 @@ export async function GET(req: NextRequest) {
     const cid = cleanClientId(rawCid)
     const now = Date.now()
 
-    // 1. Manage Total Visitor Count (Instant in-memory, async background persist)
-    if (isNewVisit) {
-      memoryVisitorCounter += 1
-      incrKV("system:total_visitors").catch(() => {})
-    }
+    // 1. Manage Authoritative Total Visitor Count (Synchronized across all instances)
+    const totalVisitors = await getSynchronizedVisitorCount(isNewVisit)
 
     // 2. Track Real-time Client Presence (Instant in-memory)
     if (cid) {
@@ -95,7 +122,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        totalVisitors: memoryVisitorCounter,
+        totalVisitors,
         liveUsers: Math.max(1, liveCount),
       },
       {
