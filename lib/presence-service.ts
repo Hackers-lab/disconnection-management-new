@@ -65,7 +65,7 @@ export function parseDeviceFromUserAgent(ua = ""): {
   let browserName = "Web Browser"
   if (/edg\//i.test(ua)) browserName = "Edge"
   else if (/chrome|crios/i.test(ua)) browserName = "Chrome"
-  else if (/firefox|+xios/i.test(ua)) browserName = "Firefox"
+  else if (/firefox|fxios/i.test(ua)) browserName = "Firefox"
   else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browserName = "Safari"
   else if (/opera|opr\//i.test(ua)) browserName = "Opera"
 
