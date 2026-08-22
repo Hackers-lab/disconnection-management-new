@@ -28,7 +28,7 @@ import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
-import { matchesAgency } from "@/lib/permissions"
+import { matchesAgency } from "@/lib/permission-utils"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void

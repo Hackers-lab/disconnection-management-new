@@ -65,7 +65,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
-import { matchesAgency } from "@/lib/permissions"
+import { matchesAgency } from "@/lib/permission-utils"
 
 const CACHE_KEY = "icds_data_cache"
 const PAGE_SIZE = 24
