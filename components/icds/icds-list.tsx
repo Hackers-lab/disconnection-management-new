@@ -396,7 +396,7 @@ export function IcdsList({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-24">
       {/* 1. Sleek Search, Filter & 3-Dot Action Bar */}
-      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-xs border border-slate-200/90 flex items-center justify-between gap-2.5 flex-wrap">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200/90 flex items-center justify-between gap-2.5 flex-wrap">
         {/* Left: Quick Search */}
         <div className="relative flex-1 min-w-[200px] sm:min-w-[280px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -422,8 +422,8 @@ export function IcdsList({
             onClick={() => { triggerVibrate(); setIsFilterOpen(true); }}
             className={
               activeFiltersCount > 0
-                ? "h-9 px-3 text-xs font-bold rounded-lg transition-all bg-slate-900 text-white hover:bg-slate-800 shadow-xs"
-                : "h-9 px-3 text-xs font-bold rounded-lg transition-all border-slate-200 hover:bg-slate-50 text-slate-700"
+                ? "h-9 px-3 text-xs font-bold rounded-lg transition-all bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+                : "h-9 px-3 text-xs font-bold rounded-lg transition-all border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm"
             }
           >
             <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
@@ -436,17 +436,17 @@ export function IcdsList({
           </Button>
 
           {/* View Mode Toggle (Grid / List) */}
-          <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50 p-0.5">
+          <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50 p-0.5 shadow-sm">
             <button
               onClick={() => { triggerVibrate(); setViewMode("card"); }}
-              className={"p-1.5 rounded-md transition-all " + (viewMode === "card" ? "bg-white text-slate-900 shadow-2xs font-bold" : "text-slate-400 hover:text-slate-700")}
+              className={"p-1.5 rounded-md transition-all " + (viewMode === "card" ? "bg-white text-slate-900 shadow-sm font-bold" : "text-slate-400 hover:text-slate-700")}
               title="Card Grid View"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => { triggerVibrate(); setViewMode("list"); }}
-              className={"p-1.5 rounded-md transition-all " + (viewMode === "list" ? "bg-white text-slate-900 shadow-2xs font-bold" : "text-slate-400 hover:text-slate-700")}
+              className={"p-1.5 rounded-md transition-all " + (viewMode === "list" ? "bg-white text-slate-900 shadow-sm font-bold" : "text-slate-400 hover:text-slate-700")}
               title="Table List View"
             >
               <List className="h-3.5 w-3.5" />
@@ -459,7 +459,7 @@ export function IcdsList({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-xs"
+                className="h-9 w-9 rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm"
                 title="More Actions"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -560,8 +560,8 @@ export function IcdsList({
             className={
               "px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all " +
               (selectedStage === s.id
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50")
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 shadow-sm")
             }
           >
             {s.label} ({s.count})
@@ -571,12 +571,12 @@ export function IcdsList({
 
       {/* 4. Main Records Display (Cards / Table) */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl shadow-xs border border-slate-200">
+        <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl shadow-md border border-slate-200">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
           <p className="text-xs text-slate-500 font-semibold">Hydrating Anganwadi Centers registry...</p>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center p-16 bg-white rounded-xl shadow-xs border border-slate-200 space-y-4">
+        <div className="text-center p-16 bg-white rounded-xl shadow-md border border-slate-200 space-y-4">
           <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-200">
             <Building2 className="h-6 w-6 text-slate-400" />
           </div>
@@ -589,18 +589,18 @@ export function IcdsList({
             </p>
           </div>
           {activeFiltersCount > 0 && (
-            <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs font-semibold rounded-lg">
+            <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs font-semibold rounded-lg shadow-sm">
               Reset Filters
             </Button>
           )}
         </div>
       ) : viewMode === "card" ? (
         /* Cards Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {paginatedRecords.map((r) => (
             <div
               key={r.id}
-              className="bg-white rounded-xl shadow-xs hover:shadow-md border border-slate-200/90 hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden"
+              className="bg-white rounded-xl shadow-md hover:shadow-xl border border-slate-200/80 hover:border-slate-300 transition-all duration-200 flex flex-col justify-between overflow-hidden hover:-translate-y-0.5"
             >
               <div className="p-4 space-y-3">
                 {/* Top Row: Title + Code + Stage Badge */}
@@ -641,13 +641,13 @@ export function IcdsList({
 
                 {/* Address Line if present */}
                 {r.awcAddress && (
-                  <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 line-clamp-1">
+                  <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200/60 shadow-xs line-clamp-1">
                     📍 {r.awcAddress}
                   </p>
                 )}
 
                 {/* Worker Contact Card */}
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between text-xs">
+                <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-200/70 shadow-xs flex items-center justify-between text-xs">
                   <div className="space-y-0.5 min-w-0 pr-2">
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Anganwadi Worker</span>
                     <p className="font-bold text-slate-800 truncate">{r.awwName || "Not Assigned"}</p>
@@ -704,7 +704,7 @@ export function IcdsList({
               </div>
 
               {/* Sequential Action Footer: Shows primary button for current flow stage */}
-              <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
+              <div className="p-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-1.5">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -716,7 +716,7 @@ export function IcdsList({
 
                 {/* Primary Action Button Based on Current Flow Stage */}
                 {r.jurisdictionStatus === "OTHER_OFFICE" ? (
-                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200">
+                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200 shadow-xs">
                     Other CCC: {r.jurisdictionOffice || "Adjacent"}
                   </Badge>
                 ) : r.stage === "PENDING_INSPECTION" ? (
@@ -724,7 +724,7 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" />
                       Inspect Premises
@@ -739,7 +739,7 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <FileText className="h-3.5 w-3.5 mr-1.5" />
                       Admin CRM / WO
@@ -754,7 +754,7 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Zap className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
                       Execute & Certify
@@ -769,7 +769,7 @@ export function IcdsList({
                     size="sm"
                     variant="outline"
                     onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                    className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                    className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 shadow-sm"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
                     Certified
@@ -781,7 +781,7 @@ export function IcdsList({
         </div>
       ) : (
         /* Table View */
-        <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-md border border-slate-200/90 overflow-hidden">
           <div className="overflow-x-auto">
             <Table className="text-xs">
               <TableHeader className="bg-slate-50/80">
@@ -843,7 +843,7 @@ export function IcdsList({
                             <Button
                               size="sm"
                               onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white"
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                             >
                               Inspect
                             </Button>
@@ -855,7 +855,7 @@ export function IcdsList({
                             <Button
                               size="sm"
                               onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white"
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                             >
                               Admin CRM
                             </Button>
@@ -867,7 +867,7 @@ export function IcdsList({
                             <Button
                               size="sm"
                               onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white"
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                             >
                               Execute
                             </Button>
@@ -875,7 +875,7 @@ export function IcdsList({
                             <Badge variant="outline" className="text-[10px]">WO Issued</Badge>
                           )
                         ) : (
-                          <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200">Certified</Badge>
+                          <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 shadow-xs">Certified</Badge>
                         )}
                       </div>
                     </TableCell>
@@ -889,7 +889,7 @@ export function IcdsList({
 
       {/* 5. Pagination Bar (Parted by Page Numbers) */}
       {filteredRecords.length > 0 && (
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-xs border border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="text-slate-500 font-medium">
             Showing <span className="font-bold text-slate-800">{(currentPage - 1) * PAGE_SIZE + 1}</span> to{" "}
             <span className="font-bold text-slate-800">{Math.min(currentPage * PAGE_SIZE, filteredRecords.length)}</span> of{" "}
@@ -902,7 +902,7 @@ export function IcdsList({
               variant="outline"
               onClick={() => { triggerVibrate(); setCurrentPage((p) => Math.max(1, p - 1)); }}
               disabled={currentPage === 1}
-              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs"
+              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs shadow-sm"
             >
               <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prev
             </Button>
@@ -923,8 +923,8 @@ export function IcdsList({
                   className={
                     "h-8 w-8 p-0 rounded-lg text-xs font-bold " +
                     (currentPage === pageNum
-                      ? "bg-slate-900 text-white shadow-xs"
-                      : "border-slate-200 hover:bg-slate-50 text-slate-700")
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm")
                   }
                 >
                   {pageNum}
@@ -937,7 +937,7 @@ export function IcdsList({
               variant="outline"
               onClick={() => { triggerVibrate(); setCurrentPage((p) => Math.min(totalPages, p + 1)); }}
               disabled={currentPage === totalPages}
-              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs"
+              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs shadow-sm"
             >
               Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </Button>
@@ -1056,7 +1056,7 @@ export function IcdsList({
               type="button"
               size="sm"
               onClick={() => setIsFilterOpen(false)}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm"
             >
               Apply ({filteredRecords.length} Results)
             </Button>

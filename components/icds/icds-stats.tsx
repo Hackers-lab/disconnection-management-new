@@ -58,7 +58,7 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
   const infra = records.filter(r => r.infraRequired).length
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden transition-all">
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-md hover:shadow-lg overflow-hidden transition-all">
       {/* Mini Quick Bar */}
       <div
         onClick={() => setIsOpen(!isOpen)}
@@ -94,27 +94,27 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
       {/* Expanded Grid */}
       {isOpen && (
         <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Centers</span>
             <p className="text-xl font-extrabold text-slate-900 mt-0.5">{total}</p>
           </div>
-          <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-amber-200/80 shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[9px] uppercase font-bold text-amber-600 tracking-wider">Pending Inspect</span>
             <p className="text-xl font-extrabold text-amber-700 mt-0.5">{pending}</p>
           </div>
-          <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-indigo-200/80 shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[9px] uppercase font-bold text-indigo-600 tracking-wider">Meters Installed</span>
             <p className="text-xl font-extrabold text-indigo-700 mt-0.5">{metered}</p>
           </div>
-          <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-purple-200/80 shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[9px] uppercase font-bold text-purple-600 tracking-wider">Wiring (CSR 6611)</span>
             <p className="text-xl font-extrabold text-purple-700 mt-0.5">{wiring}</p>
           </div>
-          <div className="bg-white p-3 rounded-xl border border-orange-100 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-orange-200/80 shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[9px] uppercase font-bold text-orange-600 tracking-wider">Infra Needed</span>
             <p className="text-xl font-extrabold text-orange-700 mt-0.5">{infra}</p>
           </div>
-          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
+          <div className="bg-white p-3 rounded-xl border border-emerald-200/80 shadow-sm hover:shadow-md transition-shadow">
             <span className="text-[9px] uppercase font-bold text-emerald-600 tracking-wider">Certified (Handover)</span>
             <p className="text-xl font-extrabold text-emerald-700 mt-0.5">{completed}</p>
           </div>
@@ -294,7 +294,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
       {activeReportTab === "charts" && (
         <div className="grid gap-4 md:grid-cols-3">
           {/* Block-wise Stacked Bar Chart */}
-          <Card className="md:col-span-2 shadow-sm">
+          <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-blue-600" />
@@ -322,7 +322,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
           </Card>
 
           {/* Infrastructure Distribution Pie */}
-          <Card className="shadow-sm">
+          <Card className="shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <RadioTower className="h-4 w-4 text-orange-600" />
@@ -368,7 +368,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
 
       {/* TAB 2: Agency Performance Report Table */}
       {activeReportTab === "agency" && (
-        <Card className="shadow-sm">
+        <Card className="shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Users className="h-4 w-4 text-indigo-600" />
@@ -419,7 +419,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
 
       {/* TAB 3: GP-wise Table */}
       {activeReportTab === "gp" && (
-        <Card className="shadow-sm">
+        <Card className="shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Building2 className="h-4 w-4 text-blue-600" />

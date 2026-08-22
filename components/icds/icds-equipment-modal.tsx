@@ -237,7 +237,7 @@ export function IcdsEquipmentModal({ record, open, onClose, onSuccess, username 
               type="submit"
               size="sm"
               disabled={submitting}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm"
             >
               {submitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
               Save Wiring Package

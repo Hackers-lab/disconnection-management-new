@@ -223,7 +223,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2 text-xs">
           {/* Header Summary */}
-          <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 flex items-center justify-between">
+          <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between">
             <div>
               <p className="font-extrabold text-slate-900 text-sm">{record.awcName}</p>
               <p className="text-slate-500 font-mono text-[11px]">Code: {record.awcCode} • {record.blockName} • {record.gpName}</p>
@@ -566,7 +566,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
               type="submit"
               size="sm"
               disabled={submitting || uploadingBefore || uploadingDrawing}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm"
             >
               {submitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
               Save Inspection Details
