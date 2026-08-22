@@ -40,9 +40,13 @@ export function VisitorLiveCounter({ className = "" }: VisitorLiveCounterProps) 
     const sendHeartbeat = async (initial = false) => {
       try {
         const initParam = initial && isNewVisit ? "&init=1" : ""
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 2500)
         const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}`, {
           cache: "no-store",
+          signal: controller.signal,
         })
+        clearTimeout(timeoutId)
         if (res.ok) {
           const data = await res.json()
           if (data && typeof data.totalVisitors === "number") {
