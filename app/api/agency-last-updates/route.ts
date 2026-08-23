@@ -10,6 +10,8 @@ type AgencyUpdate = {
   lastUpdateCount: number;
 };
 
+export const dynamic = "force-dynamic";
+
 export const GET = withTenant(async function GET(req: NextRequest) {
   try {
     const spreadsheetId = getSpreadsheetId();
