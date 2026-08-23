@@ -35,7 +35,9 @@ export function DashboardShell({
 }: DashboardShellProps) {
   
   return (
-    <div className="min-h-screen bg-[#f8fafc] relative overflow-x-hidden">
+    <div className={`bg-[#f8fafc] relative overflow-x-hidden ${
+      activeView === "gis-camera" ? "h-[100dvh] overflow-hidden" : "min-h-screen"
+    }`}>
       {/* Ambient Aurora Mesh Glow Lights (Apple / Linear style) */}
       <div className="fixed top-0 left-1/4 w-96 h-96 bg-blue-400/[0.08] rounded-full blur-3xl pointer-events-none -z-10" />
       <div className="fixed bottom-10 right-1/4 w-[28rem] h-[28rem] bg-indigo-400/[0.07] rounded-full blur-3xl pointer-events-none -z-10" />
@@ -52,16 +54,22 @@ export function DashboardShell({
         setActiveView={setActiveView}
         permissions={permissions}
       />
-      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${
-        activeView === "home" ? "py-4 sm:py-6" : "pt-2 pb-6"
+      <main className={`max-w-7xl mx-auto relative z-10 ${
+        activeView === "gis-camera"
+          ? "px-1 sm:px-4 h-[calc(100dvh-4rem)] overflow-hidden flex flex-col"
+          : activeView === "home"
+          ? "px-4 sm:px-6 lg:px-8 py-4 sm:py-6"
+          : "px-4 sm:px-6 lg:px-8 pt-2 pb-6"
       }`}>
         {/* Render whatever is passed as children (Menu, List, etc.) */}
         {children} 
 
-        {/* Real-time Visitor Count & Live Users in simple text at the bottom */}
-        <div className="py-4 mt-6 border-t border-slate-200/60">
-          <VisitorLiveCounter activeModule={activeView} />
-        </div>
+        {/* Real-time Visitor Count & Live Users in simple text at the bottom (hidden in GIS Camera) */}
+        {activeView !== "gis-camera" && (
+          <div className="py-4 mt-6 border-t border-slate-200/60">
+            <VisitorLiveCounter activeModule={activeView} />
+          </div>
+        )}
       </main>
     </div>
   )

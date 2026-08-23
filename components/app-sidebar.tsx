@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   RefreshCw,
   Building2,
+  Camera,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -28,7 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { matchesAgency } from "@/lib/permission-utils"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection" | "icds"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection" | "icds" | "gis-camera"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -306,6 +307,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       id: "osd",
       label: "Live OSD Check",
       icon: FileCheck2,
+    },
+    {
+      id: "gis-camera",
+      label: "GIS Camera",
+      icon: Camera,
     },
     // Only show Admin Panel button here if you want it in the menu
     {

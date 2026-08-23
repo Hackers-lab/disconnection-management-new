@@ -23,7 +23,8 @@ import {
   FileCheck2,
   ShieldAlert,
   Building2,
-  Calendar
+  Calendar,
+  Camera
 } from "lucide-react"
 import { GlobalConsumerSearch } from "@/components/global-consumer-search"
 import { ViewType } from "@/components/app-sidebar"
@@ -264,6 +265,17 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       bgColor: "bg-emerald-50",
       borderColor: "hover:border-emerald-400 hover:shadow-emerald-500/10",
       allowed: ["admin", "executive", "agency", "viewer", "technical"],
+      status: "live"
+    },
+    {
+      id: "gis-camera",
+      title: "GIS Camera",
+      description: "Geotagged field camera with map & instant watermark",
+      icon: Camera,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "hover:border-blue-400 hover:shadow-blue-500/10",
+      allowed: ["all"],
       status: "live"
     },
     {
@@ -999,7 +1011,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                         <Icon className="h-5 w-5" />
                       </div>
 
-                      {module.id !== "osd" && module.id !== "admin" && (
+                      {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] ${pillStyleClass}`}>
                           {module.isLoading ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -1065,7 +1077,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   }}
                 >
                   {/* Executive Dark Badge Counter */}
-                  {module.id !== "osd" && module.id !== "admin" && (
+                  {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
                     <div className={`absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
                       module.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
                     }`}>

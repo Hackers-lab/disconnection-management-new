@@ -32,6 +32,7 @@ const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-li
 const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
+const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
@@ -1509,6 +1510,15 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
 
         {activeView === "osd" && (
           <OsdDetailsView onBack={() => setActiveView("home")} />
+        )}
+
+        {activeView === "gis-camera" && (
+          <GisCamera
+            userRole={role}
+            userAgencies={agencies}
+            officeCode={profileCccCode || "KUSHIDA"}
+            onBack={() => setActiveView("home")}
+          />
         )}
 
         {activeView === "analysis" && role === "admin" && (
