@@ -54,21 +54,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [miscPendingCount, setMiscPendingCount] = useState<number>(0)
   const [icdsPendingCount, setIcdsPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
-  const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
-    safety: true,
-    "misc-inspection": true,
-    icds: true,
-    disconnection: true,
-    reconnection: true,
-    deemed: true,
-    dtr: true,
-    "dtr-painting": true,
-    meter: true,
-    nsc: true,
-    "meter-replacement": true,
-    material: true,
-    "consumer-master": true,
-  })
+  const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({})
 
   // Helper to scan all local module caches and find the latest update date
   const refreshGlobalLatestDate = async () => {
