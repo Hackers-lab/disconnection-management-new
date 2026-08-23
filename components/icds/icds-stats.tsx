@@ -214,36 +214,21 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md overflow-hidden transition-all">
-      {/* Mini Dashboard Trigger Bar */}
+      {/* Dashboard Trigger Bar */}
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors select-none text-xs"
+        className="p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors select-none"
       >
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
-            <BarChart3 className="h-4 w-4 text-blue-600" />
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-blue-600" />
+          <span className="font-extrabold text-slate-900 text-xs sm:text-sm">
             Dashboard
-          </span>
-          <span className="text-slate-200">|</span>
-          <span className="text-slate-600 font-semibold">Total: <strong className="text-slate-900">{total}</strong></span>
-          <span className="text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/70 text-[11px]">
-            Inspected: {inspected.length}
-          </span>
-          <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/70 text-[11px]">
-            Pending: {pending.length}
-          </span>
-          <span className="text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200/70 text-[11px]">
-            Metered: {meteredRecords.length}
-          </span>
-          <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/70 text-[11px]">
-            Certified: {completedRecords.length}
           </span>
         </div>
 
-        <button className="text-slate-500 hover:text-slate-800 flex items-center gap-1 text-[11px] font-bold">
-          {isOpen ? "Collapse Dashboard" : "Expand Dashboard"}
-          {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
+        <div className="text-slate-400 hover:text-slate-700 flex items-center">
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </div>
       </div>
 
       {/* Expanded Detailed Dashboard Grid */}

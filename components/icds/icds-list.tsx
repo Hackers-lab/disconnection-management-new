@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import type { IcdsRecord, IcdsStage, PropertyStatus, JurisdictionStatus } from "@/lib/icds-types"
 import { IcdsMiniKpiDrawer } from "@/components/icds/icds-stats"
 import { IcdsInspectModal } from "@/components/icds/icds-inspect-modal"
@@ -139,6 +139,38 @@ export function IcdsList({
   const canInspect = effectiveRole === "admin" || effectiveRole === "executive" || (isAgency ? hasIcdsPerm("inspect") || icdsPerms.length === 0 : hasIcdsPerm("inspect"))
   const canProcess = (effectiveRole === "admin" || effectiveRole === "executive") || (!isAgency && hasIcdsPerm("process"))
   const canExecute = effectiveRole === "admin" || effectiveRole === "executive" || (isAgency ? hasIcdsPerm("execute") || hasIcdsPerm("install") || icdsPerms.length === 0 : hasIcdsPerm("execute") || hasIcdsPerm("install"))
+
+  // Tabs horizontal scroll navigation
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkTabsScroll = useCallback(() => {
+    if (tabsRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current
+      setCanScrollLeft(scrollLeft > 4)
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4)
+    }
+  }, [])
+
+  useEffect(() => {
+    checkTabsScroll()
+    const el = tabsRef.current
+    if (el) {
+      el.addEventListener("scroll", checkTabsScroll)
+      window.addEventListener("resize", checkTabsScroll)
+    }
+    return () => {
+      if (el) el.removeEventListener("scroll", checkTabsScroll)
+      window.removeEventListener("resize", checkTabsScroll)
+    }
+  }, [checkTabsScroll, records])
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (tabsRef.current) {
+      tabsRef.current.scrollBy({ left: direction === "left" ? -120 : 120, behavior: "smooth" })
+    }
+  }
 
   // Subtle mobile touch vibration
   const triggerVibrate = useCallback(() => {
@@ -611,35 +643,63 @@ export function IcdsList({
       {/* 2. Mini Collapsible Dashboard Drawer */}
       <IcdsMiniKpiDrawer records={records} />
 
-      {/* 3. Sleek Bar-Style Stage Tabs with Dynamic Filtered Counts */}
-      <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto border-b border-slate-200/90 scrollbar-none text-xs pt-1">
-        {[
-          { id: "all", label: "All Centers", count: stageCounts.all },
-          { id: "PENDING_INSPECTION", label: "Pending", count: stageCounts.pending },
-          { id: "INSPECTED", label: "Inspected", count: stageCounts.inspected },
-          { id: "WO_ISSUED", label: "WO Issued", count: stageCounts.woIssued },
-          { id: "COMPLETED", label: "Certified", count: stageCounts.completed },
-        ].map((s) => {
-          const isActive = selectedStage === s.id
-          return (
-            <button
-              key={s.id}
-              onClick={() => { triggerVibrate(); setSelectedStage(s.id); }}
-              className={`pb-2 pt-0.5 px-0.5 text-xs whitespace-nowrap transition-all border-b-2 flex items-center gap-1.5 cursor-pointer select-none ${
-                isActive
-                  ? "border-slate-900 text-slate-900 font-extrabold"
-                  : "border-transparent text-slate-500 font-medium hover:text-slate-800 hover:border-slate-300"
-              }`}
-            >
-              <span>{s.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full transition-colors ${
-                isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
-              }`}>
-                {s.count}
-              </span>
-            </button>
-          )
-        })}
+      {/* 3. Sleek Bar-Style Stage Tabs with Dynamic Filtered Counts & Mobile Optimization */}
+      <div className="relative flex items-center border-b border-slate-200/90 pt-1 group">
+        {/* Left Scroll Arrow */}
+        {canScrollLeft && (
+          <button
+            onClick={() => scrollTabs("left")}
+            className="absolute left-0 z-10 h-7 w-6 bg-white/95 backdrop-blur shadow-sm border border-slate-200 rounded-r flex items-center justify-center text-slate-600 hover:text-slate-900 cursor-pointer"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        <div
+          ref={tabsRef}
+          className="flex items-center gap-1 sm:gap-6 overflow-x-auto scrollbar-none w-full px-0.5"
+        >
+          {[
+            { id: "all", label: "All Centers", shortLabel: "All", count: stageCounts.all },
+            { id: "PENDING_INSPECTION", label: "Pending", shortLabel: "Pending", count: stageCounts.pending },
+            { id: "INSPECTED", label: "Inspected", shortLabel: "Inspected", count: stageCounts.inspected },
+            { id: "WO_ISSUED", label: "WO Issued", shortLabel: "WO", count: stageCounts.woIssued },
+            { id: "COMPLETED", label: "Certified", shortLabel: "Certified", count: stageCounts.completed },
+          ].map((s) => {
+            const isActive = selectedStage === s.id
+            return (
+              <button
+                key={s.id}
+                onClick={() => { triggerVibrate(); setSelectedStage(s.id); }}
+                className={`pb-2 pt-0.5 px-1 sm:px-1.5 text-xs whitespace-nowrap transition-all border-b-2 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer select-none flex-1 sm:flex-initial ${
+                  isActive
+                    ? "border-slate-900 text-slate-900 font-extrabold"
+                    : "border-transparent text-slate-500 font-medium hover:text-slate-800 hover:border-slate-300"
+                }`}
+              >
+                <span className="hidden sm:inline">{s.label}</span>
+                <span className="sm:hidden">{s.shortLabel}</span>
+                <span className={`text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full transition-colors ${
+                  isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
+                }`}>
+                  {s.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Right Scroll Arrow */}
+        {canScrollRight && (
+          <button
+            onClick={() => scrollTabs("right")}
+            className="absolute right-0 z-10 h-7 w-6 bg-white/95 backdrop-blur shadow-sm border border-slate-200 rounded-l flex items-center justify-center text-slate-600 hover:text-slate-900 cursor-pointer"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* 4. Main Records Display (Cards / Table) */}
