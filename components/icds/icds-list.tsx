@@ -64,6 +64,9 @@ import {
   FileText,
   AlertCircle,
   Trash2,
+  ShieldAlert,
+  KeyRound,
+  AlertTriangle,
 } from "lucide-react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { matchesAgency } from "@/lib/permission-utils"
@@ -109,6 +112,11 @@ export function IcdsList({
   const [showReportsModal, setShowReportsModal] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
+  // Clear All Password Modal State
+  const [showClearDialog, setShowClearDialog] = useState(false)
+  const [clearPasswordInput, setClearPasswordInput] = useState("")
+  const [clearSubmitting, setClearSubmitting] = useState(false)
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedBlock, setSelectedBlock] = useState("all")
@@ -116,6 +124,7 @@ export function IcdsList({
   const [selectedAgency, setSelectedAgency] = useState("all")
   const [selectedJurisdiction, setSelectedJurisdiction] = useState("all")
   const [selectedProperty, setSelectedProperty] = useState("all")
+  const [selectedMeterWiring, setSelectedMeterWiring] = useState("all")
   const [selectedStage, setSelectedStage] = useState("all")
 
   // Pagination
@@ -193,8 +202,49 @@ export function IcdsList({
     return Array.from(set).sort()
   }, [records])
 
-  // Filter records
-  const filteredRecords = useMemo(() => {
+  // Dynamic IST password generator (DDMMYYYY in UTC+5:30)
+  const getTodayISTPassword = () => {
+    const now = new Date()
+    const istTime = new Date(now.getTime() + (5.5 * 60 + now.getTimezoneOffset()) * 60 * 1000)
+    const day = String(istTime.getDate()).padStart(2, "0")
+    const month = String(istTime.getMonth() + 1).padStart(2, "0")
+    const year = istTime.getFullYear()
+    return `${day}${month}${year}`
+  }
+
+  const handleClearAllConfirm = async () => {
+    if (clearPasswordInput.trim() !== getTodayISTPassword()) {
+      toast.error("Incorrect confirmation password")
+      return
+    }
+    try {
+      setClearSubmitting(true)
+      const res = await fetch("/api/icds?clearAll=true", { method: "DELETE" })
+      if (res.ok) {
+        toast.success("Successfully cleared all centers")
+        setRecords([])
+        await saveToCache(CACHE_KEY, [])
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("local-cache-updated", { detail: { key: CACHE_KEY } }))
+        }
+        setShowClearDialog(false)
+        setClearPasswordInput("")
+      } else {
+        toast.error("Failed to clear centers")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to clear registry")
+    } finally {
+      setClearSubmitting(false)
+    }
+  }
+
+  // Meter & wiring helper checks
+  const checkHasMeter = (r: IcdsRecord) => r.meterExists || !!r.smartMeterNo || r.stage === "METER_INSTALLED" || r.stage === "COMPLETED"
+  const checkHasWiring = (r: IcdsRecord) => r.equipmentPackageInstalled || r.existingWiringStatus === "EXISTS_WORKING" || r.stage === "EQUIPMENT_INSTALLED" || r.stage === "COMPLETED"
+
+  // Scope filtered records (filters applied EXCEPT stage) so stage buttons show filtered numbers
+  const scopeFilteredRecords = useMemo(() => {
     return records.filter((r) => {
       // Role scope restriction for agency users
       if (isAgency) {
@@ -236,15 +286,17 @@ export function IcdsList({
       if (selectedJurisdiction !== "all" && r.jurisdictionStatus !== selectedJurisdiction) return false
       if (selectedProperty !== "all" && r.propertyStatus !== selectedProperty) return false
 
-      // Stage filter supporting grouped stages
-      if (selectedStage !== "all") {
-        if (selectedStage === "INSPECTED") {
-          if (r.stage !== "INSPECTED" && r.stage !== "APPLICATION_PENDING") return false
-        } else if (selectedStage === "WO_ISSUED") {
-          if (r.stage !== "WO_ISSUED" && r.stage !== "METER_INSTALLED" && r.stage !== "EQUIPMENT_INSTALLED") return false
-        } else if (r.stage !== selectedStage) {
-          return false
-        }
+      // Meter & Wiring Status
+      if (selectedMeterWiring === "meter_exists") {
+        if (!checkHasMeter(r)) return false
+      } else if (selectedMeterWiring === "meter_and_wiring") {
+        if (!checkHasMeter(r) || !checkHasWiring(r)) return false
+      } else if (selectedMeterWiring === "meter_no_wiring") {
+        if (!checkHasMeter(r) || checkHasWiring(r)) return false
+      } else if (selectedMeterWiring === "unmetered") {
+        if (checkHasMeter(r)) return false
+      } else if (selectedMeterWiring === "infra_required") {
+        if (!r.infraRequired) return false
       }
 
       return true
@@ -260,8 +312,32 @@ export function IcdsList({
     selectedAgency,
     selectedJurisdiction,
     selectedProperty,
-    selectedStage,
+    selectedMeterWiring,
   ])
+
+  // Final filtered records after stage selection
+  const filteredRecords = useMemo(() => {
+    if (selectedStage === "all") return scopeFilteredRecords
+    return scopeFilteredRecords.filter((r) => {
+      if (selectedStage === "INSPECTED") {
+        return r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING"
+      } else if (selectedStage === "WO_ISSUED") {
+        return r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED"
+      }
+      return r.stage === selectedStage
+    })
+  }, [scopeFilteredRecords, selectedStage])
+
+  // Dynamic counts for stage bar buttons based on active filtered scope
+  const stageCounts = useMemo(() => {
+    return {
+      all: scopeFilteredRecords.length,
+      pending: scopeFilteredRecords.filter((r) => r.stage === "PENDING_INSPECTION").length,
+      inspected: scopeFilteredRecords.filter((r) => r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING").length,
+      woIssued: scopeFilteredRecords.filter((r) => r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED").length,
+      completed: scopeFilteredRecords.filter((r) => r.stage === "COMPLETED").length,
+    }
+  }, [scopeFilteredRecords])
 
   // Reset page when filters change
   useEffect(() => {
@@ -273,6 +349,7 @@ export function IcdsList({
     selectedAgency,
     selectedJurisdiction,
     selectedProperty,
+    selectedMeterWiring,
     selectedStage,
   ])
 
@@ -291,8 +368,9 @@ export function IcdsList({
     if (selectedAgency !== "all") count++
     if (selectedJurisdiction !== "all") count++
     if (selectedProperty !== "all") count++
+    if (selectedMeterWiring !== "all") count++
     return count
-  }, [selectedBlock, selectedGp, selectedAgency, selectedJurisdiction, selectedProperty])
+  }, [selectedBlock, selectedGp, selectedAgency, selectedJurisdiction, selectedProperty, selectedMeterWiring])
 
   const clearFilters = () => {
     setSelectedBlock("all")
@@ -300,6 +378,7 @@ export function IcdsList({
     setSelectedAgency("all")
     setSelectedJurisdiction("all")
     setSelectedProperty("all")
+    setSelectedMeterWiring("all")
   }
 
   // Handle single record updates from modals
@@ -512,29 +591,15 @@ export function IcdsList({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="my-1" />
                   <DropdownMenuItem
-                    onClick={async () => {
+                    onClick={() => {
                       triggerVibrate()
-                      if (!confirm("Are you sure you want to delete all 95 test centers? This will clear the ICDS registry.")) return
-                      try {
-                        const res = await fetch("/api/icds?clearAll=true", { method: "DELETE" })
-                        if (res.ok) {
-                          toast.success("Successfully deleted all test centers")
-                          setRecords([])
-                          await saveToCache(CACHE_KEY, [])
-                          if (typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("local-cache-updated", { detail: { key: CACHE_KEY } }))
-                          }
-                        } else {
-                          toast.error("Failed to delete centers")
-                        }
-                      } catch (err: any) {
-                        toast.error(err.message || "Failed to clear registry")
-                      }
+                      setClearPasswordInput("")
+                      setShowClearDialog(true)
                     }}
                     className="text-xs font-bold py-2 rounded-lg cursor-pointer gap-2 text-rose-700 focus:bg-rose-50"
                   >
                     <Trash2 className="h-4 w-4 text-rose-600" />
-                    Clear All Test Centers
+                    Clear All Centers
                   </DropdownMenuItem>
                 </>
               )}
@@ -543,31 +608,38 @@ export function IcdsList({
         </div>
       </div>
 
-      {/* 2. Mini Collapsible KPI Drawer */}
+      {/* 2. Mini Collapsible Dashboard Drawer */}
       <IcdsMiniKpiDrawer records={records} />
 
-      {/* 3. Quick Horizontal Stage Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+      {/* 3. Sleek Bar-Style Stage Tabs with Dynamic Filtered Counts */}
+      <div className="flex items-center gap-4 sm:gap-6 overflow-x-auto border-b border-slate-200/90 scrollbar-none text-xs pt-1">
         {[
-          { id: "all", label: "All Centers", count: records.length },
-          { id: "PENDING_INSPECTION", label: "Pending", count: records.filter((r) => r.stage === "PENDING_INSPECTION").length },
-          { id: "INSPECTED", label: "Inspected", count: records.filter((r) => r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING").length },
-          { id: "WO_ISSUED", label: "WO Issued", count: records.filter((r) => r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED").length },
-          { id: "COMPLETED", label: "Certified", count: records.filter((r) => r.stage === "COMPLETED").length },
-        ].map((s) => (
-          <button
-            key={s.id}
-            onClick={() => { triggerVibrate(); setSelectedStage(s.id); }}
-            className={
-              "px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all " +
-              (selectedStage === s.id
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 shadow-sm")
-            }
-          >
-            {s.label} ({s.count})
-          </button>
-        ))}
+          { id: "all", label: "All Centers", count: stageCounts.all },
+          { id: "PENDING_INSPECTION", label: "Pending", count: stageCounts.pending },
+          { id: "INSPECTED", label: "Inspected", count: stageCounts.inspected },
+          { id: "WO_ISSUED", label: "WO Issued", count: stageCounts.woIssued },
+          { id: "COMPLETED", label: "Certified", count: stageCounts.completed },
+        ].map((s) => {
+          const isActive = selectedStage === s.id
+          return (
+            <button
+              key={s.id}
+              onClick={() => { triggerVibrate(); setSelectedStage(s.id); }}
+              className={`pb-2 pt-0.5 px-0.5 text-xs whitespace-nowrap transition-all border-b-2 flex items-center gap-1.5 cursor-pointer select-none ${
+                isActive
+                  ? "border-slate-900 text-slate-900 font-extrabold"
+                  : "border-transparent text-slate-500 font-medium hover:text-slate-800 hover:border-slate-300"
+              }`}
+            >
+              <span>{s.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full transition-colors ${
+                isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
+              }`}>
+                {s.count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* 4. Main Records Display (Cards / Table) */}
@@ -1042,6 +1114,24 @@ export function IcdsList({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Meter & Wiring Electrification Status Filter */}
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700">Meter & Internal Wiring Status</label>
+              <Select value={selectedMeterWiring} onValueChange={setSelectedMeterWiring}>
+                <SelectTrigger className="h-9 text-xs rounded-lg">
+                  <SelectValue placeholder="All Electrification Statuses" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="meter_exists">Meter Exists (Any Wiring)</SelectItem>
+                  <SelectItem value="meter_and_wiring">Meter + Wiring Exists (Ready / Done)</SelectItem>
+                  <SelectItem value="meter_no_wiring">Meter Exists, Wiring Pending</SelectItem>
+                  <SelectItem value="unmetered">Unmetered Centers</SelectItem>
+                  <SelectItem value="infra_required">Poles / Infra Extension Required</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <DialogFooter className="gap-2 border-t pt-3 flex items-center justify-between sm:justify-between">
@@ -1062,6 +1152,90 @@ export function IcdsList({
               className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm"
             >
               Apply ({filteredRecords.length} Results)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Security Password Protected Clear All Centers Dialog */}
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent className="sm:max-w-md rounded-2xl p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5 text-rose-700">
+              <div className="p-2 rounded-xl bg-rose-100 border border-rose-200">
+                <AlertTriangle className="h-5 w-5 text-rose-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-extrabold text-slate-900">
+                  Clear All Anganwadi Centers
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  This permanent action will wipe all centers from the ICDS database.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-3">
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <KeyRound className="h-4 w-4 text-amber-700 shrink-0" />
+                Security Verification Required
+              </p>
+              <p className="text-[11px] text-amber-800">
+                Enter today&apos;s confirmation password (format: <strong>DDMMYYYY</strong> in IST) to authorize clearing all {records.length} centers.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                Confirmation Security Password
+              </label>
+              <Input
+                type="password"
+                value={clearPasswordInput}
+                onChange={(e) => setClearPasswordInput(e.target.value)}
+                placeholder="Enter DDMMYYYY (e.g. 23082026)"
+                className="h-10 text-sm font-mono rounded-xl bg-slate-50 border-slate-200"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleClearAllConfirm()
+                }}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowClearDialog(false)
+                setClearPasswordInput("")
+              }}
+              className="text-xs font-semibold rounded-lg"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={clearSubmitting || !clearPasswordInput.trim()}
+              onClick={handleClearAllConfirm}
+              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm"
+            >
+              {clearSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Clearing Registry...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  Confirm Permanent Delete
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
