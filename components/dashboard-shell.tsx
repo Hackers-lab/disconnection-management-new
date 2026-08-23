@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client"
 
 import { Header } from "@/components/header"
@@ -36,7 +37,12 @@ export function DashboardShell({
 }: DashboardShellProps) {
   
   return (
-    <>
+    <div className="min-h-screen bg-[#f8fafc] relative overflow-x-hidden">
+      {/* Ambient Aurora Mesh Glow Lights (Apple / Linear style) */}
+      <div className="fixed top-0 left-1/4 w-96 h-96 bg-blue-400/[0.08] rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed bottom-10 right-1/4 w-[28rem] h-[28rem] bg-indigo-400/[0.07] rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed top-1/3 right-10 w-72 h-72 bg-sky-300/[0.06] rounded-full blur-3xl pointer-events-none -z-10" />
+
       <Header 
         userRole={role} 
         userAgencies={agencies}
@@ -48,18 +54,17 @@ export function DashboardShell({
         setActiveView={setActiveView}
         permissions={permissions}
       />
-      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden ${
-        activeView === "home" ? "py-6 bg-gradient-to-b from-slate-50/80 via-slate-100/40 to-slate-50/80 rounded-3xl" : "pt-2 pb-6"
+      <main className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${
+        activeView === "home" ? "py-4 sm:py-6" : "pt-2 pb-6"
       }`}>
-        {(role === "admin" || role === "superuser" || permissions?.admin?.includes("read")) && (
-          <AdminSetupGuideBanner />
-        )}
         {/* Render whatever is passed as children (Menu, List, etc.) */}
         {children} 
 
-        {/* Real-time Visitor Count & Live Users visible ONLY to superadmin / superuser */}
-        <VisitorLiveCounter activeModule={activeView} showUi={role === "superuser" || role === "superadmin"} />
+        {/* Real-time Visitor Count & Live Users in simple text at the bottom */}
+        <div className="py-4 mt-6 border-t border-slate-200/60">
+          <VisitorLiveCounter activeModule={activeView} />
+        </div>
       </main>
-    </>
+    </div>
   )
 }
