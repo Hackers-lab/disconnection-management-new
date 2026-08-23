@@ -32,6 +32,7 @@ const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-li
 const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
+const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
@@ -1815,6 +1816,9 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             role={role}
           />
         )}
+
+        {/* New System Features / Update Announcement Popup */}
+        <NewYearPopup />
 
         {/* Floating 5-Star Rating Pill Overlay */}
         <FloatingRatingPill />
