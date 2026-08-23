@@ -11,6 +11,12 @@ const client_id = process.env.GOOGLE_CLIENT_ID
 const client_secret = process.env.GOOGLE_CLIENT_SECRET
 const refresh_token = process.env.GOOGLE_REFRESH_TOKEN
 
+function getPrivateKey() {
+  const key = process.env.GOOGLE_SHEETS_PRIVATE_KEY
+  if (!key) return undefined
+  return key.replace(/^["']|["']$/g, "").replace(/\\n/g, "\n").replace(/\r/g, "").trim()
+}
+
 export function getDefaultAuthClient(): OAuth2Client | GoogleAuth {
   if (client_id && client_secret && refresh_token) {
     const oauth2Client = new OAuth2Client(client_id, client_secret)
@@ -20,7 +26,7 @@ export function getDefaultAuthClient(): OAuth2Client | GoogleAuth {
   return new GoogleAuth({
     credentials: {
       client_email,
-      private_key: private_key?.replace(/\\n/g, "\n"),
+      private_key: getPrivateKey(),
     },
     scopes: [
       "https://www.googleapis.com/auth/drive",

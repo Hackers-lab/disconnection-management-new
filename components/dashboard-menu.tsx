@@ -263,7 +263,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         if (!icdsCached || !Array.isArray(icdsCached) || icdsCached.length === 0) {
           try {
             setLoadingModules((prev) => ({ ...prev, icds: true }))
-            const res = await fetch(`/api/icds?t=${Date.now()}`)
+            const res = await fetch("/api/icds")
             if (res.ok) {
               const freshData = await res.json()
               if (Array.isArray(freshData)) {

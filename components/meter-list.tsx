@@ -286,7 +286,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           }
         }
         // 2. Fetch fresh
-        const res = await fetch(`/api/meters/stock?t=${Date.now()}`, { cache: "no-store" })
+        const res = await fetch("/api/meters/stock")
         if (!res.ok) throw new Error()
         const data = await res.json()
         const sorted = [...(data.issues || [])].reverse()
@@ -309,7 +309,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           }
         }
         // 2. Fetch fresh
-        const res = await fetch(`/api/meters/issue?t=${Date.now()}`, { cache: "no-store" })
+        const res = await fetch("/api/meters/issue")
         if (!res.ok) throw new Error()
         const data: MeterIssue[] = await res.json()
         const sorted = [...data].reverse()
@@ -355,7 +355,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           return
         }
       }
-      const res = await fetch(`/api/meters/replacement?t=${Date.now()}`, { cache: "no-store" })
+      const res = await fetch("/api/meters/replacement")
       if (res.ok) {
         const data = await res.json()
         setReplacements(data)

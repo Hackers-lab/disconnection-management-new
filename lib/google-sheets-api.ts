@@ -38,8 +38,9 @@ export function getSpreadsheetId() {
   const id =
     process.env.DISCONNECTION_SHEET?.trim() ||
     process.env.USERS_SHEET?.trim() ||
-    process.env.GOOGLE_SHEET_ID?.trim()
-  if (!id) throw new Error("DISCONNECTION_SHEET (or USERS_SHEET / GOOGLE_SHEET_ID) not set")
+    process.env.GOOGLE_SHEET_ID?.trim() ||
+    process.env.MASTER_CONFIG_SHEET?.trim()
+  if (!id) throw new Error("No Google Spreadsheet ID or MASTER_CONFIG_SHEET configured")
   if (id.includes("google.com") || id.includes("/")) {
     throw new Error("Sheet ID appears to be a URL. Use only the ID string.")
   }

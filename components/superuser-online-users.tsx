@@ -138,14 +138,14 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-refresh interval (every 10 seconds while tab is active)
+  // Auto-refresh interval (every 30 seconds while tab is active)
   useEffect(() => {
     if (!autoRefresh) return
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         fetchData(false)
       }
-    }, 10_000)
+    }, 30_000)
     return () => clearInterval(interval)
   }, [autoRefresh, fetchData])
 
@@ -291,13 +291,13 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           <div className="flex items-center gap-2 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs text-slate-300">
             <Radio className={`h-3 w-3 ${autoRefresh ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
-            <span className="text-[11px] font-medium hidden sm:inline">Auto-Sync (10s)</span>
+            <span className="text-[11px] font-medium hidden sm:inline">Auto-Sync (30s)</span>
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={e => setAutoRefresh(e.target.checked)}
               className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-0 cursor-pointer"
-              title="Toggle 10-second automatic refresh"
+              title="Toggle 30-second automatic refresh"
             />
           </div>
 

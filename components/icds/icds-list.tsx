@@ -149,7 +149,7 @@ export function IcdsList({
       }
 
       setRefreshing(true)
-      const res = await fetch(`/api/icds?t=${Date.now()}`, { cache: "no-store" })
+      const res = await fetch("/api/icds")
       if (!res.ok) throw new Error("Failed to fetch ICDS records")
       const data: IcdsRecord[] = await res.json()
       setRecords(data)

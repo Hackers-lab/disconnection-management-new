@@ -63,7 +63,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     try {
       let cached = await getFromCache<any[]>("icds_data_cache")
       if (!cached || !Array.isArray(cached) || cached.length === 0) {
-        const res = await fetch(`/api/icds?t=${Date.now()}`)
+        const res = await fetch("/api/icds")
         if (res.ok) {
           const freshData = await res.json()
           if (Array.isArray(freshData)) {

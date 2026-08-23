@@ -39,10 +39,11 @@ export async function createSession(userId: string, username: string, role: stri
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const session = await encrypt({ userId, username, role, agencies, cccCode, expiresAt })
   const cookieStore = await cookies()
+  const isProduction = process.env.NODE_ENV === "production"
 
   cookieStore.set("session", session, {
     httpOnly: true,
-    secure: true,
+    secure: isProduction,
     expires: expiresAt,
     sameSite: "lax",
     path: "/",
@@ -51,7 +52,7 @@ export async function createSession(userId: string, username: string, role: stri
   // Set cccCode cookie (non-httpOnly) so client-side code can read it for caching scoping
   cookieStore.set("cccCode", cccCode, {
     httpOnly: false,
-    secure: true,
+    secure: isProduction,
     expires: expiresAt,
     sameSite: "lax",
     path: "/",

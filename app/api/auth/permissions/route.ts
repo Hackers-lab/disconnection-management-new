@@ -80,6 +80,10 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       agencies: session.agencies,
       subscriptionStatus: session.subscriptionStatus,
       bypassSubscription: session.bypassSubscription,
+    }, {
+      headers: {
+        "Cache-Control": "private, s-maxage=60, stale-while-revalidate=300",
+      },
     })
   } catch (error) {
     console.error("Error in permissions API:", error)

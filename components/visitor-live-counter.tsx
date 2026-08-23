@@ -66,17 +66,17 @@ export function VisitorLiveCounter({ className = "", activeModule, action }: Vis
     // Initial or module change ping
     sendHeartbeat(true)
 
-    // 4. Periodic heartbeat interval (every 45 seconds while tab is active)
+    // 4. Periodic heartbeat interval (every 180 seconds / 3 min while tab is active)
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         sendHeartbeat(false)
       }
-    }, 45_000)
+    }, 180_000)
 
-    // 5. Visibility change listener: immediately ping if returning to tab after > 30s
+    // 5. Visibility change listener: ping only if returning after > 2 minutes
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        if (Date.now() - lastPingRef.current > 30_000) {
+        if (Date.now() - lastPingRef.current > 120_000) {
           sendHeartbeat(false)
         }
       }
