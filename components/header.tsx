@@ -33,6 +33,7 @@ import {
   FileCheck2,
   Star,
   MessageSquarePlus,
+  Share2,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
@@ -60,6 +61,7 @@ import { OsdDetailsDialog } from "@/components/osd-details-dialog"
 import { useDashboard } from "@/components/dashboard-context"
 import { getAgencyDescription } from "@/app/actions/agency-details"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
+import { generateAndShareAgencyUpdatesJPEG } from "@/lib/agency-update-image"
 
 interface HeaderProps {
   userRole: string
@@ -80,6 +82,21 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [showAgencyUpdates, setShowAgencyUpdates] = useState(false)
   const [agencyLastUpdates, setAgencyLastUpdates] = useState<{name: string, lastUpdate: string; lastUpdateCount: number}[]>([])
   const [loading, setLoading] = useState(false)
+  const [isSharingAgencyImage, setIsSharingAgencyImage] = useState(false)
+
+  const handleShareAgencyUpdates = async () => {
+    if (!agencyLastUpdates || agencyLastUpdates.length === 0 || isSharingAgencyImage) return
+    setIsSharingAgencyImage(true)
+    try {
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+      const ccc = profileData?.cccCode || (typeof window !== "undefined" ? localStorage.getItem("user_ccc_code") : "") || "CCC"
+      await generateAndShareAgencyUpdatesJPEG(agencyLastUpdates, ccc)
+    } catch (err) {
+      console.error("Failed to share agency updates image:", err)
+    } finally {
+      setIsSharingAgencyImage(false)
+    }
+  }
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false)
@@ -1424,30 +1441,48 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
       {/* Agency Updates Dialog */}
       <Dialog open={showAgencyUpdates} onOpenChange={setShowAgencyUpdates}>
-        <DialogContent className="max-w-2xl rounded-xl shadow-xl w-[95vw] sm:w-full">
-          <DialogHeader className="border-b pb-4">
-            <div className="flex items-center space-x-3">
-              <Building2 className="h-6 w-6 text-blue-600" />
-              <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-800">
-                Agency Last Updates
-              </DialogTitle>
+        <DialogContent className="max-w-2xl rounded-2xl shadow-2xl w-[95vw] sm:w-full min-h-[75vh] max-h-[88vh] p-4 sm:p-6 flex flex-col">
+          <DialogHeader className="border-b border-slate-100 pb-3 shrink-0">
+            <div className="flex items-center justify-between pr-8">
+              <div className="flex items-center space-x-2.5">
+                <Building2 className="h-5 w-5 text-blue-600" />
+                <DialogTitle className="text-lg sm:text-xl font-bold text-gray-900">
+                  Agency Last Updates
+                </DialogTitle>
+              </div>
+
+              {/* Share to WhatsApp / Image Button */}
+              {!loading && agencyLastUpdates.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleShareAgencyUpdates}
+                  disabled={isSharingAgencyImage}
+                  className="h-8 px-2.5 sm:px-3 text-xs font-semibold gap-1.5 rounded-full border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 shadow-2xs transition-all cursor-pointer"
+                  title="Share JPEG Report directly to WhatsApp"
+                >
+                  {isSharingAgencyImage ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+                  ) : (
+                    <Share2 className="h-3.5 w-3.5 text-emerald-600" />
+                  )}
+                  <span className="hidden xs:inline">{isSharingAgencyImage ? "Generating..." : "Share Image"}</span>
+                </Button>
+              )}
             </div>
-            <p className="text-sm text-gray-500 mt-1">
-              Last update status for all agencies
-            </p>
           </DialogHeader>
 
           {/* Loading */}
           {loading && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-4"></div>
-              <p className="text-gray-600">Loading agency updates...</p>
+            <div className="flex flex-col items-center justify-center flex-1 py-10">
+              <div className="h-7 w-7 animate-spin rounded-full border-3 border-blue-600 border-t-transparent mb-3"></div>
+              <p className="text-sm text-gray-600">Loading agency updates...</p>
             </div>
           )}
 
           {/* Agency List */}
           {!loading && agencyLastUpdates.length > 0 && (
-            <div className="space-y-1 max-h-[40vh] overflow-y-auto pr-1">
+            <div className="space-y-1.5 flex-1 overflow-y-auto pr-1">
               {[...agencyLastUpdates]
                 .sort((a, b) => {
                   const dateA = parseDate(a.lastUpdate) || new Date(0);
@@ -1464,20 +1499,20 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   return (
                     <div
                       key={agency.name}
-                      className={`flex items-center justify-between p-2 rounded-lg transition-all duration-200 border ${getRowColor(agency.lastUpdate)}`}
+                      className={`flex items-center justify-between p-2.5 rounded-xl transition-all duration-200 border ${getRowColor(agency.lastUpdate)}`}
                     >
                       <div className="flex items-center space-x-3 min-w-0">
                         <div className="w-2 h-2 rounded-full bg-current opacity-60 flex-shrink-0"></div>
-                        <span className="font-medium text-gray-900 truncate text-sm sm:text-base">{agency.name}</span>
+                        <span className="font-semibold text-gray-900 truncate text-xs sm:text-sm">{agency.name}</span>
                       </div>
 
                       <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
-                        <Clock className="h-3 w-3 text-gray-500" />
+                        <Clock className="h-3.5 w-3.5 text-gray-500" />
                         <span className="text-xs sm:text-sm font-medium text-gray-700">
                           {agency.lastUpdate || "No updates"}
                         </span>
                         {agency.lastUpdate && sameDateCount > 0 && (
-                          <span className={`text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded-full ${getBadgeColor(agency.lastUpdate)}`}>
+                          <span className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full ${getBadgeColor(agency.lastUpdate)}`}>
                             {sameDateCount}
                           </span>
                         )}
@@ -1491,17 +1526,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
           {/* Empty state */}
           {!loading && agencyLastUpdates.length === 0 && (
             <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg font-medium">No update data available</p>
+              <Calendar className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm font-medium">No update data available</p>
             </div>
           )}
-
-          {/* Footer */}
-          <div className="flex justify-end pt-4 border-t">
-            <Button onClick={() => setShowAgencyUpdates(false)}>
-              Close
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
 
