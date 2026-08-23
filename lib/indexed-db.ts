@@ -68,16 +68,28 @@ export async function getFromCache<T>(key: string): Promise<T | null> {
   const prefixedKey = ccc ? `${ccc}_${key}` : key
   try {
     const db = await openDB()
-    return new Promise((resolve, reject) => {
+    let result = await new Promise<T | null>((resolve, reject) => {
       const transaction = db.transaction(STORE_NAME, "readonly")
       const store = transaction.objectStore(STORE_NAME)
       const request = store.get(prefixedKey)
       request.onerror   = () => reject(request.error)
-      request.onsuccess = () => {
-        const result = request.result ?? null
-        resolve(result)
-      }
+      request.onsuccess = () => resolve((request.result as T) ?? null)
     })
+
+    // Fallback: If not found under scoped prefix, check unscoped CCC key (e.g. KUSHIDA_consumers_data_cache)
+    if (!result && ccc && ccc.includes("_")) {
+      const baseCcc = ccc.split("_")[0]
+      const fallbackKey = `${baseCcc}_${key}`
+      result = await new Promise<T | null>((resolve) => {
+        const transaction = db.transaction(STORE_NAME, "readonly")
+        const store = transaction.objectStore(STORE_NAME)
+        const request = store.get(fallbackKey)
+        request.onerror   = () => resolve(null)
+        request.onsuccess = () => resolve((request.result as T) ?? null)
+      })
+    }
+
+    return result
   } catch (error) {
     console.warn(`[Cache Engine] ⚠️ Error reading ${prefixedKey} from cache:`, error)
     return null
