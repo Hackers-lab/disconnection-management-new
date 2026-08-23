@@ -15,6 +15,7 @@ import { generateIcdsServiceCertificatePDF } from "@/lib/icds-pdf"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -331,21 +332,21 @@ export function IcdsList({
   const getStageBadge = (stage: IcdsStage) => {
     switch (stage) {
       case "PENDING_INSPECTION":
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 text-[10px] font-bold">Pending Inspection</Badge>
+        return <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-2.5 py-0.5">Pending Inspection</Badge>
       case "INSPECTED":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 text-[10px] font-bold">Inspected</Badge>
+        return <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-0.5">Inspected</Badge>
       case "APPLICATION_PENDING":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 text-[10px] font-bold">App Received</Badge>
+        return <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-2.5 py-0.5">App Received</Badge>
       case "WO_ISSUED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] font-bold">WO Issued</Badge>
+        return <Badge className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-0.5">WO Issued</Badge>
       case "METER_INSTALLED":
-        return <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100 text-[10px] font-bold">Meter Installed</Badge>
+        return <Badge className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-2.5 py-0.5">Meter Installed</Badge>
       case "EQUIPMENT_INSTALLED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] font-bold">Wiring Done</Badge>
+        return <Badge className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold px-2.5 py-0.5">Wiring Done</Badge>
       case "COMPLETED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px] font-bold">Certified</Badge>
+        return <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 py-0.5">Certified</Badge>
       default:
-        return <Badge variant="outline" className="text-[10px]">{stage}</Badge>
+        return <Badge variant="outline" className="text-xs font-semibold">{stage}</Badge>
     }
   }
 
@@ -598,118 +599,120 @@ export function IcdsList({
         /* Cards Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {paginatedRecords.map((r) => (
-            <div
+            <Card
+              id={`icds-card-${r.id}`}
               key={r.id}
-              className="bg-white rounded-xl shadow-md hover:shadow-xl border border-slate-200/80 hover:border-slate-300 transition-all duration-200 flex flex-col justify-between overflow-hidden hover:-translate-y-0.5"
+              className="shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full flex flex-col justify-between"
             >
-              <div className="p-4 space-y-3">
-                {/* Top Row: Title + Code + Stage Badge */}
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="space-y-1 min-w-0">
+              <CardHeader className="pb-3 break-words whitespace-normal">
+                <div className="flex items-start justify-between w-full gap-2">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <h3 className="font-extrabold text-slate-900 text-sm leading-tight truncate" title={r.awcName}>
+                      <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight font-semibold text-slate-900">
                         {r.awcName}
-                      </h3>
+                      </CardTitle>
                       {canEditMaster && (
                         <button
                           onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowEditModal(true); }}
-                          className="text-slate-400 hover:text-blue-600 p-0.5 rounded hover:bg-blue-50 transition-colors shrink-0"
-                          title="Edit Details (Pencil)"
+                          className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer shrink-0"
+                          title="Edit Details"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60 rounded px-1.5 py-0.2">
-                        {r.awcCode}
-                      </span>
-                      <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1 truncate">
-                        <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <p className="text-sm text-gray-600 font-mono">Code: {r.awcCode}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em] bg-slate-50 text-slate-700">
                         {r.blockName} • {r.gpName}
-                      </span>
+                      </Badge>
+                      {r.propertyStatus && (
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em] bg-blue-50/70 text-blue-700 border-blue-200">
+                          {r.propertyStatus.replace("_", " ")}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
-                  <div className="shrink-0 flex flex-col items-end gap-1">
+                  <div className="flex flex-col items-end space-y-1 shrink-0">
                     {getStageBadge(r.stage)}
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      {r.propertyStatus?.replace("_", " ")}
-                    </span>
+                    <Badge variant="outline" className="text-xs max-w-[130px] truncate block" title={r.assignedAgency || "Unassigned"}>
+                      {r.assignedAgency || "Unassigned"}
+                    </Badge>
                   </div>
                 </div>
+              </CardHeader>
 
-                {/* Address Line if present */}
-                {r.awcAddress && (
-                  <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200/60 shadow-xs line-clamp-1">
-                    📍 {r.awcAddress}
+              <CardContent className="space-y-3 break-words whitespace-normal flex-1">
+                {/* Address */}
+                <div className="flex items-start space-x-2 min-w-0">
+                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-600 line-clamp-2" title={r.awcAddress || `${r.blockName}, ${r.gpName}`}>
+                    {r.awcAddress || `${r.blockName}, ${r.gpName}`}
                   </p>
-                )}
+                </div>
 
-                {/* Worker Contact Card */}
-                <div className="bg-slate-50/90 p-2.5 rounded-lg border border-slate-200/70 shadow-xs flex items-center justify-between text-xs">
-                  <div className="space-y-0.5 min-w-0 pr-2">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Anganwadi Worker</span>
-                    <p className="font-bold text-slate-800 truncate">{r.awwName || "Not Assigned"}</p>
+                {/* Worker Contact */}
+                {r.awwMobile ? (
+                  <a href={`tel:${r.awwMobile}`} className="flex items-center space-x-2 hover:underline">
+                    <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <p className="text-sm text-blue-600 font-medium">
+                      {r.awwName ? `${r.awwName} (${r.awwMobile})` : r.awwMobile}
+                    </p>
+                  </a>
+                ) : r.awwName ? (
+                  <div className="flex items-center space-x-2">
+                    <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <p className="text-sm text-gray-600">{r.awwName}</p>
                   </div>
-                  <div className="text-right space-y-0.5 shrink-0">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Contact</span>
-                    {r.awwMobile ? (
-                      <a
-                        href={`tel:${r.awwMobile}`}
-                        className="text-xs font-mono font-bold text-blue-600 hover:underline flex items-center gap-1 justify-end"
-                      >
-                        <Smartphone className="h-3 w-3 text-slate-400" />
-                        {r.awwMobile}
-                      </a>
+                ) : null}
+
+                {/* Electrical & Technical Status Box (Matching Disconnection Payment Box Style) */}
+                <div className="space-y-1.5 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200/80">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      <Zap className={"h-4 w-4 shrink-0 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-amber-500")} />
+                      <span className="text-sm font-bold text-slate-800">
+                        {r.smartMeterNo ? `Smart Meter: ${r.smartMeterNo}` : (r.meterExists ? "Meter Exists" : "Un-electrified Center")}
+                      </span>
+                    </div>
+                    {r.jurisdictionStatus === "OTHER_OFFICE" ? (
+                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                        Other CCC
+                      </span>
                     ) : (
-                      <span className="text-xs text-slate-400 font-semibold">N/A</span>
+                      <span className="text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                        {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct Line"}
+                      </span>
                     )}
                   </div>
-                </div>
 
-                {/* Quick Metric Status Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100">
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Smart Meter</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1 truncate">
-                      <Zap className={"h-3.5 w-3.5 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-slate-300")} />
-                      {r.smartMeterNo || (r.meterExists ? "Meter Exists" : "Un-electrified")}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Infrastructure</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1 truncate">
-                      <RadioTower className={"h-3.5 w-3.5 " + (r.infraRequired ? "text-orange-600" : "text-emerald-500")} />
-                      {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct LT"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">CSR Package</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1 truncate">
-                      <Layers className={"h-3.5 w-3.5 " + (r.equipmentPackageInstalled ? "text-purple-600" : "text-slate-300")} />
-                      {r.equipmentPackageInstalled ? "Installed (₹6,611)" : "Pending Wiring"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Agency</span>
-                    <span className="font-semibold text-slate-800 truncate block" title={r.assignedAgency}>
-                      {r.assignedAgency || "Unassigned"}
-                    </span>
+                  <div className="grid grid-cols-2 gap-2 pt-1.5 text-xs border-t border-slate-200/60 font-medium">
+                    <div>
+                      <span className="block text-[10px] text-gray-400 uppercase tracking-wider">Wiring Package</span>
+                      <span className="text-slate-700 font-semibold">
+                        {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-gray-400 uppercase tracking-wider">Work Order / App</span>
+                      <span className="font-mono text-slate-700 font-semibold truncate block" title={r.workOrderNo || r.officialApplicationNo}>
+                        {r.workOrderNo ? `WO: ${r.workOrderNo}` : (r.officialApplicationNo ? `App: ${r.officialApplicationNo}` : "Pending")}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </CardContent>
 
-              {/* Sequential Action Footer: Shows primary button for current flow stage */}
-              <div className="p-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-1.5">
+              {/* Action Footer */}
+              <div className="p-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                  className="h-8 px-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-white"
+                  className="h-8 px-2.5 text-xs font-semibold text-gray-700 hover:text-slate-900 rounded-lg hover:bg-white"
                 >
                   <Eye className="h-3.5 w-3.5 mr-1" /> Details
                 </Button>
@@ -727,7 +730,7 @@ export function IcdsList({
                       className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" />
-                      Inspect Premises
+                      Inspect
                     </Button>
                   ) : (
                     <Badge variant="outline" className="text-[10px] font-bold py-1 text-amber-700 bg-amber-50 border-amber-200">
@@ -776,7 +779,7 @@ export function IcdsList({
                   </Button>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       ) : (
