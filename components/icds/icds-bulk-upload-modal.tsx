@@ -252,7 +252,7 @@ export function IcdsBulkUploadModal({ open, onClose, onSuccess }: Props) {
               size="sm"
               disabled={!file || uploading}
               onClick={handleUpload}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
               Start Bulk Import

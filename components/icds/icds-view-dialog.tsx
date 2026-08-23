@@ -90,7 +90,7 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
 
         <div className="space-y-4 py-2 text-xs">
           {/* Section 1: Basic & Contact Info */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-100">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80 shadow-sm">
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Property Status</span>
               <p className="font-bold text-slate-800 mt-0.5">{record.propertyStatus?.replace("_", " ") || "Own Building"}</p>
@@ -110,7 +110,7 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
           </div>
 
           {/* Section 2: Inspection & Infrastructure */}
-          <div className="border rounded-lg p-3 space-y-2 bg-white">
+          <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2 bg-white shadow-sm">
             <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1">
               <MapPin className="h-4 w-4 text-amber-600" />
               Stage 1: Primary Inspection & Site Feasibility
@@ -151,14 +151,14 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
               </div>
             </div>
             {record.inspectionRemarks && (
-              <div className="text-[11px] bg-slate-50 p-2 rounded text-slate-600 mt-1">
+              <div className="text-[11px] bg-slate-50 p-2 rounded-lg text-slate-600 mt-1 border border-slate-100">
                 <strong>Field Remarks:</strong> {record.inspectionRemarks}
               </div>
             )}
           </div>
 
           {/* Section 3: Connection & Smart Metering */}
-          <div className="border rounded-lg p-3 space-y-2 bg-white">
+          <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2 bg-white shadow-sm">
             <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1">
               <Gauge className="h-4 w-4 text-indigo-600" />
               Stage 2: Official Connection & Smart Meter (Admin CRM)
@@ -194,7 +194,7 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
 
           {/* Section 4: CSR Standard Package Checklist */}
           {record.equipmentChecklist && (
-            <div className="border rounded-lg p-3 space-y-2 bg-white">
+            <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2 bg-white shadow-sm">
               <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1">
                 <Layers className="h-4 w-4 text-purple-600" />
                 Stage 3: Standard CSR Electrification Package (EDD/49)
@@ -223,7 +223,7 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
           )}
 
           {/* Section 5: Photo Gallery (Before, After, Meter, Certificate) */}
-          <div className="border rounded-lg p-3 space-y-2 bg-white">
+          <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2 bg-white shadow-sm">
             <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1">
               <Award className="h-4 w-4 text-emerald-600" />
               Stage 4: Visual Audit & Service Certificate Photos
@@ -293,7 +293,7 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
             type="button"
             size="sm"
             onClick={handleDownloadPDF}
-            className="text-xs bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-xs"
+            className="text-xs bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm"
           >
             <Download className="h-3.5 w-3.5 mr-1.5" /> Download Service Certificate PDF
           </Button>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import type { IcdsRecord, IcdsStage, PropertyStatus, JurisdictionStatus } from "@/lib/icds-types"
 import { IcdsMiniKpiDrawer } from "@/components/icds/icds-stats"
 import { IcdsInspectModal } from "@/components/icds/icds-inspect-modal"
@@ -15,6 +15,7 @@ import { generateIcdsServiceCertificatePDF } from "@/lib/icds-pdf"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -63,9 +64,12 @@ import {
   FileText,
   AlertCircle,
   Trash2,
+  ShieldAlert,
+  KeyRound,
+  AlertTriangle,
 } from "lucide-react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
-import { matchesAgency } from "@/lib/permissions"
+import { matchesAgency } from "@/lib/permission-utils"
 
 const CACHE_KEY = "icds_data_cache"
 const PAGE_SIZE = 24
@@ -108,6 +112,11 @@ export function IcdsList({
   const [showReportsModal, setShowReportsModal] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
+  // Clear All Password Modal State
+  const [showClearDialog, setShowClearDialog] = useState(false)
+  const [clearPasswordInput, setClearPasswordInput] = useState("")
+  const [clearSubmitting, setClearSubmitting] = useState(false)
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedBlock, setSelectedBlock] = useState("all")
@@ -115,6 +124,7 @@ export function IcdsList({
   const [selectedAgency, setSelectedAgency] = useState("all")
   const [selectedJurisdiction, setSelectedJurisdiction] = useState("all")
   const [selectedProperty, setSelectedProperty] = useState("all")
+  const [selectedMeterWiring, setSelectedMeterWiring] = useState("all")
   const [selectedStage, setSelectedStage] = useState("all")
 
   // Pagination
@@ -129,6 +139,38 @@ export function IcdsList({
   const canInspect = effectiveRole === "admin" || effectiveRole === "executive" || (isAgency ? hasIcdsPerm("inspect") || icdsPerms.length === 0 : hasIcdsPerm("inspect"))
   const canProcess = (effectiveRole === "admin" || effectiveRole === "executive") || (!isAgency && hasIcdsPerm("process"))
   const canExecute = effectiveRole === "admin" || effectiveRole === "executive" || (isAgency ? hasIcdsPerm("execute") || hasIcdsPerm("install") || icdsPerms.length === 0 : hasIcdsPerm("execute") || hasIcdsPerm("install"))
+
+  // Tabs horizontal scroll navigation
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const checkTabsScroll = useCallback(() => {
+    if (tabsRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = tabsRef.current
+      setCanScrollLeft(scrollLeft > 4)
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 4)
+    }
+  }, [])
+
+  useEffect(() => {
+    checkTabsScroll()
+    const el = tabsRef.current
+    if (el) {
+      el.addEventListener("scroll", checkTabsScroll)
+      window.addEventListener("resize", checkTabsScroll)
+    }
+    return () => {
+      if (el) el.removeEventListener("scroll", checkTabsScroll)
+      window.removeEventListener("resize", checkTabsScroll)
+    }
+  }, [checkTabsScroll, records])
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (tabsRef.current) {
+      tabsRef.current.scrollBy({ left: direction === "left" ? -120 : 120, behavior: "smooth" })
+    }
+  }
 
   // Subtle mobile touch vibration
   const triggerVibrate = useCallback(() => {
@@ -149,7 +191,7 @@ export function IcdsList({
       }
 
       setRefreshing(true)
-      const res = await fetch(`/api/icds?t=${Date.now()}`, { cache: "no-store" })
+      const res = await fetch("/api/icds")
       if (!res.ok) throw new Error("Failed to fetch ICDS records")
       const data: IcdsRecord[] = await res.json()
       setRecords(data)
@@ -192,8 +234,49 @@ export function IcdsList({
     return Array.from(set).sort()
   }, [records])
 
-  // Filter records
-  const filteredRecords = useMemo(() => {
+  // Dynamic IST password generator (DDMMYYYY in UTC+5:30)
+  const getTodayISTPassword = () => {
+    const now = new Date()
+    const istTime = new Date(now.getTime() + (5.5 * 60 + now.getTimezoneOffset()) * 60 * 1000)
+    const day = String(istTime.getDate()).padStart(2, "0")
+    const month = String(istTime.getMonth() + 1).padStart(2, "0")
+    const year = istTime.getFullYear()
+    return `${day}${month}${year}`
+  }
+
+  const handleClearAllConfirm = async () => {
+    if (clearPasswordInput.trim() !== getTodayISTPassword()) {
+      toast.error("Incorrect confirmation password")
+      return
+    }
+    try {
+      setClearSubmitting(true)
+      const res = await fetch("/api/icds?clearAll=true", { method: "DELETE" })
+      if (res.ok) {
+        toast.success("Successfully cleared all centers")
+        setRecords([])
+        await saveToCache(CACHE_KEY, [])
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("local-cache-updated", { detail: { key: CACHE_KEY } }))
+        }
+        setShowClearDialog(false)
+        setClearPasswordInput("")
+      } else {
+        toast.error("Failed to clear centers")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to clear registry")
+    } finally {
+      setClearSubmitting(false)
+    }
+  }
+
+  // Meter & wiring helper checks
+  const checkHasMeter = (r: IcdsRecord) => r.meterExists || !!r.smartMeterNo || r.stage === "METER_INSTALLED" || r.stage === "COMPLETED"
+  const checkHasWiring = (r: IcdsRecord) => r.equipmentPackageInstalled || r.existingWiringStatus === "EXISTS_WORKING" || r.stage === "EQUIPMENT_INSTALLED" || r.stage === "COMPLETED"
+
+  // Scope filtered records (filters applied EXCEPT stage) so stage buttons show filtered numbers
+  const scopeFilteredRecords = useMemo(() => {
     return records.filter((r) => {
       // Role scope restriction for agency users
       if (isAgency) {
@@ -235,15 +318,17 @@ export function IcdsList({
       if (selectedJurisdiction !== "all" && r.jurisdictionStatus !== selectedJurisdiction) return false
       if (selectedProperty !== "all" && r.propertyStatus !== selectedProperty) return false
 
-      // Stage filter supporting grouped stages
-      if (selectedStage !== "all") {
-        if (selectedStage === "INSPECTED") {
-          if (r.stage !== "INSPECTED" && r.stage !== "APPLICATION_PENDING") return false
-        } else if (selectedStage === "WO_ISSUED") {
-          if (r.stage !== "WO_ISSUED" && r.stage !== "METER_INSTALLED" && r.stage !== "EQUIPMENT_INSTALLED") return false
-        } else if (r.stage !== selectedStage) {
-          return false
-        }
+      // Meter & Wiring Status
+      if (selectedMeterWiring === "meter_exists") {
+        if (!checkHasMeter(r)) return false
+      } else if (selectedMeterWiring === "meter_and_wiring") {
+        if (!checkHasMeter(r) || !checkHasWiring(r)) return false
+      } else if (selectedMeterWiring === "meter_no_wiring") {
+        if (!checkHasMeter(r) || checkHasWiring(r)) return false
+      } else if (selectedMeterWiring === "unmetered") {
+        if (checkHasMeter(r)) return false
+      } else if (selectedMeterWiring === "infra_required") {
+        if (!r.infraRequired) return false
       }
 
       return true
@@ -259,8 +344,32 @@ export function IcdsList({
     selectedAgency,
     selectedJurisdiction,
     selectedProperty,
-    selectedStage,
+    selectedMeterWiring,
   ])
+
+  // Final filtered records after stage selection
+  const filteredRecords = useMemo(() => {
+    if (selectedStage === "all") return scopeFilteredRecords
+    return scopeFilteredRecords.filter((r) => {
+      if (selectedStage === "INSPECTED") {
+        return r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING"
+      } else if (selectedStage === "WO_ISSUED") {
+        return r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED"
+      }
+      return r.stage === selectedStage
+    })
+  }, [scopeFilteredRecords, selectedStage])
+
+  // Dynamic counts for stage bar buttons based on active filtered scope
+  const stageCounts = useMemo(() => {
+    return {
+      all: scopeFilteredRecords.length,
+      pending: scopeFilteredRecords.filter((r) => r.stage === "PENDING_INSPECTION").length,
+      inspected: scopeFilteredRecords.filter((r) => r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING").length,
+      woIssued: scopeFilteredRecords.filter((r) => r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED").length,
+      completed: scopeFilteredRecords.filter((r) => r.stage === "COMPLETED").length,
+    }
+  }, [scopeFilteredRecords])
 
   // Reset page when filters change
   useEffect(() => {
@@ -272,6 +381,7 @@ export function IcdsList({
     selectedAgency,
     selectedJurisdiction,
     selectedProperty,
+    selectedMeterWiring,
     selectedStage,
   ])
 
@@ -290,8 +400,9 @@ export function IcdsList({
     if (selectedAgency !== "all") count++
     if (selectedJurisdiction !== "all") count++
     if (selectedProperty !== "all") count++
+    if (selectedMeterWiring !== "all") count++
     return count
-  }, [selectedBlock, selectedGp, selectedAgency, selectedJurisdiction, selectedProperty])
+  }, [selectedBlock, selectedGp, selectedAgency, selectedJurisdiction, selectedProperty, selectedMeterWiring])
 
   const clearFilters = () => {
     setSelectedBlock("all")
@@ -299,6 +410,7 @@ export function IcdsList({
     setSelectedAgency("all")
     setSelectedJurisdiction("all")
     setSelectedProperty("all")
+    setSelectedMeterWiring("all")
   }
 
   // Handle single record updates from modals
@@ -331,21 +443,21 @@ export function IcdsList({
   const getStageBadge = (stage: IcdsStage) => {
     switch (stage) {
       case "PENDING_INSPECTION":
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 text-[10px] font-bold">Pending Inspection</Badge>
+        return <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-2.5 py-0.5">Pending</Badge>
       case "INSPECTED":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 text-[10px] font-bold">Inspected</Badge>
+        return <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-0.5">Inspected</Badge>
       case "APPLICATION_PENDING":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 text-[10px] font-bold">App Received</Badge>
+        return <Badge className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-2.5 py-0.5">App Received</Badge>
       case "WO_ISSUED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] font-bold">WO Issued</Badge>
+        return <Badge className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-0.5">WO Issued</Badge>
       case "METER_INSTALLED":
-        return <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100 text-[10px] font-bold">Meter Installed</Badge>
+        return <Badge className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-2.5 py-0.5">Meter Installed</Badge>
       case "EQUIPMENT_INSTALLED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 text-[10px] font-bold">Wiring Done</Badge>
+        return <Badge className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold px-2.5 py-0.5">Wiring Done</Badge>
       case "COMPLETED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px] font-bold">Certified</Badge>
+        return <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 py-0.5">Certified</Badge>
       default:
-        return <Badge variant="outline" className="text-[10px]">{stage}</Badge>
+        return <Badge variant="outline" className="text-xs font-semibold">{stage}</Badge>
     }
   }
 
@@ -396,7 +508,7 @@ export function IcdsList({
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-24">
       {/* 1. Sleek Search, Filter & 3-Dot Action Bar */}
-      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-xs border border-slate-200/90 flex items-center justify-between gap-2.5 flex-wrap">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200/90 flex items-center justify-between gap-2.5 flex-wrap">
         {/* Left: Quick Search */}
         <div className="relative flex-1 min-w-[200px] sm:min-w-[280px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -422,8 +534,8 @@ export function IcdsList({
             onClick={() => { triggerVibrate(); setIsFilterOpen(true); }}
             className={
               activeFiltersCount > 0
-                ? "h-9 px-3 text-xs font-bold rounded-lg transition-all bg-slate-900 text-white hover:bg-slate-800 shadow-xs"
-                : "h-9 px-3 text-xs font-bold rounded-lg transition-all border-slate-200 hover:bg-slate-50 text-slate-700"
+                ? "h-9 px-3 text-xs font-bold rounded-lg transition-all bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+                : "h-9 px-3 text-xs font-bold rounded-lg transition-all border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm"
             }
           >
             <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
@@ -436,17 +548,17 @@ export function IcdsList({
           </Button>
 
           {/* View Mode Toggle (Grid / List) */}
-          <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50 p-0.5">
+          <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50 p-0.5 shadow-sm">
             <button
               onClick={() => { triggerVibrate(); setViewMode("card"); }}
-              className={"p-1.5 rounded-md transition-all " + (viewMode === "card" ? "bg-white text-slate-900 shadow-2xs font-bold" : "text-slate-400 hover:text-slate-700")}
+              className={"p-1.5 rounded-md transition-all " + (viewMode === "card" ? "bg-white text-slate-900 shadow-sm font-bold" : "text-slate-400 hover:text-slate-700")}
               title="Card Grid View"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => { triggerVibrate(); setViewMode("list"); }}
-              className={"p-1.5 rounded-md transition-all " + (viewMode === "list" ? "bg-white text-slate-900 shadow-2xs font-bold" : "text-slate-400 hover:text-slate-700")}
+              className={"p-1.5 rounded-md transition-all " + (viewMode === "list" ? "bg-white text-slate-900 shadow-sm font-bold" : "text-slate-400 hover:text-slate-700")}
               title="Table List View"
             >
               <List className="h-3.5 w-3.5" />
@@ -459,7 +571,7 @@ export function IcdsList({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-xs"
+                className="h-9 w-9 rounded-lg border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm"
                 title="More Actions"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -511,29 +623,15 @@ export function IcdsList({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="my-1" />
                   <DropdownMenuItem
-                    onClick={async () => {
+                    onClick={() => {
                       triggerVibrate()
-                      if (!confirm("Are you sure you want to delete all 95 test centers? This will clear the ICDS registry.")) return
-                      try {
-                        const res = await fetch("/api/icds?clearAll=true", { method: "DELETE" })
-                        if (res.ok) {
-                          toast.success("Successfully deleted all test centers")
-                          setRecords([])
-                          await saveToCache(CACHE_KEY, [])
-                          if (typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("local-cache-updated", { detail: { key: CACHE_KEY } }))
-                          }
-                        } else {
-                          toast.error("Failed to delete centers")
-                        }
-                      } catch (err: any) {
-                        toast.error(err.message || "Failed to clear registry")
-                      }
+                      setClearPasswordInput("")
+                      setShowClearDialog(true)
                     }}
                     className="text-xs font-bold py-2 rounded-lg cursor-pointer gap-2 text-rose-700 focus:bg-rose-50"
                   >
                     <Trash2 className="h-4 w-4 text-rose-600" />
-                    Clear All Test Centers
+                    Clear All Centers
                   </DropdownMenuItem>
                 </>
               )}
@@ -542,41 +640,76 @@ export function IcdsList({
         </div>
       </div>
 
-      {/* 2. Mini Collapsible KPI Drawer */}
+      {/* 2. Mini Collapsible Dashboard Drawer */}
       <IcdsMiniKpiDrawer records={records} />
 
-      {/* 3. Quick Horizontal Stage Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-        {[
-          { id: "all", label: "All Centers", count: records.length },
-          { id: "PENDING_INSPECTION", label: "Pending", count: records.filter((r) => r.stage === "PENDING_INSPECTION").length },
-          { id: "INSPECTED", label: "Inspected", count: records.filter((r) => r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING").length },
-          { id: "WO_ISSUED", label: "WO Issued", count: records.filter((r) => r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED").length },
-          { id: "COMPLETED", label: "Certified", count: records.filter((r) => r.stage === "COMPLETED").length },
-        ].map((s) => (
+      {/* 3. Sleek Bar-Style Stage Tabs with Dynamic Filtered Counts & Mobile Optimization */}
+      <div className="relative flex items-center border-b border-slate-200/90 pt-1 group">
+        {/* Left Scroll Arrow */}
+        {canScrollLeft && (
           <button
-            key={s.id}
-            onClick={() => { triggerVibrate(); setSelectedStage(s.id); }}
-            className={
-              "px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all " +
-              (selectedStage === s.id
-                ? "bg-slate-900 text-white shadow-xs"
-                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50")
-            }
+            onClick={() => scrollTabs("left")}
+            className="absolute left-0 z-10 h-7 w-6 bg-white/95 backdrop-blur shadow-sm border border-slate-200 rounded-r flex items-center justify-center text-slate-600 hover:text-slate-900 cursor-pointer"
+            aria-label="Scroll left"
           >
-            {s.label} ({s.count})
+            <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-        ))}
+        )}
+
+        <div
+          ref={tabsRef}
+          className="flex items-center gap-1 sm:gap-6 overflow-x-auto scrollbar-none w-full px-0.5"
+        >
+          {[
+            { id: "all", label: "All Centers", shortLabel: "All", count: stageCounts.all },
+            { id: "PENDING_INSPECTION", label: "Pending", shortLabel: "Pending", count: stageCounts.pending },
+            { id: "INSPECTED", label: "Inspected", shortLabel: "Inspected", count: stageCounts.inspected },
+            { id: "WO_ISSUED", label: "WO Issued", shortLabel: "WO", count: stageCounts.woIssued },
+            { id: "COMPLETED", label: "Certified", shortLabel: "Certified", count: stageCounts.completed },
+          ].map((s) => {
+            const isActive = selectedStage === s.id
+            return (
+              <button
+                key={s.id}
+                onClick={() => { triggerVibrate(); setSelectedStage(s.id); }}
+                className={`pb-2 pt-0.5 px-1 sm:px-1.5 text-xs whitespace-nowrap transition-all border-b-2 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer select-none flex-1 sm:flex-initial ${
+                  isActive
+                    ? "border-slate-900 text-slate-900 font-extrabold"
+                    : "border-transparent text-slate-500 font-medium hover:text-slate-800 hover:border-slate-300"
+                }`}
+              >
+                <span className="hidden sm:inline">{s.label}</span>
+                <span className="sm:hidden">{s.shortLabel}</span>
+                <span className={`text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full transition-colors ${
+                  isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
+                }`}>
+                  {s.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Right Scroll Arrow */}
+        {canScrollRight && (
+          <button
+            onClick={() => scrollTabs("right")}
+            className="absolute right-0 z-10 h-7 w-6 bg-white/95 backdrop-blur shadow-sm border border-slate-200 rounded-l flex items-center justify-center text-slate-600 hover:text-slate-900 cursor-pointer"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* 4. Main Records Display (Cards / Table) */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl shadow-xs border border-slate-200">
+        <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl shadow-md border border-slate-200">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
           <p className="text-xs text-slate-500 font-semibold">Hydrating Anganwadi Centers registry...</p>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center p-16 bg-white rounded-xl shadow-xs border border-slate-200 space-y-4">
+        <div className="text-center p-16 bg-white rounded-xl shadow-md border border-slate-200 space-y-4">
           <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-200">
             <Building2 className="h-6 w-6 text-slate-400" />
           </div>
@@ -589,134 +722,134 @@ export function IcdsList({
             </p>
           </div>
           {activeFiltersCount > 0 && (
-            <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs font-semibold rounded-lg">
+            <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs font-semibold rounded-lg shadow-sm">
               Reset Filters
             </Button>
           )}
         </div>
       ) : viewMode === "card" ? (
         /* Cards Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {paginatedRecords.map((r) => (
-            <div
+            <Card
+              id={`icds-card-${r.id}`}
               key={r.id}
-              className="bg-white rounded-xl shadow-xs hover:shadow-md border border-slate-200/90 hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden"
+              className="shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full flex flex-col justify-between"
             >
-              <div className="p-4 space-y-3">
-                {/* Top Row: Title + Code + Stage Badge */}
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="space-y-1 min-w-0">
+              <CardHeader className="pb-3 break-words whitespace-normal">
+                <div className="flex items-start justify-between w-full gap-2">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <h3 className="font-extrabold text-slate-900 text-sm leading-tight truncate" title={r.awcName}>
+                      <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight">
                         {r.awcName}
-                      </h3>
+                      </CardTitle>
                       {canEditMaster && (
                         <button
                           onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowEditModal(true); }}
-                          className="text-slate-400 hover:text-blue-600 p-0.5 rounded hover:bg-blue-50 transition-colors shrink-0"
-                          title="Edit Details (Pencil)"
+                          className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer shrink-0"
+                          title="Edit Details"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60 rounded px-1.5 py-0.2">
-                        {r.awcCode}
-                      </span>
-                      <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1 truncate">
-                        <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <p className="text-sm text-gray-600 font-mono">Code: {r.awcCode}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em]">
                         {r.blockName} • {r.gpName}
-                      </span>
+                      </Badge>
+                      {r.propertyStatus && (
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em]">
+                          {r.propertyStatus.replace("_", " ")}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
-                  <div className="shrink-0 flex flex-col items-end gap-1">
+                  <div className="flex flex-col items-end space-y-1 shrink-0">
                     {getStageBadge(r.stage)}
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      {r.propertyStatus?.replace("_", " ")}
-                    </span>
+                    <Badge variant="outline" className="text-xs max-w-[120px] truncate block" title={r.assignedAgency || "Unassigned"}>
+                      {r.assignedAgency || "Unassigned"}
+                    </Badge>
                   </div>
                 </div>
+              </CardHeader>
 
-                {/* Address Line if present */}
-                {r.awcAddress && (
-                  <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 line-clamp-1">
-                    📍 {r.awcAddress}
+              <CardContent className="space-y-3 break-words whitespace-normal flex-1">
+                {/* Address */}
+                <div className="flex items-start space-x-2 min-w-0">
+                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-600 line-clamp-2" title={r.awcAddress || `${r.blockName}, ${r.gpName}`}>
+                    {r.awcAddress || `${r.blockName}, ${r.gpName}`}
                   </p>
-                )}
+                </div>
 
-                {/* Worker Contact Card */}
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between text-xs">
-                  <div className="space-y-0.5 min-w-0 pr-2">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Anganwadi Worker</span>
-                    <p className="font-bold text-slate-800 truncate">{r.awwName || "Not Assigned"}</p>
+                {/* Worker Contact */}
+                {r.awwMobile ? (
+                  <a href={`tel:${r.awwMobile}`} className="flex items-center space-x-2 hover:underline">
+                    <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <p className="text-sm text-blue-600">
+                      {r.awwName ? `${r.awwName} (${r.awwMobile})` : r.awwMobile}
+                    </p>
+                  </a>
+                ) : r.awwName ? (
+                  <div className="flex items-center space-x-2">
+                    <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <p className="text-sm text-gray-600">{r.awwName}</p>
                   </div>
-                  <div className="text-right space-y-0.5 shrink-0">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Contact</span>
-                    {r.awwMobile ? (
-                      <a
-                        href={`tel:${r.awwMobile}`}
-                        className="text-xs font-mono font-bold text-blue-600 hover:underline flex items-center gap-1 justify-end"
-                      >
-                        <Smartphone className="h-3 w-3 text-slate-400" />
-                        {r.awwMobile}
-                      </a>
+                ) : null}
+
+                {/* Electrical & Technical Status Box (Matching Disconnection Payment Box Style) */}
+                <div className="space-y-1.5 bg-slate-50/70 p-2.5 rounded-lg border border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      <Zap className={"h-4 w-4 shrink-0 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-amber-500")} />
+                      <span className="text-sm font-semibold text-slate-800">
+                        {r.smartMeterNo ? `Smart Meter: ${r.smartMeterNo}` : (r.meterExists ? "Meter Exists" : "Un-electrified Center")}
+                      </span>
+                    </div>
+                    {r.jurisdictionStatus === "OTHER_OFFICE" ? (
+                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                        Other CCC
+                      </span>
                     ) : (
-                      <span className="text-xs text-slate-400 font-semibold">N/A</span>
+                      <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                        {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct Line"}
+                      </span>
                     )}
                   </div>
-                </div>
 
-                {/* Quick Metric Status Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100">
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Smart Meter</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1 truncate">
-                      <Zap className={"h-3.5 w-3.5 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-slate-300")} />
-                      {r.smartMeterNo || (r.meterExists ? "Meter Exists" : "Un-electrified")}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Infrastructure</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1 truncate">
-                      <RadioTower className={"h-3.5 w-3.5 " + (r.infraRequired ? "text-orange-600" : "text-emerald-500")} />
-                      {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct LT"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">CSR Package</span>
-                    <span className="font-semibold text-slate-800 flex items-center gap-1 truncate">
-                      <Layers className={"h-3.5 w-3.5 " + (r.equipmentPackageInstalled ? "text-purple-600" : "text-slate-300")} />
-                      {r.equipmentPackageInstalled ? "Installed (₹6,611)" : "Pending Wiring"}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Agency</span>
-                    <span className="font-semibold text-slate-800 truncate block" title={r.assignedAgency}>
-                      {r.assignedAgency || "Unassigned"}
-                    </span>
+                  <div className="grid grid-cols-2 gap-1 pt-1 text-[11px] border-t border-slate-200/60 font-medium">
+                    <div className="text-slate-600">
+                      <span className="block text-[10px] text-slate-400 uppercase">Wiring Package</span>
+                      {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
+                    </div>
+                    <div className="text-slate-600">
+                      <span className="block text-[10px] text-slate-400 uppercase">Work Order / App</span>
+                      <span className="font-mono text-slate-700 truncate block" title={r.workOrderNo || r.officialApplicationNo}>
+                        {r.workOrderNo ? `WO: ${r.workOrderNo}` : (r.officialApplicationNo ? `App: ${r.officialApplicationNo}` : "Pending")}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </CardContent>
 
-              {/* Sequential Action Footer: Shows primary button for current flow stage */}
-              <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
+              {/* Action Footer */}
+              <div className="p-3 bg-gray-50 border-t flex items-center justify-between gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                  className="h-8 px-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-white"
+                  className="h-8 px-2.5 text-xs text-gray-700 hover:text-slate-900 rounded hover:bg-white"
                 >
                   <Eye className="h-3.5 w-3.5 mr-1" /> Details
                 </Button>
 
                 {/* Primary Action Button Based on Current Flow Stage */}
                 {r.jurisdictionStatus === "OTHER_OFFICE" ? (
-                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200">
+                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200 shadow-xs">
                     Other CCC: {r.jurisdictionOffice || "Adjacent"}
                   </Badge>
                 ) : r.stage === "PENDING_INSPECTION" ? (
@@ -724,14 +857,14 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" />
-                      Inspect Premises
+                      Inspect
                     </Button>
                   ) : (
                     <Badge variant="outline" className="text-[10px] font-bold py-1 text-amber-700 bg-amber-50 border-amber-200">
-                      Pending Inspection
+                      Pending
                     </Badge>
                   )
                 ) : r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" ? (
@@ -739,14 +872,14 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <FileText className="h-3.5 w-3.5 mr-1.5" />
                       Admin CRM / WO
                     </Button>
                   ) : (
                     <Badge variant="outline" className="text-[11px] font-bold py-1 px-2.5 text-indigo-700 bg-indigo-50 border-indigo-200">
-                      <Clock className="h-3 w-3 mr-1 animate-pulse" /> Awaiting Admin WO
+                      <Clock className="h-3 w-3 mr-1 animate-pulse" /> Awaiting WO
                     </Badge>
                   )
                 ) : r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED" ? (
@@ -754,7 +887,7 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Zap className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
                       Execute & Certify
@@ -769,19 +902,19 @@ export function IcdsList({
                     size="sm"
                     variant="outline"
                     onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                    className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                    className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 shadow-sm"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
                     Certified
                   </Button>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       ) : (
         /* Table View */
-        <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-md border border-slate-200/90 overflow-hidden">
           <div className="overflow-x-auto">
             <Table className="text-xs">
               <TableHeader className="bg-slate-50/80">
@@ -843,7 +976,7 @@ export function IcdsList({
                             <Button
                               size="sm"
                               onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white"
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                             >
                               Inspect
                             </Button>
@@ -855,7 +988,7 @@ export function IcdsList({
                             <Button
                               size="sm"
                               onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white"
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                             >
                               Admin CRM
                             </Button>
@@ -867,7 +1000,7 @@ export function IcdsList({
                             <Button
                               size="sm"
                               onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white"
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                             >
                               Execute
                             </Button>
@@ -875,7 +1008,7 @@ export function IcdsList({
                             <Badge variant="outline" className="text-[10px]">WO Issued</Badge>
                           )
                         ) : (
-                          <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200">Certified</Badge>
+                          <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 shadow-xs">Certified</Badge>
                         )}
                       </div>
                     </TableCell>
@@ -889,7 +1022,7 @@ export function IcdsList({
 
       {/* 5. Pagination Bar (Parted by Page Numbers) */}
       {filteredRecords.length > 0 && (
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-xs border border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="text-slate-500 font-medium">
             Showing <span className="font-bold text-slate-800">{(currentPage - 1) * PAGE_SIZE + 1}</span> to{" "}
             <span className="font-bold text-slate-800">{Math.min(currentPage * PAGE_SIZE, filteredRecords.length)}</span> of{" "}
@@ -902,7 +1035,7 @@ export function IcdsList({
               variant="outline"
               onClick={() => { triggerVibrate(); setCurrentPage((p) => Math.max(1, p - 1)); }}
               disabled={currentPage === 1}
-              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs"
+              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs shadow-sm"
             >
               <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prev
             </Button>
@@ -923,8 +1056,8 @@ export function IcdsList({
                   className={
                     "h-8 w-8 p-0 rounded-lg text-xs font-bold " +
                     (currentPage === pageNum
-                      ? "bg-slate-900 text-white shadow-xs"
-                      : "border-slate-200 hover:bg-slate-50 text-slate-700")
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm")
                   }
                 >
                   {pageNum}
@@ -937,7 +1070,7 @@ export function IcdsList({
               variant="outline"
               onClick={() => { triggerVibrate(); setCurrentPage((p) => Math.min(totalPages, p + 1)); }}
               disabled={currentPage === totalPages}
-              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs"
+              className="h-8 px-2.5 rounded-lg border-slate-200 text-xs shadow-sm"
             >
               Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </Button>
@@ -1039,6 +1172,24 @@ export function IcdsList({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Meter & Wiring Electrification Status Filter */}
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700">Meter & Internal Wiring Status</label>
+              <Select value={selectedMeterWiring} onValueChange={setSelectedMeterWiring}>
+                <SelectTrigger className="h-9 text-xs rounded-lg">
+                  <SelectValue placeholder="All Electrification Statuses" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="meter_exists">Meter Exists (Any Wiring)</SelectItem>
+                  <SelectItem value="meter_and_wiring">Meter + Wiring Exists (Ready / Done)</SelectItem>
+                  <SelectItem value="meter_no_wiring">Meter Exists, Wiring Pending</SelectItem>
+                  <SelectItem value="unmetered">Unmetered Centers</SelectItem>
+                  <SelectItem value="infra_required">Poles / Infra Extension Required</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <DialogFooter className="gap-2 border-t pt-3 flex items-center justify-between sm:justify-between">
@@ -1056,9 +1207,93 @@ export function IcdsList({
               type="button"
               size="sm"
               onClick={() => setIsFilterOpen(false)}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow-sm"
             >
               Apply ({filteredRecords.length} Results)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Security Password Protected Clear All Centers Dialog */}
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent className="sm:max-w-md rounded-2xl p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5 text-rose-700">
+              <div className="p-2 rounded-xl bg-rose-100 border border-rose-200">
+                <AlertTriangle className="h-5 w-5 text-rose-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-extrabold text-slate-900">
+                  Clear All Anganwadi Centers
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  This permanent action will wipe all centers from the ICDS database.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3.5 py-3">
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <KeyRound className="h-4 w-4 text-amber-700 shrink-0" />
+                Security Verification Required
+              </p>
+              <p className="text-[11px] text-amber-800">
+                Enter today&apos;s confirmation password (format: <strong>DDMMYYYY</strong> in IST) to authorize clearing all {records.length} centers.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                Confirmation Security Password
+              </label>
+              <Input
+                type="password"
+                value={clearPasswordInput}
+                onChange={(e) => setClearPasswordInput(e.target.value)}
+                placeholder="Enter DDMMYYYY (e.g. 23082026)"
+                className="h-10 text-sm font-mono rounded-xl bg-slate-50 border-slate-200"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleClearAllConfirm()
+                }}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowClearDialog(false)
+                setClearPasswordInput("")
+              }}
+              className="text-xs font-semibold rounded-lg"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={clearSubmitting || !clearPasswordInput.trim()}
+              onClick={handleClearAllConfirm}
+              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm"
+            >
+              {clearSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  Clearing Registry...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  Confirm Permanent Delete
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

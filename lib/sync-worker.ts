@@ -44,7 +44,7 @@ self.onmessage = async (event: MessageEvent<WorkerSyncMessage>) => {
   }
 
   if (type === "START_SYNC" && payload) {
-    const { moduleKey, fetchPatchUrl, lastTs, pollIntervalMs = 180000 } = payload
+    const { moduleKey, fetchPatchUrl, lastTs, pollIntervalMs = 300000 } = payload
     if (!fetchPatchUrl) return
 
     pausedConfigs.set(moduleKey, payload)

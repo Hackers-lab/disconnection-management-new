@@ -32,7 +32,13 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       return true
     })
 
-    return NextResponse.json(filtered)
+    return NextResponse.json(filtered, {
+      headers: {
+        "Cache-Control": bypassCache
+          ? "no-store"
+          : "private, s-maxage=30, stale-while-revalidate=120",
+      },
+    })
   } catch (error: any) {
     console.error("GET /api/icds error:", error)
     return NextResponse.json(

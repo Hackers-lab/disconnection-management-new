@@ -28,7 +28,7 @@ import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
-import { matchesAgency } from "@/lib/permissions"
+import { matchesAgency } from "@/lib/permission-utils"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -263,7 +263,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         if (!icdsCached || !Array.isArray(icdsCached) || icdsCached.length === 0) {
           try {
             setLoadingModules((prev) => ({ ...prev, icds: true }))
-            const res = await fetch(`/api/icds?t=${Date.now()}`)
+            const res = await fetch("/api/icds")
             if (res.ok) {
               const freshData = await res.json()
               if (Array.isArray(freshData)) {

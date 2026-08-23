@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
+import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
 import { 
   Building2, 
   Users, 
@@ -80,7 +81,8 @@ interface TenantStats {
 }
 
 export function SuperuserDashboard() {
-  const [activeTab, setActiveTab] = useState<"overview" | "module_versions" | "vercel_usage">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "online_users" | "module_versions" | "vercel_usage">("overview")
+  const [onlineUserCount, setOnlineUserCount] = useState<number | null>(null)
   const [vercelSpikeCount, setVercelSpikeCount] = useState<number | null>(null)
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [masterSheetId, setMasterSheetId] = useState<string>("")
@@ -225,11 +227,26 @@ export function SuperuserDashboard() {
     }
   }
 
+  const fetchOnlineCount = async () => {
+    try {
+      const res = await fetch("/api/superuser/online-users", { cache: "no-store" })
+      if (res.ok) {
+        const d = await res.json()
+        if (typeof d?.totalOnline === "number") {
+          setOnlineUserCount(d.totalOnline)
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
   useEffect(() => {
     fetchTenants()
     fetchUsers()
     fetchStats()
     fetchVercelSummary()
+    fetchOnlineCount()
   }, [])
 
   const togglePasswordVisibility = (userId: string) => {
@@ -615,6 +632,31 @@ export function SuperuserDashboard() {
 
           <button
             type="button"
+            onClick={() => setActiveTab("online_users")}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              activeTab === "online_users"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                : "bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+            }`}
+          >
+            <Users className="h-4 w-4 text-emerald-400" />
+            <span>Live Online Users</span>
+            <Badge
+              variant="outline"
+              className={`text-[10px] ml-1 px-1.5 py-0 ${
+                activeTab === "online_users"
+                  ? "bg-emerald-700/80 border-emerald-400/30 text-white"
+                  : onlineUserCount !== null && onlineUserCount > 0
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold animate-pulse"
+                  : "bg-slate-800 border-slate-700 text-slate-400"
+              }`}
+            >
+              {onlineUserCount !== null ? `${onlineUserCount} Online` : "Live"}
+            </Badge>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("module_versions")}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
               activeTab === "module_versions"
@@ -662,7 +704,9 @@ export function SuperuserDashboard() {
           </button>
         </div>
 
-        {activeTab === "module_versions" ? (
+        {activeTab === "online_users" ? (
+          <SuperuserOnlineUsers onBackToDashboard={() => setActiveTab("overview")} />
+        ) : activeTab === "module_versions" ? (
           <SupplyModuleVersionsReport onBackToDashboard={() => setActiveTab("overview")} />
         ) : activeTab === "vercel_usage" ? (
           <VercelUsageMonitor onBackToDashboard={() => setActiveTab("overview")} />

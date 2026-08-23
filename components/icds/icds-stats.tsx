@@ -45,78 +45,268 @@ interface IcdsStatsProps {
 }
 
 /**
- * Compact collapsible KPI bar for the List view
+ * Collapsible Dashboard drawer for the List view with detailed clickable KPI cards
+ * and a compact agency breakdown table.
  */
 export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
   const [isOpen, setIsOpen] = useState(false)
 
   const total = records.length
-  const pending = records.filter(r => r.stage === "PENDING_INSPECTION").length
-  const metered = records.filter(r => r.stage === "METER_INSTALLED" || r.meterExists || !!r.smartMeterNo).length
-  const wiring = records.filter(r => r.stage === "EQUIPMENT_INSTALLED" || r.equipmentPackageInstalled).length
-  const completed = records.filter(r => r.stage === "COMPLETED" || !!r.certificatePhotoUrl).length
-  const infra = records.filter(r => r.infraRequired).length
+  const inspected = records.filter(r => r.stage !== "PENDING_INSPECTION")
+  const pending = records.filter(r => r.stage === "PENDING_INSPECTION")
+  
+  // Metering & Wiring combinations
+  const hasMeter = (r: IcdsRecord) => r.meterExists || !!r.smartMeterNo || r.stage === "METER_INSTALLED" || r.stage === "COMPLETED"
+  const hasWiring = (r: IcdsRecord) => r.equipmentPackageInstalled || r.existingWiringStatus === "EXISTS_WORKING" || r.stage === "EQUIPMENT_INSTALLED" || r.stage === "COMPLETED"
+
+  const meteredRecords = records.filter(hasMeter)
+  const meterAndWiringRecords = records.filter(r => hasMeter(r) && hasWiring(r))
+  const meterNoWiringRecords = records.filter(r => hasMeter(r) && !hasWiring(r))
+  const unmeteredRecords = records.filter(r => !hasMeter(r))
+  const infraRecords = records.filter(r => r.infraRequired)
+  const completedRecords = records.filter(r => r.stage === "COMPLETED" || !!r.certificatePhotoUrl)
+
+  // Agency Performance Compact Matrix
+  const agencyMetrics: IcdsAgencyMetrics[] = useMemo(() => {
+    const map = new Map<string, IcdsAgencyMetrics>()
+    for (const r of records) {
+      const agency = r.assignedAgency || "Unassigned"
+      const entry = map.get(agency) || {
+        agency,
+        totalAllocated: 0,
+        inspected: 0,
+        bookletsReceived: 0,
+        workOrdersIssued: 0,
+        metersInstalled: 0,
+        equipmentInstalled: 0,
+        completed: 0,
+        completionRate: 0,
+      }
+
+      entry.totalAllocated++
+      if (r.stage !== "PENDING_INSPECTION") entry.inspected++
+      if (r.bookletReceived) entry.bookletsReceived++
+      if (r.workOrderNo || r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED" || r.stage === "COMPLETED") entry.workOrdersIssued++
+      if (hasMeter(r)) entry.metersInstalled++
+      if (hasWiring(r)) entry.equipmentInstalled++
+      if (r.stage === "COMPLETED" || !!r.certificatePhotoUrl) entry.completed++
+
+      entry.completionRate = entry.totalAllocated > 0 ? (entry.completed / entry.totalAllocated) * 100 : 0
+      map.set(agency, entry)
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalAllocated - a.totalAllocated)
+  }, [records])
+
+  // Download filtered dataset by category
+  const downloadCategoryExcel = async (categoryName: string, subset: IcdsRecord[]) => {
+    if (subset.length === 0) {
+      toast.info(`No records available for ${categoryName}`)
+      return
+    }
+    try {
+      const XLSX = await loadXLSX()
+      const wb = XLSX.utils.book_new()
+
+      const rows = subset.map((r, i) => ({
+        "SL No": i + 1,
+        "AWC Code": r.awcCode,
+        "AWC Name": r.awcName,
+        "Block Name": r.blockName,
+        "GP Name": r.gpName,
+        "Address": r.awcAddress || "",
+        "Property Status": r.propertyStatus,
+        "AWW Worker": r.awwName || "",
+        "AWW Mobile": r.awwMobile || "",
+        "Assigned Agency": r.assignedAgency || "",
+        "Jurisdiction": r.jurisdictionStatus,
+        "Other CCC": r.jurisdictionOffice || "",
+        "Stage": r.stage,
+        "Meter Exists": r.meterExists ? "YES" : "NO",
+        "Smart Meter No": r.smartMeterNo || "",
+        "Existing Meter No": r.existingMeterNo || "",
+        "Internal Wiring Status": r.existingWiringStatus || "",
+        "CSR Wiring Installed": r.equipmentPackageInstalled ? "YES" : "NO",
+        "Infra Required": r.infraRequired ? "YES" : "NO",
+        "Poles Required": r.polesRequired || 0,
+        "LT Cable Length (M)": r.cableLengthM || 0,
+        "Service Line (M)": r.serviceLineLengthM || 0,
+        "GPS Coordinates": r.inspectGeoCoordinates || "",
+        "Work Order No": r.workOrderNo || "",
+        "Official Application No": r.officialApplicationNo || "",
+        "Remarks": r.inspectionRemarks || "",
+      }))
+
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const sanitizedName = categoryName.replace(/[^a-zA-Z0-9_-]/g, "_")
+      XLSX.utils.book_append_sheet(wb, ws, sanitizedName.slice(0, 30))
+      XLSX.writeFile(wb, `ICDS_${sanitizedName}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast.success(`Downloaded ${subset.length} records for ${categoryName}`)
+    } catch (e: any) {
+      toast.error("Failed to export: " + e.message)
+    }
+  }
+
+  const kpiCards = [
+    {
+      title: "Total Centers",
+      count: total,
+      records: records,
+      color: "border-slate-300 text-slate-900 bg-slate-50/50 hover:bg-slate-100/70",
+      badgeColor: "bg-slate-200 text-slate-800",
+    },
+    {
+      title: "Inspected",
+      count: inspected.length,
+      records: inspected,
+      color: "border-blue-200 text-blue-800 bg-blue-50/40 hover:bg-blue-50/80",
+      badgeColor: "bg-blue-100 text-blue-800",
+    },
+    {
+      title: "Pending",
+      count: pending.length,
+      records: pending,
+      color: "border-amber-200 text-amber-800 bg-amber-50/40 hover:bg-amber-50/80",
+      badgeColor: "bg-amber-100 text-amber-800",
+    },
+    {
+      title: "Meter Exists",
+      count: meteredRecords.length,
+      records: meteredRecords,
+      color: "border-indigo-200 text-indigo-800 bg-indigo-50/40 hover:bg-indigo-50/80",
+      badgeColor: "bg-indigo-100 text-indigo-800",
+    },
+    {
+      title: "Meter + Wiring Exists",
+      count: meterAndWiringRecords.length,
+      records: meterAndWiringRecords,
+      color: "border-teal-200 text-teal-800 bg-teal-50/40 hover:bg-teal-50/80",
+      badgeColor: "bg-teal-100 text-teal-800",
+    },
+    {
+      title: "Meter Exists (Wiring Pending)",
+      count: meterNoWiringRecords.length,
+      records: meterNoWiringRecords,
+      color: "border-orange-200 text-orange-800 bg-orange-50/40 hover:bg-orange-50/80",
+      badgeColor: "bg-orange-100 text-orange-800",
+    },
+    {
+      title: "Unmetered Centers",
+      count: unmeteredRecords.length,
+      records: unmeteredRecords,
+      color: "border-rose-200 text-rose-800 bg-rose-50/40 hover:bg-rose-50/80",
+      badgeColor: "bg-rose-100 text-rose-800",
+    },
+    {
+      title: "Poles / Infra Needed",
+      count: infraRecords.length,
+      records: infraRecords,
+      color: "border-amber-300 text-amber-900 bg-amber-50/60 hover:bg-amber-100/60",
+      badgeColor: "bg-amber-200 text-amber-900",
+    },
+    {
+      title: "Certified / Completed",
+      count: completedRecords.length,
+      records: completedRecords,
+      color: "border-emerald-200 text-emerald-800 bg-emerald-50/40 hover:bg-emerald-50/80",
+      badgeColor: "bg-emerald-100 text-emerald-800",
+    },
+  ]
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden transition-all">
-      {/* Mini Quick Bar */}
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md overflow-hidden transition-all">
+      {/* Dashboard Trigger Bar */}
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors select-none text-xs"
+        className="p-3 px-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors select-none"
       >
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
-            <BarChart3 className="h-4 w-4 text-blue-600" />
-            Quick KPI
-          </span>
-          <span className="text-slate-200">|</span>
-          <span className="text-slate-600 font-semibold">Total: <strong className="text-slate-900">{total}</strong></span>
-          <span className="text-amber-700 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/70">
-            Pending: {pending}
-          </span>
-          <span className="text-indigo-700 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/70">
-            Metered: {metered}
-          </span>
-          <span className="text-purple-700 font-bold bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200/70">
-            Wiring: {wiring}
-          </span>
-          <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/70">
-            Certified: {completed}
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-blue-600" />
+          <span className="font-extrabold text-slate-900 text-xs sm:text-sm">
+            Dashboard
           </span>
         </div>
 
-        <button className="text-slate-400 hover:text-slate-700 flex items-center gap-1 text-[11px] font-bold">
-          {isOpen ? "Hide Cards" : "Expand Cards"}
-          {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
+        <div className="text-slate-400 hover:text-slate-700 flex items-center">
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </div>
       </div>
 
-      {/* Expanded Grid */}
+      {/* Expanded Detailed Dashboard Grid */}
       {isOpen && (
-        <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Centers</span>
-            <p className="text-xl font-extrabold text-slate-900 mt-0.5">{total}</p>
+        <div className="p-4 border-t border-slate-100 bg-slate-50/40 space-y-4">
+          {/* Clickable Category Cards */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500">
+                Click any card to export matching records to Excel (.xlsx)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
+              {kpiCards.map((card) => (
+                <div
+                  key={card.title}
+                  onClick={() => downloadCategoryExcel(card.title, card.records)}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between group ${card.color}`}
+                  title={`Click to export ${card.title} records to Excel`}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <span className="text-xs font-semibold leading-tight">{card.title}</span>
+                    <Download className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                  </div>
+                  <div className="flex items-baseline justify-between mt-2">
+                    <span className="text-2xl font-bold">{card.count}</span>
+                    <span className="text-[10px] font-medium opacity-70 group-hover:underline">Export ↗</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-2xs">
-            <span className="text-[9px] uppercase font-bold text-amber-600 tracking-wider">Pending Inspect</span>
-            <p className="text-xl font-extrabold text-amber-700 mt-0.5">{pending}</p>
-          </div>
-          <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs">
-            <span className="text-[9px] uppercase font-bold text-indigo-600 tracking-wider">Meters Installed</span>
-            <p className="text-xl font-extrabold text-indigo-700 mt-0.5">{metered}</p>
-          </div>
-          <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-2xs">
-            <span className="text-[9px] uppercase font-bold text-purple-600 tracking-wider">Wiring (CSR 6611)</span>
-            <p className="text-xl font-extrabold text-purple-700 mt-0.5">{wiring}</p>
-          </div>
-          <div className="bg-white p-3 rounded-xl border border-orange-100 shadow-2xs">
-            <span className="text-[9px] uppercase font-bold text-orange-600 tracking-wider">Infra Needed</span>
-            <p className="text-xl font-extrabold text-orange-700 mt-0.5">{infra}</p>
-          </div>
-          <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
-            <span className="text-[9px] uppercase font-bold text-emerald-600 tracking-wider">Certified (Handover)</span>
-            <p className="text-xl font-extrabold text-emerald-700 mt-0.5">{completed}</p>
+
+          {/* Compact Agency-wise Performance Table */}
+          <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-indigo-600" />
+                Agency Performance Summary ({agencyMetrics.length} Contractors)
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">Real-time</span>
+            </div>
+
+            <div className="overflow-x-auto max-h-60 overflow-y-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/80 sticky top-0 z-10 text-xs">
+                  <TableRow>
+                    <TableHead className="py-2 font-semibold">Agency Name</TableHead>
+                    <TableHead className="py-2 text-center font-semibold">Assigned</TableHead>
+                    <TableHead className="py-2 text-center font-semibold">Inspected</TableHead>
+                    <TableHead className="py-2 text-center font-semibold">Meter Exists</TableHead>
+                    <TableHead className="py-2 text-center font-semibold">Wiring Done</TableHead>
+                    <TableHead className="py-2 text-center font-semibold">Certified</TableHead>
+                    <TableHead className="py-2 text-right pr-4 font-semibold">Progress</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs">
+                  {agencyMetrics.map((m) => (
+                    <TableRow key={m.agency} className="hover:bg-slate-50/60">
+                      <TableCell className="font-semibold py-2 text-slate-800">{m.agency}</TableCell>
+                      <TableCell className="text-center font-medium text-slate-800">{m.totalAllocated}</TableCell>
+                      <TableCell className="text-center text-amber-700 font-medium">{m.inspected}</TableCell>
+                      <TableCell className="text-center text-indigo-700 font-medium">{m.metersInstalled}</TableCell>
+                      <TableCell className="text-center text-teal-700 font-medium">{m.equipmentInstalled}</TableCell>
+                      <TableCell className="text-center text-emerald-700 font-bold">{m.completed}</TableCell>
+                      <TableCell className="text-right pr-4 font-bold text-emerald-700">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <div className="w-12 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-emerald-600 h-full" style={{ width: `${Math.min(m.completionRate, 100)}%` }} />
+                          </div>
+                          <span>{m.completionRate.toFixed(0)}%</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
       )}
@@ -294,7 +484,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
       {activeReportTab === "charts" && (
         <div className="grid gap-4 md:grid-cols-3">
           {/* Block-wise Stacked Bar Chart */}
-          <Card className="md:col-span-2 shadow-sm">
+          <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-blue-600" />
@@ -322,7 +512,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
           </Card>
 
           {/* Infrastructure Distribution Pie */}
-          <Card className="shadow-sm">
+          <Card className="shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2">
                 <RadioTower className="h-4 w-4 text-orange-600" />
@@ -368,7 +558,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
 
       {/* TAB 2: Agency Performance Report Table */}
       {activeReportTab === "agency" && (
-        <Card className="shadow-sm">
+        <Card className="shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Users className="h-4 w-4 text-indigo-600" />
@@ -419,7 +609,7 @@ export function IcdsStats({ records }: IcdsStatsProps) {
 
       {/* TAB 3: GP-wise Table */}
       {activeReportTab === "gp" && (
-        <Card className="shadow-sm">
+        <Card className="shadow-md hover:shadow-lg transition-shadow border border-slate-200/80">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Building2 className="h-4 w-4 text-blue-600" />

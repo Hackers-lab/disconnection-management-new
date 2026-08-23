@@ -21,11 +21,17 @@ export function invalidateAgencyCache(cccCode?: string) {
   }
 }
 
+function getPrivateKey() {
+  const key = process.env.GOOGLE_SHEETS_PRIVATE_KEY
+  if (!key) return undefined
+  return key.replace(/^["']|["']$/g, "").replace(/\\n/g, "\n").replace(/\r/g, "").trim()
+}
+
 async function getSheetsClient() {
   const auth = new GoogleAuth({
     credentials: {
       client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+      private_key: getPrivateKey(),
     },
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })

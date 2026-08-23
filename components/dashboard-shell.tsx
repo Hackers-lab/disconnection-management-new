@@ -3,6 +3,7 @@
 import { Header } from "@/components/header"
 import { ViewType } from "@/components/app-sidebar"
 import { AdminSetupGuideBanner } from "@/components/admin-setup-guide"
+import { VisitorLiveCounter } from "@/components/visitor-live-counter"
 
 interface DashboardShellProps {
   role: string
@@ -55,6 +56,9 @@ export function DashboardShell({
         )}
         {/* Render whatever is passed as children (Menu, List, etc.) */}
         {children} 
+
+        {/* Real-time Visitor Count & Live Users visible ONLY to superadmin / superuser */}
+        <VisitorLiveCounter activeModule={activeView} showUi={role === "superuser" || role === "superadmin"} />
       </main>
     </>
   )

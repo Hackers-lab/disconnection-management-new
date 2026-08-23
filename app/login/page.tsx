@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/login-form"
 import { LoginFeedbackCarousel } from "@/components/login-feedback-carousel"
+import { VisitorLiveCounter } from "@/components/visitor-live-counter"
 
 export default function LoginPage() {
   return (
@@ -19,11 +20,13 @@ export default function LoginPage() {
 
         <LoginForm />
 
-
         {/* Minimal Right-to-Left Real User Feedback Ticker */}
-        <div className="pt-2">
+        <div className="pt-1">
           <LoginFeedbackCarousel />
         </div>
+
+        {/* Real-time Visitor Count & Live Users */}
+        <VisitorLiveCounter className="pt-1 text-slate-500/80" />
       </div>
     </div>
   )

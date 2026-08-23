@@ -238,7 +238,7 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
 
         <div className="space-y-4 text-xs">
           {/* SECTION 1: CDPO APPLICATION BOOKLET RECEIPT */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-xs">
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">1</div>
@@ -323,7 +323,7 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
                     size="sm"
                     onClick={() => saveMilestone("booklet")}
                     disabled={submittingStep === "booklet" || uploadingBooklet}
-                    className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                    className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                   >
                     {submittingStep === "booklet" ? (
                       <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -338,7 +338,7 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
           </div>
 
           {/* SECTION 2: WBSEDCL CRM APPLICATION & QUOTATION */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-xs">
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
               <div className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs">2</div>
               <div>
@@ -397,7 +397,7 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
                 size="sm"
                 onClick={() => saveMilestone("quotation")}
                 disabled={submittingStep === "quotation"}
-                className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
               >
                 {submittingStep === "quotation" ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -410,7 +410,7 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
           </div>
 
           {/* SECTION 3: WORK ORDER & SMART METER ISSUE TO AGENCY */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-xs">
+          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
               <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">3</div>
               <div>
@@ -543,7 +543,7 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
                 size="sm"
                 onClick={() => saveMilestone("workorder")}
                 disabled={submittingStep === "workorder" || !assignedAgency}
-                className="h-8 px-4 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-xs"
+                className="h-8 px-4 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
               >
                 {submittingStep === "workorder" ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />

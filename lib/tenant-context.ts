@@ -34,20 +34,24 @@ export function withTenant(handler: Function) {
   return async function (request: NextRequest, ...args: any[]) {
     try {
       const session = await verifySession()
-      if (session?.cccCode) {
-        const config = await getTenantConfig(session.cccCode)
-        return await tenantContext.run(
-          {
-            spreadsheetId: config.spreadsheetId,
-            cccCode: session.cccCode,
-            driveFolderId: config.driveFolderId,
-            googleDriveRefreshToken: config.googleDriveRefreshToken,
-          },
-          async () => {
-            return await handler(request, ...args)
-          }
-        )
-      }
+      const cccCode =
+        session?.cccCode ||
+        request.cookies.get("cccCode")?.value ||
+        request.headers.get("x-tenant-id") ||
+        "SYSTEM"
+
+      const config = await getTenantConfig(cccCode)
+      return await tenantContext.run(
+        {
+          spreadsheetId: config.spreadsheetId,
+          cccCode: config.cccCode,
+          driveFolderId: config.driveFolderId,
+          googleDriveRefreshToken: config.googleDriveRefreshToken,
+        },
+        async () => {
+          return await handler(request, ...args)
+        }
+      )
     } catch (e) {
       console.error("Error setting tenant context in route:", e)
     }

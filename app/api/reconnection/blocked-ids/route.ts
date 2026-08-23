@@ -19,7 +19,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     const ids = await getBlockedConsumerIds(agencies)
     return NextResponse.json(ids, {
-      headers: { "Cache-Control": "no-store" },
+      headers: { "Cache-Control": "private, s-maxage=30, stale-while-revalidate=60" },
     })
   } catch (e) {
     console.error("blocked-ids error:", e)

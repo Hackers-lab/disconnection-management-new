@@ -25,7 +25,7 @@ import { useState, useEffect } from "react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
-import { matchesAgency } from "@/lib/permissions"
+import { matchesAgency } from "@/lib/permission-utils"
 
 // Define the available views
 export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection" | "icds"
@@ -63,7 +63,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     try {
       let cached = await getFromCache<any[]>("icds_data_cache")
       if (!cached || !Array.isArray(cached) || cached.length === 0) {
-        const res = await fetch(`/api/icds?t=${Date.now()}`)
+        const res = await fetch("/api/icds")
         if (res.ok) {
           const freshData = await res.json()
           if (Array.isArray(freshData)) {

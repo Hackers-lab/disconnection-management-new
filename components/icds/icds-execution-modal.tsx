@@ -241,7 +241,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
 
         <form onSubmit={handleSubmit} className="space-y-4 py-1 text-xs">
           {/* 1. SMART METER INSTALLATION */}
-          <div className="border border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/30 shadow-xs">
+          <div className="border border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/30 shadow-sm">
             <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
               <Gauge className="h-4 w-4 text-blue-600" />
               <h3 className="font-bold text-blue-950 text-xs">1. Smart Meter Physical Installation</h3>
@@ -321,7 +321,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
           </div>
 
           {/* 2. CSR INTERNAL WIRING PACKAGE (EDD/49) */}
-          <div className="border border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/30 shadow-xs">
+          <div className="border border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/30 shadow-sm">
             <div className="flex items-center justify-between border-b border-purple-200/60 pb-2">
               <div className="flex items-center gap-2">
                 <Layers className="h-4 w-4 text-purple-600" />
@@ -388,7 +388,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
           </div>
 
           {/* 3. HANDOVER CERTIFICATION & AWW AFTER PHOTO */}
-          <div className="border border-emerald-200 rounded-xl p-4 space-y-3 bg-emerald-50/30 shadow-xs">
+          <div className="border border-emerald-200 rounded-xl p-4 space-y-3 bg-emerald-50/30 shadow-sm">
             <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
               <div className="flex items-center gap-2">
                 <Award className="h-4 w-4 text-emerald-600" />
@@ -537,7 +537,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
               type="submit"
               size="sm"
               disabled={submitting || uploadingMeterPhoto || uploadingAfterPhoto || uploadingCertPhoto}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm"
             >
               {submitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
               Complete & Certify Electrification
