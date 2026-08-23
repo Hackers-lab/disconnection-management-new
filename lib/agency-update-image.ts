@@ -20,6 +20,12 @@ function parseDateHelper(dateStr: string): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+}
+
 export async function generateAndShareAgencyUpdatesJPEG(
   agencyList: AgencyUpdateItem[],
   cccCode: string = "CCC"
@@ -39,18 +45,22 @@ export async function generateAndShareAgencyUpdatesJPEG(
   })
 
   const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000
-  const beforeYesterdayStart = todayStart - 48 * 60 * 60 * 1000
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
 
-  // Dimensions: Reduced width (560px) and taller rows (54px) for bold readability
+  // Aesthetic Portrait Canvas Layout
   const scale = 2
-  const width = 560
-  const rowHeight = 54
-  const headerHeight = 135
-  const tableHeaderHeight = 36
-  const footerHeight = 44
-  const totalHeight = headerHeight + tableHeaderHeight + (sorted.length * rowHeight) + footerHeight
+  const width = 580
+  const paddingX = 24
+  const paddingY = 24
+  const headerHeight = 84
+  const tableHeaderHeight = 32
+  const rowHeight = 46
+  const rowGap = 5
+  const footerHeight = 36
+  const totalRowsHeight = sorted.length * (rowHeight + rowGap)
+  const totalHeight = paddingY * 2 + headerHeight + tableHeaderHeight + totalRowsHeight + footerHeight
 
   const canvas = document.createElement("canvas")
   canvas.width = width * scale
@@ -63,28 +73,200 @@ export async function generateAndShareAgencyUpdatesJPEG(
 
   ctx.scale(scale, scale)
 
-  // 1. White Canvas Background
-  ctx.fillStyle = "#ffffff"
+  // 1. Background (Subtle Modern Studio Gray)
+  ctx.fillStyle = "#f8fafc"
   ctx.fillRect(0, 0, width, totalHeight)
 
-  // 2. Header Banner (Deep Navy Gradient)
-  const gradient = ctx.createLinearGradient(0, 0, width, 0)
-  gradient.addColorStop(0, "#0b132b")
-  gradient.addColorStop(1, "#1c2541")
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, width, headerHeight)
+  // 2. Floating Main Card Container
+  const cardX = 14
+  const cardY = 14
+  const cardWidth = width - 28
+  const cardHeight = totalHeight - 28
 
-  // Top Small Tracker Label
-  ctx.fillStyle = "#60a5fa"
-  ctx.font = "bold 11px sans-serif"
-  ctx.fillText("DISCONNECTION MANAGEMENT", 24, 28)
+  // Card Outer Shadow
+  ctx.shadowColor = "rgba(15, 23, 42, 0.06)"
+  ctx.shadowBlur = 16
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 4
 
-  // Large Bold Title
   ctx.fillStyle = "#ffffff"
-  ctx.font = "bold 22px sans-serif"
-  ctx.fillText("AGENCY LAST UPDATES", 24, 58)
+  ctx.beginPath()
+  ctx.roundRect(cardX, cardY, cardWidth, cardHeight, 18)
+  ctx.fill()
 
-  // Subtitle / Office details
+  // Card Border
+  ctx.shadowColor = "transparent"
+  ctx.shadowBlur = 0
+  ctx.strokeStyle = "#e2e8f0"
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.roundRect(cardX, cardY, cardWidth, cardHeight, 18)
+  ctx.stroke()
+
+  // 3. Aesthetic Minimalist Header
+  const contentX = cardX + paddingX
+  const contentWidth = cardWidth - (paddingX * 2)
+  const headerCenterY = cardY + 38
+
+  // Centered Title
+  ctx.fillStyle = "#0f172a"
+  ctx.font = "bold 19px system-ui, -apple-system, sans-serif"
+  ctx.textAlign = "center"
+  ctx.fillText("AGENCY LAST UPDATES", width / 2, headerCenterY)
+
+  // Office Badge below title
+  const officeText = `${cccCode.toUpperCase()} CCC`
+  ctx.font = "600 11px system-ui, -apple-system, sans-serif"
+  const badgeWidth = ctx.measureText(officeText).width + 18
+  const badgeHeight = 22
+  const badgeX = (width - badgeWidth) / 2
+  const badgeY = headerCenterY + 12
+
+  ctx.fillStyle = "#f1f5f9"
+  ctx.beginPath()
+  ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 11)
+  ctx.fill()
+  ctx.strokeStyle = "#e2e8f0"
+  ctx.stroke()
+
+  ctx.fillStyle = "#475569"
+  ctx.fillText(officeText, width / 2, badgeY + 15)
+
+  // Subtle Header Divider
+  const dividerY = cardY + headerHeight + 10
+  ctx.strokeStyle = "#f1f5f9"
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(contentX, dividerY)
+  ctx.lineTo(contentX + contentWidth, dividerY)
+  ctx.stroke()
+
+  // 4. Table Header (Minimalist & Clean)
+  const tableHeaderY = dividerY + 6
+  ctx.fillStyle = "#94a3b8"
+  ctx.font = "bold 10px system-ui, -apple-system, sans-serif"
+  ctx.textAlign = "left"
+  ctx.fillText("#", contentX + 10, tableHeaderY + 18)
+  ctx.fillText("AGENCY", contentX + 38, tableHeaderY + 18)
+  ctx.fillText("LAST UPDATE", contentX + contentWidth - 170, tableHeaderY + 18)
+  ctx.fillText("UPDATES", contentX + contentWidth - 62, tableHeaderY + 18)
+
+  // 5. Agency Rows (Floating Soft Pills with Aesthetic Color Codes)
+  let currentY = tableHeaderY + tableHeaderHeight
+
+  sorted.forEach((agency, index) => {
+    const d = parseDateHelper(agency.lastUpdate)
+    let rowBg = "#f8fafc"
+    let rowBorder = "#f1f5f9"
+    let dotColor = "#94a3b8"
+    let badgeBg = "#f1f5f9"
+    let badgeBorder = "#e2e8f0"
+    let badgeTextColor = "#475569"
+    let dateText = agency.lastUpdate || "No updates"
+
+    if (!d || !agency.lastUpdate) {
+      // Gray (No updates)
+      rowBg = "#ffffff"
+      rowBorder = "#f1f5f9"
+      dotColor = "#cbd5e1"
+      badgeBg = "#f8fafc"
+      badgeBorder = "#e2e8f0"
+      badgeTextColor = "#94a3b8"
+    } else if (sameDay(d, today)) {
+      // Soft Mint Green (Today)
+      rowBg = "#f0fdf4"
+      rowBorder = "#bbf7d0"
+      dotColor = "#16a34a"
+      badgeBg = "#dcfce7"
+      badgeBorder = "#86efac"
+      badgeTextColor = "#15803d"
+    } else if (sameDay(d, yesterday)) {
+      // Soft Warm Yellow/Amber (Yesterday)
+      rowBg = "#fefce8"
+      rowBorder = "#fef08a"
+      dotColor = "#ca8a04"
+      badgeBg = "#fef9c3"
+      badgeBorder = "#fde047"
+      badgeTextColor = "#a16207"
+    } else {
+      // Soft Rose Red (Older)
+      rowBg = "#fff1f2"
+      rowBorder = "#fecdd3"
+      dotColor = "#e11d48"
+      badgeBg = "#ffe4e6"
+      badgeBorder = "#fda4af"
+      badgeTextColor = "#be123c"
+    }
+
+    // Row Pill Box
+    ctx.fillStyle = rowBg
+    ctx.beginPath()
+    ctx.roundRect(contentX, currentY, contentWidth, rowHeight, 10)
+    ctx.fill()
+
+    ctx.strokeStyle = rowBorder
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.roundRect(contentX, currentY, contentWidth, rowHeight, 10)
+    ctx.stroke()
+
+    // Index Number
+    ctx.fillStyle = "#94a3b8"
+    ctx.font = "600 11px system-ui, -apple-system, sans-serif"
+    ctx.textAlign = "left"
+    ctx.fillText(String(index + 1), contentX + 10, currentY + 27)
+
+    // Status Indicator Dot
+    ctx.fillStyle = dotColor
+    ctx.beginPath()
+    ctx.arc(contentX + 32, currentY + 23, 4, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Agency Name (Bold Slate 900)
+    ctx.fillStyle = "#0f172a"
+    ctx.font = "bold 13.5px system-ui, -apple-system, sans-serif"
+    const truncatedName = agency.name.length > 22 ? agency.name.slice(0, 21) + "…" : agency.name
+    ctx.fillText(truncatedName, contentX + 44, currentY + 28)
+
+    // Last Update Date (Medium Slate 700)
+    ctx.fillStyle = "#334155"
+    ctx.font = "600 12px system-ui, -apple-system, sans-serif"
+    ctx.fillText(dateText, contentX + contentWidth - 170, currentY + 28)
+
+    // Updates Pill Badge (Only number count)
+    const count = agency.lastUpdateCount || 0
+    if (agency.lastUpdate && count > 0) {
+      const countText = String(count)
+      ctx.font = "bold 12px system-ui, -apple-system, sans-serif"
+      const textW = ctx.measureText(countText).width
+      const pWidth = Math.max(textW + 16, 32)
+      const pHeight = 22
+      const pX = contentX + contentWidth - 62
+      const pY = currentY + 12
+
+      ctx.fillStyle = badgeBg
+      ctx.beginPath()
+      ctx.roundRect(pX, pY, pWidth, pHeight, 11)
+      ctx.fill()
+
+      ctx.strokeStyle = badgeBorder
+      ctx.stroke()
+
+      ctx.fillStyle = badgeTextColor
+      ctx.textAlign = "center"
+      ctx.fillText(countText, pX + pWidth / 2, pY + 15)
+      ctx.textAlign = "left"
+    } else {
+      ctx.fillStyle = "#cbd5e1"
+      ctx.font = "bold 13px system-ui, -apple-system, sans-serif"
+      ctx.fillText("-", contentX + contentWidth - 48, currentY + 28)
+    }
+
+    currentY += rowHeight + rowGap
+  })
+
+  // 6. Aesthetic Minimalist Footer
+  const footerY = cardY + cardHeight - 20
   const todayFormatted = now.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -96,155 +278,18 @@ export async function generateAndShareAgencyUpdatesJPEG(
     hour12: true
   })
 
+  // Left Tag
   ctx.fillStyle = "#94a3b8"
-  ctx.font = "600 12px sans-serif"
-  ctx.fillText(`OFFICE: ${cccCode.toUpperCase()} CCC`, 24, 86)
-  ctx.fillText(`AS OF: ${todayFormatted}, ${timeFormatted}`, 24, 106)
+  ctx.font = "500 10px system-ui, -apple-system, sans-serif"
+  ctx.textAlign = "left"
+  ctx.fillText("Disconnection Management", contentX, footerY)
 
-  // Right Total Count Badge in Header
-  ctx.fillStyle = "rgba(255, 255, 255, 0.12)"
-  ctx.beginPath()
-  ctx.roundRect(width - 134, 30, 110, 68, 12)
-  ctx.fill()
-
-  ctx.fillStyle = "#93c5fd"
-  ctx.font = "600 10px sans-serif"
-  ctx.textAlign = "center"
-  ctx.fillText("TOTAL AGENCIES", width - 79, 52)
-  ctx.fillStyle = "#ffffff"
-  ctx.font = "bold 26px sans-serif"
-  ctx.fillText(String(sorted.length), width - 79, 82)
+  // Right Date Timestamp
+  ctx.textAlign = "right"
+  ctx.fillText(`${todayFormatted}, ${timeFormatted}`, contentX + contentWidth, footerY)
   ctx.textAlign = "left"
 
-  // 3. Table Header
-  const tableHeaderY = headerHeight
-  ctx.fillStyle = "#0f172a"
-  ctx.fillRect(0, tableHeaderY, width, tableHeaderHeight)
-
-  ctx.fillStyle = "#f8fafc"
-  ctx.font = "bold 11px sans-serif"
-  ctx.fillText("#", 20, tableHeaderY + 22)
-  ctx.fillText("AGENCY NAME", 48, tableHeaderY + 22)
-  ctx.fillText("LAST UPDATE", width - 210, tableHeaderY + 22)
-  ctx.fillText("UPDATES", width - 85, tableHeaderY + 22)
-
-  // 4. Agency Rows
-  let currentY = tableHeaderY + tableHeaderHeight
-
-  sorted.forEach((agency, index) => {
-    const isEven = index % 2 === 0
-    ctx.fillStyle = isEven ? "#ffffff" : "#f8fafc"
-    ctx.fillRect(0, currentY, width, rowHeight)
-
-    // Bottom border
-    ctx.strokeStyle = "#e2e8f0"
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(16, currentY + rowHeight)
-    ctx.lineTo(width - 16, currentY + rowHeight)
-    ctx.stroke()
-
-    // Determine status & color coding (Today, Yesterday, Before Yesterday, Older/None)
-    const d = parseDateHelper(agency.lastUpdate)
-    let dotColor = "#94a3b8"
-    let statusBg = "#f1f5f9"
-    let statusTextColor = "#475569"
-    let statusLabel = agency.lastUpdate || "No updates"
-
-    if (!d || d.getTime() === 0) {
-      dotColor = "#ef4444"
-      statusBg = "#fee2e2"
-      statusTextColor = "#991b1b"
-      statusLabel = "No updates"
-    } else if (d.getTime() >= todayStart) {
-      // TODAY -> Green
-      dotColor = "#10b981"
-      statusBg = "#d1fae5"
-      statusTextColor = "#065f46"
-    } else if (d.getTime() >= yesterdayStart) {
-      // YESTERDAY -> Blue
-      dotColor = "#3b82f6"
-      statusBg = "#dbeafe"
-      statusTextColor = "#1e40af"
-    } else if (d.getTime() >= beforeYesterdayStart) {
-      // 2 DAYS AGO -> Amber
-      dotColor = "#f59e0b"
-      statusBg = "#fef3c7"
-      statusTextColor = "#92400e"
-    } else {
-      // OLDER -> Red / Slate
-      dotColor = "#ef4444"
-      statusBg = "#fee2e2"
-      statusTextColor = "#991b1b"
-    }
-
-    // Index Number
-    ctx.fillStyle = "#64748b"
-    ctx.font = "bold 13px sans-serif"
-    ctx.fillText(`${index + 1}`, 20, currentY + 33)
-
-    // Status Dot (Accent)
-    ctx.fillStyle = dotColor
-    ctx.beginPath()
-    ctx.arc(42, currentY + 28, 4.5, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Agency Name (Larger font: 15px bold)
-    ctx.fillStyle = "#0f172a"
-    ctx.font = "bold 15px sans-serif"
-    const truncatedName = agency.name.length > 20 ? agency.name.slice(0, 19) + "…" : agency.name
-    ctx.fillText(truncatedName, 54, currentY + 33)
-
-    // Last Update Date (13px medium)
-    ctx.fillStyle = "#334155"
-    ctx.font = "600 13px sans-serif"
-    ctx.fillText(statusLabel, width - 210, currentY + 33)
-
-    // Updates Count Badge (Only count number, larger bold font)
-    const count = agency.lastUpdateCount || 0
-    if (agency.lastUpdate && count > 0) {
-      const badgeText = String(count)
-      ctx.font = "bold 13px sans-serif"
-      const textWidth = ctx.measureText(badgeText).width
-      const badgeWidth = Math.max(textWidth + 18, 36)
-      const badgeHeight = 24
-      const badgeX = width - 85
-      const badgeY = currentY + 15
-
-      ctx.fillStyle = statusBg
-      ctx.beginPath()
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 12)
-      ctx.fill()
-
-      ctx.fillStyle = statusTextColor
-      ctx.textAlign = "center"
-      ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + 17)
-      ctx.textAlign = "left"
-    } else {
-      ctx.fillStyle = "#94a3b8"
-      ctx.font = "bold 14px sans-serif"
-      ctx.fillText("-", width - 70, currentY + 33)
-    }
-
-    currentY += rowHeight
-  })
-
-  // 5. Footer Bar
-  ctx.fillStyle = "#f8fafc"
-  ctx.fillRect(0, totalHeight - footerHeight, width, footerHeight)
-  ctx.strokeStyle = "#e2e8f0"
-  ctx.beginPath()
-  ctx.moveTo(0, totalHeight - footerHeight)
-  ctx.lineTo(width, totalHeight - footerHeight)
-  ctx.stroke()
-
-  ctx.fillStyle = "#64748b"
-  ctx.font = "600 11px sans-serif"
-  ctx.textAlign = "center"
-  ctx.fillText("Disconnection Management System • Field Status Report", width / 2, totalHeight - 18)
-  ctx.textAlign = "left"
-
-  // 6. Output to Blob and Trigger Native Share or Clean Download
+  // 7. Render High Quality JPEG Blob
   return new Promise((resolve) => {
     canvas.toBlob(async (blob) => {
       if (!blob) {
@@ -255,26 +300,27 @@ export async function generateAndShareAgencyUpdatesJPEG(
       const fileName = `Agency_Updates_${cccCode}_${now.toISOString().split("T")[0]}.jpg`
       const file = new File([blob], fileName, { type: "image/jpeg" })
 
-      // If Web Share with files is supported (Mobile Chrome, Safari iOS, etc.)
-      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+      const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+      // Mobile: Native Web Share
+      if (isMobile && typeof navigator.share === "function" && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({
             files: [file],
             title: `Agency Updates - ${cccCode.toUpperCase()}`,
-            text: `Agency Last Updates Report (${cccCode.toUpperCase()} CCC) - ${todayFormatted}`,
+            text: `Agency Last Updates (${cccCode.toUpperCase()} CCC) - ${todayFormatted}`,
           })
           resolve({ success: true, method: "share" })
           return
         } catch (err: any) {
           if (err?.name === "AbortError") {
-            resolve({ success: true, method: "share", message: "Share cancelled" })
+            resolve({ success: true, method: "share" })
             return
           }
-          console.warn("Native Web Share failed, falling back to download:", err)
         }
       }
 
-      // Desktop Fallback: Trigger direct JPEG download without opening blank windows
+      // Desktop: Instant clean file download
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -285,6 +331,6 @@ export async function generateAndShareAgencyUpdatesJPEG(
       URL.revokeObjectURL(url)
 
       resolve({ success: true, method: "download" })
-    }, "image/jpeg", 0.95)
+    }, "image/jpeg", 0.96)
   })
 }

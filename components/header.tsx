@@ -411,35 +411,29 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   const getRowColor = (dateStr: string) => {
     const parsed = parseDate(dateStr);
-    if (!parsed) return "bg-slate-50 border-slate-200/80";
+    if (!parsed) return "bg-gray-50 border border-gray-200";
 
     const d = startOfDay(parsed);
     const today = startOfDay(new Date());
     const yesterday = startOfDay(new Date());
     yesterday.setDate(today.getDate() - 1);
-    const beforeYesterday = startOfDay(new Date());
-    beforeYesterday.setDate(today.getDate() - 2);
 
-    if (sameDay(d, today)) return "bg-emerald-50/90 border-emerald-200/90 hover:bg-emerald-100/70";
-    if (sameDay(d, yesterday)) return "bg-blue-50/90 border-blue-200/90 hover:bg-blue-100/70";
-    if (sameDay(d, beforeYesterday)) return "bg-amber-50/90 border-amber-200/90 hover:bg-amber-100/70";
-    return "bg-red-50/80 border-red-200/80 hover:bg-red-100/70";
+    if (sameDay(d, today)) return "bg-green-100 border border-green-200 hover:bg-green-100";
+    if (sameDay(d, yesterday)) return "bg-yellow-100 border border-yellow-200 hover:bg-yellow-100";
+    return "bg-red-100 border border-red-200 hover:bg-red-100";
   };
 
   const getBadgeColor = (dateStr: string) => {
     const parsed = parseDate(dateStr);
-    if (!parsed) return "bg-slate-100 text-slate-700 border-slate-200";
+    if (!parsed) return "bg-gray-200 text-gray-700";
     const d = startOfDay(parsed);
     const today = startOfDay(new Date());
     const yesterday = startOfDay(new Date());
     yesterday.setDate(today.getDate() - 1);
-    const beforeYesterday = startOfDay(new Date());
-    beforeYesterday.setDate(today.getDate() - 2);
 
-    if (sameDay(d, today)) return "bg-emerald-100 text-emerald-800 border border-emerald-300/80";
-    if (sameDay(d, yesterday)) return "bg-blue-100 text-blue-800 border border-blue-300/80";
-    if (sameDay(d, beforeYesterday)) return "bg-amber-100 text-amber-800 border border-amber-300/80";
-    return "bg-red-100 text-red-800 border border-red-200";
+    if (sameDay(d, today)) return "bg-green-200 text-green-800";
+    if (sameDay(d, yesterday)) return "bg-yellow-200 text-yellow-800";
+    return "bg-red-200 text-red-800";
   };
 
   // Fetch agencies for admin report selector
