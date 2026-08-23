@@ -796,7 +796,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       {/* Cards View */}
       {viewMode === "card" ? (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {paginatedTickets.map(ticket => {
+          {paginatedTickets.map((ticket, idx) => {
             const isFullyClosed = ticket.physicalStatus === "rectified" && (ticket.adminStatus === "po_done" || ticket.adminStatus === "not_required")
             const isSiteRectified = ticket.physicalStatus === "rectified"
             const rawImage = ticket.afterImageUrl || ticket.beforeImageUrl || ticket.drawingUrl
@@ -804,7 +804,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
             const canEdit = isAdmin || ticket.physicalStatus === "pending"
 
             return (
-              <Card key={ticket.safetyId} className="shadow-sm hover:shadow-md transition-shadow overflow-hidden border-slate-200 flex flex-col justify-between rounded-xl">
+              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className="shadow-sm hover:shadow-md transition-shadow overflow-hidden border-slate-200 flex flex-col justify-between rounded-xl">
                 <div>
                   {/* Card Header */}
                   <CardHeader className="pb-2 p-3 bg-slate-50 border-b">
@@ -982,10 +982,10 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {paginatedTickets.map(t => {
+                {paginatedTickets.map((t, idx) => {
                   const canEditList = isAdmin || t.physicalStatus === "pending"
                   return (
-                    <tr key={t.safetyId} className="hover:bg-slate-50">
+                    <tr key={`${t.safetyId || "safety"}-${idx}`} className="hover:bg-slate-50">
                       <td className="px-3 py-2">
                         <div className="font-mono font-bold text-slate-900">{t.safetyId}</div>
                         <div className="text-[10px] text-slate-500">{t.reportedDate}</div>
