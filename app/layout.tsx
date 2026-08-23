@@ -5,7 +5,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Disconnection Management',
-  description: 'Created with love by Pramod Verma',
+  description: 'Disconnection Management System',
   generator: 'v0.2',
   icons: {
     icon: '/favicon.ico',

@@ -85,7 +85,24 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   const [records, setRecords] = useState<ReconnectionRequest[]>([])
   const [syncState, setSyncState] = useState<SyncState>("loading")
   const [tab, setTab] = useState<Tab>("pending")
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("module_search_term")
+      if (saved) {
+        sessionStorage.removeItem("module_search_term")
+        return saved
+      }
+    }
+    return ""
+  })
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.searchTerm) setSearch(e.detail.searchTerm)
+    }
+    window.addEventListener("set_module_search" as any, handler)
+    return () => window.removeEventListener("set_module_search" as any, handler)
+  }, [])
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useHashState<"list" | "create" | "update">("reconnection", "list")
   const [selected, setSelected] = useState<ReconnectionRequest | null>(null)

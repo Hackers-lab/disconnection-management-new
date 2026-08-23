@@ -118,7 +118,24 @@ export function IcdsList({
   const [clearSubmitting, setClearSubmitting] = useState(false)
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("module_search_term")
+      if (saved) {
+        sessionStorage.removeItem("module_search_term")
+        return saved
+      }
+    }
+    return ""
+  })
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.searchTerm) setSearchTerm(e.detail.searchTerm)
+    }
+    window.addEventListener("set_module_search" as any, handler)
+    return () => window.removeEventListener("set_module_search" as any, handler)
+  }, [])
   const [selectedBlock, setSelectedBlock] = useState("all")
   const [selectedGp, setSelectedGp] = useState("all")
   const [selectedAgency, setSelectedAgency] = useState("all")

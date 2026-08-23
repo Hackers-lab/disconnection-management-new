@@ -57,12 +57,31 @@ export async function createSession(userId: string, username: string, role: stri
     sameSite: "lax",
     path: "/",
   })
+
+  // Set username and userRole cookies (non-httpOnly) for client-side IndexedDB cache scoping
+  cookieStore.set("username", username.toLowerCase(), {
+    httpOnly: false,
+    secure: isProduction,
+    expires: expiresAt,
+    sameSite: "lax",
+    path: "/",
+  })
+
+  cookieStore.set("userRole", role.toLowerCase(), {
+    httpOnly: false,
+    secure: isProduction,
+    expires: expiresAt,
+    sameSite: "lax",
+    path: "/",
+  })
 }
 
 export async function deleteSession() {
   const cookieStore = await cookies()
   cookieStore.delete({ name: "session", path: "/" })
   cookieStore.delete({ name: "cccCode", path: "/" })
+  cookieStore.delete({ name: "username", path: "/" })
+  cookieStore.delete({ name: "userRole", path: "/" })
 }
 
 export async function verifySession() {
