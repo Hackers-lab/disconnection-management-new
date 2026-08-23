@@ -936,10 +936,10 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                         onSelect(module.id as ViewType)
                       }}
-                      className="rounded-2xl border border-red-300/90 bg-red-50/20 hover:bg-red-50/40 p-3.5 flex items-center justify-between shadow-2xs cursor-pointer transition-all duration-200"
+                      className="rounded-2xl border border-red-500/20 hover:border-red-500/35 bg-gradient-to-b from-white via-red-50/20 to-red-50/40 p-3.5 flex items-center justify-between shadow-[0_4px_14px_rgba(239,68,68,0.08),0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_22px_rgba(239,68,68,0.14)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-[10px] bg-red-100/80 flex items-center justify-center text-red-600 shrink-0 shadow-2xs">
+                        <div className="w-10 h-10 rounded-[10px] bg-red-50 border border-red-200/80 flex items-center justify-center text-red-600 shrink-0 shadow-xs">
                           <Icon className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
@@ -951,7 +951,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                           </p>
                         </div>
                       </div>
-                      <div className="px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold shrink-0 ml-2">
+                      <div className="px-3 py-1 rounded-full bg-red-100/90 text-red-800 border border-red-200/80 text-xs font-bold shrink-0 ml-2 shadow-xs">
                         {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.count.toLocaleString()}
                       </div>
                     </div>
@@ -978,12 +978,6 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                 const isWarning = module.count >= WARNING_THRESHOLD && module.count < ATTENTION_THRESHOLD
                 const isDanger = module.count >= ATTENTION_THRESHOLD
 
-                const borderClass = isDanger
-                  ? "border-red-400/90 shadow-red-500/5"
-                  : isWarning
-                    ? "border-amber-400/90 shadow-amber-500/5"
-                    : "border-slate-200/90"
-
                 const pillStyleClass = isDanger
                   ? "bg-red-100/90 text-red-800 border-red-200/80 shadow-xs"
                   : isWarning
@@ -997,11 +991,11 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                       onSelect(module.id as ViewType)
                     }}
-                    className={`group relative cursor-pointer transition-all duration-200 hover:shadow-md rounded-2xl bg-white border ${borderClass} p-3.5 flex flex-col justify-between min-h-[96px] select-none`}
+                    className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.20] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] select-none"
                   >
                     {/* Top Row: Icon (Top-Left) + Shadowed Pill Count Badge (Top-Right) */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className={`w-10 h-10 rounded-[10px] ${module.bgColor} border border-slate-100 flex items-center justify-center ${module.color} shrink-0 shadow-2xs`}>
+                      <div className={`w-10 h-10 rounded-[10px] ${module.bgColor} border border-black/[0.04] flex items-center justify-center ${module.color} shrink-0 shadow-2xs`}>
                         <Icon className="h-5 w-5" />
                       </div>
 
@@ -1062,7 +1056,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
               return (
                 <Card
                   key={module.id}
-                  className={`group relative cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1.5 border border-slate-200/90 bg-white/80 backdrop-blur-xl rounded-2xl ${module.borderColor} overflow-hidden`}
+                  className="group relative cursor-pointer transition-all duration-300 hover:-translate-y-1.5 border border-black/[0.08] hover:border-black/[0.22] bg-white/85 backdrop-blur-xl rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden"
                   onClick={() => {
                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                     onSelect(module.id as ViewType)
