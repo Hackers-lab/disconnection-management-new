@@ -886,6 +886,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     ? (userAgencies.length === 1 ? userAgencies[0] : `${userAgencies[0]} (+${userAgencies.length - 1})`)
     : null;
   const cccCode = profileData?.cccCode || (typeof window !== "undefined" ? localStorage.getItem("user_ccc_code") : "") || "";
+  const loginDisplayName = profileData?.name || profileData?.username || displayAgencyName || (typeof window !== "undefined" ? localStorage.getItem("user_username") : "") || userRole;
 
   return (
     <header className="bg-white shadow sticky top-0 z-50">
@@ -922,18 +923,22 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
                 setActiveView("profile")
               }}
-              className="flex items-center gap-1.5 text-xs text-blue-900 bg-gradient-to-r from-blue-50/90 to-indigo-50/90 hover:from-blue-100 hover:to-indigo-100 px-3 py-1.5 rounded-full border border-blue-200 cursor-pointer transition-colors shadow-xs"
-              title={`Office Supply (CCC): ${cccCode || "Default"} | User/Agency: ${displayAgencyName || userRole}`}
+              className="flex items-center gap-2 text-right hover:bg-slate-100/80 px-2 py-1 rounded-xl cursor-pointer transition-all select-none"
+              title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}`}
             >
-              <Building2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-              {cccCode ? (
-                <span className="font-extrabold text-indigo-950 uppercase tracking-tight text-[11px] bg-indigo-200/70 px-1.5 py-0.5 rounded border border-indigo-300/50">
-                  {cccCode}
+              <div className="flex flex-col justify-center items-end text-right min-w-0">
+                <span className="text-[11px] font-bold text-slate-900 capitalize truncate max-w-[105px] sm:max-w-[140px] leading-tight">
+                  {loginDisplayName}
                 </span>
-              ) : null}
-              <span className="capitalize truncate max-w-[110px] font-semibold text-slate-700">
-                {displayAgencyName || userRole}
-              </span>
+                {cccCode && (
+                  <span className="text-[9px] font-semibold text-blue-700/90 uppercase tracking-wider leading-tight mt-0.5">
+                    {cccCode}
+                  </span>
+                )}
+              </div>
+              <div className="w-7 h-7 rounded-full bg-blue-100/90 flex items-center justify-center text-blue-600 shrink-0">
+                <User className="h-4 w-4 text-blue-600" />
+              </div>
             </div>
 
             {/* --- DESKTOP VIEW (Hidden on Mobile) --- */}
