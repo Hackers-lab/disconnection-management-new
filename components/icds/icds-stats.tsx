@@ -162,7 +162,7 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
       badgeColor: "bg-blue-100 text-blue-800",
     },
     {
-      title: "Pending Inspection",
+      title: "Pending",
       count: pending.length,
       records: pending,
       color: "border-amber-200 text-amber-800 bg-amber-50/40 hover:bg-amber-50/80",
@@ -221,8 +221,8 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
       >
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-blue-600" />
-          <span className="font-extrabold text-slate-900 text-xs sm:text-sm">
-            Dashboard
+          <span className="font-black text-xs sm:text-sm uppercase tracking-wider text-slate-900">
+            Analytics & KPI Dashboard
           </span>
         </div>
 
@@ -237,8 +237,8 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
           {/* Clickable Category Cards */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Click any metric card below to download filtered Excel report (.xlsx)
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                Click any metric card to download filtered Excel report (.xlsx)
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
@@ -250,12 +250,12 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
                   title={`Click to export ${card.title} records to Excel`}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <span className="text-[11px] font-bold leading-tight">{card.title}</span>
+                    <span className="text-[11px] font-extrabold uppercase tracking-wide leading-tight">{card.title}</span>
                     <Download className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
                   </div>
                   <div className="flex items-baseline justify-between mt-2">
-                    <span className="text-2xl font-black">{card.count}</span>
-                    <span className="text-[10px] font-semibold opacity-70 group-hover:underline">Export ↗</span>
+                    <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight">{card.count}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider opacity-70 group-hover:underline">Export ↗</span>
                   </div>
                 </div>
               ))}
@@ -265,36 +265,36 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
           {/* Compact Agency-wise Performance Table */}
           <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden">
             <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-indigo-600" />
-                Agency Performance Summary ({agencyMetrics.length} Contractors)
+                Agency Performance Matrix ({agencyMetrics.length} Contractors)
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">Real-time breakdown</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Live</span>
             </div>
 
             <div className="overflow-x-auto max-h-60 overflow-y-auto">
               <Table>
-                <TableHeader className="bg-slate-50/80 sticky top-0 z-10 text-[11px]">
+                <TableHeader className="bg-slate-50/80 sticky top-0 z-10 text-[10px]">
                   <TableRow>
-                    <TableHead className="py-2 text-xs font-bold">Agency Name</TableHead>
-                    <TableHead className="py-2 text-xs text-center font-bold">Assigned</TableHead>
-                    <TableHead className="py-2 text-xs text-center font-bold">Inspected</TableHead>
-                    <TableHead className="py-2 text-xs text-center font-bold">Meter Exists</TableHead>
-                    <TableHead className="py-2 text-xs text-center font-bold">Wiring Done</TableHead>
-                    <TableHead className="py-2 text-xs text-center font-bold">Certified</TableHead>
-                    <TableHead className="py-2 text-xs text-right pr-4 font-bold">Progress</TableHead>
+                    <TableHead className="py-2 font-bold uppercase tracking-wider text-slate-600">Agency Name</TableHead>
+                    <TableHead className="py-2 text-center font-bold uppercase tracking-wider text-slate-600">Assigned</TableHead>
+                    <TableHead className="py-2 text-center font-bold uppercase tracking-wider text-slate-600">Inspected</TableHead>
+                    <TableHead className="py-2 text-center font-bold uppercase tracking-wider text-slate-600">Meter Exists</TableHead>
+                    <TableHead className="py-2 text-center font-bold uppercase tracking-wider text-slate-600">Wiring Done</TableHead>
+                    <TableHead className="py-2 text-center font-bold uppercase tracking-wider text-slate-600">Certified</TableHead>
+                    <TableHead className="py-2 text-right pr-4 font-bold uppercase tracking-wider text-slate-600">Progress</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody className="text-xs">
+                <TableBody className="text-xs font-mono">
                   {agencyMetrics.map((m) => (
                     <TableRow key={m.agency} className="hover:bg-slate-50/60">
-                      <TableCell className="font-bold py-2 text-slate-800">{m.agency}</TableCell>
-                      <TableCell className="text-center font-semibold">{m.totalAllocated}</TableCell>
-                      <TableCell className="text-center text-amber-700 font-semibold">{m.inspected}</TableCell>
-                      <TableCell className="text-center text-indigo-700 font-semibold">{m.metersInstalled}</TableCell>
-                      <TableCell className="text-center text-teal-700 font-semibold">{m.equipmentInstalled}</TableCell>
-                      <TableCell className="text-center text-emerald-700 font-bold">{m.completed}</TableCell>
-                      <TableCell className="text-right pr-4 font-bold text-emerald-700">
+                      <TableCell className="font-sans font-extrabold uppercase py-2 text-slate-900">{m.agency}</TableCell>
+                      <TableCell className="text-center font-bold text-slate-800">{m.totalAllocated}</TableCell>
+                      <TableCell className="text-center text-amber-700 font-bold">{m.inspected}</TableCell>
+                      <TableCell className="text-center text-indigo-700 font-bold">{m.metersInstalled}</TableCell>
+                      <TableCell className="text-center text-teal-700 font-bold">{m.equipmentInstalled}</TableCell>
+                      <TableCell className="text-center text-emerald-700 font-black">{m.completed}</TableCell>
+                      <TableCell className="text-right pr-4 font-sans font-bold text-emerald-700">
                         <div className="flex items-center justify-end gap-1.5">
                           <div className="w-12 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div className="bg-emerald-600 h-full" style={{ width: `${Math.min(m.completionRate, 100)}%` }} />

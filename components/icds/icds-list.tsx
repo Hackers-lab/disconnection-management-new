@@ -443,7 +443,7 @@ export function IcdsList({
   const getStageBadge = (stage: IcdsStage) => {
     switch (stage) {
       case "PENDING_INSPECTION":
-        return <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-2.5 py-0.5">Pending Inspection</Badge>
+        return <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-2.5 py-0.5">Pending</Badge>
       case "INSPECTED":
         return <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-2.5 py-0.5">Inspected</Badge>
       case "APPLICATION_PENDING":
@@ -740,7 +740,7 @@ export function IcdsList({
                 <div className="flex items-start justify-between w-full gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight font-semibold text-slate-900">
+                      <CardTitle className="text-base sm:text-lg break-words whitespace-normal line-clamp-2 leading-tight font-black uppercase tracking-wide text-slate-900">
                         {r.awcName}
                       </CardTitle>
                       {canEditMaster && (
@@ -754,14 +754,16 @@ export function IcdsList({
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <p className="text-sm text-gray-600 font-mono">Code: {r.awcCode}</p>
+                      <p className="text-xs sm:text-sm text-gray-600 font-mono uppercase tracking-wider font-semibold">
+                        CODE: {r.awcCode}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                      <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em] bg-slate-50 text-slate-700">
+                      <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider bg-slate-50 text-slate-700">
                         {r.blockName} • {r.gpName}
                       </Badge>
                       {r.propertyStatus && (
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em] bg-blue-50/70 text-blue-700 border-blue-200">
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider bg-blue-50/80 text-blue-700 border-blue-200">
                           {r.propertyStatus.replace("_", " ")}
                         </Badge>
                       )}
@@ -770,7 +772,7 @@ export function IcdsList({
 
                   <div className="flex flex-col items-end space-y-1 shrink-0">
                     {getStageBadge(r.stage)}
-                    <Badge variant="outline" className="text-xs max-w-[130px] truncate block" title={r.assignedAgency || "Unassigned"}>
+                    <Badge variant="outline" className="text-xs uppercase font-bold tracking-wider max-w-[130px] truncate block" title={r.assignedAgency || "Unassigned"}>
                       {r.assignedAgency || "Unassigned"}
                     </Badge>
                   </div>
@@ -781,7 +783,7 @@ export function IcdsList({
                 {/* Address */}
                 <div className="flex items-start space-x-2 min-w-0">
                   <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-gray-600 line-clamp-2" title={r.awcAddress || `${r.blockName}, ${r.gpName}`}>
+                  <p className="text-xs sm:text-sm text-gray-600 line-clamp-2 uppercase font-medium" title={r.awcAddress || `${r.blockName}, ${r.gpName}`}>
                     {r.awcAddress || `${r.blockName}, ${r.gpName}`}
                   </p>
                 </div>
@@ -790,14 +792,14 @@ export function IcdsList({
                 {r.awwMobile ? (
                   <a href={`tel:${r.awwMobile}`} className="flex items-center space-x-2 hover:underline">
                     <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <p className="text-sm text-blue-600 font-medium">
-                      {r.awwName ? `${r.awwName} (${r.awwMobile})` : r.awwMobile}
+                    <p className="text-xs sm:text-sm text-blue-600 font-bold uppercase tracking-wide font-mono">
+                      {r.awwName ? `${r.awwName.toUpperCase()} (${r.awwMobile})` : r.awwMobile}
                     </p>
                   </a>
                 ) : r.awwName ? (
                   <div className="flex items-center space-x-2">
                     <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <p className="text-sm text-gray-600">{r.awwName}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 uppercase font-semibold">{r.awwName}</p>
                   </div>
                 ) : null}
 
@@ -806,16 +808,16 @@ export function IcdsList({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-1.5">
                       <Zap className={"h-4 w-4 shrink-0 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-amber-500")} />
-                      <span className="text-sm font-bold text-slate-800">
+                      <span className="text-xs sm:text-sm font-bold uppercase tracking-tight text-slate-800">
                         {r.smartMeterNo ? `Smart Meter: ${r.smartMeterNo}` : (r.meterExists ? "Meter Exists" : "Un-electrified Center")}
                       </span>
                     </div>
                     {r.jurisdictionStatus === "OTHER_OFFICE" ? (
-                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
                         Other CCC
                       </span>
                     ) : (
-                      <span className="text-[11px] font-semibold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
                         {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct Line"}
                       </span>
                     )}
@@ -823,14 +825,14 @@ export function IcdsList({
 
                   <div className="grid grid-cols-2 gap-2 pt-1.5 text-xs border-t border-slate-200/60 font-medium">
                     <div>
-                      <span className="block text-[10px] text-gray-400 uppercase tracking-wider">Wiring Package</span>
-                      <span className="text-slate-700 font-semibold">
+                      <span className="block text-[10px] text-gray-500 uppercase tracking-widest font-bold">Wiring Package</span>
+                      <span className="text-xs font-bold uppercase text-slate-700">
                         {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-gray-400 uppercase tracking-wider">Work Order / App</span>
-                      <span className="font-mono text-slate-700 font-semibold truncate block" title={r.workOrderNo || r.officialApplicationNo}>
+                      <span className="block text-[10px] text-gray-500 uppercase tracking-widest font-bold">Work Order / App</span>
+                      <span className="font-mono text-xs font-bold uppercase text-slate-700 truncate block" title={r.workOrderNo || r.officialApplicationNo}>
                         {r.workOrderNo ? `WO: ${r.workOrderNo}` : (r.officialApplicationNo ? `App: ${r.officialApplicationNo}` : "Pending")}
                       </span>
                     </div>
@@ -844,14 +846,14 @@ export function IcdsList({
                   size="sm"
                   variant="outline"
                   onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                  className="h-8 px-2.5 text-xs font-semibold text-gray-700 hover:text-slate-900 rounded-lg hover:bg-white"
+                  className="h-8 px-2.5 text-xs font-bold uppercase tracking-wider text-gray-700 hover:text-slate-900 rounded-lg hover:bg-white"
                 >
                   <Eye className="h-3.5 w-3.5 mr-1" /> Details
                 </Button>
 
                 {/* Primary Action Button Based on Current Flow Stage */}
                 {r.jurisdictionStatus === "OTHER_OFFICE" ? (
-                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200 shadow-xs">
+                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200 shadow-xs uppercase">
                     Other CCC: {r.jurisdictionOffice || "Adjacent"}
                   </Badge>
                 ) : r.stage === "PENDING_INSPECTION" ? (
@@ -859,14 +861,14 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                      className="h-8 px-3 text-xs font-bold uppercase tracking-wider rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" />
                       Inspect
                     </Button>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-amber-700 bg-amber-50 border-amber-200">
-                      Pending Inspection
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-amber-700 bg-amber-50 border-amber-200 uppercase tracking-wider">
+                      Pending
                     </Badge>
                   )
                 ) : r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" ? (
@@ -874,14 +876,14 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                      className="h-8 px-3 text-xs font-bold uppercase tracking-wider rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <FileText className="h-3.5 w-3.5 mr-1.5" />
                       Admin CRM / WO
                     </Button>
                   ) : (
-                    <Badge variant="outline" className="text-[11px] font-bold py-1 px-2.5 text-indigo-700 bg-indigo-50 border-indigo-200">
-                      <Clock className="h-3 w-3 mr-1 animate-pulse" /> Awaiting Admin WO
+                    <Badge variant="outline" className="text-[11px] font-bold py-1 px-2.5 text-indigo-700 bg-indigo-50 border-indigo-200 uppercase tracking-wider">
+                      <Clock className="h-3 w-3 mr-1 animate-pulse" /> Awaiting WO
                     </Badge>
                   )
                 ) : r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED" ? (
@@ -889,13 +891,13 @@ export function IcdsList({
                     <Button
                       size="sm"
                       onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                      className="h-8 px-3 text-xs font-bold uppercase tracking-wider rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
                     >
                       <Zap className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
                       Execute & Certify
                     </Button>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-purple-700 bg-purple-50 border-purple-200">
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-purple-700 bg-purple-50 border-purple-200 uppercase tracking-wider">
                       WO Issued
                     </Badge>
                   )
@@ -904,7 +906,7 @@ export function IcdsList({
                     size="sm"
                     variant="outline"
                     onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                    className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 shadow-sm"
+                    className="h-8 px-3 text-xs font-bold uppercase tracking-wider rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 shadow-sm"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
                     Certified
