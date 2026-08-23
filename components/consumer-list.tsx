@@ -145,8 +145,25 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const [isPending, startTransition] = useTransition()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
   const [selectedConsumer, setSelectedConsumer] = useState<ConsumerData | null>(null)
+  const [searchTerm, setSearchTerm] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("module_search_term")
+      if (saved) {
+        sessionStorage.removeItem("module_search_term")
+        return saved
+      }
+    }
+    return ""
+  })
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.searchTerm) setSearchTerm(e.detail.searchTerm)
+    }
+    window.addEventListener("set_module_search" as any, handler)
+    return () => window.removeEventListener("set_module_search" as any, handler)
+  }, [])
   const [currentPage, setCurrentPage] = useState(1)
   const [minOsd, setMinOsd] = useState(0)
   const [showFilters, setShowFilters] = useState(userRole === "test")

@@ -165,7 +165,7 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
   // Ensure meter_replacement default fallback if not explicitly defined in perms
   if (!expanded.meter_replacement || expanded.meter_replacement.length === 0) {
     if (isAgency) {
-      expanded.meter_replacement = ["read", "install"]
+      expanded.meter_replacement = []
     } else if (isAdminOrExec) {
       expanded.meter_replacement = ["read", "create", "update", "delete", "issue", "install", "return", "finalize"]
     } else if (roleLower === "viewer") {

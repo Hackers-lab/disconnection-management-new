@@ -6,12 +6,13 @@ interface VisitorLiveCounterProps {
   className?: string
   activeModule?: string
   action?: string
+  showUi?: boolean
+  showLiveUsers?: boolean
 }
 
-export function VisitorLiveCounter({ className = "", activeModule, action }: VisitorLiveCounterProps) {
+export function VisitorLiveCounter({ className = "", activeModule, action, showUi = true, showLiveUsers = false }: VisitorLiveCounterProps) {
   const [stats, setStats] = useState<{ totalVisitors: number; liveUsers: number } | null>(null)
   const cidRef = useRef<string>("")
-  const lastPingRef = useRef<number>(0)
 
   useEffect(() => {
     // 1. Get or generate persistent client ID
@@ -38,14 +39,14 @@ export function VisitorLiveCounter({ className = "", activeModule, action }: Vis
       isNewVisit = false
     }
 
-    // 3. Heartbeat fetch function
-    const sendHeartbeat = async (initial = false) => {
+    // 3. Single fetch for visitor count (no repeated interval polling)
+    const fetchVisitCount = async () => {
       try {
-        const initParam = initial && isNewVisit ? "&init=1" : ""
+        const initParam = isNewVisit ? "&init=1" : ""
         const modParam = activeModule ? `&module=${encodeURIComponent(activeModule)}` : ""
         const actParam = action ? `&action=${encodeURIComponent(action)}` : ""
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 2500)
+        const timeoutId = setTimeout(() => controller.abort(), 3000)
         const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}${modParam}${actParam}`, {
           cache: "no-store",
           signal: controller.signal,
@@ -57,48 +58,15 @@ export function VisitorLiveCounter({ className = "", activeModule, action }: Vis
             setStats(data)
           }
         }
-        lastPingRef.current = Date.now()
       } catch {
         // Silently ignore network failures
       }
     }
 
-    // Initial or module change ping
-    sendHeartbeat(true)
+    fetchVisitCount()
+  }, [activeModule, action])
 
-    // 4. Periodic heartbeat interval (every 180 seconds / 3 min while tab is active)
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        sendHeartbeat(false)
-      }
-    }, 180_000)
-
-    // 5. Visibility change listener: ping only if returning after > 2 minutes
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        if (Date.now() - lastPingRef.current > 120_000) {
-          sendHeartbeat(false)
-        }
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    // 6. Cleanup on unload / tab close using sendBeacon
-    const handleUnload = () => {
-      if (typeof navigator !== "undefined" && navigator.sendBeacon && cidRef.current) {
-        navigator.sendBeacon("/api/system/presence", JSON.stringify({ cid: cidRef.current }))
-      }
-    }
-    window.addEventListener("pagehide", handleUnload)
-    window.addEventListener("beforeunload", handleUnload)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-      window.removeEventListener("pagehide", handleUnload)
-      window.removeEventListener("beforeunload", handleUnload)
-    }
-  }, [])
+  if (!showUi) return null
 
   // If not loaded yet, show a clean placeholder or fallback
   const total = stats ? stats.totalVisitors.toLocaleString() : "..."
@@ -111,7 +79,8 @@ export function VisitorLiveCounter({ className = "", activeModule, action }: Vis
         className
       }
     >
-      Total Visits: {total} • Live Users: {live}
+      Total Visits: {total}
+      {showLiveUsers && ` • Live Users: ${live}`}
     </div>
   )
 }

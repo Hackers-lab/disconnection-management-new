@@ -19,14 +19,6 @@ export default function LoginPage() {
         </div>
 
         <LoginForm />
-
-        {/* Minimal Right-to-Left Real User Feedback Ticker */}
-        <div className="pt-1">
-          <LoginFeedbackCarousel />
-        </div>
-
-        {/* Real-time Visitor Count & Live Users */}
-        <VisitorLiveCounter className="pt-1 text-slate-500/80" />
       </div>
     </div>
   )

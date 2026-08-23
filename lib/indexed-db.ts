@@ -19,6 +19,7 @@ export function getCccPrefix(): string {
   if (typeof window === "undefined") return ""
   let ccc = ""
   let user = ""
+  let role = ""
 
   try {
     const matchCcc = document.cookie.match(/(^|;)\s*cccCode\s*=\s*([^;]+)/)
@@ -26,14 +27,19 @@ export function getCccPrefix(): string {
   } catch (e) {}
   if (!ccc) {
     try {
-      const local = localStorage.getItem("user_ccc_code")
+      const local = localStorage.getItem("user_ccc_code") || sessionStorage.getItem("user_ccc_code")
       if (local) ccc = local.trim()
     } catch (e) {}
   }
-  if (!ccc) {
+
+  try {
+    const matchRole = document.cookie.match(/(^|;)\s*userRole\s*=\s*([^;]+)/)
+    if (matchRole) role = decodeURIComponent(matchRole[2]).trim().toLowerCase()
+  } catch (e) {}
+  if (!role) {
     try {
-      const session = sessionStorage.getItem("user_ccc_code")
-      if (session) ccc = session.trim()
+      const localRole = localStorage.getItem("user_role") || sessionStorage.getItem("user_permissions_role")
+      if (localRole) role = localRole.trim().toLowerCase()
     } catch (e) {}
   }
 
@@ -43,14 +49,17 @@ export function getCccPrefix(): string {
   } catch (e) {}
   if (!user) {
     try {
-      const localUser = localStorage.getItem("user_username")
+      const localUser = localStorage.getItem("user_username") || sessionStorage.getItem("user_username")
       if (localUser) user = localUser.trim().toLowerCase()
     } catch (e) {}
   }
 
-  if (ccc && user) return `${ccc}_${user}`
+  const isAdminOrExec = role === "admin" || role === "superuser" || role === "executive"
+  const userTag = isAdminOrExec ? "admin" : user || "default"
+
+  if (ccc && userTag) return `${ccc}_${userTag}`
   if (ccc) return ccc
-  if (user) return user
+  if (userTag) return userTag
   return ""
 }
 

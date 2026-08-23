@@ -94,7 +94,7 @@ const DEFAULT_ROLES: RolePermissions[] = [
     nsc: ["read", "inspect", "agency_complete"],
     consumer_master: ["read"],
     admin: [],
-    meter_replacement: ["read", "install"],
+    meter_replacement: [],
     dtr_painting: ["read", "update"],
     material: ["read", "update", "receive", "issue", "stock"],
     osd: ["read", "download"],

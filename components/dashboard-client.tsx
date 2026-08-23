@@ -222,15 +222,19 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   useEffect(() => {
     let active = true
 
-    // Load cached permissions from sessionStorage
+    // Load cached permissions from sessionStorage only if role matches
     try {
+      const cachedRole = sessionStorage.getItem("user_permissions_role")
       const cached = sessionStorage.getItem("user_permissions")
-      if (cached) {
+      if (cached && cachedRole === role) {
         const parsed = JSON.parse(cached)
         if (parsed) {
           setPermissions(parsed)
           setPermsLoaded(true)
         }
+      } else {
+        sessionStorage.removeItem("user_permissions")
+        sessionStorage.removeItem("user_permissions_role")
       }
     } catch (e) {
       console.error("Failed to read permissions from sessionStorage", e)
@@ -244,6 +248,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             setPermissions(data.permissions)
             try {
               sessionStorage.setItem("user_permissions", JSON.stringify(data.permissions))
+              sessionStorage.setItem("user_permissions_role", role)
             } catch (e) {
               console.error("Failed to save permissions to sessionStorage", e)
             }
@@ -257,6 +262,8 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             try {
               localStorage.setItem("user_ccc_code", data.cccCode || "")
               sessionStorage.setItem("user_ccc_code", data.cccCode || "")
+              localStorage.setItem("user_role", role.toLowerCase())
+              sessionStorage.setItem("user_role", role.toLowerCase())
               if (data.username) {
                 localStorage.setItem("user_username", data.username.toLowerCase())
                 sessionStorage.setItem("user_username", data.username.toLowerCase())

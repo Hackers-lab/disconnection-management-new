@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -45,18 +45,29 @@ interface OsdDetailsData {
 interface OsdDetailsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialConsumerId?: string
 }
 
-export function OsdDetailsDialog({ open, onOpenChange }: OsdDetailsDialogProps) {
-  const [consumerId, setConsumerId] = useState("")
+export function OsdDetailsDialog({ open, onOpenChange, initialConsumerId }: OsdDetailsDialogProps) {
+  const [consumerId, setConsumerId] = useState(initialConsumerId || "")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<OsdDetailsData | null>(null)
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  useEffect(() => {
+    if (open) {
+      if (initialConsumerId) {
+        setConsumerId(initialConsumerId)
+        fetchOsdDetails(initialConsumerId)
+      } else {
+        setError(null)
+        setData(null)
+      }
+    }
+  }, [open, initialConsumerId])
 
-    const cleanId = consumerId.trim()
+  const fetchOsdDetails = async (idToSearch: string) => {
+    const cleanId = idToSearch.trim()
     if (!cleanId) {
       setError("Please enter a 9-digit Consumer ID")
       return
@@ -96,6 +107,12 @@ export function OsdDetailsDialog({ open, onOpenChange }: OsdDetailsDialogProps) 
       setLoading(false)
     }
   }
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    fetchOsdDetails(consumerId)
+  }
+
 
   const handleDownloadPdf = () => {
     if (!data?.pdfBase64) return

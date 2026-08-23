@@ -22,8 +22,10 @@ import {
   Package,
   FileCheck2,
   ShieldAlert,
-  Building2
+  Building2,
+  Calendar
 } from "lucide-react"
+import { GlobalConsumerSearch } from "@/components/global-consumer-search"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
@@ -38,6 +40,7 @@ interface DashboardMenuProps {
 }
 
 export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissions }: DashboardMenuProps) {
+  const [latestUpdateDate, setLatestUpdateDate] = useState<string>("")
   const [pendingCount, setPendingCount] = useState<number>(0)
   const [ddPendingCount, setDdPendingCount] = useState<number>(0)
   const [reconnectionPendingCount, setReconnectionPendingCount] = useState<number>(0)
@@ -51,7 +54,6 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [miscPendingCount, setMiscPendingCount] = useState<number>(0)
   const [icdsPendingCount, setIcdsPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
-  const [showDevModal, setShowDevModal] = useState(false)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({
     safety: true,
     "misc-inspection": true,
@@ -67,6 +69,61 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     material: true,
     "consumer-master": true,
   })
+
+  // Helper to scan all local module caches and find the latest update date
+  const refreshGlobalLatestDate = async () => {
+    try {
+      let maxTs = 0
+      let maxDateStr = ""
+
+      const scanList = (items: any[], dateKeys: string[]) => {
+        if (!Array.isArray(items)) return
+        for (const item of items) {
+          for (const k of dateKeys) {
+            const val = item[k]
+            if (val && typeof val === "string") {
+              const ts = parseTs(val)
+              // Only consider valid timestamps (up to tomorrow in ms)
+              if (ts > 0 && ts <= Date.now() + 86400000 && ts > maxTs) {
+                maxTs = ts
+                const d = new Date(ts)
+                const pad = (n: number) => String(n).padStart(2, "0")
+                maxDateStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
+              }
+            }
+          }
+        }
+      }
+
+      const [consumers, recon, dd, icds, safety, misc, nsc, meterRep, dtr] = await Promise.all([
+        getFromCache<any[]>("consumers_data_cache"),
+        getFromCache<any[]>("reconnection_data_cache"),
+        getFromCache<any[]>("dd_data_cache"),
+        getFromCache<any[]>("icds_data_cache"),
+        getFromCache<any[]>("safety_data_cache"),
+        getFromCache<any[]>("misc_inspection_cache"),
+        getFromCache<any[]>("nsc_data_cache"),
+        getFromCache<any[]>("meter_replacement_data_cache"),
+        getFromCache<any[]>("dtr_data_cache"),
+      ])
+
+      scanList(consumers, ["disconDate", "uploadDate", "lastUpdated"])
+      scanList(recon, ["reconDate", "lastUpdated", "date"])
+      scanList(dd, ["visitDate", "lastUpdated", "date"])
+      scanList(icds, ["updatedAt", "inspectionDate", "completionDate", "lastUpdated"])
+      scanList(safety, ["updatedAt", "rectifiedDate", "lastUpdated"])
+      scanList(misc, ["updatedAt", "inspectionDate", "lastUpdated"])
+      scanList(nsc, ["inspectionDate", "completedDate", "lastUpdated"])
+      scanList(meterRep, ["updatedAt", "installationDate", "lastUpdated"])
+      scanList(dtr, ["verificationDate", "lastUpdated"])
+
+      if (maxDateStr) {
+        setLatestUpdateDate(maxDateStr)
+      }
+    } catch (err) {
+      console.error("Failed to compute latest global update date:", err)
+    }
+  }
 
   const modules = [
     {
@@ -198,7 +255,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       color: "text-indigo-600",
       bgColor: "bg-indigo-50",
       borderColor: "hover:border-indigo-400 hover:shadow-indigo-500/10",
-      allowed: ["admin", "executive", "agency"],
+      allowed: ["admin", "executive"],
       status: "live"
     },
     {
@@ -389,6 +446,26 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           }
 
           if (!data) data = []
+
+          // Compute most recent update date
+          if (data.length > 0) {
+            let maxTs = 0
+            let maxDateStr = ""
+            for (const c of data) {
+              const dStr = c.disconDate || c.uploadDate || c.lastUpdated
+              if (dStr && typeof dStr === "string") {
+                const ts = parseTs(dStr)
+                if (ts > maxTs) {
+                  maxTs = ts
+                  maxDateStr = dStr
+                }
+              }
+            }
+            if (maxDateStr) {
+              setLatestUpdateDate(maxDateStr)
+            }
+          }
+
           const count = data.filter(c => {
             const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
             if (!isConnected) return false
@@ -778,7 +855,10 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             setDtrPaintingPendingCount(paintingPending)
           }
         }
+        await refreshGlobalLatestDate()
       }
+
+      await refreshGlobalLatestDate()
 
       window.addEventListener("badge_cache_updated", handleCacheUpdate)
       return () => {
@@ -790,45 +870,208 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
   const totalPendingActionCount = pendingCount + reconnectionPendingCount + ddPendingCount + safetyPendingCount + dtrPendingCount + replacementPendingCount + icdsPendingCount
 
+
+  // Configurable thresholds for dynamic severity and attention surface
+  const ATTENTION_THRESHOLD = 500
+  const WARNING_THRESHOLD = 50
+
+  const accessibleModulesWithCounts = modules
+    .filter((module) => {
+      const permKey = module.id.replace(/-/g, "_")
+      return (
+        userRole === "admin" ||
+        userRole === "superuser" ||
+        module.id === "home" ||
+        (permissions &&
+          ((permissions[module.id] && permissions[module.id].length > 0) ||
+            (permissions[permKey] && permissions[permKey].length > 0) ||
+            permissions[module.id]?.includes("read") ||
+            permissions[permKey]?.includes("read") ||
+            (module.id === "material" && permissions[module.id]?.length > 0) ||
+            (module.id === "dtr-painting" &&
+              (permissions["dtr"]?.includes("read") || permissions["dtr"]?.includes("update")))))
+      )
+    })
+    .map((module) => {
+      let count = 0
+      if (module.id === "safety") count = safetyPendingCount
+      else if (module.id === "misc-inspection") count = miscPendingCount
+      else if (module.id === "icds") count = icdsPendingCount
+      else if (module.id === "disconnection") count = pendingCount
+      else if (module.id === "deemed") count = ddPendingCount
+      else if (module.id === "reconnection") count = reconnectionPendingCount
+      else if (module.id === "nsc") count = nscPendingCount
+      else if (module.id === "meter") count = meterPendingCount
+      else if (module.id === "meter-replacement") count = replacementPendingCount
+      else if (module.id === "material") count = materialPendingCount
+      else if (module.id === "dtr") count = dtrPendingCount
+      else if (module.id === "dtr-painting") count = dtrPaintingPendingCount
+      else if (module.id === "consumer-master") count = masterCount
+
+      const isLoading = Boolean(loadingModules[module.id])
+      return { ...module, count, isLoading }
+    })
+
+  // Surface any action module exceeding attention threshold (excluding static master DB count)
+  const attentionModules = accessibleModulesWithCounts.filter(
+    (m) => m.id !== "consumer-master" && m.id !== "admin" && m.id !== "osd" && m.count >= ATTENTION_THRESHOLD
+  )
+
+  // Main 2-column grid contains other modules
+  const gridModules = accessibleModulesWithCounts.filter(
+    (m) => !attentionModules.some((att) => att.id === m.id)
+  )
+
   return (
     <>
-      <div className="relative p-2 sm:p-4 md:p-6 max-w-7xl mx-auto flex flex-col justify-between min-h-[calc(100vh-100px)] overflow-hidden">
-        {/* Subtle Ambient Background Mesh Blobs */}
+      {/* ========================================================================= */}
+      {/* 1. MOBILE TESTING VIEW (< md: screen sizes) */}
+      {/* ========================================================================= */}
+      <div className="block md:hidden relative p-2 sm:p-4 max-w-xl mx-auto flex flex-col justify-between min-h-[calc(100vh-100px)]">
+        <div className="flex-grow space-y-4">
+          {/* Global Fast IndexedDB Consumer Search */}
+          <GlobalConsumerSearch
+            onSelectModule={onSelect}
+            userRole={userRole}
+            permissions={permissions}
+          />
+
+          {/* SECTION 1: Needs attention (Full-width dynamic card) */}
+          {attentionModules.length > 0 && (
+            <div>
+              <h2 className="text-xs font-semibold text-slate-500 mb-2">Needs attention</h2>
+              <div className="space-y-3">
+                {attentionModules.map((module) => {
+                  const Icon = module.icon
+                  return (
+                    <div
+                      key={module.id}
+                      onClick={() => {
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                        onSelect(module.id as ViewType)
+                      }}
+                      className="rounded-2xl border border-red-300/90 bg-red-50/20 hover:bg-red-50/40 p-3.5 flex items-center justify-between shadow-2xs cursor-pointer transition-all duration-200"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-10 h-10 rounded-[10px] bg-red-100/80 flex items-center justify-center text-red-600 shrink-0 shadow-2xs">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-base font-bold text-slate-900 leading-tight">
+                            {module.title}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5 truncate">
+                            {module.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="px-3 py-1 rounded-full bg-red-100 text-red-800 text-xs font-bold shrink-0 ml-2">
+                        {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.count.toLocaleString()}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 2: Modules (2-Column Grid for Mobile) */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5 px-0.5">
+              <h2 className="text-xs font-semibold text-slate-500">Modules</h2>
+              {latestUpdateDate && (
+                <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                  <Calendar className="h-3 w-3 text-slate-400" />
+                  Last Updated: <span className="font-semibold text-slate-600">{latestUpdateDate}</span>
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {gridModules.map((module) => {
+                const Icon = module.icon
+                const isWarning = module.count >= WARNING_THRESHOLD && module.count < ATTENTION_THRESHOLD
+                const isDanger = module.count >= ATTENTION_THRESHOLD
+
+                const borderClass = isDanger
+                  ? "border-red-400/90 shadow-red-500/5"
+                  : isWarning
+                    ? "border-amber-400/90 shadow-amber-500/5"
+                    : "border-slate-200/90"
+
+                const pillStyleClass = isDanger
+                  ? "bg-red-100/90 text-red-800 border-red-200/80 shadow-xs"
+                  : isWarning
+                    ? "bg-amber-100/90 text-amber-900 border-amber-200/80 shadow-xs"
+                    : "bg-slate-100/90 text-slate-700 border-slate-200/80 shadow-xs"
+
+                return (
+                  <div
+                    key={module.id}
+                    onClick={() => {
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                      onSelect(module.id as ViewType)
+                    }}
+                    className={`group relative cursor-pointer transition-all duration-200 hover:shadow-md rounded-2xl bg-white border ${borderClass} p-3.5 flex flex-col justify-between min-h-[96px] select-none`}
+                  >
+                    {/* Top Row: Icon (Top-Left) + Shadowed Pill Count Badge (Top-Right) */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className={`w-10 h-10 rounded-[10px] ${module.bgColor} border border-slate-100 flex items-center justify-center ${module.color} shrink-0 shadow-2xs`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] ${pillStyleClass}`}>
+                        {module.isLoading ? (
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                        ) : (
+                          module.id === "consumer-master" ? module.count.toLocaleString() : (module.count ?? 0)
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Bottom Row: Title Only */}
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug mt-2">
+                      {module.title}
+                    </h3>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. DEFAULT COMMITTED DESKTOP VIEW (>= md: screen sizes - Unchanged) */}
+      {/* ========================================================================= */}
+      <div className="hidden md:flex relative p-4 md:p-6 max-w-7xl mx-auto flex-col justify-between min-h-[calc(100vh-100px)] overflow-hidden">
+        {/* Ambient Background Mesh Blobs */}
         <div className="absolute top-10 left-1/4 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" />
         <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
         <div className="absolute top-1/2 left-10 w-60 h-60 bg-purple-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
 
         <div className="flex-grow">
+          {/* Global Fast IndexedDB Consumer Search */}
+          <div className="max-w-xl mx-auto mb-6">
+            <GlobalConsumerSearch
+              onSelectModule={onSelect}
+              userRole={userRole}
+              permissions={permissions}
+            />
+          </div>
+
+          <div className="flex items-center justify-between mb-3.5 px-1">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Modules</h2>
+            {latestUpdateDate && (
+              <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5 bg-white/70 backdrop-blur-sm px-2.5 py-1 rounded-full border border-slate-200/80 shadow-2xs">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                Last Updated: <span className="font-bold text-slate-800">{latestUpdateDate}</span>
+              </span>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
-            {modules.map((module) => {
-              const permKey = module.id.replace(/-/g, "_")
-              const hasAccess = userRole === "admin" || userRole === "superuser" || module.id === "home" || (permissions && (
-                (permissions[module.id] && permissions[module.id].length > 0) || 
-                (permissions[permKey] && permissions[permKey].length > 0) ||
-                permissions[module.id]?.includes("read") || 
-                permissions[permKey]?.includes("read") ||
-                (module.id === "material" && permissions[module.id]?.length > 0) ||
-                (module.id === "dtr-painting" && (permissions["dtr"]?.includes("read") || permissions["dtr"]?.includes("update")))
-              ))
-              if (!hasAccess) return null
+            {accessibleModulesWithCounts.map((module) => {
               const Icon = module.icon
-
-              let count = 0
-              if (module.id === "safety") count = safetyPendingCount
-              else if (module.id === "misc-inspection") count = miscPendingCount
-              else if (module.id === "icds") count = icdsPendingCount
-              else if (module.id === "disconnection") count = pendingCount
-              else if (module.id === "deemed") count = ddPendingCount
-              else if (module.id === "reconnection") count = reconnectionPendingCount
-              else if (module.id === "nsc") count = nscPendingCount
-              else if (module.id === "meter") count = meterPendingCount
-              else if (module.id === "meter-replacement") count = replacementPendingCount
-              else if (module.id === "material") count = materialPendingCount
-              else if (module.id === "dtr") count = dtrPendingCount
-              else if (module.id === "dtr-painting") count = dtrPaintingPendingCount
-              else if (module.id === "consumer-master") count = masterCount
-
-              const isLoading = Boolean(loadingModules[module.id])
 
               return (
                 <Card
@@ -839,14 +1082,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     onSelect(module.id as ViewType)
                   }}
                 >
-                  {/* Executive Dark Badge Counter (Only shown when count > 0 or loading) */}
-                  {(isLoading || count > 0) && (
-                    <div className={`absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
-                      isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
-                    }`}>
-                      {isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.id === "consumer-master" ? count.toLocaleString() : count}
-                    </div>
-                  )}
+                  {/* Executive Dark Badge Counter */}
+                  <div className={`absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
+                    module.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
+                  }`}>
+                    {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.id === "consumer-master" ? module.count.toLocaleString() : (module.count ?? 0)}
+                  </div>
 
                   {/* Faded Background Icon */}
                   <div className="absolute top-0 right-0 p-2 md:p-3 opacity-5 group-hover:opacity-15 transition-opacity duration-300">
@@ -871,52 +1112,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             })}
           </div>
         </div>
-
-        {/* --- BEAUTIFUL DEVELOPER FOOTER --- */}
-        <div className="mt-12 py-6 border-t border-gray-100 text-center">
-          <p className="text-sm font-medium text-gray-400">
-            Developed by{" "}
-            <button
-              onClick={() => setShowDevModal(true)}
-              className="font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity cursor-pointer text-base"
-            >
-              Pramod Verma
-            </button>
-          </p>
-        </div>
       </div>
-
-      {/* --- FLOATING WINDOW (MODAL) --- */}
-      {showDevModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in-95 duration-200 border border-gray-100">
-            <button
-              onClick={() => setShowDevModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-5 w-5 text-gray-400" />
-            </button>
-
-            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Phone className="h-8 w-8 text-indigo-600" />
-            </div>
-
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Contact Developer</h3>
-            <p className="text-gray-600 mb-6">
-              To add your supply or for technical assistance, please contact:
-            </p>
-
-            <a
-              href="tel:8092273459"
-              className="inline-block w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-bold text-lg hover:shadow-lg transition-all active:scale-95"
-            >
-              8092273459
-            </a>
-
-            <p className="mt-4 text-[10px] text-gray-400 uppercase tracking-widest font-bold">Pramod Verma • System Support</p>
-          </div>
-        </div>
-      )}
     </>
   )
 }

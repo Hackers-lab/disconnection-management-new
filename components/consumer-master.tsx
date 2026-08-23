@@ -212,7 +212,24 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
   const [syncProgress, setSyncProgress]   = useState("")
 
   // Search / browse state (for non-admin or after upload)
-  const [query, setQuery]                 = useState("")
+  const [query, setQuery]                 = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("module_search_term")
+      if (saved) {
+        sessionStorage.removeItem("module_search_term")
+        return saved
+      }
+    }
+    return ""
+  })
+
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      if (e.detail?.searchTerm) setQuery(e.detail.searchTerm)
+    }
+    window.addEventListener("set_module_search" as any, handler)
+    return () => window.removeEventListener("set_module_search" as any, handler)
+  }, [])
   const [results, setResults]             = useState<ConsumerMasterRow[]>([])
   const [allData, setAllData]             = useState<ConsumerMasterRow[]>([])
   const [dataLoaded, setDataLoaded]       = useState(false)
@@ -337,22 +354,27 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
     }
   }
 
+  // Reactively filter results when query or allData updates
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([])
+      return
+    }
+    const lower = query.toLowerCase().trim()
+    const matched = allData.filter(r =>
+      (r.consumerId && r.consumerId.toLowerCase().includes(lower)) ||
+      (r.name && r.name.toLowerCase().includes(lower)) ||
+      (r.meterNo && r.meterNo.toLowerCase().includes(lower)) ||
+      (r.mobile && r.mobile.toLowerCase().includes(lower)) ||
+      (r.address && r.address.toLowerCase().includes(lower)) ||
+      (r.zone && r.zone.toLowerCase().includes(lower)) ||
+      (r.baseClass && r.baseClass.toLowerCase().includes(lower))
+    ).slice(0, 100)
+    setResults(matched)
+  }, [query, allData])
+
   const handleSearch = (q: string) => {
     setQuery(q)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      if (!q.trim()) { setResults([]); return }
-      const lower = q.toLowerCase()
-      setResults(
-        allData.filter(r =>
-          r.consumerId.toLowerCase().includes(lower) ||
-          r.name.toLowerCase().includes(lower) ||
-          (r.meterNo && r.meterNo.toLowerCase().includes(lower)) ||
-          (r.zone && r.zone.toLowerCase().includes(lower)) ||
-          (r.baseClass && r.baseClass.toLowerCase().includes(lower))
-        ).slice(0, 100)
-      )
-    }, 200)
   }
 
   // ── CSV upload flow ─────────────────────────────────────────────────────────
