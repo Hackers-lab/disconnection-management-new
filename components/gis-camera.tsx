@@ -438,9 +438,7 @@ export function GisCamera({
   })
 
   return (
-    <div className={`flex flex-col max-w-lg mx-auto w-full px-2 sm:px-3 pt-1 ${
-      activeTab === "camera" ? "h-full max-h-[calc(100dvh-4.2rem)] overflow-hidden pb-1" : "min-h-[calc(100dvh-4.2rem)] pb-16"
-    }`}>
+    <div className="flex flex-col h-full max-h-[calc(100dvh-4.2rem)] max-w-lg mx-auto w-full px-2 sm:px-3 pt-1 overflow-hidden">
       {/* 1. ULTRA-COMPACT MOBILE HEADER */}
       <div className="flex items-center justify-between py-1 border-b border-slate-200/80 mb-1.5 shrink-0">
         <div className="flex items-center space-x-2 min-w-0">
@@ -720,10 +718,10 @@ export function GisCamera({
       )}
 
       {/* ========================================================================= */}
-      {/* 3. GALLERY TAB (WITH MULTI-SELECT BATCH SHARE)                            */}
+      {/* 3. GALLERY TAB (WITH MULTI-SELECT BATCH SHARE & SMOOTH SCROLL)            */}
       {/* ========================================================================= */}
       {activeTab === "gallery" && (
-        <div className="flex flex-col flex-1 w-full space-y-2 pb-16">
+        <div className="flex flex-col flex-1 min-h-0 w-full space-y-2 overflow-y-auto overscroll-contain pb-28 pr-0.5">
           {/* Top Control Bar */}
           <div className="flex items-center justify-between gap-2">
             <div className="relative flex-1">
