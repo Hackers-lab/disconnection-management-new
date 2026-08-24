@@ -1396,18 +1396,6 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         onClick={(e) => {
                           e.stopPropagation()
                           if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                          window.open(`/consumer-details?cid=${consumer.consumerId}`, '_blank')
-                        }}
-                        className="text-blue-500 hover:text-blue-700 transition-colors p-1 rounded hover:bg-blue-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold"
-                        title="Open Live Consumer 360°"
-                      >
-                        <Zap className="h-3 w-3" />
-                        <span>Live</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                           setActiveHistoryConsumer(consumer)
                         }}
                         className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer"

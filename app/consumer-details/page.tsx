@@ -50,7 +50,7 @@ interface SessionData {
 export default function ConsumerIntelligencePage() {
   // Auth state
   const [session, setSession] = useState<SessionData | null>(null);
-  const [username, setUsername] = useState('90018747');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);

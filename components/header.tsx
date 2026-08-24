@@ -36,7 +36,7 @@ import {
   Share2,
   Bell,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import {
@@ -124,6 +124,37 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [showProfileDialog, setShowProfileDialog] = useState(false)
   const [showOsdDialog, setShowOsdDialog] = useState(false)
   const [profileData, setProfileData] = useState<any>(null)
+  const homeLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const isLongPressRef = useRef(false)
+
+  const handleHomeTouchStart = () => {
+    isLongPressRef.current = false
+    homeLongPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate([35, 50, 50])
+      }
+      setActiveView("osd")
+    }, 700) // 700ms long press threshold
+  }
+
+  const handleHomeTouchEnd = () => {
+    if (homeLongPressTimerRef.current) {
+      clearTimeout(homeLongPressTimerRef.current)
+      homeLongPressTimerRef.current = null
+    }
+  }
+
+  const handleHomeClick = (e: React.MouseEvent) => {
+    if (isLongPressRef.current) {
+      e.preventDefault()
+      e.stopPropagation()
+      isLongPressRef.current = false
+      return
+    }
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+    setActiveView("home")
+  }
 
   useEffect(() => {
     console.log("🚀 Disconnection Management Web App - version 1.1.0 loaded");
@@ -923,11 +954,15 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               permissions={permissions}
             />
             <div 
-              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                setActiveView("home")
-              }}
+              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity select-none"
+              onClick={handleHomeClick}
+              onMouseDown={handleHomeTouchStart}
+              onMouseUp={handleHomeTouchEnd}
+              onMouseLeave={handleHomeTouchEnd}
+              onTouchStart={handleHomeTouchStart}
+              onTouchEnd={handleHomeTouchEnd}
+              onTouchCancel={handleHomeTouchEnd}
+              title="Home (Long press to open SpotAI Intelligence)"
             >
               <HomeIcon className="h-6 w-6 text-blue-600" />
               <span className="text-xl font-semibold text-gray-900 hidden xs:inline">Report</span>
@@ -980,11 +1015,14 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                    setActiveView("home")
-                }}
-                title="Home Dashboard"
+                onClick={handleHomeClick}
+                onMouseDown={handleHomeTouchStart}
+                onMouseUp={handleHomeTouchEnd}
+                onMouseLeave={handleHomeTouchEnd}
+                onTouchStart={handleHomeTouchStart}
+                onTouchEnd={handleHomeTouchEnd}
+                onTouchCancel={handleHomeTouchEnd}
+                title="Home Dashboard (Long press to open SpotAI Intelligence)"
               >
                 <LayoutDashboard className="h-4 w-4" />
               </Button>
