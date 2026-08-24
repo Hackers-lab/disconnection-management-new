@@ -48,6 +48,7 @@ import {
   ShieldAlert,
   Link2,
   Unlink,
+  Bell,
   UserPlus,
   FileSpreadsheet,
   ChevronDown,
