@@ -34,9 +34,11 @@ import {
   Star,
   MessageSquarePlus,
   Share2,
+  Bell,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
+import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import {
   Dialog,
   DialogContent,
@@ -118,6 +120,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [changePwdSuccess, setChangePwdSuccess] = useState(false)
   const [changePwdLoading, setChangePwdLoading] = useState(false)
   const [showHistoryReportDialog, setShowHistoryReportDialog] = useState(false)
+  const [showBroadcastPushModal, setShowBroadcastPushModal] = useState(false)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
   const [showOsdDialog, setShowOsdDialog] = useState(false)
   const [profileData, setProfileData] = useState<any>(null)
@@ -1208,6 +1211,21 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               )}
 
               {isAdminUser && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                    setShowBroadcastPushModal(true)
+                  }}
+                  title="Broadcast Alert to Office Team"
+                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                >
+                  <Bell className="h-4 w-4" />
+                </Button>
+              )}
+
+              {isAdminUser && (
                  <Button variant="ghost" size="sm" onClick={handleGlobalRefresh} title="Sync Fresh Data">
                    <RefreshCw className="h-4 w-4" />
                  </Button>
@@ -1405,6 +1423,16 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                           <span>Admin Settings</span>
                         </DropdownMenuItem>
                       )}
+
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                          setShowBroadcastPushModal(true)
+                        }}
+                      >
+                        <Bell className="mr-2 h-4 w-4 text-emerald-600" />
+                        <span className="font-semibold text-emerald-700">Broadcast Push Alert</span>
+                      </DropdownMenuItem>
 
                       <DropdownMenuItem onClick={handleGlobalRefresh}>
                         <RefreshCw className="mr-2 h-4 w-4" />
@@ -1780,6 +1808,14 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
         onOpenChange={setShowHistoryReportDialog}
         userRole={userRole}
         userAgencies={userAgencies}
+      />
+
+      {/* Broadcast Push Alert Dialog for Office Admin */}
+      <BroadcastPushModal
+        isOpen={showBroadcastPushModal}
+        onClose={() => setShowBroadcastPushModal(false)}
+        isSuperuser={false}
+        currentCccCode={cccCode || "SYSTEM"}
       />
     </header>
   )
