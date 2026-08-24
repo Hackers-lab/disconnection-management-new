@@ -1,4 +1,12 @@
 // Service Worker for Push Notifications & Background Alerts
+self.addEventListener('install', function(event) {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', function(event) {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('push', function(event) {
   if (!event.data) return;
 
@@ -9,9 +17,11 @@ self.addEventListener('push', function(event) {
       body: data.body || 'You have a new update in your dashboard.',
       icon: data.icon || '/icon-192.png',
       badge: data.badge || '/icon-192.png',
-      tag: data.tag || 'wbsedcl-notification',
+      tag: data.tag || 'wbsedcl-alert-' + Date.now(),
       renotify: true,
-      vibrate: [35, 50, 35, 50, 70],
+      requireInteraction: true,
+      silent: false,
+      vibrate: [200, 100, 200, 100, 300],
       data: {
         url: data.url || '/dashboard',
         timestamp: data.timestamp || Date.now()
