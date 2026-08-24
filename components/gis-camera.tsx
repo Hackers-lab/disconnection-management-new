@@ -244,7 +244,25 @@ export function GisCamera({
       setCameraActive(false)
     }
 
+    // Auto-release camera hardware when app goes to background (prevents OS tab discard/reload)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(t => t.stop())
+          streamRef.current = null
+        }
+        setCameraActive(false)
+      } else {
+        if (activeTab === "camera") {
+          startCamera()
+        }
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop())
       }
