@@ -903,6 +903,8 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     ))
                   )}
                 </div>
+              )}
+
               {/* --- TAB CONTENT 5: RAW JSON INSPECTOR --- */}
               {activeTab === "json" && (
                 <div className="space-y-3">
