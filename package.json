@@ -59,6 +59,7 @@
     "next-themes": "latest",
     "papaparse": "^5.5.3",
     "path": "latest",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^6.2.108",
     "react": "^19",

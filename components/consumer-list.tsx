@@ -66,6 +66,7 @@ import {
   Footprints,
   PlusCircle,
   Navigation,
+  Zap,
 } from "lucide-react"
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -1391,6 +1392,18 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
                       <p className="text-sm text-gray-600 font-mono">ID: {consumer.consumerId}</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                          window.open(`/consumer-details?cid=${consumer.consumerId}`, '_blank')
+                        }}
+                        className="text-blue-500 hover:text-blue-700 transition-colors p-1 rounded hover:bg-blue-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold"
+                        title="Open Live Consumer 360°"
+                      >
+                        <Zap className="h-3 w-3" />
+                        <span>Live</span>
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import type { IcdsRecord, JurisdictionStatus } from "@/lib/icds-types"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -120,8 +121,22 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
     if (!record) return
     setUploadingBefore(true)
     try {
-      const watermark = `${record.awcCode} | INSPECTION | ${new Date().toLocaleString("en-IN")}`
-      const processed = await compressAndWatermarkImage(file, { watermarkLines: [watermark] })
+      const dateStr = new Date().toLocaleString("en-IN", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+      })
+      const gpsStr = inspectGeoCoordinates || "GPS: Not Available"
+      const watermarkLines = [
+        `ICDS: ${record.awcName} (${record.awcCode})`,
+        `INSPECTION PHOTO • ${dateStr}`,
+        `LOC: ${gpsStr} • ${record.blockName}, ${record.gpName}`,
+      ]
+
+      const processed = await compressAndWatermarkImage(file, {
+        maxDim: 900,
+        watermarkLines,
+        targetKb: 90, // Strict compression under 95KB
+      })
 
       const form = new FormData()
       form.append("file", processed)
@@ -135,7 +150,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
       if (!res.ok || !data.url) throw new Error(data.error || "Upload failed")
 
       setBeforePhotoUrl(data.url)
-      toast.success("Inspection Photo uploaded successfully!")
+      toast.success("Inspection Photo with GPS stamp uploaded successfully!")
     } catch (e: any) {
       toast.error("Image upload failed: " + e.message)
     } finally {
@@ -799,7 +814,12 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
                 {beforePhotoUrl ? (
                   <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <div className="h-16 w-24 rounded-lg border overflow-hidden bg-black/10 shrink-0">
-                      <img src={beforePhotoUrl} alt="Inspection site" className="h-full w-full object-cover" />
+                      <img
+                      src={getGoogleDriveDirectLink(beforePhotoUrl, 800)}
+                      onError={(e) => handleImageError(e, beforePhotoUrl)}
+                      alt="Inspection site"
+                      className="h-full w-full object-cover"
+                    />
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-emerald-700 flex items-center gap-1">

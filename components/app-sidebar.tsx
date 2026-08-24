@@ -305,8 +305,8 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     },
     {
       id: "osd",
-      label: "Live OSD Check",
-      icon: FileCheck2,
+      label: "Consumer Details",
+      icon: Zap,
     },
     {
       id: "gis-camera",

@@ -22,7 +22,7 @@ const MODULE_ENDPOINT_MAP: Record<string, string> = {
   meter: "/api/meters/stock",
   dtr: "/api/dtr",
   material: "/api/material",
-  icds: "/api/icds",
+  icds: "/api/icds/base",
 }
 
 export function useModuleVersionSync<T extends Record<string, any>>(

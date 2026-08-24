@@ -258,12 +258,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     },
     {
       id: "osd",
-      title: "Live OSD Check",
-      description: "Live consumer details & OSD check from WBSEDCL",
-      icon: FileCheck2,
-      color: "text-emerald-600",
-      bgColor: "bg-emerald-50",
-      borderColor: "hover:border-emerald-400 hover:shadow-emerald-500/10",
+      title: "Consumer Details",
+      description: "Live dues, payment receipts, meter readings & bills",
+      icon: Zap,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "hover:border-blue-400 hover:shadow-blue-500/10",
       allowed: ["admin", "executive", "agency", "viewer", "technical"],
       status: "live"
     },
