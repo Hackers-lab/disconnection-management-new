@@ -1,4 +1,6 @@
-const PORTAL_BASE_URL = 'https://spotai.wbsedcl.in';
+import https from 'https';
+
+const SPOTAI_HOST = 'spotai.wbsedcl.in';
 
 export function hkEncrypt(passwordStr: string): string {
   const secretKey = '@FrTu^^&!#$%^/41';
@@ -13,55 +15,66 @@ export function hkEncrypt(passwordStr: string): string {
   return Buffer.from(xorStr, 'latin1').toString('base64');
 }
 
+function postToSpotAi(path: string, payload: any, contentType: string = 'text/plain'): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify(payload);
+    const options: https.RequestOptions = {
+      hostname: SPOTAI_HOST,
+      port: 443,
+      path: path,
+      method: 'POST',
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': Buffer.byteLength(postData),
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Connection': 'keep-alive',
+      },
+      timeout: 15000,
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => {
+        body += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          resolve(Array.isArray(parsed) ? parsed[0] : parsed);
+        } catch {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`SpotAI server HTTP ${res.statusCode}: ${body.slice(0, 150)}`));
+          } else {
+            resolve({ raw: body });
+          }
+        }
+      });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('SpotAI server connection timed out (15s).'));
+    });
+
+    req.on('error', (err) => {
+      reject(new Error(`SpotAI network error: ${err.message}`));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
 export async function requestOfficerOtp(username: string, password: string) {
   const encryptedPassword = hkEncrypt(password);
-  const url = `${PORTAL_BASE_URL}/spotaiportal/spot_ai_portal_login`;
   const payload = [{ username: username.trim(), password: encryptedPassword }];
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json, text/plain, */*',
-    },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
-
-  const text = await res.text();
-  try {
-    const data = JSON.parse(text);
-    const result = Array.isArray(data) ? data[0] : data;
-    return result;
-  } catch {
-    throw new Error(`SpotAI server response error: ${text.slice(0, 150)}`);
-  }
+  return await postToSpotAi('/spotaiportal/spot_ai_portal_login', payload, 'text/plain');
 }
 
 export async function verifyOfficerOtp(username: string, otp: string) {
-  const url = `${PORTAL_BASE_URL}/spotaiportal/spot_ai_portal_login`;
   const payload = [{ username: username.trim(), otp: otp.trim() }];
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json, text/plain, */*',
-    },
-    body: JSON.stringify(payload),
-    cache: 'no-store',
-  });
-
-  const text = await res.text();
-  try {
-    const data = JSON.parse(text);
-    const result = Array.isArray(data) ? data[0] : data;
-    return result;
-  } catch {
-    throw new Error(`SpotAI server response error: ${text.slice(0, 150)}`);
-  }
+  return await postToSpotAi('/spotaiportal/spot_ai_portal_login', payload, 'text/plain');
 }
 
 export async function fetchLiveConsumerDetails(
@@ -73,7 +86,6 @@ export async function fetchLiveConsumerDetails(
   flag: 'C' | 'P' | 'O' | 'B' | 'R' | 'M',
   printdoc?: string
 ) {
-  const url = `${PORTAL_BASE_URL}/spotaiportal/con_dtls`;
   const payload: any = {
     username,
     token,
@@ -87,18 +99,5 @@ export async function fetchLiveConsumerDetails(
     payload.printdoc = printdoc;
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-    },
-    body: JSON.stringify([payload]),
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
-  }
-
-  return await res.json();
+  return await postToSpotAi('/spotaiportal/con_dtls', [payload], 'application/json');
 }

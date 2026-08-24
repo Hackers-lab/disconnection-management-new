@@ -345,7 +345,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  placeholder="e.g. 90018747"
+                  placeholder="Enter Officer User ID"
                 />
               </div>
               <div>
