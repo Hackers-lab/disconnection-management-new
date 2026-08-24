@@ -16,46 +16,52 @@ export function hkEncrypt(passwordStr: string): string {
 export async function requestOfficerOtp(username: string, password: string) {
   const encryptedPassword = hkEncrypt(password);
   const url = `${PORTAL_BASE_URL}/spotaiportal/spot_ai_portal_login`;
-  const payload = [{ username, password: encryptedPassword }];
+  const payload = [{ username: username.trim(), password: encryptedPassword }];
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
     },
     body: JSON.stringify(payload),
+    cache: 'no-store',
   });
 
-  if (!res.ok) {
-    throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    const result = Array.isArray(data) ? data[0] : data;
+    return result;
+  } catch {
+    throw new Error(`SpotAI server response error: ${text.slice(0, 150)}`);
   }
-
-  const data = await res.json();
-  const result = Array.isArray(data) ? data[0] : data;
-  return result;
 }
 
 export async function verifyOfficerOtp(username: string, otp: string) {
   const url = `${PORTAL_BASE_URL}/spotaiportal/spot_ai_portal_login`;
-  const payload = [{ username, otp: otp.trim() }];
+  const payload = [{ username: username.trim(), otp: otp.trim() }];
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
     },
     body: JSON.stringify(payload),
+    cache: 'no-store',
   });
 
-  if (!res.ok) {
-    throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    const result = Array.isArray(data) ? data[0] : data;
+    return result;
+  } catch {
+    throw new Error(`SpotAI server response error: ${text.slice(0, 150)}`);
   }
-
-  const data = await res.json();
-  const result = Array.isArray(data) ? data[0] : data;
-  return result;
 }
 
 export async function fetchLiveConsumerDetails(
