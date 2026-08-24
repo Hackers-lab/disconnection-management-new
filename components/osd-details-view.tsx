@@ -109,48 +109,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     setTimeout(() => setCopiedField(null), 1500)
   }
 
-  // Direct PDF Download / View function using captured API
-  const handleViewBillPdf = async (invoiceNo: string) => {
-    if (!session || !consumerId.trim()) return
-    setFetchingBillInvoice(invoiceNo)
-    setBillError(null)
-
-    try {
-      const res = await fetch("/api/consumer-details/bill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: session.username,
-          token: session.token,
-          offCode: session.offCode,
-          conId: consumerId.trim(),
-          invoiceNo: invoiceNo.trim()
-        })
-      })
-
-      const json = await res.json()
-      if (json.success && json.base64) {
-        // Convert Base64 string to Blob and open in new browser tab
-        const byteCharacters = atob(json.base64)
-        const byteNumbers = new Array(byteCharacters.length)
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i)
-        }
-        const byteArray = new Uint8Array(byteNumbers)
-        const blob = new Blob([byteArray], { type: "application/pdf" })
-        const fileURL = URL.createObjectURL(blob)
-        window.open(fileURL, "_blank")
-      } else {
-        setBillError(json.error || "Bill copy not available for this invoice")
-      }
-    } catch (err: any) {
-      setBillError(err.message || "Failed to load bill PDF")
-    } finally {
-      setFetchingBillInvoice(null)
-    }
-  }
-
-  // Helper for direct client-side fallback if Vercel serverless IP is blocked by WBSEDCL firewall
+  // Direct client-side HK encryption for SpotAI
   const clientSideHkEncrypt = (passwordStr: string): string => {
     const secretKey = '@FrTu^^&!#$%^/41'
     const keyLen = secretKey.length
@@ -163,49 +122,78 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     return btoa(xorChars.join(''))
   }
 
-  // Step 1: Request OTP
+  // Direct SpotAI API caller from user's device (bypasses serverless firewall timeout)
+  const spotAiDirectPost = async (path: string, payload: any): Promise<any> => {
+    const res = await fetch(`https://spotai.wbsedcl.in${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain",
+        "Accept": "application/json, text/plain, */*"
+      },
+      body: JSON.stringify(payload)
+    })
+    const text = await res.text()
+    try {
+      const parsed = JSON.parse(text)
+      return Array.isArray(parsed) ? parsed[0] : parsed
+    } catch {
+      return { code: "500", message: text.slice(0, 150) }
+    }
+  }
+
+  // Direct PDF Download / View function using captured API
+  const handleViewBillPdf = async (invoiceNo: string) => {
+    if (!session || !consumerId.trim()) return
+    setFetchingBillInvoice(invoiceNo)
+    setBillError(null)
+
+    try {
+      const payload = {
+        username: session.username,
+        token: session.token,
+        off_code: session.offCode,
+        con_id: consumerId.trim(),
+        parameter: "BILLING",
+        flag: "P",
+        printdoc: invoiceNo.trim()
+      }
+
+      const res = await spotAiDirectPost("/spotaiportal/con_dtls", [payload])
+
+      if (res?.code === "200" && Array.isArray(res.message) && res.message[0]?.base64) {
+        const byteCharacters = atob(res.message[0].base64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: "application/pdf" })
+        const fileURL = URL.createObjectURL(blob)
+        window.open(fileURL, "_blank")
+      } else {
+        setBillError(res?.message || "Bill copy not available for this invoice")
+      }
+    } catch (err: any) {
+      setBillError(err.message || "Failed to load bill PDF")
+    } finally {
+      setFetchingBillInvoice(null)
+    }
+  }
+
+  // Step 1: Request OTP (Direct Fast Dispatch)
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setAuthLoading(true)
     setAuthError("")
     try {
-      // 1. Try via Next.js backend API proxy
-      const res = await fetch("/api/consumer-details/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "request_otp", username: username.trim(), password })
-      })
-      const json = await res.json()
-      
-      if (json.code === "200") {
-        setOtpSent(true)
-        return
-      }
-      
-      // If serverless returned a specific message or timeout, try direct browser fetch
-      if (json.error && (json.error.includes("timed out") || json.error.includes("network error") || json.error.includes("fetch failed"))) {
-        console.warn("[SpotAI] Serverless timed out, attempting direct browser dispatch...")
-        try {
-          const directRes = await fetch("https://spotai.wbsedcl.in/spotaiportal/spot_ai_portal_login", {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify([{ username: username.trim(), password: clientSideHkEncrypt(password) }])
-          })
-          const directJson = await directRes.json()
-          const item = Array.isArray(directJson) ? directJson[0] : directJson
-          if (item?.code === "200") {
-            setOtpSent(true)
-            return
-          } else {
-            setAuthError(item?.message || item?.error || "Failed to dispatch OTP")
-            return
-          }
-        } catch {
-          // Fall through to show original error
-        }
-      }
+      const payload = [{ username: username.trim(), password: clientSideHkEncrypt(password) }]
+      const json = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
 
-      setAuthError(json.message || json.error || "Failed to dispatch OTP")
+      if (json?.code === "200") {
+        setOtpSent(true)
+      } else {
+        setAuthError(json?.message || json?.error || "Failed to dispatch OTP")
+      }
     } catch (err: any) {
       setAuthError(err.message || "Network connection error")
     } finally {
@@ -213,35 +201,30 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     }
   }
 
-  // Step 2: Verify OTP & Login
+  // Step 2: Verify OTP & Login (Direct Fast Verification)
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setAuthLoading(true)
     setAuthError("")
     try {
-      const res = await fetch("/api/consumer-details/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify_otp", username, otp })
-      })
-      const json = await res.json()
-      const payload = Array.isArray(json) ? json[0] : json
+      const payload = [{ username: username.trim(), otp: otp.trim() }]
+      const json = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
 
-      if (payload?.code === "200" && payload.message?.JWT_token) {
+      if (json?.code === "200" && json.message?.JWT_token) {
         const sess: SessionData = {
-          username,
-          token: payload.message.JWT_token,
-          offCode: payload.message.off_code,
-          offName: payload.message.off_name,
-          name: payload.message.name,
-          designation: payload.message.designation
+          username: username.trim(),
+          token: json.message.JWT_token,
+          offCode: json.message.off_code,
+          offName: json.message.off_name,
+          name: json.message.name,
+          designation: json.message.designation
         }
         saveSession(sess)
         setOtpSent(false)
         setPassword("")
         setOtp("")
       } else {
-        setAuthError(payload?.message || payload?.error || "Invalid OTP entered")
+        setAuthError(json?.message || json?.error || "Invalid OTP entered")
       }
     } catch (err: any) {
       setAuthError(err.message || "Authentication failed")
@@ -250,7 +233,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     }
   }
 
-  // Query consumer details
+  // Query consumer details (Direct 360 lookup)
   const handleFetchConsumer = async (e?: React.FormEvent, targetId?: string) => {
     if (e) e.preventDefault()
     const idToSearch = targetId || consumerId
@@ -263,24 +246,40 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     setLoading(true)
     setQueryError("")
     try {
-      const res = await fetch("/api/consumer-details/consumer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: session.username,
-          token: session.token,
-          offCode: session.offCode,
-          conId: idToSearch.trim()
-        })
-      })
-      const json = await res.json()
-      if (json.success && json.master) {
-        setData(json)
-      } else {
-        setQueryError(json.error || "Consumer record not found or session timed out")
-        if (json.error?.includes("session") || json.error?.includes("token") || json.error?.includes("401") || json.error?.includes("600")) {
+      const basePayload = {
+        username: session.username,
+        token: session.token,
+        off_code: session.offCode || "",
+        con_id: idToSearch.trim()
+      }
+
+      // Parallel direct queries from user device
+      const [masterRes, paymentsRes, osdRes, billingRes, readingsRes, meterRes] = await Promise.all([
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "MASTER", flag: "C" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "PAYMENT", flag: "P" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "OSD", flag: "O" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "BILLING", flag: "B" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "READING", flag: "R" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "METER", flag: "M" }]),
+      ])
+
+      const masterData = Array.isArray(masterRes?.message) ? masterRes.message[0] : null
+
+      if (!masterData) {
+        setQueryError(masterRes?.message || "Consumer record not found or session timed out")
+        if (String(masterRes?.message || "").toLowerCase().includes("session") || String(masterRes?.code) === "600") {
           saveSession(null)
         }
+      } else {
+        setData({
+          success: true,
+          master: masterData,
+          payments: Array.isArray(paymentsRes?.message) ? paymentsRes.message : [],
+          osd: Array.isArray(osdRes?.message) ? osdRes.message[0] : null,
+          billing: Array.isArray(billingRes?.message) ? billingRes.message : [],
+          readings: Array.isArray(readingsRes?.message) ? readingsRes.message : [],
+          meter: Array.isArray(meterRes?.message) ? meterRes.message : [],
+        })
       }
     } catch (err: any) {
       setQueryError(err.message || "Query request failed")
