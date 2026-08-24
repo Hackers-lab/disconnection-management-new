@@ -75,6 +75,7 @@ import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix }
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs, getPaymentDuesBreakdown } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"
+import { OsdDetailsDialog } from "@/components/osd-details-dialog"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
   loading: () => <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
@@ -211,6 +212,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeHistoryConsumer, setActiveHistoryConsumer] = useState<ConsumerData | null>(null)
   const [showNearbyMap, setShowNearbyMap] = useState(false)
+  const [showOsdModal, setShowOsdModal] = useState(false)
+  const [osdTargetId, setOsdTargetId] = useState("")
 
   // Handle back button navigation for modals/overlays
   useBackNavigation(isFilterOpen, () => setIsFilterOpen(false))
@@ -219,6 +222,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   useBackNavigation(!!activeHistoryConsumer, () => setActiveHistoryConsumer(null))
   useBackNavigation(showAdminPanel, onCloseAdminPanel)
   useBackNavigation(showNearbyMap, () => setShowNearbyMap(false))
+  useBackNavigation(showOsdModal, () => setShowOsdModal(false))
 
   useEffect(() => {
     const savedMode = localStorage.getItem("consumerListViewMode") as "card" | "list"
@@ -1396,6 +1400,19 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         onClick={(e) => {
                           e.stopPropagation()
                           if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                          setOsdTargetId(consumer.consumerId)
+                          setShowOsdModal(true)
+                        }}
+                        className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold"
+                        title="Live OSD Check"
+                      >
+                        <Zap className="h-3 w-3 fill-blue-600" />
+                        <span>Live</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                           setActiveHistoryConsumer(consumer)
                         }}
                         className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer"
@@ -1942,6 +1959,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
           onClose={() => setActiveHistoryConsumer(null)}
         />
       )}
+      {/* Floating Live OSD Check Modal */}
+      <OsdDetailsDialog
+        open={showOsdModal}
+        onOpenChange={setShowOsdModal}
+        initialConsumerId={osdTargetId}
+      />
     </div>
   )
 })
