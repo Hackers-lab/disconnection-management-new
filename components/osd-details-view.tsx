@@ -542,16 +542,16 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     </p>
                   </div>
 
-                  {/* Total Outstanding & Dues Highlights */}
-                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[210px]">
+                  {/* Universal Dues Highlights */}
+                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[220px]">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between sm:justify-end gap-1">
-                      <span>Total Net OSD</span>
+                      <span>Total Live Dues (T6)</span>
                     </div>
                     <div className="text-xl sm:text-2xl font-bold font-mono text-rose-700 tracking-tight">
-                      ₹{totalGrossDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      ₹{(totalGrossDue || masterOsd).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
                     <div className="text-[11px] text-slate-600 font-semibold pt-1 border-t border-rose-200/60 flex justify-between sm:justify-end gap-3">
-                      <span>Base Bill OSD: <strong className="text-slate-900 font-mono">₹{disconnectionBaseOsd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                      <span>Master OSD: <strong className="text-slate-900 font-mono">₹{masterOsd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
                       <span>LPSC: <strong className="text-amber-700 font-mono">₹{surchargesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
                     </div>
                   </div>
