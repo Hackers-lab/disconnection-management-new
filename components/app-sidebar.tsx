@@ -305,7 +305,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     },
     {
       id: "osd",
-      label: "Consumer Details",
+      label: "Live OSD & 360°",
       icon: Zap,
     },
     {
@@ -330,7 +330,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     <div className="flex flex-col space-y-2 py-4">
       {menuItems.map((item) => {
         const permKey = item.id.replace(/-/g, "_")
-        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || (permissions && (
+        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || item.id === "osd" || (permissions && (
           (permissions[item.id] && permissions[item.id].length > 0) || 
           (permissions[permKey] && permissions[permKey].length > 0) ||
           permissions[item.id]?.includes("read") || 
