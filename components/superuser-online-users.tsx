@@ -100,7 +100,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedOffice, setSelectedOffice] = useState<string>("all")
   const [selectedRole, setSelectedRole] = useState<string>("all")
-  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "idle">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "offline">("all")
 
   // Fetch online users data
   const fetchData = useCallback(async (isManual = false) => {
@@ -152,7 +152,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   // Unique list of active offices from stats
   const activeOfficesList = useMemo(() => {
     if (!report?.officeStats) return []
-    return Object.values(report.officeStats).filter(o => o.onlineCount > 0)
+    return Object.values(report.officeStats)
   }, [report?.officeStats])
 
   // Filtered users list
@@ -162,7 +162,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
     return report.onlineUsers.filter(user => {
       // 1. Status filter
       if (statusFilter === "live" && !user.isLive) return false
-      if (statusFilter === "idle" && user.isLive) return false
+      if (statusFilter === "offline" && user.isLive) return false
 
       // 2. Role filter
       if (selectedRole !== "all" && user.role.toLowerCase() !== selectedRole.toLowerCase()) {
@@ -522,7 +522,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
                 statusFilter === "all" ? "bg-blue-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              All ({report?.totalOnline || 0})
+              All Registered ({report?.totalOnline || 0})
             </Button>
             <Button
               size="sm"
@@ -533,17 +533,17 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
-              Live Now ({report?.activeNowCount || 0})
+              Online Now ({report?.activeNowCount || 0})
             </Button>
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setStatusFilter("idle")}
+              onClick={() => setStatusFilter("offline")}
               className={`h-6.5 px-2.5 text-[11px] rounded ${
-                statusFilter === "idle" ? "bg-amber-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
+                statusFilter === "offline" ? "bg-slate-700 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              Idle ({report?.idleCount || 0})
+              Offline ({report?.idleCount || 0})
             </Button>
           </div>
 
@@ -624,7 +624,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
                               )}
                               <span
                                 className={`relative inline-flex rounded-full h-3 w-3 border-2 border-slate-950 ${
-                                  user.isLive ? "bg-emerald-500" : "bg-amber-500"
+                                  user.isLive ? "bg-emerald-500" : "bg-slate-500"
                                 }`}
                               />
                             </span>

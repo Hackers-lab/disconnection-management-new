@@ -92,7 +92,8 @@ async function ensurePresenceTable(client: Client) {
         browser_name TEXT,
         ip TEXT,
         last_seen INTEGER,
-        expires_at INTEGER
+        last_login INTEGER,
+        is_online INTEGER DEFAULT 1
       );
     `)
     presenceTableInitialized = true
@@ -123,28 +124,7 @@ export function parseDeviceFromUserAgent(ua = ""): {
 }
 
 /**
- * Clean & prune expired user presence rows from the dedicated table
- */
-export async function pruneExpiredPresence(): Promise<number> {
-  const now = Date.now()
-  const turso = getTursoClient()
-  if (turso) {
-    try {
-      await ensurePresenceTable(turso)
-      const res = await turso.execute({
-        sql: "DELETE FROM user_presence WHERE expires_at IS NOT NULL AND expires_at < ?",
-        args: [now],
-      })
-      return Number(res.rowsAffected || 0)
-    } catch (e) {
-      console.warn("[presence-service] Error pruning expired presence:", e)
-    }
-  }
-  return 0
-}
-
-/**
- * Track an authenticated user in dedicated user_presence table (exactly 1 row per user)
+ * Track user login / active access (upserts exactly 1 persistent row per user in Turso)
  */
 export async function trackUserPresence(
   user: Omit<ActiveUserInfo, "isLive">
@@ -167,14 +147,13 @@ export async function trackUserPresence(
   if (turso) {
     try {
       await ensurePresenceTable(turso)
-      const expiresAt = now + PRESENCE_TIMEOUT_MS
       const agenciesJson = JSON.stringify(record.agencies || [])
 
       await turso.execute({
         sql: `INSERT INTO user_presence (
           user_id, username, name, role, ccc_code, agencies, active_module,
-          last_action, device_type, browser_name, ip, last_seen, expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          last_action, device_type, browser_name, ip, last_seen, last_login, is_online
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         ON CONFLICT(user_id) DO UPDATE SET
           username = excluded.username,
           name = excluded.name,
@@ -187,7 +166,8 @@ export async function trackUserPresence(
           browser_name = excluded.browser_name,
           ip = excluded.ip,
           last_seen = excluded.last_seen,
-          expires_at = excluded.expires_at`,
+          last_login = coalesce(excluded.last_login, user_presence.last_login),
+          is_online = 1`,
         args: [
           record.userId,
           record.username,
@@ -196,12 +176,12 @@ export async function trackUserPresence(
           record.cccCode,
           agenciesJson,
           record.activeModule || "",
-          record.lastAction || "",
+          record.lastAction || "Active",
           record.deviceType || "Desktop",
           record.browserName || "Browser",
           record.ip || "",
           now,
-          expiresAt,
+          now,
         ],
       })
     } catch (e) {
@@ -210,6 +190,9 @@ export async function trackUserPresence(
   }
 }
 
+/**
+ * Marks user offline on logout while retaining their historical last seen and last login trail
+ */
 export async function removeUserPresence(userId: string): Promise<void> {
   inMemoryPresence.delete(userId)
   const turso = getTursoClient()
@@ -217,8 +200,8 @@ export async function removeUserPresence(userId: string): Promise<void> {
     try {
       await ensurePresenceTable(turso)
       await turso.execute({
-        sql: "DELETE FROM user_presence WHERE user_id = ?",
-        args: [userId],
+        sql: "UPDATE user_presence SET is_online = 0, last_action = 'Logged Out', last_seen = ? WHERE user_id = ?",
+        args: [Date.now(), userId],
       })
     } catch (e) {}
   }
@@ -229,24 +212,24 @@ export async function updateUserAction(
   action: string,
   moduleKey?: string
 ): Promise<void> {
+  const now = Date.now()
   const existing = inMemoryPresence.get(userId)
   if (existing) {
     existing.lastAction = action
     if (moduleKey) existing.activeModule = moduleKey
-    existing.lastSeen = Date.now()
+    existing.lastSeen = now
     existing.isLive = true
     inMemoryPresence.set(userId, existing)
-    
-    const turso = getTursoClient()
-    if (turso) {
-      const expiresAt = existing.lastSeen + PRESENCE_TIMEOUT_MS
-      turso.execute({
-        sql: `UPDATE user_presence 
-              SET last_action = ?, active_module = coalesce(?, active_module), last_seen = ?, expires_at = ?
-              WHERE user_id = ?`,
-        args: [action, moduleKey || null, existing.lastSeen, expiresAt, userId]
-      }).catch(() => {})
-    }
+  }
+  
+  const turso = getTursoClient()
+  if (turso) {
+    turso.execute({
+      sql: `UPDATE user_presence 
+            SET last_action = ?, active_module = coalesce(?, active_module), last_seen = ?, is_online = 1
+            WHERE user_id = ?`,
+      args: [action, moduleKey || null, now, userId]
+    }).catch(() => {})
   }
 }
 
@@ -266,42 +249,41 @@ export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
     }
   }
 
-  // 2. Read dedicated user_presence table for multi-instance sync
+  // 2. Read dedicated user_presence table for multi-instance sync and historical trail
   const turso = getTursoClient()
   if (turso) {
     try {
       await ensurePresenceTable(turso)
       const res = await turso.execute({
-        sql: "SELECT * FROM user_presence WHERE expires_at > ?",
-        args: [now],
+        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC",
       })
 
       for (const row of res.rows) {
         const uId = String(row.user_id)
-        if (!activeUsersMap.has(uId)) {
-          let agencies: string[] = []
-          try {
-            agencies = JSON.parse(String(row.agencies || "[]"))
-          } catch {}
+        let agencies: string[] = []
+        try {
+          agencies = JSON.parse(String(row.agencies || "[]"))
+        } catch {}
 
-          const lastSeen = Number(row.last_seen || 0)
-          const info: ActiveUserInfo = {
-            userId: uId,
-            username: String(row.username || ""),
-            name: String(row.name || row.username || ""),
-            role: String(row.role || ""),
-            cccCode: String(row.ccc_code || ""),
-            agencies,
-            activeModule: row.active_module ? String(row.active_module) : undefined,
-            lastAction: row.last_action ? String(row.last_action) : undefined,
-            deviceType: (row.device_type as any) || "Desktop",
-            browserName: String(row.browser_name || "Browser"),
-            ip: String(row.ip || ""),
-            lastSeen,
-            isLive: now - lastSeen < 60_000,
-          }
-          activeUsersMap.set(uId, info)
+        const lastSeen = Number(row.last_seen || 0)
+        const isLive = now - lastSeen < 60_000 && Number(row.is_online || 0) === 1
+
+        const info: ActiveUserInfo = {
+          userId: uId,
+          username: String(row.username || ""),
+          name: String(row.name || row.username || ""),
+          role: String(row.role || ""),
+          cccCode: String(row.ccc_code || ""),
+          agencies,
+          activeModule: row.active_module ? String(row.active_module) : undefined,
+          lastAction: row.last_action ? String(row.last_action) : undefined,
+          deviceType: (row.device_type as any) || "Desktop",
+          browserName: String(row.browser_name || "Browser"),
+          ip: String(row.ip || ""),
+          lastSeen,
+          isLive,
         }
+        activeUsersMap.set(uId, info)
       }
     } catch (e) {
       console.warn("[presence-service] Error reading online users from Turso:", e)
