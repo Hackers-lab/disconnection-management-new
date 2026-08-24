@@ -63,18 +63,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const loadIcdsFromCache = async () => {
     try {
       let cached = await getFromCache<any[]>("icds_data_cache")
-      if (!cached || !Array.isArray(cached) || cached.length === 0) {
-        const res = await fetch("/api/icds")
-        if (res.ok) {
-          const freshData = await res.json()
-          if (Array.isArray(freshData)) {
-            cached = freshData
-            await saveToCache("icds_data_cache", freshData)
-          }
-        }
-      }
-
-      if (cached && Array.isArray(cached)) {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
         const isAgency = userRole === "agency"
         const count = cached.filter((r) => {
           if (isAgency && r.assignedAgency) {
@@ -88,6 +77,29 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
         setIcdsPendingCount(count)
         return true
       }
+
+      // If not in cache, fetch asynchronously in background without blocking sidebar
+      fetch("/api/icds")
+        .then((res) => (res.ok ? res.json() : null))
+        .then(async (freshData) => {
+          if (Array.isArray(freshData)) {
+            await saveToCache("icds_data_cache", freshData)
+            const isAgency = userRole === "agency"
+            const count = freshData.filter((r) => {
+              if (isAgency && r.assignedAgency) {
+                const recAgency = String(r.assignedAgency || "").trim()
+                if (upperAgencies.length > 0 && !upperAgencies.some((ua) => matchesAgency(recAgency, ua))) {
+                  return false
+                }
+              }
+              return r.stage !== "COMPLETED"
+            }).length
+            setIcdsPendingCount(count)
+          }
+        })
+        .catch((e) => console.error("Error loading ICDS counts in sidebar:", e))
+        .finally(() => setLoadingCounts((prev) => ({ ...prev, icds: false })))
+
       return false
     } catch (e) {
       console.error("Error loading ICDS counts in sidebar:", e)
