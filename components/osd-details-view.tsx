@@ -135,7 +135,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     const text = await res.text()
     try {
       const parsed = JSON.parse(text)
-      return Array.isArray(parsed) ? parsed[0] : parsed
+      return parsed
     } catch {
       return { code: "500", message: text.slice(0, 150) }
     }
@@ -187,7 +187,8 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     setAuthError("")
     try {
       const payload = [{ username: username.trim(), password: clientSideHkEncrypt(password) }]
-      const json = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
+      const raw = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
+      const json = Array.isArray(raw) ? raw[0] : raw
 
       if (json?.code === "200") {
         setOtpSent(true)
@@ -208,7 +209,8 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     setAuthError("")
     try {
       const payload = [{ username: username.trim(), otp: otp.trim() }]
-      const json = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
+      const raw = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
+      const json = Array.isArray(raw) ? raw[0] : raw
 
       if (json?.code === "200" && json.message?.JWT_token) {
         const sess: SessionData = {
@@ -253,8 +255,11 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
         con_id: idToSearch.trim()
       }
 
+      // Helper to unpack SpotAI { code, message } responses
+      const unpack = (res: any) => (Array.isArray(res) ? res[0] : res)
+
       // Parallel direct queries from user device
-      const [masterRes, paymentsRes, osdRes, billingRes, readingsRes, meterRes] = await Promise.all([
+      const [masterRaw, paymentsRaw, osdRaw, billingRaw, readingsRaw, meterRaw] = await Promise.all([
         spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "MASTER", flag: "C" }]),
         spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "PAYMENT", flag: "P" }]),
         spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "OSD", flag: "O" }]),
@@ -263,7 +268,14 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
         spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "METER", flag: "M" }]),
       ])
 
-      const masterData = Array.isArray(masterRes?.message) ? masterRes.message[0] : null
+      const masterRes = unpack(masterRaw)
+      const paymentsRes = unpack(paymentsRaw)
+      const osdRes = unpack(osdRaw)
+      const billingRes = unpack(billingRaw)
+      const readingsRes = unpack(readingsRaw)
+      const meterRes = unpack(meterRaw)
+
+      const masterData = Array.isArray(masterRes?.message) ? masterRes.message[0] : (typeof masterRes?.message === 'object' ? masterRes.message : null)
 
       if (!masterData) {
         setQueryError(masterRes?.message || "Consumer record not found or session timed out")
@@ -275,7 +287,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
           success: true,
           master: masterData,
           payments: Array.isArray(paymentsRes?.message) ? paymentsRes.message : [],
-          osd: Array.isArray(osdRes?.message) ? osdRes.message[0] : null,
+          osd: Array.isArray(osdRes?.message) ? osdRes.message[0] : (osdRes?.message || null),
           billing: Array.isArray(billingRes?.message) ? billingRes.message : [],
           readings: Array.isArray(readingsRes?.message) ? readingsRes.message : [],
           meter: Array.isArray(meterRes?.message) ? meterRes.message : [],
@@ -528,15 +540,17 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     </p>
                   </div>
 
-                  {/* Dual Outstanding Highlights */}
-                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[190px]">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Gross Reconnection Total</div>
+                  {/* Total Outstanding & Dues Highlights */}
+                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[210px]">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between sm:justify-end gap-1">
+                      <span>Total Net OSD</span>
+                    </div>
                     <div className="text-xl sm:text-2xl font-bold font-mono text-rose-700 tracking-tight">
                       ₹{totalGrossDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="text-[11px] text-rose-700/90 font-semibold pt-1 border-t border-rose-200/60 flex justify-between sm:justify-end gap-2">
-                      <span className="text-slate-600">Disconnection OSD:</span>
-                      <span className="font-mono font-bold">₹{disconnectionBaseOsd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                    <div className="text-[11px] text-slate-600 font-semibold pt-1 border-t border-rose-200/60 flex justify-between sm:justify-end gap-3">
+                      <span>Base Bill OSD: <strong className="text-slate-900 font-mono">₹{disconnectionBaseOsd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                      <span>LPSC: <strong className="text-amber-700 font-mono">₹{surchargesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
                     </div>
                   </div>
                 </div>
