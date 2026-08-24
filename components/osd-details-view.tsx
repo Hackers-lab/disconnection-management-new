@@ -323,8 +323,9 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   const feeAmount = osd?.T5?.[0]?.AMT ? parseFloat(osd.T5[0].AMT) : 0
   const surchargesTotal = lpscAmount + feeAmount
 
-  // Disconnection Notice Base OSD (Principal prior to late penalties)
-  const disconnectionBaseOsd = (legacyArrears + a3Sum) > 0 ? (legacyArrears + a3Sum) : (totalGrossDue - surchargesTotal - currentMonthDue)
+  // True Energy Bill Principal (Legacy L3 + Past A3 + Cycle A1)
+  const billPrincipalTotal = legacyArrears + a3Sum + currentMonthDue
+  const disconnectionBaseOsd = master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : (billPrincipalTotal > 0 ? billPrincipalTotal : (totalGrossDue - surchargesTotal))
 
   return (
     <div className="space-y-4 font-sans antialiased text-slate-900 pb-16">
