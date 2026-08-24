@@ -257,58 +257,39 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+  return (
+    <div className="space-y-3.5">
       {/* ── HEADER BANNER ── */}
-      <div className="bg-slate-900/90 border border-slate-800 p-4 sm:p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-3.5">
-          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0 relative">
-            <Users className="h-6 w-6" />
-            <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
+      <div className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0">
+            <Users className="h-5 w-5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base sm:text-lg font-bold text-slate-100">
-                Live Online Users & Office Activity
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h2 className="text-sm sm:text-base font-bold text-slate-100 truncate">
+                Live Online Users
               </h2>
               <Badge
                 variant="outline"
-                className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono flex items-center gap-1.5"
+                className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[9px] font-mono px-1.5 py-0"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Real-Time
+                Live
               </Badge>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Real-time monitoring of connected personnel, active care center offices, and live updates.
-            </p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <div className="flex items-center gap-2 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs text-slate-300">
-            <Radio className={`h-3 w-3 ${autoRefresh ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
-            <span className="text-[11px] font-medium hidden sm:inline">Auto-Sync (30s)</span>
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={e => setAutoRefresh(e.target.checked)}
-              className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-0 cursor-pointer"
-              title="Toggle 30-second automatic refresh"
-            />
-          </div>
-
+        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
           <Button
             size="sm"
             variant="outline"
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-200 px-3 cursor-pointer"
+            className="h-7 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-200 px-2.5"
           >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin text-emerald-400" : ""}`} />
+            <RefreshCw className={`h-3 w-3 mr-1 ${refreshing ? "animate-spin text-emerald-400" : ""}`} />
             <span>{refreshing ? "Syncing..." : "Refresh"}</span>
           </Button>
 
@@ -316,10 +297,10 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-8 text-xs border-emerald-700/60 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 px-3 cursor-pointer"
+            className="h-7 text-xs border-emerald-700/60 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 px-2.5"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
-            <span>Export Excel</span>
+            <FileSpreadsheet className="h-3 w-3 mr-1 text-emerald-400" />
+            <span>Export</span>
           </Button>
 
           {onBackToDashboard && (
@@ -327,7 +308,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
               size="sm"
               variant="ghost"
               onClick={onBackToDashboard}
-              className="h-8 text-xs text-slate-400 hover:text-slate-200 px-2.5"
+              className="h-7 text-xs text-slate-400 hover:text-slate-200 px-2"
             >
               Back
             </Button>
@@ -335,123 +316,64 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
         </div>
       </div>
 
-      {/* ── KPI STATS CARDS ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      {/* ── KPI STATS CARDS (4 compact grid columns) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {/* KPI 1: Total Online Users */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Total Online Users
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
+        <Card className="bg-slate-900/70 border-slate-800 shadow-xs">
+          <CardContent className="p-2.5">
+            <div className="text-[10px] font-semibold text-slate-400">Total Users</div>
             {loading ? (
-              <div className="h-8 w-16 bg-slate-800 animate-pulse rounded my-1" />
+              <div className="h-6 w-12 bg-slate-800 animate-pulse rounded my-1" />
             ) : (
-              <div>
-                <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
-                  {report?.totalOnline || 0}
-                </div>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-mono">
-                  <span className="text-emerald-400 font-semibold">
-                    {report?.activeNowCount || 0} Active Now
-                  </span>
-                  <span>·</span>
-                  <span className="text-amber-400/90">
-                    {report?.idleCount || 0} Idle
-                  </span>
-                </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-0.5">
+                {report?.totalOnline || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* KPI 2: Active Offices */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Active Offices (CCCs)
-              <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
+        <Card className="bg-slate-900/70 border-slate-800 shadow-xs">
+          <CardContent className="p-2.5">
+            <div className="text-[10px] font-semibold text-slate-400">Active Offices</div>
             {loading ? (
-              <div className="h-8 w-16 bg-slate-800 animate-pulse rounded my-1" />
+              <div className="h-6 w-12 bg-slate-800 animate-pulse rounded my-1" />
             ) : (
-              <div>
-                <div className="text-2xl sm:text-3xl font-black text-blue-400 font-mono">
-                  {report?.totalOfficesActive || 0}
-                </div>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">
-                  Care Centers with live users
-                </p>
+              <div className="text-xl sm:text-2xl font-black text-blue-400 font-mono mt-0.5">
+                {activeOfficesList.length}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* KPI 3: Admin & Agency Breakdown */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Role Composition
-              <Shield className="h-4 w-4 text-purple-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
+        {/* KPI 3: Live Now */}
+        <Card className="bg-slate-900/70 border-slate-800 shadow-xs">
+          <CardContent className="p-2.5">
+            <div className="text-[10px] font-semibold text-slate-400">Online Now</div>
             {loading ? (
-              <div className="h-8 w-20 bg-slate-800 animate-pulse rounded my-1" />
+              <div className="h-6 w-12 bg-slate-800 animate-pulse rounded my-1" />
             ) : (
-              <div className="space-y-1 mt-0.5">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400">Admins:</span>
-                  <span className="font-bold text-blue-300">
-                    {(report?.roleStats?.["admin"] || 0) + (report?.roleStats?.["superuser"] || 0) + (report?.roleStats?.["executive"] || 0)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400">Agencies:</span>
-                  <span className="font-bold text-amber-300">
-                    {report?.roleStats?.["agency"] || 0}
-                  </span>
-                </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-0.5">
+                {report?.activeNowCount || 0}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* KPI 4: Active Modules Stream */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Pipeline Activity
-              <Activity className="h-4 w-4 text-cyan-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
+        {/* KPI 4: Offline */}
+        <Card className="bg-slate-900/70 border-slate-800 shadow-xs">
+          <CardContent className="p-2.5">
+            <div className="text-[10px] font-semibold text-slate-400">Offline History</div>
             {loading ? (
-              <div className="h-8 w-20 bg-slate-800 animate-pulse rounded my-1" />
-            ) : Object.keys(report?.moduleStats || {}).length > 0 ? (
-              <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                {Object.entries(report?.moduleStats || {}).slice(0, 3).map(([mod, count]) => (
-                  <Badge
-                    key={mod}
-                    variant="outline"
-                    className={`text-[10px] font-mono uppercase px-1.5 py-0.5 ${getModuleBadgeColor(mod)}`}
-                  >
-                    {mod}: {count}
-                  </Badge>
-                ))}
-              </div>
+              <div className="h-6 w-12 bg-slate-800 animate-pulse rounded my-1" />
             ) : (
-              <p className="text-xs text-slate-500 italic my-1">No active modules yet</p>
+              <div className="text-xl sm:text-2xl font-black text-slate-300 font-mono mt-0.5">
+                {report?.idleCount || 0}
+              </div>
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
 
       {/* ── ACTIVE OFFICES PILLS / QUICK SELECTOR ── */}
