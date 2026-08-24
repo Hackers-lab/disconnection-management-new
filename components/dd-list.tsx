@@ -246,7 +246,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   }
 
   const handleUpdateConsumer = async (updatedConsumer: DeemedVisitData) => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
 
     const syncingConsumer: DeemedVisitData = {
       ...updatedConsumer,
@@ -301,7 +301,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   const lastRefreshTimeRef = useRef<number>(0)
 
   const handleManualRefresh = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     const now = Date.now()
     if (now - lastRefreshTimeRef.current < 10_000) {
       toast({ title: "Already Up to Date", description: "Checked just now. All records are synced." })
@@ -473,7 +473,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           <Button
             type="button"
             onClick={() => {
-              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
               setShowNearbyMap(v => !v)
             }}
             className="w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white"

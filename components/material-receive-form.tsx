@@ -61,7 +61,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
   }
 
   const triggerCamera = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     if (fileInputRef.current) {
       fileInputRef.current.setAttribute("capture", "environment")
       fileInputRef.current.click()
@@ -69,7 +69,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
   }
 
   const triggerGallery = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     if (fileInputRef.current) {
       fileInputRef.current.removeAttribute("capture")
       fileInputRef.current.click()
@@ -136,7 +136,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
           variant="ghost" 
           size="icon" 
           onClick={() => {
-            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
             onCancel()
           }} 
           className="rounded-full hover:bg-slate-100 h-9 w-9"
@@ -383,7 +383,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
             variant="outline"
             className="flex-1 h-12 border-gray-300 text-gray-700 text-sm font-bold rounded-xl"
             onClick={() => {
-              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
               onCancel()
             }}
             disabled={submitting}

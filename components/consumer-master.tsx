@@ -559,7 +559,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
           <Button
             type="button"
             onClick={() => {
-              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
               setShowNearbyMap(v => !v)
             }}
             className="w-full h-11 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-sm transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white"

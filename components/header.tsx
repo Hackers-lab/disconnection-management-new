@@ -88,7 +88,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     if (!agencyLastUpdates || agencyLastUpdates.length === 0 || isSharingAgencyImage) return
     setIsSharingAgencyImage(true)
     try {
-      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
       const ccc = profileData?.cccCode || (typeof window !== "undefined" ? localStorage.getItem("user_ccc_code") : "") || "CCC"
       await generateAndShareAgencyUpdatesJPEG(agencyLastUpdates, ccc)
     } catch (err) {
@@ -198,7 +198,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   };
   
   const handleGenerateDDReport = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20);
     setLoading(true);
 
     try {
@@ -466,7 +466,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   // --- Actions ---
   const handleLogout = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     try {
       setLoggingOut(true);
       try {
@@ -485,7 +485,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   };
 
   const handleGlobalRefresh = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     if (confirm("Sync fresh data from server? This will reload the page.")) {
       if (userRole === "admin" || userRole === "executive" || isAdminUser) {
         await fetch("/api/system/reset-base?moduleKey=all", { method: "POST" }).catch(() => {})
@@ -500,7 +500,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   }
 
   const handleUpload = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20);
     setShowAgencyUpdates(true);
     setLoading(true);
     setAgencyLastUpdates([]);
@@ -601,7 +601,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   };
 
   const handleGenerateReport = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     setLoading(true)
     try {
       // Fetch Agency Description
@@ -922,7 +922,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
             <div 
               className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 setActiveView("home")
               }}
             >
@@ -937,7 +937,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
             {/* User Info / Profile Link (Available on both desktop & mobile) */}
             <div 
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 setActiveView("profile")
               }}
               className="flex items-center gap-2 text-right hover:bg-slate-100/80 px-2 py-1 rounded-xl cursor-pointer transition-all select-none"
@@ -978,7 +978,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     setActiveView("home")
                 }}
                 title="Home Dashboard"
@@ -992,7 +992,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                     variant="ghost" 
                     size="sm" 
                     onClick={() => {
-                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                       setShowDownloadMenu(!showDownloadMenu)
                     }}
                     title={activeView === "dtr" || activeView === "dtr-painting" ? "More Actions" : "Download Options"}
@@ -1066,7 +1066,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                             type="button"
                             className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm flex items-center justify-between"
                             onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                               setShowDownloadMenu(false);
                               onDownload && onDownload();
                             }}
@@ -1080,7 +1080,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                             type="button"
                             className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm flex items-center justify-between"
                             onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                               setShowDownloadMenu(false);
                               onDownloadExcel && onDownloadExcel();
                             }}
@@ -1094,7 +1094,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                             type="button"
                             className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm"
                             onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                               setShowDownloadMenu(false);
                               setShowReportDialog(true);
                             }}
@@ -1105,7 +1105,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                             type="button"
                             className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm font-medium text-blue-700"
                             onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                               setShowDownloadMenu(false);
                               onDownloadDefaulters && onDownloadDefaulters();
                             }}
@@ -1116,7 +1116,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                             type="button"
                             className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm font-medium text-indigo-700 border-t border-slate-100"
                             onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                               setShowDownloadMenu(false);
                               setShowHistoryReportDialog(true);
                             }}
@@ -1242,7 +1242,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   }}>
                     <MoreVertical className="h-5 w-5" />
                   </Button>

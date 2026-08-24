@@ -300,7 +300,7 @@ export function GisCamera({
     setTimeout(() => setCapturedFlash(false), 200)
 
     if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(25)
+      navigator.vibrate(35)
     }
 
     try {

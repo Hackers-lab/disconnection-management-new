@@ -99,14 +99,14 @@ export function GlobalConsumerSearch({ onSelectModule, userRole, permissions }: 
   const handleOpenOsd = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
     if (!canAccessOsd) return
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     setOsdTargetId(id)
     setShowOsdModal(true)
     setIsOpen(false)
   }
 
   const handleSelectResult = (item: SearchResultItem) => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     const term = item.consumerId || item.caNo || item.meterNo || item.id || item.name
     if (term && typeof window !== "undefined") {
       sessionStorage.setItem("module_search_term", term)

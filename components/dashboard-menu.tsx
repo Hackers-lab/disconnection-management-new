@@ -945,7 +945,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     <div
                       key={module.id}
                       onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         onSelect(module.id as ViewType)
                       }}
                       className="rounded-2xl border border-red-500/20 hover:border-red-500/35 bg-gradient-to-b from-white via-red-50/20 to-red-50/40 p-3.5 flex items-center justify-between shadow-[0_4px_14px_rgba(239,68,68,0.08),0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_22px_rgba(239,68,68,0.14)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
@@ -1000,7 +1000,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   <div
                     key={module.id}
                     onClick={() => {
-                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                       onSelect(module.id as ViewType)
                     }}
                     className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.20] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] select-none"
@@ -1072,7 +1072,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   key={module.id}
                   className="group relative cursor-pointer transition-all duration-300 hover:-translate-y-1.5 border border-black/[0.08] hover:border-black/[0.22] bg-white/85 backdrop-blur-xl rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden"
                   onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     onSelect(module.id as ViewType)
                   }}
                 >
