@@ -96,6 +96,10 @@ async function ensurePresenceTable(client: Client) {
         is_online INTEGER DEFAULT 1
       );
     `)
+    // Ensure newly added columns exist in existing tables
+    await client.execute(`ALTER TABLE user_presence ADD COLUMN last_login INTEGER;`).catch(() => {})
+    await client.execute(`ALTER TABLE user_presence ADD COLUMN is_online INTEGER DEFAULT 1;`).catch(() => {})
+
     presenceTableInitialized = true
   } catch (err) {
     console.warn("[presence-service] Error creating user_presence table:", err)
