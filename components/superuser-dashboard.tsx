@@ -21,6 +21,8 @@ import {
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
+import { BroadcastPushModal } from "@/components/broadcast-push-modal"
+import { PushNotificationManager } from "@/components/push-notification-manager"
 import { 
   Building2, 
   Users, 
@@ -112,6 +114,7 @@ export function SuperuserDashboard() {
   const [showAddTenantModal, setShowAddTenantModal] = useState(false)
   const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [showEditUserModal, setShowEditUserModal] = useState(false)
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false)
   const [submittingTenant, setSubmittingTenant] = useState(false)
   const [submittingUser, setSubmittingUser] = useState(false)
 
@@ -552,6 +555,18 @@ export function SuperuserDashboard() {
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loadingStats ? "animate-spin text-blue-600" : ""}`} />
                 <span className="hidden md:inline ml-1">Refresh</span>
+              </Button>
+
+              {/* Send Broadcast Push Alert */}
+              <Button
+                size="sm"
+                onClick={() => setShowBroadcastModal(true)}
+                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2.5 sm:px-3 rounded-lg shadow-sm"
+                title="Send Push Notification to Connected Phones"
+              >
+                <Bell className="h-3.5 w-3.5 mr-1" />
+                <span className="hidden sm:inline">Broadcast Alert</span>
+                <span className="sm:hidden">Alert</span>
               </Button>
 
               {/* Add CCC Button */}
@@ -1646,6 +1661,17 @@ export function SuperuserDashboard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Broadcast Push Alert Modal */}
+      <BroadcastPushModal
+        isOpen={showBroadcastModal}
+        onClose={() => setShowBroadcastModal(false)}
+        isSuperuser={true}
+        tenants={tenants}
+      />
+
+      {/* Push Notification Permission Manager */}
+      <PushNotificationManager />
     </div>
   )
 }

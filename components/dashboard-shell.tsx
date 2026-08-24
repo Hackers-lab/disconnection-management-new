@@ -3,6 +3,7 @@
 import { Header } from "@/components/header"
 import { ViewType } from "@/components/app-sidebar"
 import { VisitorLiveCounter } from "@/components/visitor-live-counter"
+import { PushNotificationManager } from "@/components/push-notification-manager"
 
 interface DashboardShellProps {
   role: string
@@ -71,6 +72,7 @@ export function DashboardShell({
           </div>
         )}
       </main>
+      <PushNotificationManager />
     </div>
   )
-}
+}
