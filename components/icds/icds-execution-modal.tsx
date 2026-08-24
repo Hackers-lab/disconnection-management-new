@@ -126,6 +126,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
       const form = new FormData()
       form.append("file", processed)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", photoType)
 

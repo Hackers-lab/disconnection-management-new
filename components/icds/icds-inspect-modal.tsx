@@ -126,6 +126,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
       const form = new FormData()
       form.append("file", processed)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", "before")
 
@@ -149,6 +150,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
       const form = new FormData()
       form.append("file", file)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", "drawing")
 

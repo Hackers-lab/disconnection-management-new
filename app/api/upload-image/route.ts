@@ -10,7 +10,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get("file") as File
-    const consumerId = formData.get("consumerId") as string
+    const consumerId = (formData.get("consumerId") || formData.get("recordId") || formData.get("id")) as string
     const moduleName = (formData.get("module") || formData.get("moduleName")) as string
 
     if (!file || file.size === 0) {
@@ -18,7 +18,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     }
 
     if (!consumerId) {
-      return NextResponse.json({ error: "No consumerId provided" }, { status: 400 })
+      return NextResponse.json({ error: "No consumerId or recordId provided" }, { status: 400 })
     }
 
     // Upload to Google Drive

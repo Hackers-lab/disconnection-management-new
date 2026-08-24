@@ -143,6 +143,9 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   if (id.startsWith("DD-")) {
     return "deemed"
   }
+  if (id.startsWith("ICDS-") || id.includes("AWC-") || id.includes("ICDS")) {
+    return "icds"
+  }
 
   // Fallback to disconnection
   return "disconnection"

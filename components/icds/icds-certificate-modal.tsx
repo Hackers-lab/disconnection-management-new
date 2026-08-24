@@ -80,6 +80,7 @@ export function IcdsCertificateModal({ record, open, onClose, onSuccess, usernam
       const form = new FormData()
       form.append("file", processed)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", isAfter ? "after" : "certificate")
 
@@ -273,7 +274,7 @@ export function IcdsCertificateModal({ record, open, onClose, onSuccess, usernam
             <input
               type="file"
               ref={certInputRef}
-              accept="image/*"
+              accept="image/*,.pdf"
               onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "cert")}
               className="hidden"
             />
