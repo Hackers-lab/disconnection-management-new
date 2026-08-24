@@ -150,23 +150,62 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     }
   }
 
+  // Helper for direct client-side fallback if Vercel serverless IP is blocked by WBSEDCL firewall
+  const clientSideHkEncrypt = (passwordStr: string): string => {
+    const secretKey = '@FrTu^^&!#$%^/41'
+    const keyLen = secretKey.length
+    const xorChars: string[] = []
+    for (let r = 0; r < passwordStr.length; r++) {
+      const cCode = passwordStr.charCodeAt(r)
+      const kCode = secretKey.charCodeAt(r % keyLen)
+      xorChars.push(String.fromCharCode(cCode ^ kCode))
+    }
+    return btoa(xorChars.join(''))
+  }
+
   // Step 1: Request OTP
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setAuthLoading(true)
     setAuthError("")
     try {
+      // 1. Try via Next.js backend API proxy
       const res = await fetch("/api/consumer-details/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "request_otp", username, password })
+        body: JSON.stringify({ action: "request_otp", username: username.trim(), password })
       })
       const json = await res.json()
+      
       if (json.code === "200") {
         setOtpSent(true)
-      } else {
-        setAuthError(json.message || json.error || "Failed to dispatch OTP")
+        return
       }
+      
+      // If serverless returned a specific message or timeout, try direct browser fetch
+      if (json.error && (json.error.includes("timed out") || json.error.includes("network error") || json.error.includes("fetch failed"))) {
+        console.warn("[SpotAI] Serverless timed out, attempting direct browser dispatch...")
+        try {
+          const directRes = await fetch("https://spotai.wbsedcl.in/spotaiportal/spot_ai_portal_login", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify([{ username: username.trim(), password: clientSideHkEncrypt(password) }])
+          })
+          const directJson = await directRes.json()
+          const item = Array.isArray(directJson) ? directJson[0] : directJson
+          if (item?.code === "200") {
+            setOtpSent(true)
+            return
+          } else {
+            setAuthError(item?.message || item?.error || "Failed to dispatch OTP")
+            return
+          }
+        } catch {
+          // Fall through to show original error
+        }
+      }
+
+      setAuthError(json.message || json.error || "Failed to dispatch OTP")
     } catch (err: any) {
       setAuthError(err.message || "Network connection error")
     } finally {
