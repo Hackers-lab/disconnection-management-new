@@ -257,7 +257,6 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   }
 
   return (
-  return (
     <div className="space-y-3.5">
       {/* ── HEADER BANNER ── */}
       <div className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
@@ -373,7 +372,6 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
             )}
           </CardContent>
         </Card>
-      </div>
       </div>
 
       {/* ── ACTIVE OFFICES PILLS / QUICK SELECTOR ── */}
