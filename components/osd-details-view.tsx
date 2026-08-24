@@ -313,8 +313,9 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   const cleanCccName = master?.ZOFF_NAME ? master.ZOFF_NAME.replace(/CUSTOMER CARE CENTRE/i, "CCC").replace(/CUSTOMER CARE CENTER/i, "CCC").trim() : (master?.ZOFF_CODE || "N/A")
   const cleanLoad = master?.ZCONN_LOAD ? `${parseFloat(master.ZCONN_LOAD)} kW` : ""
 
-  // Exact Dues Math Alignment
-  const totalGrossDue = osd?.T6?.[0]?.AMT ? parseFloat(osd.T6[0].AMT) : (master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : 0)
+  // Exact Dues Math Alignment (Direct ERP SAP Fields)
+  const masterOsd = master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : 0
+  const totalGrossDue = osd?.T6?.[0]?.AMT ? parseFloat(osd.T6[0].AMT) : (masterOsd > 0 ? masterOsd : 0)
   const currentMonthDue = osd?.A1?.[0]?.AMT ? parseFloat(osd.A1[0].AMT) : 0
   const legacyArrears = osd?.L3?.[0]?.AMT ? parseFloat(osd.L3[0].AMT) : 0
   const a3List = osd?.A3 || []
@@ -323,9 +324,8 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   const feeAmount = osd?.T5?.[0]?.AMT ? parseFloat(osd.T5[0].AMT) : 0
   const surchargesTotal = lpscAmount + feeAmount
 
-  // True Energy Bill Principal (Legacy L3 + Past A3 + Cycle A1)
-  const billPrincipalTotal = legacyArrears + a3Sum + currentMonthDue
-  const disconnectionBaseOsd = master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : (billPrincipalTotal > 0 ? billPrincipalTotal : (totalGrossDue - surchargesTotal))
+  // Master Disconnection OSD (Notice amount directly from SAP Master)
+  const disconnectionBaseOsd = masterOsd > 0 ? masterOsd : (legacyArrears + a3Sum + currentMonthDue)
 
   return (
     <div className="space-y-4 font-sans antialiased text-slate-900 pb-16">
