@@ -36,8 +36,7 @@ import {
   ChevronDown,
   Info,
   Download,
-  Loader2,
-  Code
+  Loader2
 } from "lucide-react"
 
 interface SessionData {
@@ -67,7 +66,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   // Consumer query state
   const [consumerId, setConsumerId] = useState(initialConsumerId || "")
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"overview" | "billing" | "payments" | "readings" | "json">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "master" | "billing" | "payments" | "readings" | "meter">("overview")
   const [data, setData] = useState<any>(null)
   const [queryError, setQueryError] = useState("")
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -316,16 +315,40 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   // Exact Dues Math Alignment (Direct ERP SAP Fields)
   const masterOsd = master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : 0
   const totalGrossDue = osd?.T6?.[0]?.AMT ? parseFloat(osd.T6[0].AMT) : (masterOsd > 0 ? masterOsd : 0)
-  const currentMonthDue = osd?.A1?.[0]?.AMT ? parseFloat(osd.A1[0].AMT) : 0
+  const totalEnergyOsd = osd?.T4?.[0]?.AMT ? parseFloat(osd.T4[0].AMT) : 0
+  const priorCarryover = osd?.T3?.[0]?.AMT ? parseFloat(osd.T3[0].AMT) : 0
+  const currentCycleAmt = osd?.T2?.[0]?.AMT ? parseFloat(osd.T2[0].AMT) : (osd?.A2?.[0]?.AMT ? parseFloat(osd.A2[0].AMT) : (osd?.A1?.[0]?.AMT ? parseFloat(osd.A1[0].AMT) : 0))
+  const otherCharges = osd?.T5?.[0]?.AMT ? parseFloat(osd.T5[0].AMT) : 0
+  const liveLpsc = osd?.L4?.[0]?.AMT ? parseFloat(osd.L4[0].AMT) : 0
   const legacyArrears = osd?.L3?.[0]?.AMT ? parseFloat(osd.L3[0].AMT) : 0
   const a3List = osd?.A3 || []
   const a3Sum = a3List.reduce((acc: number, item: any) => acc + (parseFloat(item.AMT) || 0), 0)
-  const lpscAmount = osd?.L4?.[0]?.AMT ? parseFloat(osd.L4[0].AMT) : 0
-  const feeAmount = osd?.T5?.[0]?.AMT ? parseFloat(osd.T5[0].AMT) : 0
-  const surchargesTotal = lpscAmount + feeAmount
+  const surchargesTotal = liveLpsc + otherCharges
+
+  // Total Real-Time Demand (Total OSD + Live Dynamic LPSC)
+  const totalDemand = totalGrossDue + liveLpsc
+
+  // Check latest bill due date
+  const latestBill = billing?.[0]
+  const latestBillDueStr = latestBill?.DUE_DATE || ""
+  let isLatestBillOverdue = true
+  if (latestBillDueStr) {
+    try {
+      const parts = latestBillDueStr.split('.')
+      if (parts.length === 3) {
+        const dueDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
+        isLatestBillOverdue = dueDate < new Date()
+      }
+    } catch (e) {}
+  }
+
+  // Actionable Overdue (Due date is over & Must Be Paid)
+  // = Prior Carryover (T3) + Overdue Current Bill (T2) + Other Fees (T5) + Live LPSC (L4)
+  const mustPayOverdue = priorCarryover + otherCharges + liveLpsc + (isLatestBillOverdue ? currentCycleAmt : 0)
+  const currentInGrace = isLatestBillOverdue ? 0 : currentCycleAmt
 
   // Master Disconnection OSD (Notice amount directly from SAP Master)
-  const disconnectionBaseOsd = masterOsd > 0 ? masterOsd : (legacyArrears + a3Sum + currentMonthDue)
+  const disconnectionBaseOsd = masterOsd > 0 ? masterOsd : (legacyArrears + a3Sum + currentCycleAmt)
 
   return (
     <div className="space-y-4 font-sans antialiased text-slate-900 pb-16">
@@ -543,16 +566,24 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                   </div>
 
                   {/* Universal Dues Highlights */}
-                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[220px]">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between sm:justify-end gap-1">
-                      <span>Total Live Dues (T6)</span>
+                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[240px]">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between sm:justify-end gap-1.5">
+                      <span>Total Real-Time Demand</span>
+                      <span className="text-[9px] bg-rose-200/80 text-rose-900 px-1.5 py-0.5 rounded font-mono">T6 + L4</span>
                     </div>
                     <div className="text-xl sm:text-2xl font-bold font-mono text-rose-700 tracking-tight">
-                      ₹{(totalGrossDue || masterOsd).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      ₹{totalDemand.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="text-[11px] text-slate-600 font-semibold pt-1 border-t border-rose-200/60 flex justify-between sm:justify-end gap-3">
-                      <span>Master OSD: <strong className="text-slate-900 font-mono">₹{masterOsd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
-                      <span>LPSC: <strong className="text-amber-700 font-mono">₹{surchargesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                    <div className="text-[10px] text-slate-600 font-semibold pt-1 border-t border-rose-200/60 flex flex-col gap-0.5 sm:items-end">
+                      <div className="flex items-center gap-1.5 justify-between sm:justify-end">
+                        <span className="text-slate-500">Overdue (Must Pay):</span>
+                        <span className="text-rose-700 font-mono font-bold">₹{mustPayOverdue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex items-center gap-2 justify-between sm:justify-end text-[9px] text-slate-500">
+                        <span>Principal: <strong className="text-slate-800 font-mono">₹{totalGrossDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                        <span>•</span>
+                        <span>LPSC: <strong className="text-amber-700 font-mono">₹{liveLpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -606,7 +637,15 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     activeTab === "overview" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
-                  OSD & Payments
+                  OSD & Dues
+                </button>
+                <button
+                  onClick={() => setActiveTab("master")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "master" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" /> Master Details
                 </button>
                 <button
                   onClick={() => setActiveTab("billing")}
@@ -630,15 +669,15 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     activeTab === "readings" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
-                  <Gauge className="w-3.5 h-3.5" /> Readings ({readings.length})
+                  <Activity className="w-3.5 h-3.5" /> Readings ({readings.length})
                 </button>
                 <button
-                  onClick={() => setActiveTab("json")}
+                  onClick={() => setActiveTab("meter")}
                   className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === "json" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    activeTab === "meter" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
-                  <Code className="w-3.5 h-3.5" /> Raw JSON
+                  <Gauge className="w-3.5 h-3.5" /> Meter Specs ({master?.ZMET1 ? 1 : 0})
                 </button>
               </div>
 
@@ -647,56 +686,77 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                 <div className="space-y-3">
                   {/* PERFECTLY BALANCED OSD BREAKDOWN GRID */}
                   <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-rose-600" />
-                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Exact Dues Breakdown</h3>
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Dues & Overdue Partitioning</h3>
                       </div>
-                      <div className="text-xs text-slate-500 font-medium">
-                        Notice Base: <strong className="text-slate-900 font-mono">₹{disconnectionBaseOsd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-500 font-medium">
+                          Must Pay (Overdue): <strong className="text-rose-700 font-mono">₹{mustPayOverdue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                        </span>
+                        {currentInGrace > 0 && (
+                          <span className="text-slate-500 font-medium">
+                            In Grace: <strong className="text-amber-600 font-mono">₹{currentInGrace.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                          </span>
+                        )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                      {/* Card 1: Current Month */}
-                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                        <div className="text-[10px] font-bold uppercase text-slate-500">1. Current Bill (A1)</div>
-                        <div className="text-sm font-bold font-mono text-slate-900 mt-0.5">₹{currentMonthDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{osd?.A1?.[0]?.DUE_FROM || "Current Cycle"}</div>
+                      {/* Card 1: Actionable Overdue (Must Pay) */}
+                      <div className="p-3 bg-rose-50/50 border border-rose-200/70 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-rose-800">1. Actionable Overdue</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-600 text-white rounded">MUST PAY</span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-rose-700 mt-1">₹{mustPayOverdue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                        <div className="text-[10px] text-rose-600/80 font-medium mt-0.5">Due date passed • DC active</div>
                       </div>
 
-                      {/* Card 2: Pending Invoices A3 */}
+                      {/* Card 2: Current Cycle Bill (T2 / A2) */}
+                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Current Bill (T2/A2)</div>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                            isLatestBillOverdue ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"
+                          }`}>
+                            {isLatestBillOverdue ? "OVERDUE" : "IN GRACE"}
+                          </span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-slate-900 mt-1">₹{currentCycleAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {latestBillDueStr ? `Due Date: ${latestBillDueStr}` : (osd?.A2?.[0]?.DUE_FROM || "Current Cycle")}
+                        </div>
+                      </div>
+
+                      {/* Card 3: Prior Unpaid Invoices (T3 / A3) */}
                       <div 
                         onClick={() => setShowA3Details(!showA3Details)}
                         className="p-3 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-xl cursor-pointer transition-colors"
                       >
                         <div className="flex items-center justify-between">
-                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Past Cycles (A3)</div>
+                          <div className="text-[10px] font-bold uppercase text-slate-500">3. Past Invoices (T3/A3)</div>
                           <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showA3Details ? "rotate-180" : ""}`} />
                         </div>
-                        <div className="text-sm font-bold font-mono text-slate-900 mt-0.5">₹{a3Sum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-blue-600 font-medium mt-0.5">{a3List.length} Unpaid Cycles (Tap)</div>
+                        <div className="text-sm font-bold font-mono text-slate-900 mt-1">₹{(priorCarryover || a3Sum).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                        <div className="text-[10px] text-blue-600 font-medium mt-0.5">{a3List.length} Invoices (Tap)</div>
                       </div>
 
-                      {/* Card 3: Historical Arrears L3 */}
+                      {/* Card 4: Surcharges & Misc Fees (L4 + T5) */}
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                        <div className="text-[10px] font-bold uppercase text-slate-500">3. Legacy Arrears (L3)</div>
-                        <div className="text-sm font-bold font-mono text-rose-600 mt-0.5">₹{legacyArrears.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Long-Term Dues</div>
-                      </div>
-
-                      {/* Card 4: Surcharges & Fees L4+T5 */}
-                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                        <div className="text-[10px] font-bold uppercase text-slate-500">4. Surcharges (L4+T5)</div>
-                        <div className="text-sm font-bold font-mono text-amber-600 mt-0.5">₹{surchargesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">LPSC + Meter Fee</div>
+                        <div className="text-[10px] font-bold uppercase text-slate-500">4. LPSC & Fees (L4+T5)</div>
+                        <div className="text-sm font-bold font-mono text-amber-600 mt-1">₹{surchargesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          LPSC: ₹{liveLpsc.toFixed(2)} • Fees: ₹{otherCharges.toFixed(2)}
+                        </div>
                       </div>
                     </div>
 
                     {/* Expandable A3 Detail List */}
                     {showA3Details && a3List.length > 0 && (
                       <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl space-y-1.5 text-xs animate-in fade-in-50">
-                        <div className="text-[11px] font-bold text-blue-900">Unbilled Past Quarter Invoices:</div>
+                        <div className="text-[11px] font-bold text-blue-900">Unpaid Past Invoices Breakdown:</div>
                         {a3List.map((item: any, i: number) => (
                           <div key={i} className="flex justify-between py-1 border-b border-blue-100/50 last:border-0 font-mono text-[11px]">
                             <span className="text-slate-600">Period: {item.DUE_FROM} to {item.DUE_TO} (Inv: {item.INV_NO})</span>
@@ -776,7 +836,170 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                 </div>
               )}
 
-              {/* --- TAB CONTENT 2: ALL BILLS (WITH DIRECT OFFICIAL PDF VIEWER) --- */}
+              {/* --- TAB CONTENT 2: MASTER DETAILS (FULL 360 CONSUMER PROFILE) --- */}
+              {activeTab === "master" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {/* Card 1: Consumer & Premise Info */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-blue-700">
+                        <User className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Consumer & Location</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Consumer ID</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZCON_ID?.replace(/^0+/, "")}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Consumer Name</span>
+                          <span className="text-slate-900 font-medium">{cleanName}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Premise Type</span>
+                          <span className="text-slate-900 font-medium">{master.ZPREMISE_TYPE || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Mobile Number</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZMOB_NO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Customer Care Centre</span>
+                          <span className="text-slate-900 font-medium">{cleanCccName}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Area Classification</span>
+                          <span className="text-slate-900 font-medium">{master.ZRURAL_URBAN === "R" ? "Rural Area (R)" : (master.ZRURAL_URBAN === "U" ? "Urban Area (U)" : master.ZRURAL_URBAN || "N/A")}</span>
+                        </div>
+                        <div className="py-1">
+                          <span className="text-slate-500 block mb-0.5">Service Location Address</span>
+                          <span className="text-slate-800 font-medium leading-relaxed block">{cleanAddress}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Connection & Tariff Specs */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-amber-600">
+                        <Zap className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Connection & Tariff</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Connection Status</span>
+                          <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                            master.ZCONN_STAT === "LIVE" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}>
+                            {master.ZCONN_STAT || "LIVE"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Connection Date</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZCONN_DT || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Move-in Date</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZMOVE_IN_DT || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Connected Sanctioned Load</span>
+                          <span className="text-slate-900 font-bold font-mono">{cleanLoad || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Base Class & Category</span>
+                          <span className="text-slate-900 font-medium">{master.ZCLASS_DESC} ({master.ZCLASS || "A"})</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Billing Voltage Class</span>
+                          <span className="text-slate-900 font-medium">{master.ZBILING_CLS || "Low & Medium Voltage"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Tariff Code</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZTARIFF || "N/A"}</span>
+                        </div>
+                        <div className="py-1">
+                          <span className="text-slate-500 block mb-0.5">Rate Category</span>
+                          <span className="text-slate-800 font-medium block">{master.ZRATE_CATG || "N/A"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Distribution & Grid Network */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-purple-600">
+                        <Building2 className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Grid & Network Mapping</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">11kV Feeder Name</span>
+                          <span className="text-slate-900 font-medium">{master.ZFEEDER_NM || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Feeder Code</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZFEEDER_CODE || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">DTR Transformer Code</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZDTR_CODE || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">DTR Location</span>
+                          <span className="text-slate-900 font-medium">{master.ZDTR_LOC || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Meter Reading Unit (MRU)</span>
+                          <span className="text-slate-900 font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{master.ZMRU || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Office Code</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZOFF_CODE || "N/A"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Account & Billing Identifiers */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-emerald-600">
+                        <Receipt className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Account & Billing Specs</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">SAP Installation No</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZINST_NO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Business Partner (BP) No</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZBP_NO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Metered Connection</span>
+                          <span className="text-slate-900 font-medium">{master.ZMETERED || "YES"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Spot Billing</span>
+                          <span className="text-slate-900 font-medium">{master.ZSPOT_BL || "YES"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Government Entity</span>
+                          <span className="text-slate-900 font-medium">{master.ZGOVT_FLAG || "NO"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">ECS / Auto-Debit</span>
+                          <span className="text-slate-900 font-medium">{master.ZECS || "NO"}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Wallet Balance</span>
+                          <span className="text-slate-900 font-mono font-medium">₹{master.WALLET_BALANCE || "0.00"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --- TAB CONTENT 3: ALL BILLS (WITH DIRECT OFFICIAL PDF VIEWER) --- */}
               {activeTab === "billing" && (
                 <div className="space-y-2.5">
                   {billError && (
@@ -844,7 +1067,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                 </div>
               )}
 
-              {/* --- TAB CONTENT 3: PAYMENTS --- */}
+              {/* --- TAB CONTENT 4: PAYMENTS --- */}
               {activeTab === "payments" && (
                 <div className="space-y-2.5">
                   {payments.length === 0 ? (
@@ -879,7 +1102,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                 </div>
               )}
 
-              {/* --- TAB CONTENT 4: METER READINGS --- */}
+              {/* --- TAB CONTENT 5: METER READINGS --- */}
               {activeTab === "readings" && (
                 <div className="space-y-2.5">
                   {readings.length === 0 ? (
@@ -905,24 +1128,69 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                 </div>
               )}
 
-              {/* --- TAB CONTENT 5: RAW JSON INSPECTOR --- */}
-              {activeTab === "json" && (
+              {/* --- TAB CONTENT 6: METER HARDWARE & SPECS --- */}
+              {activeTab === "meter" && (
                 <div className="space-y-3">
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg text-slate-100 font-mono text-xs overflow-x-auto relative">
-                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-slate-400">
-                      <span>Full SpotAI JSON Response</span>
-                      <button
-                        onClick={() => copyToClipboard(JSON.stringify(data, null, 2), "rawJson")}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-sans font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        {copiedField === "rawJson" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-                        <span>{copiedField === "rawJson" ? "Copied!" : "Copy JSON"}</span>
-                      </button>
+                  {/* Primary Meter Summary Card */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Gauge className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Active Meter Specification</h3>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                        {master.ZMET_CON_STAT || "POSTPAID METER"}
+                      </span>
                     </div>
-                    <pre className="text-emerald-400 text-[11px] leading-relaxed max-h-[500px] overflow-y-auto">
-                      {JSON.stringify(data, null, 2)}
-                    </pre>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">Primary Meter Serial</div>
+                        <div className="text-sm font-mono font-bold text-slate-900 mt-1">{master.ZMET1 || "N/A"}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">Phase / Supply</div>
+                        <div className="text-sm font-bold text-slate-900 mt-1">{master.ZCLASS || "3-Phase"}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">Metered Status</div>
+                        <div className="text-sm font-bold text-slate-900 mt-1">{master.ZMETERED || "YES"}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">HES / Smart AMI</div>
+                        <div className="text-sm font-bold text-slate-900 mt-1">{master.HES || "NA"}</div>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Meter History Records from ERP */}
+                  {Array.isArray(data?.meter) && data.meter.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="text-xs font-bold text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-100">
+                        ERP Meter Hardware Registry ({data.meter.length})
+                      </div>
+                      <div className="space-y-2.5">
+                        {data.meter.map((m: any, idx: number) => (
+                          <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono font-bold text-slate-900 text-sm">Serial: {m.ZMETER_NO || master.ZMET1}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                                {m.ZMETER_STATUS || "OK"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+                              <div>Type: <strong className="text-slate-800">{m.ZMET_TYPE || "STATIC"}</strong></div>
+                              <div>Phase: <strong className="text-slate-800">{m.ZPHASE || "3-PHASE"}</strong></div>
+                              <div>Multiplying Factor: <strong className="text-slate-800 font-mono">{m.ZMUL_FACTOR || "1.0"}</strong></div>
+                              <div>Installed Date: <strong className="text-slate-800 font-mono">{m.ZMET_INST_MOVE_IN_DT || master.ZCONN_DT || "N/A"}</strong></div>
+                              <div>Present Reading: <strong className="text-blue-700 font-mono">{m.ZPRESENT_READING || "N/A"}</strong></div>
+                              <div>Reading Date: <strong className="text-slate-800 font-mono">{m.ZPRSNT_READING_DT || "N/A"}</strong></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

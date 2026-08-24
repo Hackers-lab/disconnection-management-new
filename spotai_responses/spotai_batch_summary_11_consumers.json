@@ -1,0 +1,600 @@
+[
+  {
+    "consumerId": "300172451",
+    "name": "MOJAMMIL .",
+    "tariff": "C(A)",
+    "meter": "YX041003",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "11,326.65",
+      "dueRange": "16.04.2026-15.07.2026",
+      "agency": "SIGMA",
+      "status": "connected"
+    },
+    "livePdf": {
+      "osd": 13147,
+      "lpsc": 63.79,
+      "totalDues": 13210.79,
+      "readingDate": "26.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "13146.84",
+      "otherDues_T5": "0.00",
+      "totalOsd_T6": "13146.84",
+      "lpsc_L4": "63.79",
+      "unpaidInvoices_A3": [
+        {
+          "AMT": "3543.06",
+          "INV_NO": "0000426021945648",
+          "FLAG": "A3",
+          "DUE_FROM": "04.2026",
+          "DUE_TO": "04.2026"
+        },
+        {
+          "AMT": "1980.45",
+          "INV_NO": "0000438020895746",
+          "FLAG": "A3",
+          "DUE_FROM": "06.2026",
+          "DUE_TO": "06.2026"
+        },
+        {
+          "AMT": "674.16",
+          "INV_NO": "0000438021082612",
+          "FLAG": "A3",
+          "DUE_FROM": "07.2026",
+          "DUE_TO": "07.2026"
+        },
+        {
+          "AMT": "5062.94",
+          "INV_NO": "0000424022455937",
+          "FLAG": "A3",
+          "DUE_FROM": "05.2026",
+          "DUE_TO": "05.2026"
+        }
+      ]
+    }
+  },
+  {
+    "consumerId": "300172614",
+    "name": "SK. MAKIMUDDIN",
+    "tariff": "C(T)",
+    "meter": "SC013347",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "13,003.90",
+      "dueRange": "13.04.2026-15.07.2026",
+      "agency": "SIGMA",
+      "status": "agency paid"
+    },
+    "livePdf": {
+      "osd": 0,
+      "lpsc": 0,
+      "totalDues": 0,
+      "readingDate": "25.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "0.00",
+      "otherDues_T5": "41.89",
+      "totalOsd_T6": "41.89",
+      "lpsc_L4": "0.00",
+      "unpaidInvoices_A3": []
+    }
+  },
+  {
+    "consumerId": "300135879",
+    "name": "SK. MUDDIN",
+    "tariff": "C(A)",
+    "meter": "HX018312",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "36,738.24",
+      "dueRange": "08.10.2025-14.07.2026",
+      "agency": "SIGMA",
+      "status": "bill dispute"
+    },
+    "livePdf": {
+      "osd": 37096,
+      "lpsc": 165.61,
+      "totalDues": 37261.61,
+      "readingDate": "26.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "37095.70",
+      "otherDues_T5": "0.00",
+      "totalOsd_T6": "37095.70",
+      "lpsc_L4": "165.61",
+      "unpaidInvoices_A3": [
+        {
+          "AMT": "69.31",
+          "INV_NO": "0000450016953944",
+          "FLAG": "A3",
+          "DUE_FROM": "10.2025",
+          "DUE_TO": "10.2025"
+        },
+        {
+          "AMT": "1323.80",
+          "INV_NO": "0000426021945662",
+          "FLAG": "A3",
+          "DUE_FROM": "04.2026",
+          "DUE_TO": "04.2026"
+        },
+        {
+          "AMT": "1100.86",
+          "INV_NO": "0000404026265929",
+          "FLAG": "A3",
+          "DUE_FROM": "03.2026",
+          "DUE_TO": "03.2026"
+        },
+        {
+          "AMT": "283.36",
+          "INV_NO": "0000438020895755",
+          "FLAG": "A3",
+          "DUE_FROM": "06.2026",
+          "DUE_TO": "06.2026"
+        },
+        {
+          "AMT": "69.70",
+          "INV_NO": "0000440018756314",
+          "FLAG": "A3",
+          "DUE_FROM": "11.2025",
+          "DUE_TO": "11.2025"
+        },
+        {
+          "AMT": "144.98",
+          "INV_NO": "0000450017376347",
+          "FLAG": "A3",
+          "DUE_FROM": "12.2025",
+          "DUE_TO": "12.2025"
+        },
+        {
+          "AMT": "159.10",
+          "INV_NO": "0000460014133168",
+          "FLAG": "A3",
+          "DUE_FROM": "01.2026",
+          "DUE_TO": "01.2026"
+        },
+        {
+          "AMT": "219.69",
+          "INV_NO": "0000410024984357",
+          "FLAG": "A3",
+          "DUE_FROM": "02.2026",
+          "DUE_TO": "02.2026"
+        },
+        {
+          "AMT": "3302.25",
+          "INV_NO": "0000410026066528",
+          "FLAG": "A3",
+          "DUE_FROM": "07.2026",
+          "DUE_TO": "07.2026"
+        },
+        {
+          "AMT": "30065.19",
+          "INV_NO": "0000424022455942",
+          "FLAG": "A3",
+          "DUE_FROM": "05.2026",
+          "DUE_TO": "05.2026"
+        }
+      ]
+    }
+  },
+  {
+    "consumerId": "342093137",
+    "name": "TAMIJUDDIN  AHAMED PRESENT USER LITON",
+    "tariff": "C(T)",
+    "meter": "LX013102",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "8,236.87",
+      "dueRange": "23.12.2025-15.07.2026",
+      "agency": "SIGMA",
+      "status": "agency paid"
+    },
+    "livePdf": {
+      "osd": 119,
+      "lpsc": 0,
+      "totalDues": 119,
+      "readingDate": "25.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "0.00",
+      "otherDues_T5": "118.13",
+      "totalOsd_T6": "118.13",
+      "lpsc_L4": "0.00",
+      "unpaidInvoices_A3": []
+    }
+  },
+  {
+    "consumerId": "300747655",
+    "name": "RASIDUL ISLAM",
+    "tariff": "C(A)",
+    "meter": "GX091651",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "8,254.44",
+      "dueRange": "14.05.2026-20.07.2026",
+      "agency": "ABDUL MATIN",
+      "status": "agency paid"
+    },
+    "livePdf": {
+      "osd": 0,
+      "lpsc": 0,
+      "totalDues": 0,
+      "readingDate": "27.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "0.00",
+      "otherDues_T5": "17.53",
+      "totalOsd_T6": "17.53",
+      "lpsc_L4": "0.00",
+      "unpaidInvoices_A3": []
+    }
+  },
+  {
+    "consumerId": "301166688",
+    "name": "HASRUL DAG-524,MOUJA-U.GOURIPUR",
+    "tariff": "C(A)",
+    "meter": "GX056506",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "5,284.41",
+      "dueRange": "19.01.2026-07.07.2026",
+      "agency": "SIGMA",
+      "status": "connected"
+    },
+    "livePdf": {
+      "osd": 5387,
+      "lpsc": 120.18,
+      "totalDues": 5507.18,
+      "readingDate": "24.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "5386.95",
+      "otherDues_T5": "0.00",
+      "totalOsd_T6": "5386.95",
+      "lpsc_L4": "120.18",
+      "unpaidInvoices_A3": [
+        {
+          "AMT": "270.46",
+          "INV_NO": "0000422022416227",
+          "FLAG": "A3",
+          "DUE_FROM": "04.2026",
+          "DUE_TO": "04.2026"
+        },
+        {
+          "AMT": "199.00",
+          "INV_NO": "0000422022847675",
+          "FLAG": "A3",
+          "DUE_FROM": "06.2026",
+          "DUE_TO": "06.2026"
+        },
+        {
+          "AMT": "981.09",
+          "INV_NO": "0000408026038863",
+          "FLAG": "A3",
+          "DUE_FROM": "05.2026",
+          "DUE_TO": "05.2026"
+        },
+        {
+          "AMT": "1199.44",
+          "INV_NO": "0000436020553357",
+          "FLAG": "A3",
+          "DUE_FROM": "03.2026",
+          "DUE_TO": "03.2026"
+        },
+        {
+          "AMT": "206.94",
+          "INV_NO": "0000424022779935",
+          "FLAG": "A3",
+          "DUE_FROM": "07.2026",
+          "DUE_TO": "07.2026"
+        },
+        {
+          "AMT": "507.03",
+          "INV_NO": "0000418022482706",
+          "FLAG": "A3",
+          "DUE_FROM": "01.2026",
+          "DUE_TO": "01.2026"
+        },
+        {
+          "AMT": "1920.45",
+          "INV_NO": "0000420022089526",
+          "FLAG": "A3",
+          "DUE_FROM": "02.2026",
+          "DUE_TO": "02.2026"
+        },
+        {
+          "AMT": "102.54",
+          "INV_NO": "0000440020463765",
+          "FLAG": "A3",
+          "DUE_FROM": "08.2026",
+          "DUE_TO": "08.2026"
+        }
+      ]
+    }
+  },
+  {
+    "consumerId": "301170084",
+    "name": "KHALEK .",
+    "tariff": "C(T)",
+    "meter": "XG016215",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "6,034.29",
+      "dueRange": "11.02.2026-20.07.2026",
+      "agency": "SIGMA",
+      "status": "connected"
+    },
+    "livePdf": {
+      "osd": 6839,
+      "lpsc": 83.81,
+      "totalDues": 6922.81,
+      "readingDate": "28.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "6838.54",
+      "otherDues_T5": "0.00",
+      "totalOsd_T6": "6838.54",
+      "lpsc_L4": "83.81",
+      "unpaidInvoices_A3": [
+        {
+          "AMT": "477.14",
+          "INV_NO": "0000460014568593",
+          "FLAG": "A3",
+          "DUE_FROM": "04.2026",
+          "DUE_TO": "04.2026"
+        },
+        {
+          "AMT": "1035.98",
+          "INV_NO": "0000440019282188",
+          "FLAG": "A3",
+          "DUE_FROM": "02.2026",
+          "DUE_TO": "02.2026"
+        },
+        {
+          "AMT": "1195.22",
+          "INV_NO": "0000490007281810",
+          "FLAG": "A3",
+          "DUE_FROM": "03.2026",
+          "DUE_TO": "03.2026"
+        },
+        {
+          "AMT": "2787.36",
+          "INV_NO": "0000414023711162",
+          "FLAG": "A3",
+          "DUE_FROM": "05.2026",
+          "DUE_TO": "05.2026"
+        },
+        {
+          "AMT": "324.23",
+          "INV_NO": "0000408026582678",
+          "FLAG": "A3",
+          "DUE_FROM": "07.2026",
+          "DUE_TO": "07.2026"
+        },
+        {
+          "AMT": "214.36",
+          "INV_NO": "0000424022715788",
+          "FLAG": "A3",
+          "DUE_FROM": "06.2026",
+          "DUE_TO": "06.2026"
+        }
+      ]
+    }
+  },
+  {
+    "consumerId": "342367166",
+    "name": "HAKIM GUNA",
+    "tariff": "C(T)",
+    "meter": "YX041551",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "11,931.63",
+      "dueRange": "16.04.2026-15.07.2026",
+      "agency": "SIGMA",
+      "status": "agency paid"
+    },
+    "livePdf": {
+      "osd": 2,
+      "lpsc": 0,
+      "totalDues": 2,
+      "readingDate": "25.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "0.00",
+      "otherDues_T5": "0.50",
+      "totalOsd_T6": "0.50",
+      "lpsc_L4": "0.00",
+      "unpaidInvoices_A3": []
+    }
+  },
+  {
+    "consumerId": "300166832",
+    "name": "SUBHASH DAS",
+    "tariff": "C(A)",
+    "meter": "LF509515",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "5,746.94",
+      "dueRange": "12.03.2026-15.07.2026",
+      "agency": "ABDUL MATIN",
+      "status": "disconnected"
+    },
+    "livePdf": {
+      "osd": 5816,
+      "lpsc": 76.98,
+      "totalDues": 5892.98,
+      "readingDate": "28.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "5815.84",
+      "otherDues_T5": "0.00",
+      "totalOsd_T6": "5815.84",
+      "lpsc_L4": "76.98",
+      "unpaidInvoices_A3": [
+        {
+          "AMT": "200.60",
+          "INV_NO": "0000434021161404",
+          "FLAG": "A3",
+          "DUE_FROM": "05.2026",
+          "DUE_TO": "05.2026"
+        },
+        {
+          "AMT": "1830.86",
+          "INV_NO": "0000406026874681",
+          "FLAG": "A3",
+          "DUE_FROM": "06.2026",
+          "DUE_TO": "06.2026"
+        },
+        {
+          "AMT": "2143.08",
+          "INV_NO": "0000458016669357",
+          "FLAG": "A3",
+          "DUE_FROM": "03.2026",
+          "DUE_TO": "03.2026"
+        },
+        {
+          "AMT": "1141.49",
+          "INV_NO": "0000436020673580",
+          "FLAG": "A3",
+          "DUE_FROM": "04.2026",
+          "DUE_TO": "04.2026"
+        },
+        {
+          "AMT": "197.66",
+          "INV_NO": "0000442020268912",
+          "FLAG": "A3",
+          "DUE_FROM": "07.2026",
+          "DUE_TO": "07.2026"
+        },
+        {
+          "AMT": "68.90",
+          "INV_NO": "0000450018925345",
+          "FLAG": "A3",
+          "DUE_FROM": "08.2026",
+          "DUE_TO": "08.2026"
+        }
+      ]
+    }
+  },
+  {
+    "consumerId": "301937435",
+    "name": "A.E(AGRI)BHELABARI KUILPARA (L.D.T.W)",
+    "tariff": "C(T)",
+    "meter": "XB016741",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "6,529.46",
+      "dueRange": "23.03.2026-15.07.2026",
+      "agency": "ALOKE",
+      "status": "connected"
+    },
+    "livePdf": {
+      "osd": 7969,
+      "lpsc": 94.99,
+      "totalDues": 8063.99,
+      "readingDate": "28.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "7968.14",
+      "otherDues_T5": "0.00",
+      "totalOsd_T6": "7968.14",
+      "lpsc_L4": "94.99",
+      "unpaidInvoices_A3": [
+        {
+          "AMT": "364.90",
+          "INV_NO": "0000426021984264",
+          "FLAG": "A3",
+          "DUE_FROM": "04.2026",
+          "DUE_TO": "04.2026"
+        },
+        {
+          "AMT": "3919.34",
+          "INV_NO": "0000444019114504",
+          "FLAG": "A3",
+          "DUE_FROM": "03.2026",
+          "DUE_TO": "03.2026"
+        },
+        {
+          "AMT": "637.72",
+          "INV_NO": "0000438020672674",
+          "FLAG": "A3",
+          "DUE_FROM": "05.2026",
+          "DUE_TO": "05.2026"
+        },
+        {
+          "AMT": "561.10",
+          "INV_NO": "0000438020895826",
+          "FLAG": "A3",
+          "DUE_FROM": "06.2026",
+          "DUE_TO": "06.2026"
+        },
+        {
+          "AMT": "875.02",
+          "INV_NO": "0000438021082735",
+          "FLAG": "A3",
+          "DUE_FROM": "07.2026",
+          "DUE_TO": "07.2026"
+        }
+      ]
+    }
+  },
+  {
+    "consumerId": "301937436",
+    "name": "A.E(AGRI) KISMAT BOROL (L.D.T.W)",
+    "tariff": "C(T)",
+    "meter": "SC001320",
+    "office": "KUSHIDA CUSTOMER CARE CENTRE",
+    "sheet": {
+      "found": true,
+      "d2NetOsd": "13,018.48",
+      "dueRange": "13.04.2026-15.07.2026",
+      "agency": "ALOKE",
+      "status": "agency paid"
+    },
+    "livePdf": {
+      "osd": 0,
+      "lpsc": 0,
+      "totalDues": 0,
+      "readingDate": "28.07.2026.",
+      "connectionStatus": "LIVE",
+      "docType": "OUTSTANDING REPORT"
+    },
+    "spotAi": {
+      "energyOsd_T4": "0.00",
+      "otherDues_T5": "35.44",
+      "totalOsd_T6": "35.44",
+      "lpsc_L4": "0.00",
+      "unpaidInvoices_A3": []
+    }
+  }
+]
