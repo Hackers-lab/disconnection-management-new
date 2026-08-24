@@ -36,7 +36,8 @@ import {
   ChevronDown,
   Info,
   Download,
-  Loader2
+  Loader2,
+  Code
 } from "lucide-react"
 
 interface SessionData {
@@ -66,7 +67,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   // Consumer query state
   const [consumerId, setConsumerId] = useState(initialConsumerId || "")
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<"overview" | "billing" | "payments" | "readings">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "billing" | "payments" | "readings" | "json">("overview")
   const [data, setData] = useState<any>(null)
   const [queryError, setQueryError] = useState("")
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -630,6 +631,14 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                 >
                   <Gauge className="w-3.5 h-3.5" /> Readings ({readings.length})
                 </button>
+                <button
+                  onClick={() => setActiveTab("json")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "json" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Code className="w-3.5 h-3.5" /> Raw JSON
+                </button>
               </div>
 
               {/* --- TAB CONTENT 1: OVERVIEW (OSD MATH + PAYMENTS) --- */}
@@ -892,6 +901,25 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                       </div>
                     ))
                   )}
+                </div>
+              {/* --- TAB CONTENT 5: RAW JSON INSPECTOR --- */}
+              {activeTab === "json" && (
+                <div className="space-y-3">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg text-slate-100 font-mono text-xs overflow-x-auto relative">
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-slate-400">
+                      <span>Full SpotAI JSON Response</span>
+                      <button
+                        onClick={() => copyToClipboard(JSON.stringify(data, null, 2), "rawJson")}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-sans font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        {copiedField === "rawJson" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                        <span>{copiedField === "rawJson" ? "Copied!" : "Copy JSON"}</span>
+                      </button>
+                    </div>
+                    <pre className="text-emerald-400 text-[11px] leading-relaxed max-h-[500px] overflow-y-auto">
+                      {JSON.stringify(data, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               )}
             </div>
