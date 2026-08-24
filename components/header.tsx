@@ -132,10 +132,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     homeLongPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true
       if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate([35, 50, 50])
+        navigator.vibrate([40, 60, 60])
       }
       setActiveView("osd")
-    }, 700) // 700ms long press threshold
+    }, 2000) // 2.0s long press threshold
   }
 
   const handleHomeTouchEnd = () => {
