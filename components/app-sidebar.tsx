@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { matchesAgency } from "@/lib/permission-utils"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "safety" | "misc-inspection" | "icds" | "gis-camera"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "spotai" | "safety" | "misc-inspection" | "icds" | "gis-camera"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -305,7 +305,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     },
     {
       id: "osd",
-      label: "Live OSD & 360°",
+      label: "Live OSD Check",
       icon: Zap,
     },
     {
@@ -330,7 +330,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     <div className="flex flex-col space-y-2 py-4">
       {menuItems.map((item) => {
         const permKey = item.id.replace(/-/g, "_")
-        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || (permissions && (
+        const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || item.id === "osd" || (permissions && (
           (permissions[item.id] && permissions[item.id].length > 0) || 
           (permissions[permKey] && permissions[permKey].length > 0) ||
           permissions[item.id]?.includes("read") || 
@@ -338,10 +338,6 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
           (item.id === "material" && permissions[item.id]?.length > 0) ||
           (item.id === "dtr-painting" && (permissions["dtr"]?.includes("read") || permissions["dtr"]?.includes("update")))
         ))
-        // Keep SpotAI Consumer 360 / OSD strictly secret/hidden behind 2s Home button long press
-        if (item.id === "osd") {
-          return null
-        }
         if (!hasAccess) {
           return null
         }

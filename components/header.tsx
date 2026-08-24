@@ -134,7 +134,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         navigator.vibrate([40, 60, 60])
       }
-      setActiveView("osd")
+      setActiveView("spotai")
     }, 2000) // 2.0s long press threshold
   }
 
