@@ -38,7 +38,7 @@ const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m 
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
-import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession } from "@/lib/spotai-guard"
+import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
 
 // UI Components for the Dialog
 import { Button } from "@/components/ui/button"

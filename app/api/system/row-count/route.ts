@@ -36,11 +36,18 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     }
 
     if (type === 'master') {
-      const { fetchMasterCount } = await import("@/lib/consumer-master-service")
-      const count = await fetchMasterCount(spreadsheetId)
-      return NextResponse.json({ count, version: null }, {
-        headers: { "Cache-Control": "no-store" },
-      })
+      try {
+        const { fetchMasterCount } = await import("@/lib/consumer-master-service")
+        const count = await fetchMasterCount(spreadsheetId)
+        return NextResponse.json({ count, version: null }, {
+          headers: { "Cache-Control": "no-store" },
+        })
+      } catch (e: any) {
+        console.warn("Failed to fetch master count:", e.message || e)
+        return NextResponse.json({ count: 0, version: null }, {
+          headers: { "Cache-Control": "no-store" },
+        })
+      }
     }
 
     const cacheKey = `${spreadsheetId}_${type}`
