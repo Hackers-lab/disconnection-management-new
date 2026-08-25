@@ -1,6 +1,6 @@
 const pdf = require('pdf-parse');
 
-const consumers = ['300618202', '300476577'];
+const consumers = ['342294907'];
 
 async function fetchLivePdfOsd(consumerId) {
   const wbsedclUrl = `https://portal.wbsedcl.in/webdynpro/resources/wbsedcl/noduesandoutstandingreport/OutstandingReport?consumerId=${consumerId}`;

@@ -314,10 +314,12 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
 
   // Exact Dues Math Alignment (Direct ERP SAP Fields)
   const masterOsd = master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : 0
-  const totalGrossDue = osd?.T6?.[0]?.AMT ? parseFloat(osd.T6[0].AMT) : (masterOsd > 0 ? masterOsd : 0)
+  const t6Amt = osd?.T6?.[0]?.AMT ? parseFloat(osd.T6[0].AMT) : 0
+  const totalGrossDue = Math.max(t6Amt, masterOsd > 0 ? masterOsd : 0)
   const totalEnergyOsd = osd?.T4?.[0]?.AMT ? parseFloat(osd.T4[0].AMT) : 0
-  const priorCarryover = osd?.T3?.[0]?.AMT ? parseFloat(osd.T3[0].AMT) : 0
+  const priorCarryover = osd?.T3?.[0]?.AMT ? parseFloat(osd.T3[0].AMT) : (masterOsd > 0 ? masterOsd : 0)
   const currentCycleAmt = osd?.T2?.[0]?.AMT ? parseFloat(osd.T2[0].AMT) : (osd?.A2?.[0]?.AMT ? parseFloat(osd.A2[0].AMT) : (osd?.A1?.[0]?.AMT ? parseFloat(osd.A1[0].AMT) : 0))
+  const futureInstallments = osd?.T1?.[0]?.AMT ? parseFloat(osd.T1[0].AMT) : 0
   const otherCharges = osd?.T5?.[0]?.AMT ? parseFloat(osd.T5[0].AMT) : 0
   const liveLpsc = osd?.L4?.[0]?.AMT ? parseFloat(osd.L4[0].AMT) : 0
   const legacyArrears = osd?.L3?.[0]?.AMT ? parseFloat(osd.L3[0].AMT) : 0
@@ -325,27 +327,67 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   const a3Sum = a3List.reduce((acc: number, item: any) => acc + (parseFloat(item.AMT) || 0), 0)
   const surchargesTotal = liveLpsc + otherCharges
 
-  // Total Real-Time Demand (Total OSD + Live Dynamic LPSC)
+  // Total Real-Time Demand (Total Principal OSD + Live Dynamic LPSC)
   const totalDemand = totalGrossDue + liveLpsc
 
-  // Check latest bill due date
+  // Check latest bill coupons and due dates
   const latestBill = billing?.[0]
   const latestBillDueStr = latestBill?.DUE_DATE || ""
-  let isLatestBillOverdue = true
-  if (latestBillDueStr) {
+  
+  // Parse coupon due date
+  const parseDueDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null
     try {
-      const parts = latestBillDueStr.split('.')
+      const parts = dateStr.trim().split('.')
       if (parts.length === 3) {
-        const dueDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
-        isLatestBillOverdue = dueDate < new Date()
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
+      }
+      const slashParts = dateStr.trim().split('/')
+      if (slashParts.length === 3) {
+        return new Date(`${slashParts[2]}-${slashParts[1]}-${slashParts[0]}`)
       }
     } catch (e) {}
+    return null
   }
 
-  // Actionable Overdue (Due date is over & Must Be Paid)
-  // = Prior Carryover (T3) + Overdue Current Bill (T2) + Other Fees (T5) + Live LPSC (L4)
-  const mustPayOverdue = priorCarryover + otherCharges + liveLpsc + (isLatestBillOverdue ? currentCycleAmt : 0)
-  const currentInGrace = isLatestBillOverdue ? 0 : currentCycleAmt
+  const today = new Date()
+  const latestDueDate = parseDueDate(latestBillDueStr)
+  const isLatestBillOverdue = latestDueDate ? latestDueDate < today : true
+
+  // Scan future coupons in billing array to find any unexpired grace amount
+  let inGraceCouponsAmt = 0
+  let nextGraceDueDate = ""
+  if (Array.isArray(billing) && billing.length > 0) {
+    billing.forEach((b: any) => {
+      const d = parseDueDate(b.DUE_DATE)
+      if (d && d >= today) {
+        const amt = parseFloat(b.AMT_BFR_D_DT || b.AMT_AFTR_DUE_DT || "0")
+        // If it's not the massive gross first coupon (which includes old arrears)
+        if (amt > 0 && amt < (masterOsd > 0 ? masterOsd * 0.8 : 50000)) {
+          inGraceCouponsAmt += amt
+          if (!nextGraceDueDate || d < parseDueDate(nextGraceDueDate)!) {
+            nextGraceDueDate = b.DUE_DATE
+          }
+        }
+      }
+    })
+  }
+
+  // Fallback to T1 if billing scan did not find future coupons but T1 exists
+  if (inGraceCouponsAmt === 0 && futureInstallments > 0) {
+    inGraceCouponsAmt = futureInstallments
+  }
+
+  // If current latest bill cycle itself is not overdue, add currentCycleAmt to grace
+  if (!isLatestBillOverdue && currentCycleAmt > 0 && inGraceCouponsAmt === 0) {
+    inGraceCouponsAmt = currentCycleAmt
+    nextGraceDueDate = latestBillDueStr
+  }
+
+  // Actionable Must-Pay Overdue (All Expired Dues + Live LPSC)
+  // When due dates are passed, the entire principal gross due + dynamic LPSC is actionable
+  const mustPayOverdue = Math.max(0, totalGrossDue - inGraceCouponsAmt) + liveLpsc
+  const currentInGrace = inGraceCouponsAmt
 
   // Master Disconnection OSD (Notice amount directly from SAP Master)
   const disconnectionBaseOsd = masterOsd > 0 ? masterOsd : (legacyArrears + a3Sum + currentCycleAmt)
@@ -714,19 +756,23 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                         <div className="text-[10px] text-rose-600/80 font-medium mt-0.5">Due date passed • DC active</div>
                       </div>
 
-                      {/* Card 2: Current Cycle Bill (T2 / A2) */}
+                      {/* Card 2: Current / Future Cycle Bill (T2 / A1) */}
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
                         <div className="flex items-center justify-between">
-                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Current Bill (T2/A2)</div>
+                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Current Cycle Bill</div>
                           <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                            isLatestBillOverdue ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"
+                            currentInGrace > 0 ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-700"
                           }`}>
-                            {isLatestBillOverdue ? "OVERDUE" : "IN GRACE"}
+                            {currentInGrace > 0 ? "IN GRACE" : "OVERDUE"}
                           </span>
                         </div>
-                        <div className="text-sm font-bold font-mono text-slate-900 mt-1">₹{currentCycleAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          {latestBillDueStr ? `Due Date: ${latestBillDueStr}` : (osd?.A2?.[0]?.DUE_FROM || "Current Cycle")}
+                        <div className="text-sm font-bold font-mono text-slate-900 mt-1">
+                          ₹{(currentInGrace > 0 ? currentInGrace : currentCycleAmt).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                          {currentInGrace > 0
+                            ? `Can pay by: ${nextGraceDueDate || latestBillDueStr}`
+                            : `Due passed: ${latestBillDueStr || "Expired"}`}
                         </div>
                       </div>
 

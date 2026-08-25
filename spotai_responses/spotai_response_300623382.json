@@ -1,0 +1,574 @@
+{
+  "consumerId": "300623382",
+  "queryTimestamp": "2026-08-25T10:05:23.856Z",
+  "master": {
+    "ZCENPAY": "",
+    "ZCONN_DT": "21/08/2014",
+    "ZMOVE_IN_DT": "21/08/2014",
+    "ZMETERED": "YES",
+    "ZOFF_NAME": "KUSHIDA CUSTOMER CARE CENTRE",
+    "ZMET2": "",
+    "ZMET3": "",
+    "ZRURAL_URBAN": "R",
+    "ZDISCON_DT": "",
+    "ZCLASS_DESC": "DOMESTIC",
+    "MINIMUM_RECHARGE": "0.00",
+    "ZTOT_OSD": "4680.00",
+    "ZDTR_LOC": "KUMED PUR STATION",
+    "ZPREMISE_TYPE": "BPL",
+    "ZMOB_NO": "8348771744",
+    "ZDTR_CODE": "9Q06C",
+    "ZMET_CON_STAT": "POSTPAID METER",
+    "ZMET1": "BR287321",
+    "ZCLASS": "D",
+    "ZFEEDER_NM": "KUMEDPUR 11 KV",
+    "ZMRU": "K4N44QMR",
+    "ZEMANIL_ID": "",
+    "ZSPOT_BL": "YES",
+    "ZGOVT_FLAG": "NO",
+    "WALLET_BALANCE": "0.00",
+    "ZINST_NO": "0015570763",
+    "ZBP_NO": "0010290678",
+    "ZFEEDER_CODE": "3082",
+    "ZCONN_LOAD": "0.0100000",
+    "ZBILING_CLS": "Low and Medium Voltage",
+    "ZCOLL_BL_AC": "NO",
+    "ZCON_ID": "000300623382",
+    "ZECS": "NO",
+    "ZCONN_STAT": "LIVE",
+    "ZADDRESS": "SAID ALI  MOBARAKPUR,H.C.PUR-I  , 732123",
+    "HES": "NA",
+    "ZOFF_CODE": "6612107",
+    "ZRATE_CATG": "Domestic Rural-normal",
+    "ZTARIFF": "A(DM-R)",
+    "ZNAME": "ABDUL SAMAD"
+  },
+  "osd": {
+    "T4": [
+      {
+        "AMT": "800.60",
+        "INV_NO": "",
+        "FLAG": "T4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T5": [
+      {
+        "AMT": "40.00",
+        "INV_NO": "",
+        "FLAG": "T5",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T6": [
+      {
+        "AMT": "840.60",
+        "INV_NO": "",
+        "FLAG": "T6",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L3": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L4": [
+      {
+        "AMT": "8102.88",
+        "INV_NO": "",
+        "FLAG": "L4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "A1": [],
+    "A2": [],
+    "A3": [
+      {
+        "AMT": "392.10",
+        "INV_NO": "0000414021793565",
+        "FLAG": "A3",
+        "DUE_FROM": "08.2025",
+        "DUE_TO": "10.2025"
+      },
+      {
+        "AMT": "408.50",
+        "INV_NO": "0000446018130673",
+        "FLAG": "A3",
+        "DUE_FROM": "11.2025",
+        "DUE_TO": "01.2026"
+      }
+    ],
+    "T1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T3": [
+      {
+        "AMT": "800.60",
+        "INV_NO": "",
+        "FLAG": "T3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ]
+  },
+  "billing": [
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "17.11.2025",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "141.67",
+      "LOCK": "",
+      "INV_NO": "446018130673",
+      "MONTHLY_REB": "-1.71",
+      "BIL_MM_YY": "11.2025",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "0.00",
+      "SP_REB": "-8.50",
+      "AMT_AFTR_DUE_DT": "4368.35",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "4366.35"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "16.12.2025",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "141.67",
+      "LOCK": "",
+      "INV_NO": "446018130673",
+      "MONTHLY_REB": "-1.71",
+      "BIL_MM_YY": "12.2025",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "136.00",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "134.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "15.01.2026",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "141.67",
+      "LOCK": "",
+      "INV_NO": "446018130673",
+      "MONTHLY_REB": "-1.71",
+      "BIL_MM_YY": "01.2026",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "136.00",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "134.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "18.08.2025",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "135.00",
+      "LOCK": "",
+      "INV_NO": "414021793565",
+      "MONTHLY_REB": "-1.65",
+      "BIL_MM_YY": "08.2025",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "0.00",
+      "SP_REB": "-8.10",
+      "AMT_AFTR_DUE_DT": "3971.25",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "3969.25"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "18.09.2025",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "135.00",
+      "LOCK": "",
+      "INV_NO": "414021793565",
+      "MONTHLY_REB": "-1.65",
+      "BIL_MM_YY": "09.2025",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "131.00",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "129.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "17.10.2025",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "135.00",
+      "LOCK": "",
+      "INV_NO": "414021793565",
+      "MONTHLY_REB": "-1.65",
+      "BIL_MM_YY": "10.2025",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "131.00",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "129.00"
+    }
+  ],
+  "payments": {
+    "code": "400",
+    "message": "Meter Number does not exist"
+  },
+  "readings": [
+    {
+      "Curr_Reading": "903",
+      "TOT_UNIT": "66",
+      "Consum_Unit": "66",
+      "TIME": "N",
+      "Prev_Reading": "837",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "12.05. 2026",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2026",
+      "Reading_Days": "85",
+      "Curr_Reading_Dt": "05.08. 2026"
+    },
+    {
+      "Curr_Reading": "837",
+      "TOT_UNIT": "72",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "837",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "01.02. 2026",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "72",
+      "Acc_Bill_Month": "05.2026",
+      "Reading_Days": "100",
+      "Curr_Reading_Dt": "12.05. 2026"
+    },
+    {
+      "Curr_Reading": "837",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "837",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "09.12. 2025",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2026",
+      "Reading_Days": "54",
+      "Curr_Reading_Dt": "01.02. 2026"
+    },
+    {
+      "Curr_Reading": "837",
+      "TOT_UNIT": "85",
+      "Consum_Unit": "85",
+      "TIME": "N",
+      "Prev_Reading": "752",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "08.08. 2025",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2025",
+      "Reading_Days": "90",
+      "Curr_Reading_Dt": "06.11. 2025"
+    },
+    {
+      "Curr_Reading": "752",
+      "TOT_UNIT": "81",
+      "Consum_Unit": "81",
+      "TIME": "N",
+      "Prev_Reading": "671",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "25.04. 2025",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2025",
+      "Reading_Days": "105",
+      "Curr_Reading_Dt": "08.08. 2025"
+    },
+    {
+      "Curr_Reading": "671",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "669",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "01.02. 2025",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2025",
+      "Reading_Days": "83",
+      "Curr_Reading_Dt": "25.04. 2025"
+    },
+    {
+      "Curr_Reading": "669",
+      "TOT_UNIT": "74",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "667",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "27.10. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "72",
+      "Acc_Bill_Month": "02.2025",
+      "Reading_Days": "97",
+      "Curr_Reading_Dt": "01.02. 2025"
+    },
+    {
+      "Curr_Reading": "667",
+      "TOT_UNIT": "75",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "665",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "09.08. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "73",
+      "Acc_Bill_Month": "11.2024",
+      "Reading_Days": "79",
+      "Curr_Reading_Dt": "27.10. 2024"
+    },
+    {
+      "Curr_Reading": "665",
+      "TOT_UNIT": "70",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "663",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "10.05. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "68",
+      "Acc_Bill_Month": "08.2024",
+      "Reading_Days": "91",
+      "Curr_Reading_Dt": "09.08. 2024"
+    },
+    {
+      "Curr_Reading": "663",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "661",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "14.02. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2024",
+      "Reading_Days": "86",
+      "Curr_Reading_Dt": "10.05. 2024"
+    },
+    {
+      "Curr_Reading": "661",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "659",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "01.11. 2023",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2024",
+      "Reading_Days": "105",
+      "Curr_Reading_Dt": "14.02. 2024"
+    },
+    {
+      "Curr_Reading": "659",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "657",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "12.08. 2023",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2023",
+      "Reading_Days": "81",
+      "Curr_Reading_Dt": "01.11. 2023"
+    },
+    {
+      "Curr_Reading": "657",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "655",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "27.04. 2023",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2023",
+      "Reading_Days": "107",
+      "Curr_Reading_Dt": "12.08. 2023"
+    },
+    {
+      "Curr_Reading": "655",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "653",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "29.01. 2023",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2023",
+      "Reading_Days": "88",
+      "Curr_Reading_Dt": "27.04. 2023"
+    },
+    {
+      "Curr_Reading": "653",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "651",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "20.10. 2022",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2023",
+      "Reading_Days": "101",
+      "Curr_Reading_Dt": "29.01. 2023"
+    },
+    {
+      "Curr_Reading": "651",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "649",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "30.07. 2022",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "10.2022",
+      "Reading_Days": "82",
+      "Curr_Reading_Dt": "20.10. 2022"
+    },
+    {
+      "Curr_Reading": "649",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "647",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "02.05. 2022",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2022",
+      "Reading_Days": "89",
+      "Curr_Reading_Dt": "30.07. 2022"
+    },
+    {
+      "Curr_Reading": "647",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "645",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "26.01. 2022",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2022",
+      "Reading_Days": "96",
+      "Curr_Reading_Dt": "02.05. 2022"
+    },
+    {
+      "Curr_Reading": "645",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "643",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "24.10. 2021",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2022",
+      "Reading_Days": "94",
+      "Curr_Reading_Dt": "26.01. 2022"
+    },
+    {
+      "Curr_Reading": "643",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "641",
+      "Estimated_Unit": "0",
+      "Meter_No": "BR287321",
+      "Prev_Reading_Dt": "04.08. 2021",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2021",
+      "Reading_Days": "81",
+      "Curr_Reading_Dt": "24.10. 2021"
+    }
+  ],
+  "meter": [
+    {
+      "ZMETER_NO": "BR287321",
+      "ZMUL_FACTOR": "1.00000",
+      "ZMET_INST_MOVE_IN_DT": "21/08/2014",
+      "ZMET_TYPE": "STATIC",
+      "ZPRSNT_READING_DT": "05/08/2026",
+      "ZPRESENT_READING": "903",
+      "ZREG_GRP": "RGWL0601",
+      "ZPHASE": "1-PHASE",
+      "ZMETER_STATUS": "OK",
+      "ZTOD_FLG": "NO"
+    }
+  ]
+}
