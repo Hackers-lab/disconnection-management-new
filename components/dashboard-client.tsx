@@ -38,6 +38,7 @@ const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m 
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
+import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession } from "@/lib/spotai-guard"
 
 // UI Components for the Dialog
 import { Button } from "@/components/ui/button"
@@ -155,7 +156,15 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     setActiveViewInternal(newView)
     if (typeof window === "undefined") return
 
-    const expectedHash = newView === "home" ? "" : `#${newView}`
+    let expectedHash = ""
+    if (newView === "home") {
+      expectedHash = ""
+    } else if (newView === "spotai") {
+      expectedHash = `#${getCurrentSpotAiHashRoute()}`
+    } else {
+      expectedHash = `#${newView}`
+    }
+
     const currentHash = window.location.hash
     const currentBaseHash = currentHash.split("/")[0]
 
@@ -173,10 +182,30 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     if (typeof window === "undefined") return
 
     const handleHashChange = () => {
-      const hash = window.location.hash.substring(1) // e.g. "reconnection/create"
+      const hash = window.location.hash.substring(1) // e.g. "reconnection/create" or "spotai-9f82a1"
       const [hashModule] = hash.split("/")
 
       if (hashModule) {
+        // Guard check for SpotAI routes (static #spotai or rotating dynamic hashes)
+        if (hashModule === "spotai" || hashModule.startsWith("spotai-") || hashModule.startsWith("spotai")) {
+          const isValidHash = isValidSpotAiHash(hashModule)
+          const isSessionValid = isSpotAiSessionValid()
+
+          if (isValidHash && isSessionValid) {
+            if (activeView !== "spotai") {
+              setActiveViewInternal("spotai")
+            }
+          } else {
+            // Block direct link access or expired token -> clear URL and redirect to home
+            lockSpotAiSession()
+            window.history.replaceState(null, "", window.location.pathname)
+            if (activeView !== "home") {
+              setActiveViewInternal("home")
+            }
+          }
+          return
+        }
+
         if (hashModule !== activeView) {
           setActiveViewInternal(hashModule as ViewType | "home")
         }

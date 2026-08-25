@@ -64,6 +64,7 @@ import { useDashboard } from "@/components/dashboard-context"
 import { getAgencyDescription } from "@/app/actions/agency-details"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
 import { generateAndShareAgencyUpdatesJPEG } from "@/lib/agency-update-image"
+import { unlockSpotAiSession } from "@/lib/spotai-guard"
 
 interface HeaderProps {
   userRole: string
@@ -131,6 +132,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     isLongPressRef.current = false
     homeLongPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true
+      unlockSpotAiSession()
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         navigator.vibrate([40, 60, 60])
       }
