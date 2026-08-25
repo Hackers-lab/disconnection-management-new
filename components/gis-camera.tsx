@@ -408,25 +408,16 @@ export function GisCamera({
     }
   }
 
-  // Capture Photo with Mandatory Note Enforcement & Cloud Drive Sync
-  const handleCapturePhoto = async () => {
+  const [showNoteModal, setShowNoteModal] = useState<boolean>(false)
+
+  // Execute Capture with provided Note
+  const executeCapture = async (noteText: string) => {
     if (!videoRef.current || isProcessing) return
+    const trimmed = noteText.trim()
+    if (!trimmed) return
 
-    // 1. Enforce Note validation
-    const trimmedNote = customTag.trim()
-    if (!trimmedNote) {
-      setNoteError(true)
-      if (noteInputRef.current) {
-        noteInputRef.current.focus()
-      }
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate([100, 50, 100])
-      }
-      return
-    }
-
-    setNoteError(false)
     setIsProcessing(true)
+    setShowNoteModal(false)
     setCapturedFlash(true)
     setTimeout(() => setCapturedFlash(false), 200)
 
@@ -451,7 +442,7 @@ export function GisCamera({
         uploadedByName: effectiveUser,
         userRole,
         agency: userAgencies[0] || "",
-        note: trimmedNote,
+        note: trimmed,
         design: selectedDesign
       })
 
@@ -469,6 +460,16 @@ export function GisCamera({
       console.error("Capture and stamping failed:", err)
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // Handle Shutter click: If note is already filled, capture immediately. Otherwise, show beautiful note popup!
+  const handleShutterClick = () => {
+    if (isProcessing) return
+    if (customTag.trim()) {
+      executeCapture(customTag.trim())
+    } else {
+      setShowNoteModal(true)
     }
   }
 
@@ -899,7 +900,7 @@ export function GisCamera({
                 setActiveTab("gallery")
                 loadGalleryPhotos()
               }}
-              className="relative h-10 w-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-95"
+              className="relative h-10 w-10 rounded-xl bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
               title="Open Gallery"
             >
               {photos.length > 0 ? (
@@ -915,20 +916,16 @@ export function GisCamera({
 
             {/* Big Shutter Capture Button */}
             <button
-              onClick={handleCapturePhoto}
+              onClick={handleShutterClick}
               disabled={isProcessing}
-              className={`relative h-14 w-14 rounded-full border-4 p-0.5 flex items-center justify-center transition-transform active:scale-90 disabled:opacity-50 cursor-pointer shadow-lg ${
-                noteError
-                  ? "border-red-500 animate-pulse ring-4 ring-red-400/40"
-                  : "border-white/80 hover:border-blue-400"
-              }`}
+              className="relative h-14 w-14 rounded-full border-4 border-white/80 hover:border-blue-400 p-0.5 flex items-center justify-center transition-transform active:scale-90 disabled:opacity-50 cursor-pointer shadow-lg"
               title="Capture GIS Photo"
             >
               <div className="w-full h-full rounded-full bg-white flex items-center justify-center transition-colors">
                 {isProcessing ? (
                   <Loader2 className="h-5 w-5 animate-spin text-slate-900" />
                 ) : (
-                  <div className={`w-10 h-10 rounded-full ${noteError ? "bg-red-500" : "bg-blue-600 active:bg-blue-700"}`} />
+                  <div className="w-10 h-10 rounded-full bg-blue-600 active:bg-blue-700" />
                 )}
               </div>
             </button>
@@ -1367,6 +1364,105 @@ export function GisCamera({
                 </a>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 5. MANDATORY NOTE OVERLAY POPUP */}
+      {showNoteModal && (
+        <Dialog open={showNoteModal} onOpenChange={setShowNoteModal}>
+          <DialogContent className="max-w-md w-[94vw] p-4 rounded-3xl bg-slate-950/95 backdrop-blur-xl text-white border border-slate-800 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <DialogHeader className="pb-2 border-b border-slate-800/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                  <Tag className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <DialogTitle className="text-sm font-bold text-white leading-tight">
+                    Add Inspection Note *
+                  </DialogTitle>
+                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                    Tag with Consumer ID, Pole No, or purpose before saving.
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (customTag.trim()) {
+                  executeCapture(customTag.trim())
+                }
+              }}
+              className="space-y-3 pt-2"
+            >
+              <div className="relative flex items-center">
+                <Tag className="absolute left-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                <Input
+                  autoFocus
+                  type="text"
+                  value={customTag}
+                  onChange={(e) => setCustomTag(e.target.value)}
+                  placeholder="e.g. Con ID: 30045612 / Pole Fault / DTR..."
+                  className="pl-9 pr-8 text-sm h-10 rounded-2xl bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-blue-500 focus-visible:border-blue-500"
+                />
+                {customTag && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomTag("")}
+                    className="absolute right-2.5 text-slate-400 hover:text-white p-1"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Suggestion Chips */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">
+                  Quick Select:
+                </span>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {QUICK_TAG_SUGGESTIONS.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setCustomTag((prev) => (prev ? `${prev} ${tag}` : tag))
+                      }}
+                      className="text-xs bg-slate-800/90 hover:bg-blue-600 hover:text-white text-slate-300 font-medium px-2.5 py-1 rounded-xl border border-slate-700 transition-all active:scale-95 cursor-pointer"
+                    >
+                      +{tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowNoteModal(false)}
+                  className="h-9 px-3 text-xs text-slate-400 hover:text-white hover:bg-slate-900 rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!customTag.trim() || isProcessing}
+                  className="h-9 px-4 text-xs font-bold gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-40 cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Camera className="h-3.5 w-3.5" />
+                  )}
+                  <span>Capture & Save to Drive</span>
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       )}
