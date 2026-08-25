@@ -1462,7 +1462,7 @@ export function GisCamera({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
                 <Button
                   type="button"
                   variant="ghost"
@@ -1472,34 +1472,14 @@ export function GisCamera({
                   Cancel
                 </Button>
 
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    type="submit"
-                    disabled={!customTag.trim()}
-                    className="h-9 px-3 text-xs font-bold gap-1 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl border border-slate-700 disabled:opacity-40 cursor-pointer"
-                  >
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Set & Start Viewfinder</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    disabled={!customTag.trim() || isProcessing}
-                    onClick={() => {
-                      if (customTag.trim()) {
-                        executeCapture(customTag.trim())
-                      }
-                    }}
-                    className="h-9 px-3.5 text-xs font-bold gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-40 cursor-pointer"
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Camera className="h-3.5 w-3.5" />
-                    )}
-                    <span>Snap Now</span>
-                  </Button>
-                </div>
+                <Button
+                  type="submit"
+                  disabled={!customTag.trim()}
+                  className="h-9 px-6 text-xs font-bold gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-40 cursor-pointer"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>OK</span>
+                </Button>
               </div>
             </form>
           </DialogContent>
