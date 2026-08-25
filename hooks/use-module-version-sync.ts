@@ -23,6 +23,8 @@ const MODULE_ENDPOINT_MAP: Record<string, string> = {
   dtr: "/api/dtr",
   material: "/api/material",
   icds: "/api/icds/base",
+  gis: "/api/gis/base",
+  gis_captures: "/api/gis/base",
 }
 
 export function useModuleVersionSync<T extends Record<string, any>>(

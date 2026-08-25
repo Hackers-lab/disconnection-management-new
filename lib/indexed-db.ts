@@ -183,6 +183,10 @@ export interface GisPhotoRecord {
   id: string
   dataUrl: string
   thumbnailUrl?: string
+  driveUrl?: string
+  driveFileId?: string
+  cloudSynced?: boolean
+  syncError?: string
   timestamp: number
   dateFormatted: string
   timeFormatted: string
@@ -195,6 +199,9 @@ export interface GisPhotoRecord {
   officeCode: string
   agency: string
   note: string
+  uploadedBy?: string
+  uploadedByName?: string
+  userRole?: string
 }
 
 const GIS_PHOTOS_KEY = "gis_camera_photos_store"

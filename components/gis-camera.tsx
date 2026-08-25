@@ -19,9 +19,13 @@ import {
   Maximize2,
   X,
   Tag,
-  CheckSquare,
-  Square,
-  Check
+  Check,
+  Cloud,
+  CloudOff,
+  ExternalLink,
+  RefreshCw,
+  User,
+  AlertCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,16 +43,28 @@ import {
   getReverseGeocodedLocation,
   WatermarkDesignType
 } from "@/lib/gis-watermark"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 
 interface GisCameraProps {
   userRole?: string
+  userName?: string
   userAgencies?: string[]
   officeCode?: string
   onBack?: () => void
 }
 
+const QUICK_TAG_SUGGESTIONS = [
+  "Con ID:",
+  "Pole Fault",
+  "DTR Unit",
+  "Meter Replacement",
+  "Service Cable",
+  "Line Survey"
+]
+
 export function GisCamera({
   userRole = "user",
+  userName = "",
   userAgencies = [],
   officeCode = "CCC",
   onBack
@@ -78,26 +94,36 @@ export function GisCamera({
   const [gpsStatus, setGpsStatus] = useState<"acquiring" | "locked" | "denied">("acquiring")
   const [locationName, setLocationName] = useState<string>("")
   const [customTag, setCustomTag] = useState<string>("")
+  const [noteError, setNoteError] = useState<boolean>(false)
+  const noteInputRef = useRef<HTMLInputElement | null>(null)
 
   // Gallery states
   const [photos, setPhotos] = useState<GisPhotoRecord[]>([])
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState<GisPhotoRecord | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>("")
+  const [galleryFilter, setGalleryFilter] = useState<"all" | "mine" | "cloud" | "local">("all")
   const [lastSavedPhoto, setLastSavedPhoto] = useState<GisPhotoRecord | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<{ [id: string]: "uploading" | "synced" | "error" }>({})
 
   // Multi-select batch mode states
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBatchSharing, setIsBatchSharing] = useState(false)
 
-  // Office code resolution
+  // Effective Office & User resolution
   const effectiveOffice =
     officeCode && officeCode !== "CCC"
       ? officeCode
       : typeof window !== "undefined"
       ? localStorage.getItem("user_ccc_code") || "KUSHIDA"
       : "KUSHIDA"
+
+  const effectiveUser =
+    userName ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("user_username") || userRole
+      : userRole)
 
   // Strict Body Scroll Lock for Camera Mode
   useEffect(() => {
@@ -117,22 +143,54 @@ export function GisCamera({
     }
   }, [activeTab])
 
-  // Load photos from IndexedDB on mount
+  const handleRecordsUpdated = useCallback((records: GisPhotoRecord[]) => {
+    getGisPhotos().then(localStored => {
+      const localMap = new Map<string, GisPhotoRecord>()
+      localStored.forEach(p => localMap.set(p.id, p))
+
+      const formatted = records.map(r => {
+        const driveUrl = r.driveFileId ? `https://drive.google.com/uc?export=view&id=${r.driveFileId}` : r.driveUrl || r.dataUrl
+        const local = localMap.get(r.id)
+        return {
+          ...r,
+          driveUrl,
+          dataUrl: local?.dataUrl || driveUrl,
+          cloudSynced: Boolean(r.cloudSynced || r.driveFileId),
+        }
+      })
+
+      // Preserve any local un-synced offline photos not yet on the server
+      localStored.forEach(lp => {
+        if (!records.some(r => r.id === lp.id)) {
+          formatted.unshift(lp)
+        }
+      })
+
+      formatted.sort((a, b) => b.timestamp - a.timestamp)
+      setPhotos(formatted)
+    }).catch(() => {
+      setPhotos(records)
+    })
+  }, [])
+
+  const { syncState, checkVersion } = useModuleVersionSync<GisPhotoRecord>(
+    "gis",
+    "gis_camera_photos_store",
+    "id",
+    "/api/gis/base",
+    handleRecordsUpdated
+  )
+
   const loadGalleryPhotos = useCallback(async () => {
     setGalleryLoading(true)
     try {
-      const stored = await getGisPhotos()
-      setPhotos(stored)
+      await checkVersion(true)
     } catch (err) {
-      console.error("Failed to load gallery:", err)
+      console.warn("Gallery version check warning:", err)
     } finally {
       setGalleryLoading(false)
     }
-  }, [])
-
-  useEffect(() => {
-    loadGalleryPhotos()
-  }, [loadGalleryPhotos])
+  }, [checkVersion])
 
   // Watch GPS Geolocation with high satellite accuracy
   useEffect(() => {
@@ -159,7 +217,7 @@ export function GisCamera({
 
         const now = Date.now()
         const dist = Math.abs(latitude - lastGeocodedLat) + Math.abs(longitude - lastGeocodedLng)
-        if (now - lastGeocodeTs > 8000 || dist > 0.0003) {
+        if (now - lastGeocodeTs > 6000 || dist > 0.0002) {
           lastGeocodeTs = now
           lastGeocodedLat = latitude
           lastGeocodedLng = longitude
@@ -223,7 +281,7 @@ export function GisCamera({
       setCameraActive(true)
 
       const track = stream.getVideoTracks()[0]
-      const capabilities: any = track.getCapabilities ? track.getCapabilities() : {}
+      const capabilities: any = track?.getCapabilities ? track.getCapabilities() : {}
       setTorchSupported(Boolean(capabilities.torch))
     } catch (err) {
       console.error("Camera access error:", err)
@@ -244,7 +302,6 @@ export function GisCamera({
       setCameraActive(false)
     }
 
-    // Auto-release camera hardware when app goes to background (prevents OS tab discard/reload)
     const handleVisibilityChange = () => {
       if (document.hidden) {
         if (streamRef.current) {
@@ -291,10 +348,78 @@ export function GisCamera({
     setFacingMode(prev => (prev === "environment" ? "user" : "environment"))
   }
 
-  // Capture and Auto-Save Watermark to Gallery (IndexedDB)
+  // Cloud Upload Background Function
+  const uploadPhotoToTenantDrive = async (blob: Blob, record: GisPhotoRecord) => {
+    setUploadProgress(prev => ({ ...prev, [record.id]: "uploading" }))
+
+    try {
+      const formData = new FormData()
+      const file = new File([blob], `${record.id}.jpg`, { type: "image/jpeg" })
+      formData.append("file", file)
+      formData.append("id", record.id)
+      formData.append("note", record.note)
+      formData.append("lat", String(record.lat))
+      formData.append("lng", String(record.lng))
+      if (record.accuracy) formData.append("accuracy", String(record.accuracy))
+      formData.append("locationName", record.locationName)
+      formData.append("dateFormatted", record.dateFormatted)
+      formData.append("timeFormatted", record.timeFormatted)
+      formData.append("uploadedBy", effectiveUser)
+      formData.append("uploadedByName", effectiveUser)
+      formData.append("userRole", userRole)
+      formData.append("officeCode", effectiveOffice)
+      formData.append("agency", userAgencies[0] || "")
+      formData.append("timestamp", String(record.timestamp))
+
+      const res = await fetch("/api/gis/upload", {
+        method: "POST",
+        body: formData
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const updatedRecord: GisPhotoRecord = {
+          ...record,
+          driveUrl: data.url,
+          driveFileId: data.photo?.driveFileId,
+          cloudSynced: true
+        }
+
+        // Update IndexedDB with cloud metadata
+        await saveGisPhoto(updatedRecord)
+        setPhotos(prev => prev.map(p => p.id === record.id ? updatedRecord : p))
+        if (lastSavedPhoto?.id === record.id) {
+          setLastSavedPhoto(updatedRecord)
+        }
+        setUploadProgress(prev => ({ ...prev, [record.id]: "synced" }))
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || "Upload failed")
+      }
+    } catch (uploadErr: any) {
+      console.warn("Background drive upload failed (kept locally):", uploadErr)
+      setUploadProgress(prev => ({ ...prev, [record.id]: "error" }))
+    }
+  }
+
+  // Capture Photo with Mandatory Note Enforcement & Cloud Drive Sync
   const handleCapturePhoto = async () => {
     if (!videoRef.current || isProcessing) return
 
+    // 1. Enforce Note validation
+    const trimmedNote = customTag.trim()
+    if (!trimmedNote) {
+      setNoteError(true)
+      if (noteInputRef.current) {
+        noteInputRef.current.focus()
+      }
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate([100, 50, 100])
+      }
+      return
+    }
+
+    setNoteError(false)
     setIsProcessing(true)
     setCapturedFlash(true)
     setTimeout(() => setCapturedFlash(false), 200)
@@ -308,7 +433,7 @@ export function GisCamera({
       const lng = gpsCoords?.lng || 87.908775
       const accuracy = gpsCoords?.accuracy
 
-      const { record } = await stampGisWatermark(videoRef.current, {
+      const { blob, record } = await stampGisWatermark(videoRef.current, {
         lat,
         lng,
         accuracy,
@@ -316,17 +441,24 @@ export function GisCamera({
         heading: gpsCoords?.heading,
         locationName: locationName || "Tulshihata, Malda, West Bengal",
         officeCode: effectiveOffice,
-        note: customTag.trim(),
+        uploadedBy: effectiveUser,
+        uploadedByName: effectiveUser,
+        userRole,
+        agency: userAgencies[0] || "",
+        note: trimmedNote,
         design: selectedDesign
       })
 
-      // Auto-save immediately to local IndexedDB Gallery
+      // 1. Immediately save to local IndexedDB (zero latency)
       const updatedList = await saveGisPhoto(record)
       setPhotos(updatedList)
       setLastSavedPhoto(record)
 
-      // Auto-clear custom note after successful capture
+      // 2. Clear Note after successful capture
       setCustomTag("")
+
+      // 3. Initiate background upload to tenant Google Drive & Sheet
+      uploadPhotoToTenantDrive(blob, record)
     } catch (err) {
       console.error("Capture and stamping failed:", err)
     } finally {
@@ -334,16 +466,22 @@ export function GisCamera({
     }
   }
 
-  // Delete Single Photo
-  const handleDeletePhoto = async (id: string) => {
+  // Delete Photo from Cloud & Local
+  const handleDeletePhoto = async (photo: GisPhotoRecord) => {
     try {
-      const updated = await deleteGisPhoto(id)
-      setPhotos(updated)
-      if (selectedPhoto?.id === id) setSelectedPhoto(null)
-      if (lastSavedPhoto?.id === id) setLastSavedPhoto(null)
+      // 1. If uploaded to cloud, delete from Google Sheet & Drive
+      if (photo.cloudSynced || photo.driveUrl) {
+        fetch(`/api/gis/photos?id=${photo.id}`, { method: "DELETE" }).catch(() => {})
+      }
+
+      // 2. Delete from local IndexedDB
+      const updated = await deleteGisPhoto(photo.id)
+      setPhotos(prev => prev.filter(p => p.id !== photo.id))
+      if (selectedPhoto?.id === photo.id) setSelectedPhoto(null)
+      if (lastSavedPhoto?.id === photo.id) setLastSavedPhoto(null)
       setSelectedIds(prev => {
         const next = new Set(prev)
-        next.delete(id)
+        next.delete(photo.id)
         return next
       })
     } catch (err) {
@@ -386,7 +524,7 @@ export function GisCamera({
       const files = await Promise.all(filePromises)
 
       if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files })) {
-        const shareText = `📸 *GIS Geotag Inspection Photos (${files.length} items)*\n📍 ${selectedList[0].locationName}`
+        const shareText = `📸 *GIS Field Geotag Inspection Photos (${files.length} items)*\n📍 ${selectedList[0].locationName}`
         await navigator.share({
           files,
           title: "GIS Inspection Photos",
@@ -417,11 +555,17 @@ export function GisCamera({
     if (!confirm(`Are you sure you want to delete ${selectedIds.size} selected photos?`)) return
 
     try {
-      let currentPhotos = [...photos]
-      for (const id of Array.from(selectedIds)) {
-        currentPhotos = await deleteGisPhoto(id)
+      const idsToDelete = Array.from(selectedIds)
+      for (const id of idsToDelete) {
+        const photo = photos.find(p => p.id === id)
+        if (photo) {
+          if (photo.cloudSynced || photo.driveUrl) {
+            fetch(`/api/gis/photos?id=${photo.id}`, { method: "DELETE" }).catch(() => {})
+          }
+          await deleteGisPhoto(id)
+        }
       }
-      setPhotos(currentPhotos)
+      setPhotos(prev => prev.filter(p => !selectedIds.has(p.id)))
       setSelectedIds(new Set())
       setIsSelectMode(false)
     } catch (err) {
@@ -444,20 +588,34 @@ export function GisCamera({
     })
   }
 
-  // Filtered gallery photos
+  // Filtered gallery photos based on search query and category filter
   const filteredPhotos = photos.filter(p => {
+    // Filter Category
+    if (galleryFilter === "mine") {
+      const isMine = (p.uploadedBy || "").toLowerCase() === effectiveUser.toLowerCase()
+      if (!isMine) return false
+    } else if (galleryFilter === "cloud") {
+      if (!p.cloudSynced && !p.driveUrl) return false
+    } else if (galleryFilter === "local") {
+      if (p.cloudSynced || p.driveUrl) return false
+    }
+
+    // Search Query
     if (!searchQuery) return true
     const q = searchQuery.toLowerCase()
     return (
-      p.locationName.toLowerCase().includes(q) ||
-      p.note.toLowerCase().includes(q) ||
-      p.dateFormatted.toLowerCase().includes(q)
+      (p.locationName || "").toLowerCase().includes(q) ||
+      (p.note || "").toLowerCase().includes(q) ||
+      (p.uploadedBy || "").toLowerCase().includes(q) ||
+      (p.uploadedByName || "").toLowerCase().includes(q) ||
+      (p.officeCode || "").toLowerCase().includes(q) ||
+      (p.dateFormatted || "").toLowerCase().includes(q)
     )
   })
 
   return (
     <div className="flex flex-col h-full max-h-[calc(100dvh-4.2rem)] max-w-lg mx-auto w-full px-2 sm:px-3 pt-1 overflow-hidden">
-      {/* 1. ULTRA-COMPACT MOBILE HEADER */}
+      {/* 1. COMPACT HEADER */}
       <div className="flex items-center justify-between py-1 border-b border-slate-200/80 mb-1.5 shrink-0">
         <div className="flex items-center space-x-2 min-w-0">
           {onBack && (
@@ -473,9 +631,14 @@ export function GisCamera({
           <div className="h-6 w-6 rounded-md bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-2xs">
             <Camera className="h-3.5 w-3.5" />
           </div>
-          <h1 className="font-bold text-slate-900 text-sm leading-none truncate">
-            GIS Camera
-          </h1>
+          <div className="min-w-0">
+            <h1 className="font-bold text-slate-900 text-sm leading-none truncate">
+              GIS Camera
+            </h1>
+            <span className="text-[10px] text-slate-500 truncate block">
+              {effectiveOffice} • @{effectiveUser}
+            </span>
+          </div>
         </div>
 
         {/* Segmented Switcher */}
@@ -613,7 +776,7 @@ export function GisCamera({
                 <div className="min-w-0 pr-2">
                   <div className="flex items-center gap-1 text-[11px] font-bold text-sky-300">
                     <MapPin className="h-3 w-3 shrink-0 text-sky-400" />
-                    <span className="truncate">{locationName || "Fetching address..."}</span>
+                    <span className="truncate">{locationName || "Fetching Google address..."}</span>
                   </div>
                 </div>
                 <button
@@ -633,9 +796,11 @@ export function GisCamera({
             <div className="w-full bg-emerald-950/90 backdrop-blur-md border border-emerald-500/40 px-2.5 py-1.5 rounded-xl flex items-center justify-between text-white shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-200">
               <div className="flex items-center space-x-1.5 min-w-0">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span className="text-[11px] font-semibold text-emerald-100 truncate">
-                  Saved to Gallery!
-                </span>
+                <div className="min-w-0">
+                  <span className="text-[11px] font-semibold text-emerald-100 truncate block">
+                    Captured & Stored in Drive
+                  </span>
+                </div>
               </div>
               <div className="flex items-center space-x-1 shrink-0">
                 <Button
@@ -663,16 +828,26 @@ export function GisCamera({
             </div>
           )}
 
-          {/* Custom Tag Input */}
-          <div className="w-full shrink-0">
+          {/* Mandatory Note / Tag Section with Quick Suggestions */}
+          <div className="w-full shrink-0 space-y-1">
             <div className="relative flex items-center">
-              <Tag className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <Tag className={`absolute left-2.5 h-3.5 w-3.5 ${noteError ? "text-red-500 animate-bounce" : "text-slate-400"}`} />
               <Input
+                ref={noteInputRef}
                 type="text"
                 value={customTag}
-                onChange={e => setCustomTag(e.target.value)}
-                placeholder="Enter Note / Con ID / Pole No (optional)..."
-                className="pl-7 pr-7 text-xs h-8 rounded-xl bg-white border-slate-200 shadow-2xs focus-visible:ring-blue-500"
+                onChange={e => {
+                  setCustomTag(e.target.value)
+                  if (noteError && e.target.value.trim()) {
+                    setNoteError(false)
+                  }
+                }}
+                placeholder="Enter Note / Con ID / Pole No (Required) *"
+                className={`pl-7 pr-7 text-xs h-8 rounded-xl bg-white transition-all shadow-2xs ${
+                  noteError
+                    ? "border-red-500 ring-2 ring-red-400/50 bg-red-50/50 placeholder:text-red-400"
+                    : "border-slate-200 focus-visible:ring-blue-500"
+                }`}
               />
               {customTag && (
                 <button
@@ -682,6 +857,31 @@ export function GisCamera({
                   <X className="h-3 w-3" />
                 </button>
               )}
+            </div>
+
+            {/* Note Error Alert */}
+            {noteError && (
+              <div className="flex items-center gap-1 text-[10px] text-red-600 font-semibold px-1 animate-in fade-in duration-150">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                <span>Note / Reference is required before capturing photo!</span>
+              </div>
+            )}
+
+            {/* Quick Tag Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+              {QUICK_TAG_SUGGESTIONS.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    setCustomTag(prev => prev ? `${prev} ${tag}` : tag)
+                    setNoteError(false)
+                  }}
+                  className="text-[10px] whitespace-nowrap bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 font-medium px-2 py-0.5 rounded-md border border-slate-200 transition-colors"
+                >
+                  +{tag}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -711,14 +911,18 @@ export function GisCamera({
             <button
               onClick={handleCapturePhoto}
               disabled={isProcessing}
-              className="relative h-14 w-14 rounded-full border-4 border-white/80 p-0.5 flex items-center justify-center transition-transform active:scale-90 disabled:opacity-50 cursor-pointer shadow-lg hover:border-blue-400"
+              className={`relative h-14 w-14 rounded-full border-4 p-0.5 flex items-center justify-center transition-transform active:scale-90 disabled:opacity-50 cursor-pointer shadow-lg ${
+                noteError
+                  ? "border-red-500 animate-pulse ring-4 ring-red-400/40"
+                  : "border-white/80 hover:border-blue-400"
+              }`}
               title="Capture GIS Photo"
             >
               <div className="w-full h-full rounded-full bg-white flex items-center justify-center transition-colors">
                 {isProcessing ? (
                   <Loader2 className="h-5 w-5 animate-spin text-slate-900" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-blue-600 active:bg-blue-700" />
+                  <div className={`w-10 h-10 rounded-full ${noteError ? "bg-red-500" : "bg-blue-600 active:bg-blue-700"}`} />
                 )}
               </div>
             </button>
@@ -736,22 +940,33 @@ export function GisCamera({
       )}
 
       {/* ========================================================================= */}
-      {/* 3. GALLERY TAB (WITH MULTI-SELECT BATCH SHARE & SMOOTH SCROLL)            */}
+      {/* 3. GALLERY TAB (ADMIN & TEAM GALLERY WITH RICH SEARCH & CLOUD SYNC)       */}
       {/* ========================================================================= */}
       {activeTab === "gallery" && (
         <div className="flex flex-col flex-1 min-h-0 w-full space-y-2 overflow-y-auto overscroll-contain pb-28 pr-0.5">
-          {/* Top Control Bar */}
-          <div className="flex items-center justify-between gap-2">
+          {/* Top Search & Actions Bar */}
+          <div className="flex items-center justify-between gap-1.5">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
-                placeholder="Search photos by village, note, date..."
+                placeholder="Search note, user, location, date..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-8 h-8 text-xs rounded-xl bg-white border-slate-200"
               />
             </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadGalleryPhotos}
+              disabled={galleryLoading}
+              className="h-8 px-2 text-xs text-slate-600 rounded-xl"
+              title="Refresh Gallery"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${galleryLoading ? "animate-spin text-blue-600" : ""}`} />
+            </Button>
 
             {photos.length > 0 && (
               <div className="flex items-center gap-1 shrink-0">
@@ -768,23 +983,54 @@ export function GisCamera({
                 >
                   {isSelectMode ? "Done" : "Select"}
                 </Button>
-
-                {!isSelectMode && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (confirm("Are you sure you want to clear all stored GIS photos from local storage?")) {
-                        clearAllGisPhotos().then(() => setPhotos([]))
-                      }
-                    }}
-                    className="h-8 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
               </div>
             )}
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+            <button
+              onClick={() => setGalleryFilter("all")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                galleryFilter === "all"
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              All Photos ({photos.length})
+            </button>
+            <button
+              onClick={() => setGalleryFilter("mine")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                galleryFilter === "mine"
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              My Photos
+            </button>
+            <button
+              onClick={() => setGalleryFilter("cloud")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
+                galleryFilter === "cloud"
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <Cloud className="h-3 w-3" />
+              <span>Drive Synced</span>
+            </button>
+            <button
+              onClick={() => setGalleryFilter("local")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
+                galleryFilter === "local"
+                  ? "bg-blue-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <CloudOff className="h-3 w-3" />
+              <span>Local Only</span>
+            </button>
           </div>
 
           {/* Select Mode Sub-Bar */}
@@ -803,17 +1049,17 @@ export function GisCamera({
           )}
 
           {/* Photos Grid */}
-          {galleryLoading ? (
+          {galleryLoading && photos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="h-7 w-7 animate-spin text-blue-600 mb-2" />
-              <p className="text-xs text-slate-500">Loading stored photos...</p>
+              <p className="text-xs text-slate-500">Loading stored photos from Drive...</p>
             </div>
           ) : filteredPhotos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/50">
               <ImageIcon className="h-9 w-9 text-slate-300 mb-2" />
-              <p className="text-sm font-bold text-slate-700">No GIS Photos Yet</p>
+              <p className="text-sm font-bold text-slate-700">No Matching GIS Photos</p>
               <p className="text-xs text-slate-500 mt-1 max-w-xs">
-                Photos are automatically saved here the instant you press the Shutter button.
+                {searchQuery ? "Try searching for a different note or keyword." : "Captured photos with mandatory notes are saved here and in Google Drive."}
               </p>
               <Button
                 size="sm"
@@ -828,6 +1074,9 @@ export function GisCamera({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
               {filteredPhotos.map(photo => {
                 const isSelected = selectedIds.has(photo.id)
+                const isCloud = Boolean(photo.cloudSynced || photo.driveUrl)
+                const isUploading = uploadProgress[photo.id] === "uploading"
+
                 return (
                   <div
                     key={photo.id}
@@ -850,9 +1099,29 @@ export function GisCamera({
                         loading="lazy"
                       />
 
+                      {/* Cloud Sync Status Badge */}
+                      <div className="absolute top-1.5 left-1.5 z-10">
+                        {isUploading ? (
+                          <span className="bg-slate-900/80 backdrop-blur-md text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border border-amber-400/40">
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            <span>Uploading</span>
+                          </span>
+                        ) : isCloud ? (
+                          <span className="bg-emerald-950/80 backdrop-blur-md text-emerald-300 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 border border-emerald-400/30">
+                            <Cloud className="h-2.5 w-2.5" />
+                            <span>Drive</span>
+                          </span>
+                        ) : (
+                          <span className="bg-slate-900/80 backdrop-blur-md text-slate-300 text-[9px] font-medium px-1.5 py-0.5 rounded-md flex items-center gap-0.5 border border-white/20">
+                            <CloudOff className="h-2.5 w-2.5 text-amber-400" />
+                            <span>Local</span>
+                          </span>
+                        )}
+                      </div>
+
                       {/* Select Mode Checkbox Overlay */}
                       {isSelectMode ? (
-                        <div className="absolute top-2 right-2 z-10">
+                        <div className="absolute top-1.5 right-1.5 z-10">
                           <div className={`h-5 w-5 rounded-full flex items-center justify-center border transition-all ${
                             isSelected
                               ? "bg-blue-600 border-blue-600 text-white shadow-xs"
@@ -864,7 +1133,7 @@ export function GisCamera({
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1.5">
                           <span className="text-[9px] text-white flex items-center gap-1 font-semibold">
-                            <Maximize2 className="h-2.5 w-2.5" /> Full
+                            <Maximize2 className="h-2.5 w-2.5" /> View
                           </span>
                         </div>
                       )}
@@ -873,17 +1142,20 @@ export function GisCamera({
                     {/* Metadata Card Footer */}
                     <div className="p-2 flex-1 flex flex-col justify-between space-y-1 bg-white">
                       <div>
-                        <p className="text-[11px] font-bold text-slate-900 truncate" title={photo.locationName}>
-                          {photo.locationName}
+                        {/* Note Highlight */}
+                        <p className="text-[11px] font-bold text-blue-700 truncate" title={photo.note}>
+                          📝 {photo.note || "GIS Photo"}
                         </p>
-                        {photo.note && (
-                          <p className="text-[10px] text-blue-700 font-semibold truncate">
-                            Tag: {photo.note}
-                          </p>
-                        )}
-                        <p className="text-[9px] text-slate-400 mt-0.5">
-                          {photo.dateFormatted} • {photo.timeFormatted}
+                        <p className="text-[10px] font-semibold text-slate-800 truncate mt-0.5" title={photo.locationName}>
+                          📍 {photo.locationName}
                         </p>
+                        <div className="flex items-center justify-between text-[9px] text-slate-500 mt-1">
+                          <span className="truncate flex items-center gap-0.5">
+                            <User className="h-2.5 w-2.5 shrink-0" />
+                            {photo.uploadedBy || "user"}
+                          </span>
+                          <span className="shrink-0">{photo.dateFormatted}</span>
+                        </div>
                       </div>
 
                       {/* Action Bar (When not in Select Mode) */}
@@ -904,6 +1176,18 @@ export function GisCamera({
                           </Button>
 
                           <div className="flex items-center space-x-0.5">
+                            {photo.driveUrl && (
+                              <a
+                                href={photo.driveUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 text-blue-600 hover:text-blue-800 rounded-md hover:bg-blue-50"
+                                title="Open in Google Drive"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
                             <a
                               href={photo.dataUrl}
                               download={`GIS_${photo.dateFormatted}.jpg`}
@@ -916,7 +1200,9 @@ export function GisCamera({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleDeletePhoto(photo.id)
+                                if (confirm("Delete this photo?")) {
+                                  handleDeletePhoto(photo)
+                                }
                               }}
                               className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50"
                               title="Delete"
@@ -988,29 +1274,42 @@ export function GisCamera({
           <DialogContent className="max-w-2xl w-[96vw] max-h-[92vh] p-2.5 sm:p-4 rounded-2xl flex flex-col bg-slate-950 text-white border-slate-800">
             <DialogHeader className="flex flex-row items-center justify-between pb-1.5 border-b border-slate-800">
               <div className="min-w-0 pr-2">
-                <DialogTitle className="text-xs sm:text-sm font-bold text-white flex items-center gap-1 truncate">
-                  <MapPin className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                  <span className="truncate">{selectedPhoto.locationName}</span>
+                <DialogTitle className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 truncate">
+                  <span className="text-sky-400">📝 {selectedPhoto.note || "GIS Photo"}</span>
                 </DialogTitle>
-                <p className="text-[10px] text-slate-400 truncate">
-                  Lat: {selectedPhoto.lat.toFixed(6)}°, Long: {selectedPhoto.lng.toFixed(6)}° • {selectedPhoto.dateFormatted} {selectedPhoto.timeFormatted}
+                <p className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                  <MapPin className="h-3 w-3 text-sky-400 shrink-0" />
+                  <span>{selectedPhoto.locationName}</span>
+                </p>
+                <p className="text-[9px] text-slate-400 truncate">
+                  By: @{selectedPhoto.uploadedBy || "user"} • {selectedPhoto.dateFormatted} {selectedPhoto.timeFormatted} • Lat: {selectedPhoto.lat.toFixed(6)}°, Long: {selectedPhoto.lng.toFixed(6)}°
                 </p>
               </div>
             </DialogHeader>
 
             {/* Fullscreen Stamped Image View */}
-            <div className="relative flex-1 max-h-[66vh] overflow-auto flex items-center justify-center p-1 bg-black/50 rounded-xl">
+            <div className="relative flex-1 max-h-[64vh] overflow-auto flex items-center justify-center p-1 bg-black/50 rounded-xl">
               <img
                 src={selectedPhoto.dataUrl}
                 alt="Stamped GIS Capture"
-                className="max-h-[64vh] w-auto object-contain rounded-lg shadow-2xl"
+                className="max-h-[62vh] w-auto object-contain rounded-lg shadow-2xl"
               />
             </div>
 
             {/* Bottom Modal Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-              <div className="text-[10px] text-slate-400 truncate max-w-[45%]">
-                {selectedPhoto.note ? `Note: ${selectedPhoto.note}` : "GIS Watermark"}
+              <div className="flex items-center gap-1.5">
+                {selectedPhoto.driveUrl && (
+                  <a
+                    href={selectedPhoto.driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-7 px-2.5 text-xs font-bold gap-1 rounded-xl bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center"
+                  >
+                    <Cloud className="h-3 w-3" />
+                    <span>Drive Link</span>
+                  </a>
+                )}
               </div>
 
               <div className="flex items-center space-x-1.5">

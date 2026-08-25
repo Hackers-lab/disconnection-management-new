@@ -17,6 +17,9 @@ export interface GisWatermarkMeta {
   officeCode?: string
   agency?: string
   note?: string
+  uploadedBy?: string
+  uploadedByName?: string
+  userRole?: string
   design?: WatermarkDesignType
 }
 
@@ -129,7 +132,7 @@ async function renderMiniMapCanvas(lat: number, lng: number, size: number = 260)
     const centerTileY = Math.floor(yExact)
 
     // Load 3x3 surrounding tiles for smooth seamless coverage
-    const tilesToFetch = []
+    const tilesToFetch: Array<{ tx: number; ty: number; drawX: number; drawY: number; url: string }> = []
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const tx = centerTileX + dx
@@ -554,14 +557,15 @@ export async function stampGisWatermark(
       ctx.fillText(truncatedNote, textStartX + noteLabelW, lineY)
     }
 
-    // Row 4: Time & Date
+    // Row 4: Time & Date & User
     lineY += lineSpacing
     ctx.fillStyle = themeColor
     ctx.fillText("Time: ", textStartX, lineY)
 
     ctx.fillStyle = "#ffffff"
     const timeLabelW = ctx.measureText("Time: ").width
-    ctx.fillText(`${dateStr}   •   ${timeStr}`, textStartX + timeLabelW, lineY)
+    const userSuffix = meta.uploadedBy ? `   •   By: ${meta.uploadedBy}` : ""
+    ctx.fillText(`${dateStr}   •   ${timeStr}${userSuffix}`, textStartX + timeLabelW, lineY)
   }
 
   // =========================================================================
@@ -627,7 +631,8 @@ export async function stampGisWatermark(
     ctx.fillStyle = "#ffffff"
     ctx.font = `600 ${fontSubSize}px ${fontSans}`
     ctx.textAlign = "right"
-    ctx.fillText(`${dateStr}  ${timeStr}`, targetWidth - Math.round(12 * baseScale), row1Y)
+    const userTagShort = meta.uploadedBy ? ` • ${meta.uploadedBy}` : ""
+    ctx.fillText(`${dateStr}  ${timeStr}${userTagShort}`, targetWidth - Math.round(12 * baseScale), row1Y)
     ctx.textAlign = "left"
 
     // Middle Row: Bold Location Name
@@ -680,7 +685,11 @@ export async function stampGisWatermark(
     locationName,
     officeCode: meta.officeCode || "CCC",
     agency: meta.agency || "",
-    note: meta.note?.trim() || ""
+    note: meta.note?.trim() || "",
+    uploadedBy: meta.uploadedBy || "",
+    uploadedByName: meta.uploadedByName || "",
+    userRole: meta.userRole || "",
+    cloudSynced: false
   }
 
   return { dataUrl, blob, record }

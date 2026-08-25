@@ -1520,6 +1520,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         {activeView === "gis-camera" && (
           <GisCamera
             userRole={role}
+            userName={profileName || (agencies && agencies[0]) || role}
             userAgencies={agencies}
             officeCode={profileCccCode || "KUSHIDA"}
             onBack={() => setActiveView("home")}
