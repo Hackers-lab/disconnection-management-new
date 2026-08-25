@@ -149,6 +149,13 @@ export function GisCamera({
     }
   }, [activeTab])
 
+  // Open Note modal on entering camera mode if note is empty
+  useEffect(() => {
+    if (activeTab === "camera" && !customTag.trim()) {
+      setShowNoteModal(true)
+    }
+  }, [activeTab])
+
   const handleRecordsUpdated = useCallback((records: GisPhotoRecord[]) => {
     getGisPhotos().then(localStored => {
       const localMap = new Map<string, GisPhotoRecord>()
@@ -692,7 +699,7 @@ export function GisCamera({
       {activeTab === "camera" && (
         <div className="flex flex-col flex-1 min-h-0 w-full justify-between space-y-1.5 overflow-hidden">
           {/* Responsive Viewfinder Filling Available Space */}
-          <div className="relative flex-1 min-h-0 w-full bg-slate-950 rounded-2xl overflow-hidden shadow-lg border border-slate-800 flex items-center justify-center">
+          <div className={`relative flex-1 min-h-0 w-full bg-slate-950 rounded-2xl overflow-hidden shadow-lg border border-slate-800 flex items-center justify-center transition-all duration-300 ${showNoteModal ? "filter blur-md brightness-50 scale-[0.98]" : ""}`}>
             {/* Live Video Feed */}
             <video
               ref={videoRef}
@@ -777,9 +784,9 @@ export function GisCamera({
               </div>
             </div>
 
-            {/* Bottom Live Watermark Preview Pill */}
-            <div className="absolute bottom-2 inset-x-2 z-20 pointer-events-auto">
-              <div className="bg-slate-900/85 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/15 text-white flex items-center justify-between text-xs shadow-lg">
+            {/* Bottom Live Watermark Preview Pill & Note Trigger */}
+            <div className="absolute bottom-2 inset-x-2 z-20 pointer-events-auto flex items-center gap-1.5">
+              <div className="flex-1 bg-slate-900/85 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/15 text-white flex items-center justify-between text-xs shadow-lg min-w-0">
                 <div className="min-w-0 pr-2">
                   <div className="flex items-center gap-1 text-[11px] font-bold text-sky-300">
                     <MapPin className="h-3 w-3 shrink-0 text-sky-400" />
@@ -792,9 +799,24 @@ export function GisCamera({
                   className="shrink-0 bg-emerald-500/20 hover:bg-emerald-500/30 text-[10px] font-bold text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
                   title="Switch Design Style"
                 >
-                  {selectedDesign === "design1" ? "Design 1 (Glass)" : "Design 2 (HUD)"}
+                  {selectedDesign === "design1" ? "Design 1" : "Design 2"}
                 </button>
               </div>
+
+              {/* Note Pin / Edit Pill */}
+              <button
+                type="button"
+                onClick={() => setShowNoteModal(true)}
+                className={`shrink-0 flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition-all active:scale-95 shadow-lg cursor-pointer ${
+                  customTag.trim()
+                    ? "bg-blue-600/90 hover:bg-blue-500 text-white border-blue-400/40"
+                    : "bg-amber-500/90 hover:bg-amber-400 text-slate-950 border-amber-300 animate-pulse"
+                }`}
+                title="Tap to set or edit inspection note"
+              >
+                <Tag className="h-3 w-3 shrink-0" />
+                <span className="max-w-[120px] truncate">{customTag.trim() || "+ Add Note *"}</span>
+              </button>
             </div>
           </div>
 
@@ -1392,7 +1414,7 @@ export function GisCamera({
               onSubmit={(e) => {
                 e.preventDefault()
                 if (customTag.trim()) {
-                  executeCapture(customTag.trim())
+                  setShowNoteModal(false)
                 }
               }}
               className="space-y-3 pt-2"
@@ -1440,7 +1462,7 @@ export function GisCamera({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
                 <Button
                   type="button"
                   variant="ghost"
@@ -1449,18 +1471,35 @@ export function GisCamera({
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={!customTag.trim() || isProcessing}
-                  className="h-9 px-4 text-xs font-bold gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-40 cursor-pointer"
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Camera className="h-3.5 w-3.5" />
-                  )}
-                  <span>Capture & Save to Drive</span>
-                </Button>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="submit"
+                    disabled={!customTag.trim()}
+                    className="h-9 px-3 text-xs font-bold gap-1 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl border border-slate-700 disabled:opacity-40 cursor-pointer"
+                  >
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Set & Start Viewfinder</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    disabled={!customTag.trim() || isProcessing}
+                    onClick={() => {
+                      if (customTag.trim()) {
+                        executeCapture(customTag.trim())
+                      }
+                    }}
+                    className="h-9 px-3.5 text-xs font-bold gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 disabled:opacity-40 cursor-pointer"
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                    <span>Snap Now</span>
+                  </Button>
+                </div>
               </div>
             </form>
           </DialogContent>
