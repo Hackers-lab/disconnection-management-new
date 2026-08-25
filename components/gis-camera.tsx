@@ -69,7 +69,7 @@ export function GisCamera({
   officeCode = "CCC",
   onBack
 }: GisCameraProps) {
-  const [activeTab, setActiveTab] = useState<"camera" | "gallery">("camera")
+  const [activeTab, setActiveTab] = useState<"camera" | "gallery">("gallery")
   const [selectedDesign, setSelectedDesign] = useState<WatermarkDesignType>("design1")
 
   // Camera stream states
@@ -124,6 +124,12 @@ export function GisCamera({
     (typeof window !== "undefined"
       ? localStorage.getItem("user_username") || userRole
       : userRole)
+
+  const isAdmin =
+    userRole.toLowerCase() === "admin" ||
+    userRole.toLowerCase() === "superuser" ||
+    userRole.toLowerCase() === "monitor" ||
+    userRole.toLowerCase() === "division"
 
   // Strict Body Scroll Lock for Camera Mode
   useEffect(() => {
@@ -989,26 +995,41 @@ export function GisCamera({
 
           {/* Filter Pills */}
           <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
-            <button
-              onClick={() => setGalleryFilter("all")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                galleryFilter === "all"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              All Photos ({photos.length})
-            </button>
-            <button
-              onClick={() => setGalleryFilter("mine")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                galleryFilter === "mine"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              My Photos
-            </button>
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={() => setGalleryFilter("all")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                    galleryFilter === "all"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  All CCC Photos ({photos.length})
+                </button>
+                <button
+                  onClick={() => setGalleryFilter("mine")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                    galleryFilter === "mine"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  My Uploads
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setGalleryFilter("all")}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                  galleryFilter === "all"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                My Captures ({photos.length})
+              </button>
+            )}
             <button
               onClick={() => setGalleryFilter("cloud")}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
@@ -1261,6 +1282,20 @@ export function GisCamera({
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* Floating Camera Action Button in Gallery */}
+          {!isSelectMode && (
+            <div className="fixed bottom-5 right-4 sm:right-6 z-30 animate-in fade-in zoom-in duration-200">
+              <Button
+                size="lg"
+                onClick={() => setActiveTab("camera")}
+                className="h-12 px-4 rounded-full shadow-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-2 border-2 border-white/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Camera className="h-5 w-5" />
+                <span className="text-xs sm:text-sm">Take Photo</span>
+              </Button>
             </div>
           )}
         </div>

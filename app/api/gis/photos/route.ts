@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { fetchGisCaptures, deleteGisCapture } from "@/lib/gis-service"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
+import { verifySession } from "@/lib/session"
 
 export const dynamic = "force-dynamic"
 
@@ -8,14 +9,44 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   try {
     const context = getTenantContext()
     const tenantId = context?.cccCode || request.headers.get("x-tenant-id") || "default"
+    const session = await verifySession()
+
     const { searchParams } = new URL(request.url)
     const user = searchParams.get("user")
     const office = searchParams.get("office")
     const query = searchParams.get("q")?.toLowerCase()
 
-    const photos = await fetchGisCaptures(tenantId)
+    const allPhotos = await fetchGisCaptures(tenantId)
 
-    let filtered = photos
+    const roleLower = (session?.role || "user").toLowerCase()
+    const isAdmin =
+      roleLower === "admin" ||
+      roleLower === "superuser" ||
+      roleLower === "monitor" ||
+      roleLower === "division"
+
+    let filtered = allPhotos.filter((p) => {
+      if (isAdmin) return true
+
+      const currentUsername = (session?.username || "").toLowerCase().trim()
+      const currentName = (session?.name || "").toLowerCase().trim()
+      const photoUser = (p.uploadedBy || "").toLowerCase().trim()
+      const photoName = (p.uploadedByName || "").toLowerCase().trim()
+      const userAgencies = (session?.agencies || []).map((a) => a.toLowerCase().trim())
+      const photoAgency = (p.agency || "").toLowerCase().trim()
+
+      if (currentUsername && (photoUser === currentUsername || photoUser.includes(currentUsername))) {
+        return true
+      }
+      if (currentName && (photoName === currentName || photoName.includes(currentName))) {
+        return true
+      }
+      if (photoAgency && userAgencies.includes(photoAgency)) {
+        return true
+      }
+
+      return false
+    })
 
     if (user) {
       filtered = filtered.filter(p => (p.uploadedBy || "").toLowerCase() === user.toLowerCase())
@@ -38,7 +69,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       photos: filtered,
-      total: photos.length,
+      total: filtered.length,
     })
   } catch (error: any) {
     console.error("GIS photos fetch error:", error)
