@@ -189,14 +189,14 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         // Guard check for SpotAI routes (static #spotai or rotating dynamic hashes)
         if (hashModule === "spotai" || hashModule.startsWith("spotai-") || hashModule.startsWith("spotai")) {
           const isValidHash = isValidSpotAiHash(hashModule)
-          const isSessionValid = isSpotAiSessionValid()
 
-          if (isValidHash && isSessionValid) {
+          if (isValidHash) {
+            unlockSpotAiSession()
             if (activeView !== "spotai") {
               setActiveViewInternal("spotai")
             }
           } else {
-            // Block direct link access or expired token -> clear URL and redirect to home
+            // Block expired or static #spotai -> clear URL and redirect to home
             lockSpotAiSession()
             window.history.replaceState(null, "", window.location.pathname)
             if (activeView !== "home") {

@@ -36,8 +36,10 @@ import {
   ChevronDown,
   Info,
   Download,
-  Loader2
+  Loader2,
+  Share2
 } from "lucide-react"
+import { getCurrentSpotAiHashRoute } from "@/lib/spotai-guard"
 
 interface SessionData {
   username: string
@@ -71,6 +73,15 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
   const [queryError, setQueryError] = useState("")
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [showA3Details, setShowA3Details] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  const handleCopyHourlyLink = () => {
+    if (typeof window === "undefined") return
+    const url = `${window.location.origin}/dashboard#${getCurrentSpotAiHashRoute()}`
+    navigator.clipboard.writeText(url)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2500)
+  }
 
   // Direct Bill PDF Viewing State
   const [fetchingBillInvoice, setFetchingBillInvoice] = useState<string | null>(null)
@@ -424,24 +435,35 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
           </div>
         </div>
 
-        {session ? (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hidden sm:inline">
-              LIVE SESSION
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopyHourlyLink}
+            className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Copy 1-hour access link for sharing"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span>{copiedLink ? "Link Copied!" : "1-Hr Link"}</span>
+          </button>
+
+          {session ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hidden sm:inline">
+                LIVE SESSION
+              </span>
+              <button
+                onClick={() => saveSession(null)}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" /> Login Required
             </span>
-            <button
-              onClick={() => saveSession(null)}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5" /> Login Required
-          </span>
-        )}
+          )}
+        </div>
       </div>
 
       {/* --- 1. AUTHENTICATION VIEW --- */}
