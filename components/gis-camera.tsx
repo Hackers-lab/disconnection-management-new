@@ -149,7 +149,7 @@ export function GisCamera({
       localStored.forEach(p => localMap.set(p.id, p))
 
       const formatted = records.map(r => {
-        const driveUrl = r.driveFileId ? `https://drive.google.com/uc?export=view&id=${r.driveFileId}` : r.driveUrl || r.dataUrl
+        const driveUrl = r.driveFileId ? `https://lh3.googleusercontent.com/d/${r.driveFileId}` : r.driveUrl || r.dataUrl
         const local = localMap.get(r.id)
         return {
           ...r,

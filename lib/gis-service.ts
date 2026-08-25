@@ -72,7 +72,7 @@ export async function ensureGisCapturesTable(): Promise<void> {
  */
 export function getDriveViewUrl(driveFileId: string): string {
   if (!driveFileId) return ""
-  return `https://drive.google.com/uc?export=view&id=${driveFileId}`
+  return `https://lh3.googleusercontent.com/d/${driveFileId}`
 }
 
 export function getDriveDownloadUrl(driveFileId: string): string {

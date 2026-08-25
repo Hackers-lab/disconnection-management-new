@@ -169,7 +169,7 @@ export function useModuleVersionSync<T extends Record<string, any>>(
           const baseRes = await fetch(actualBaseUrl)
           if (baseRes.ok) {
             const result = await baseRes.json()
-            const freshItems = (Array.isArray(result) ? result : (result.patchData || result.data || [])) as T[]
+            const freshItems = (Array.isArray(result) ? result : (result.patchData || result.data || result.photos || result.records || result.items || [])) as T[]
 
             await saveToCache(cacheKey, freshItems)
             if (typeof window !== "undefined") {
