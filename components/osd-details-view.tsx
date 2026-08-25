@@ -384,10 +384,20 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
     nextGraceDueDate = latestBillDueStr
   }
 
-  // Actionable Must-Pay Overdue (All Expired Dues + Live LPSC)
-  // When due dates are passed, the entire principal gross due + dynamic LPSC is actionable
-  const mustPayOverdue = Math.max(0, totalGrossDue - inGraceCouponsAmt) + liveLpsc
-  const currentInGrace = inGraceCouponsAmt
+  // 1. Must Pay Principal (Excludes LPSC): Expired gross principal dues
+  const mustPayPrincipal = Math.max(0, totalGrossDue - inGraceCouponsAmt)
+  
+  // 2. Future Due Date Amount (In Grace)
+  const futureDueDateAmt = inGraceCouponsAmt
+
+  // 3. Live LPSC (Live dynamic interest surcharge)
+  // liveLpsc
+
+  // 4. Total Demand (Including LPSC)
+  // totalDemand = totalGrossDue + liveLpsc
+
+  // Combined Must Pay Overdue (Principal + LPSC)
+  const mustPayWithLpsc = mustPayPrincipal + liveLpsc
 
   // Master Disconnection OSD (Notice amount directly from SAP Master)
   const disconnectionBaseOsd = masterOsd > 0 ? masterOsd : (legacyArrears + a3Sum + currentCycleAmt)
@@ -607,24 +617,28 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     </p>
                   </div>
 
-                  {/* Universal Dues Highlights */}
-                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[240px]">
+                  {/* Universal 4-Part Dues Highlights */}
+                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[250px]">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between sm:justify-end gap-1.5">
                       <span>Total Real-Time Demand</span>
-                      <span className="text-[9px] bg-rose-200/80 text-rose-900 px-1.5 py-0.5 rounded font-mono">T6 + L4</span>
+                      <span className="text-[9px] bg-rose-200/80 text-rose-900 px-1.5 py-0.5 rounded font-mono font-bold">INCL. LPSC</span>
                     </div>
                     <div className="text-xl sm:text-2xl font-bold font-mono text-rose-700 tracking-tight">
                       ₹{totalDemand.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
                     <div className="text-[10px] text-slate-600 font-semibold pt-1 border-t border-rose-200/60 flex flex-col gap-0.5 sm:items-end">
                       <div className="flex items-center gap-1.5 justify-between sm:justify-end">
-                        <span className="text-slate-500">Overdue (Must Pay):</span>
-                        <span className="text-rose-700 font-mono font-bold">₹{mustPayOverdue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                        <span className="text-slate-500">1. Must Pay (Excl. LPSC):</span>
+                        <span className="text-rose-700 font-mono font-bold">₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                       </div>
                       <div className="flex items-center gap-2 justify-between sm:justify-end text-[9px] text-slate-500">
-                        <span>Principal: <strong className="text-slate-800 font-mono">₹{totalGrossDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
-                        <span>•</span>
-                        <span>LPSC: <strong className="text-amber-700 font-mono">₹{liveLpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                        <span>3. LPSC: <strong className="text-amber-700 font-mono font-bold">₹{liveLpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                        {futureDueDateAmt > 0 && (
+                          <>
+                            <span>•</span>
+                            <span>2. Future Due: <strong className="text-blue-700 font-mono">₹{futureDueDateAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -731,70 +745,80 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-2 border-b border-slate-100">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-rose-600" />
-                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Dues & Overdue Partitioning</h3>
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Exact 4-Part Dues Structure</h3>
                       </div>
                       <div className="flex items-center gap-3 text-xs">
                         <span className="text-slate-500 font-medium">
-                          Must Pay (Overdue): <strong className="text-rose-700 font-mono">₹{mustPayOverdue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                          Must Pay (Excl. LPSC): <strong className="text-rose-700 font-mono">₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
                         </span>
-                        {currentInGrace > 0 && (
+                        {futureDueDateAmt > 0 && (
                           <span className="text-slate-500 font-medium">
-                            In Grace: <strong className="text-amber-600 font-mono">₹{currentInGrace.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                            Future Due: <strong className="text-amber-600 font-mono">₹{futureDueDateAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
                           </span>
                         )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                      {/* Card 1: Actionable Overdue (Must Pay) */}
+                      {/* Card 1: Must Pay Principal (Excl. LPSC) */}
                       <div className="p-3 bg-rose-50/50 border border-rose-200/70 rounded-xl">
                         <div className="flex items-center justify-between">
-                          <div className="text-[10px] font-bold uppercase text-rose-800">1. Actionable Overdue</div>
+                          <div className="text-[10px] font-bold uppercase text-rose-800">1. Must Pay (Excl. LPSC)</div>
                           <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-600 text-white rounded">MUST PAY</span>
                         </div>
-                        <div className="text-sm font-bold font-mono text-rose-700 mt-1">₹{mustPayOverdue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-rose-600/80 font-medium mt-0.5">Due date passed • DC active</div>
+                        <div className="text-sm font-bold font-mono text-rose-700 mt-1">
+                          ₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-rose-600/80 font-medium mt-0.5">Expired principal • Active DC</div>
                       </div>
 
-                      {/* Card 2: Current / Future Cycle Bill (T2 / A1) */}
+                      {/* Card 2: Future Due Date (In Grace) */}
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
                         <div className="flex items-center justify-between">
-                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Current Cycle Bill</div>
+                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Future Due Date</div>
                           <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                            currentInGrace > 0 ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-700"
+                            futureDueDateAmt > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
                           }`}>
-                            {currentInGrace > 0 ? "IN GRACE" : "OVERDUE"}
+                            {futureDueDateAmt > 0 ? "IN GRACE" : "NO FUTURE DUE"}
                           </span>
                         </div>
                         <div className="text-sm font-bold font-mono text-slate-900 mt-1">
-                          ₹{(currentInGrace > 0 ? currentInGrace : currentCycleAmt).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          ₹{futureDueDateAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                          {currentInGrace > 0
+                          {futureDueDateAmt > 0
                             ? `Can pay by: ${nextGraceDueDate || latestBillDueStr}`
-                            : `Due passed: ${latestBillDueStr || "Expired"}`}
+                            : "No upcoming unexpired bills"}
                         </div>
                       </div>
 
-                      {/* Card 3: Prior Unpaid Invoices (T3 / A3) */}
-                      <div 
-                        onClick={() => setShowA3Details(!showA3Details)}
-                        className="p-3 bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-xl cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-[10px] font-bold uppercase text-slate-500">3. Past Invoices (T3/A3)</div>
-                          <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showA3Details ? "rotate-180" : ""}`} />
-                        </div>
-                        <div className="text-sm font-bold font-mono text-slate-900 mt-1">₹{(priorCarryover || a3Sum).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
-                        <div className="text-[10px] text-blue-600 font-medium mt-0.5">{a3List.length} Invoices (Tap)</div>
-                      </div>
-
-                      {/* Card 4: Surcharges & Misc Fees (L4 + T5) */}
+                      {/* Card 3: Live Dynamic LPSC */}
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                        <div className="text-[10px] font-bold uppercase text-slate-500">4. LPSC & Fees (L4+T5)</div>
-                        <div className="text-sm font-bold font-mono text-amber-600 mt-1">₹{surchargesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">3. Live LPSC</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded">
+                            LPSC (L4)
+                          </span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-amber-600 mt-1">
+                          ₹{liveLpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
                         <div className="text-[10px] text-slate-400 mt-0.5">
-                          LPSC: ₹{liveLpsc.toFixed(2)} • Fees: ₹{otherCharges.toFixed(2)}
+                          Real-time late payment interest
+                        </div>
+                      </div>
+
+                      {/* Card 4: Total Demand (Incl. LPSC) */}
+                      <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-blue-900">4. Total (Incl. LPSC)</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-600 text-white rounded">TOTAL</span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-blue-900 mt-1">
+                          ₹{totalDemand.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-blue-700/80 mt-0.5 font-medium">
+                          ₹{totalGrossDue.toFixed(2)} (Principal) + ₹{liveLpsc.toFixed(2)} (LPSC)
                         </div>
                       </div>
                     </div>
