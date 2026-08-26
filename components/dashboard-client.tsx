@@ -75,6 +75,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   const [profileName, setProfileName] = useState("")
   const [bypassSubscription, setBypassSubscription] = useState(false)
   const [profileCccCode, setProfileCccCode] = useState("")
+  const [profileCccName, setProfileCccName] = useState("")
 
   // Check if tenant is linked to Google Drive/Sheets on mount
   useEffect(() => {
@@ -291,9 +292,14 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             setProfileName(data.name || "")
             setBypassSubscription(!!data.bypassSubscription)
             setProfileCccCode(data.cccCode || "")
+            setProfileCccName(data.cccName || "")
             try {
               localStorage.setItem("user_ccc_code", data.cccCode || "")
               sessionStorage.setItem("user_ccc_code", data.cccCode || "")
+              if (data.cccName) {
+                localStorage.setItem("user_ccc_name", data.cccName || "")
+                sessionStorage.setItem("user_ccc_name", data.cccName || "")
+              }
               localStorage.setItem("user_role", role.toLowerCase())
               sessionStorage.setItem("user_role", role.toLowerCase())
               if (data.username) {
@@ -1535,7 +1541,13 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         )}
 
         {activeView === "icds" && (
-          <IcdsList role={role} agencies={agencies} permissions={permissions} username={profileName || agencies[0] || role} />
+          <IcdsList
+            role={role}
+            agencies={agencies}
+            permissions={permissions}
+            username={profileName || agencies[0] || role}
+            officeName={profileCccName || profileCccCode}
+          />
         )}
 
         {activeView === "osd" && (

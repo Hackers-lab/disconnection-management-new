@@ -35,6 +35,7 @@ interface Props {
   record: IcdsRecord | null
   open: boolean
   onClose: () => void
+  officeName?: string
 }
 
 interface PreviewImage {
@@ -44,10 +45,20 @@ interface PreviewImage {
   type: string
 }
 
-export function IcdsViewDialog({ record, open, onClose }: Props) {
+export function IcdsViewDialog({ record, open, onClose, officeName }: Props) {
   const [previewImage, setPreviewImage] = useState<PreviewImage | null>(null)
 
   if (!record) return null
+
+  const displayOfficeName =
+    officeName?.trim() ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("user_ccc_name") ||
+        sessionStorage.getItem("user_ccc_name") ||
+        localStorage.getItem("user_ccc_code") ||
+        sessionStorage.getItem("user_ccc_code")
+      : "") ||
+    "This Office"
 
   const handleDownloadPDF = () => {
     try {
@@ -180,7 +191,7 @@ export function IcdsViewDialog({ record, open, onClose }: Props) {
                 <div>
                   <span className="text-slate-400 block text-[11px]">Jurisdiction:</span>
                   <p className="font-semibold text-slate-700">
-                    {record.jurisdictionStatus === "UNDER_OFFICE" ? "Under This Office" : `Other: ${record.jurisdictionOffice || "Adjacent CCC"}`}
+                    {record.jurisdictionStatus === "UNDER_OFFICE" ? `Under ${displayOfficeName}` : `Other: ${record.jurisdictionOffice || "Adjacent CCC"}`}
                   </p>
                 </div>
                 <div>

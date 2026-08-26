@@ -84,6 +84,7 @@ interface Props {
   agencies?: string[]
   assignedAgencies?: string[]
   permissions?: Record<string, string[]>
+  officeName?: string
 }
 
 export function IcdsList({
@@ -93,10 +94,21 @@ export function IcdsList({
   agencies: propAgencies,
   assignedAgencies = [],
   permissions = {},
+  officeName,
 }: Props) {
   const effectiveRole = role || userRole
   const effectiveAgencies = propAgencies || assignedAgencies
   const icdsPerms = permissions["icds"] || []
+
+  const displayOfficeName =
+    officeName?.trim() ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("user_ccc_name") ||
+        sessionStorage.getItem("user_ccc_name") ||
+        localStorage.getItem("user_ccc_code") ||
+        sessionStorage.getItem("user_ccc_code")
+      : "") ||
+    "This Office"
 
   const [records, setRecords] = useState<IcdsRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -1343,6 +1355,7 @@ export function IcdsList({
         onClose={() => setShowInspectModal(false)}
         onSuccess={handleRecordUpdated}
         username={username}
+        officeName={displayOfficeName}
       />
 
       <IcdsConnectionModal
@@ -1365,6 +1378,7 @@ export function IcdsList({
         record={selectedRecord}
         open={showViewDialog}
         onClose={() => setShowViewDialog(false)}
+        officeName={displayOfficeName}
       />
 
       <IcdsAddModal
@@ -1372,6 +1386,7 @@ export function IcdsList({
         onClose={() => setShowAddModal(false)}
         onSuccess={handleRecordCreated}
         agencies={agencies}
+        officeName={displayOfficeName}
       />
 
       <IcdsEditModal
@@ -1380,6 +1395,7 @@ export function IcdsList({
         onClose={() => setShowEditModal(false)}
         onSuccess={handleRecordUpdated}
         agencies={agencies}
+        officeName={displayOfficeName}
       />
 
       <IcdsBulkUploadModal
