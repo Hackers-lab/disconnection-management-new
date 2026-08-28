@@ -32,10 +32,13 @@ const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-li
 const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
+const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m => ({ default: m.OsdPageView })), { ssr: false })
+const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
+import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
 
 // UI Components for the Dialog
 import { Button } from "@/components/ui/button"
@@ -72,6 +75,7 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   const [profileName, setProfileName] = useState("")
   const [bypassSubscription, setBypassSubscription] = useState(false)
   const [profileCccCode, setProfileCccCode] = useState("")
+  const [profileCccName, setProfileCccName] = useState("")
 
   // Check if tenant is linked to Google Drive/Sheets on mount
   useEffect(() => {
@@ -153,7 +157,15 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     setActiveViewInternal(newView)
     if (typeof window === "undefined") return
 
-    const expectedHash = newView === "home" ? "" : `#${newView}`
+    let expectedHash = ""
+    if (newView === "home") {
+      expectedHash = ""
+    } else if (newView === "spotai") {
+      expectedHash = `#${getCurrentSpotAiHashRoute()}`
+    } else {
+      expectedHash = `#${newView}`
+    }
+
     const currentHash = window.location.hash
     const currentBaseHash = currentHash.split("/")[0]
 
@@ -171,10 +183,30 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     if (typeof window === "undefined") return
 
     const handleHashChange = () => {
-      const hash = window.location.hash.substring(1) // e.g. "reconnection/create"
+      const hash = window.location.hash.substring(1) // e.g. "reconnection/create" or "spotai-9f82a1"
       const [hashModule] = hash.split("/")
 
       if (hashModule) {
+        // Guard check for SpotAI routes (static #spotai or rotating dynamic hashes)
+        if (hashModule === "spotai" || hashModule.startsWith("spotai-") || hashModule.startsWith("spotai")) {
+          const isValidHash = isValidSpotAiHash(hashModule)
+
+          if (isValidHash) {
+            unlockSpotAiSession()
+            if (activeView !== "spotai") {
+              setActiveViewInternal("spotai")
+            }
+          } else {
+            // Block expired or static #spotai -> clear URL and redirect to home
+            lockSpotAiSession()
+            window.history.replaceState(null, "", window.location.pathname)
+            if (activeView !== "home") {
+              setActiveViewInternal("home")
+            }
+          }
+          return
+        }
+
         if (hashModule !== activeView) {
           setActiveViewInternal(hashModule as ViewType | "home")
         }
@@ -260,9 +292,14 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
             setProfileName(data.name || "")
             setBypassSubscription(!!data.bypassSubscription)
             setProfileCccCode(data.cccCode || "")
+            setProfileCccName(data.cccName || "")
             try {
               localStorage.setItem("user_ccc_code", data.cccCode || "")
               sessionStorage.setItem("user_ccc_code", data.cccCode || "")
+              if (data.cccName) {
+                localStorage.setItem("user_ccc_name", data.cccName || "")
+                sessionStorage.setItem("user_ccc_name", data.cccName || "")
+              }
               localStorage.setItem("user_role", role.toLowerCase())
               sessionStorage.setItem("user_role", role.toLowerCase())
               if (data.username) {
@@ -1504,11 +1541,31 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
         )}
 
         {activeView === "icds" && (
-          <IcdsList role={role} agencies={agencies} permissions={permissions} username={profileName || agencies[0] || role} />
+          <IcdsList
+            role={role}
+            agencies={agencies}
+            permissions={permissions}
+            username={profileName || agencies[0] || role}
+            officeName={profileCccName || profileCccCode}
+          />
         )}
 
         {activeView === "osd" && (
+          <OsdPageView onBack={() => setActiveView("home")} />
+        )}
+
+        {activeView === "spotai" && (
           <OsdDetailsView onBack={() => setActiveView("home")} />
+        )}
+
+        {activeView === "gis-camera" && (
+          <GisCamera
+            userRole={role}
+            userName={profileName || (agencies && agencies[0]) || role}
+            userAgencies={agencies}
+            officeCode={profileCccCode || "KUSHIDA"}
+            onBack={() => setActiveView("home")}
+          />
         )}
 
         {activeView === "analysis" && role === "admin" && (

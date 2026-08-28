@@ -30,6 +30,24 @@ export async function login(formData: FormData) {
   console.log("✅ Login successful for:", username, "Role:", user.role)
   await createSession(user.id, username, user.role, user.agencies, user.cccCode)
 
+  // Explicitly record user in dedicated user_presence table on login
+  try {
+    const { trackUserPresence } = await import("@/lib/presence-service")
+    await trackUserPresence({
+      userId: user.id,
+      username,
+      name: user.name || username,
+      role: user.role,
+      cccCode: user.cccCode || "",
+      agencies: user.agencies || [],
+      activeModule: user.role === "superuser" ? "superuser" : "dashboard",
+      lastAction: "Logged In",
+      lastSeen: Date.now(),
+    })
+  } catch (presenceErr) {
+    console.warn("Could not log user presence:", presenceErr)
+  }
+
   if (user.role === "superuser") {
     redirect("/superuser")
   } else {
@@ -38,6 +56,15 @@ export async function login(formData: FormData) {
 }
 
 export async function logout() {
+  try {
+    const { verifySession } = await import("@/lib/session")
+    const session = await verifySession()
+    if (session?.userId) {
+      const { removeUserPresence } = await import("@/lib/presence-service")
+      await removeUserPresence(session.userId)
+    }
+  } catch {}
+
   await deleteSession()
   redirect("/login")
 }

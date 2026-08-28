@@ -79,10 +79,9 @@ export async function GET(req: NextRequest) {
     // 1. Manage Authoritative Total Visitor Count (Synchronized across all instances)
     const totalVisitors = await getSynchronizedVisitorCount(isNewVisit)
 
-    // 2. Track Real-time Client Presence (Instant in-memory)
+    // 2. Track Real-time Client Presence (Instant in-memory, 0 DB writes)
     if (cid) {
       localPresenceMap.set(cid, now)
-      setKV(`presence:client:${cid}`, now, 120).catch(() => {})
     }
 
     pruneLocalPresence(now)

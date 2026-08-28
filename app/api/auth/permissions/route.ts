@@ -4,6 +4,7 @@ import { roleStorage } from "@/lib/role-storage"
 import { withTenant } from "@/lib/tenant-context"
 
 import { expandRolePermissions } from "@/lib/permissions"
+import { getTenantRegistry } from "@/lib/tenant-resolver"
 
 export const dynamic = "force-dynamic"
 
@@ -41,6 +42,19 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       }
     }
 
+    let cccName = ""
+    if (session.cccCode) {
+      try {
+        const registry = await getTenantRegistry()
+        const tenant = registry[session.cccCode] || registry[session.cccCode.toUpperCase()]
+        if (tenant) {
+          cccName = tenant.cccName
+        }
+      } catch (err) {
+        console.warn("Failed to lookup tenant cccName for session:", err)
+      }
+    }
+
     if (!permissions) {
       // Default to empty permissions if role is not configured
       return NextResponse.json({
@@ -63,6 +77,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         name: session.name,
         username: session.username,
         cccCode: session.cccCode,
+        cccName: cccName || session.cccCode || "",
         agencies: session.agencies,
         subscriptionStatus: session.subscriptionStatus,
         bypassSubscription: session.bypassSubscription,
@@ -77,6 +92,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       name: session.name,
       username: session.username,
       cccCode: session.cccCode,
+      cccName: cccName || session.cccCode || "",
       agencies: session.agencies,
       subscriptionStatus: session.subscriptionStatus,
       bypassSubscription: session.bypassSubscription,

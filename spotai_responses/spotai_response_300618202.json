@@ -1,0 +1,394 @@
+{
+  "consumerId": "300618202",
+  "queryTimestamp": "2026-08-24T21:48:08.175Z",
+  "officer": "PRAMOD KUMAR VERMA",
+  "designation": "JR. ENGINEER (ELEC.) GR.-II",
+  "offCode": "6612107",
+  "office": "KUSHIDA CCC",
+  "master": {
+    "ZCENPAY": "",
+    "ZCONN_DT": "25/03/2015",
+    "ZMOVE_IN_DT": "25/03/2015",
+    "ZMETERED": "YES",
+    "ZOFF_NAME": "KUSHIDA CUSTOMER CARE CENTRE",
+    "ZMET2": "",
+    "ZMET3": "",
+    "ZRURAL_URBAN": "R",
+    "ZDISCON_DT": "",
+    "ZCLASS_DESC": "DOMESTIC",
+    "MINIMUM_RECHARGE": "0.00",
+    "ZTOT_OSD": "5747.00",
+    "ZDTR_LOC": "BUNTY BOOTH H.C PUR (25.416717, 87.881942)",
+    "ZPREMISE_TYPE": "BPL",
+    "ZMOB_NO": "",
+    "ZDTR_CODE": "9Q00U",
+    "ZMET_CON_STAT": "POSTPAID METER",
+    "ZMET1": "TA173014",
+    "ZCLASS": "D",
+    "ZFEEDER_NM": "HARISHCHANDRAPUR 11 KV",
+    "ZMRU": "K4H29QMR",
+    "ZEMANIL_ID": "",
+    "ZSPOT_BL": "YES",
+    "ZGOVT_FLAG": "NO",
+    "WALLET_BALANCE": "0.00",
+    "ZINST_NO": "0017572358",
+    "ZBP_NO": "0010310292",
+    "ZFEEDER_CODE": "3081",
+    "ZCONN_LOAD": "0.0100000",
+    "ZBILING_CLS": "Low and Medium Voltage",
+    "ZCOLL_BL_AC": "NO",
+    "ZCON_ID": "000300618202",
+    "ZECS": "NO",
+    "ZCONN_STAT": "LIVE",
+    "ZADDRESS": "JALILUDDIN  KUSHIDA,HARISHCHANDRAPUR-I  , 732140",
+    "HES": "NA",
+    "ZOFF_CODE": "6612107",
+    "ZRATE_CATG": "Domestic Rural-normal",
+    "ZTARIFF": "A(DM-R)",
+    "ZNAME": "EKRAMUL HOQUE"
+  },
+  "osd": {
+    "T4": [
+      {
+        "AMT": "81.50",
+        "INV_NO": "",
+        "FLAG": "T4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T5": [
+      {
+        "AMT": "100.00",
+        "INV_NO": "",
+        "FLAG": "T5",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T6": [
+      {
+        "AMT": "181.50",
+        "INV_NO": "",
+        "FLAG": "T6",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L3": [
+      {
+        "AMT": "81.50",
+        "INV_NO": "",
+        "FLAG": "L3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L4": [
+      {
+        "AMT": "8696.91",
+        "INV_NO": "",
+        "FLAG": "L4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "A1": [],
+    "A2": [],
+    "A3": [],
+    "T1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T3": [
+      {
+        "AMT": "81.50",
+        "INV_NO": "",
+        "FLAG": "T3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ]
+  },
+  "billing": {
+    "code": "400",
+    "message": "Meter Number does not exist"
+  },
+  "payments": {
+    "code": "400",
+    "message": "Meter Number does not exist"
+  },
+  "readings": [
+    {
+      "Curr_Reading": "934",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "934",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "10.05. 2026",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2026",
+      "Reading_Days": "78",
+      "Curr_Reading_Dt": "27.07. 2026"
+    },
+    {
+      "Curr_Reading": "934",
+      "TOT_UNIT": "2",
+      "Consum_Unit": "2",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "11.02. 2026",
+      "Reading_Stat": "1ST DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2026",
+      "Reading_Days": "88",
+      "Curr_Reading_Dt": "10.05. 2026"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "25.10. 2025",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2026",
+      "Reading_Days": "109",
+      "Curr_Reading_Dt": "11.02. 2026"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "29.07. 2025",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2025",
+      "Reading_Days": "88",
+      "Curr_Reading_Dt": "25.10. 2025"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "26.04. 2025",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2025",
+      "Reading_Days": "94",
+      "Curr_Reading_Dt": "29.07. 2025"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "12.02. 2025",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2025",
+      "Reading_Days": "73",
+      "Curr_Reading_Dt": "26.04. 2025"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "71",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "25.10. 2024",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "71",
+      "Acc_Bill_Month": "03.2025",
+      "Reading_Days": "110",
+      "Curr_Reading_Dt": "12.02. 2025"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "932",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "11.08. 2024",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "12.2024",
+      "Reading_Days": "75",
+      "Curr_Reading_Dt": "25.10. 2024"
+    },
+    {
+      "Curr_Reading": "932",
+      "TOT_UNIT": "1",
+      "Consum_Unit": "1",
+      "TIME": "N",
+      "Prev_Reading": "931",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "06.05. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2024",
+      "Reading_Days": "97",
+      "Curr_Reading_Dt": "11.08. 2024"
+    },
+    {
+      "Curr_Reading": "931",
+      "TOT_UNIT": "1",
+      "Consum_Unit": "1",
+      "TIME": "N",
+      "Prev_Reading": "930",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "13.02. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2024",
+      "Reading_Days": "83",
+      "Curr_Reading_Dt": "06.05. 2024"
+    },
+    {
+      "Curr_Reading": "930",
+      "TOT_UNIT": "3",
+      "Consum_Unit": "3",
+      "TIME": "N",
+      "Prev_Reading": "927",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "16.08. 2023",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2024",
+      "Reading_Days": "181",
+      "Curr_Reading_Dt": "13.02. 2024"
+    },
+    {
+      "Curr_Reading": "927",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "927",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "17.05. 2023",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2023",
+      "Reading_Days": "91",
+      "Curr_Reading_Dt": "16.08. 2023"
+    },
+    {
+      "Curr_Reading": "927",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "927",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "07.02. 2023",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2023",
+      "Reading_Days": "99",
+      "Curr_Reading_Dt": "17.05. 2023"
+    },
+    {
+      "Curr_Reading": "927",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "927",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "16.11. 2022",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2023",
+      "Reading_Days": "83",
+      "Curr_Reading_Dt": "07.02. 2023"
+    },
+    {
+      "Curr_Reading": "927",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "927",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA173014",
+      "Prev_Reading_Dt": "15.07. 2020",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2022",
+      "Reading_Days": "854",
+      "Curr_Reading_Dt": "16.11. 2022"
+    }
+  ],
+  "meter": [
+    {
+      "ZMETER_NO": "TA173014",
+      "ZMUL_FACTOR": "1.00000",
+      "ZMET_INST_MOVE_IN_DT": "25/03/2015",
+      "ZMET_TYPE": "STATIC",
+      "ZPRSNT_READING_DT": "27/07/2026",
+      "ZPRESENT_READING": "934",
+      "ZREG_GRP": "RGWL0601",
+      "ZPHASE": "1-PHASE",
+      "ZMETER_STATUS": "OK",
+      "ZTOD_FLG": "NO"
+    }
+  ]
+}

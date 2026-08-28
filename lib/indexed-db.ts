@@ -178,3 +178,76 @@ export async function mergePatchToCache<T>(
   await saveToCache(cacheKey, merged)
   return merged
 }
+
+export interface GisPhotoRecord {
+  id: string
+  dataUrl: string
+  thumbnailUrl?: string
+  driveUrl?: string
+  driveFileId?: string
+  cloudSynced?: boolean
+  syncError?: string
+  timestamp: number
+  dateFormatted: string
+  timeFormatted: string
+  lat: number
+  lng: number
+  accuracy?: number
+  altitude?: number
+  heading?: number
+  locationName: string
+  officeCode: string
+  agency: string
+  note: string
+  uploadedBy?: string
+  uploadedByName?: string
+  userRole?: string
+}
+
+const GIS_PHOTOS_KEY = "gis_camera_photos_store"
+
+export async function getGisPhotos(): Promise<GisPhotoRecord[]> {
+  try {
+    const photos = await getFromCache<GisPhotoRecord[]>(GIS_PHOTOS_KEY)
+    return Array.isArray(photos) ? photos : []
+  } catch (err) {
+    console.error("Failed to load GIS photos from cache:", err)
+    return []
+  }
+}
+
+export async function saveGisPhoto(photo: GisPhotoRecord): Promise<GisPhotoRecord[]> {
+  try {
+    const existing = await getGisPhotos()
+    // Prepend latest photo first
+    const updated = [photo, ...existing.filter(p => p.id !== photo.id)]
+    // Keep up to 200 photos locally to manage storage smoothly
+    const trimmed = updated.slice(0, 200)
+    await saveToCache(GIS_PHOTOS_KEY, trimmed)
+    return trimmed
+  } catch (err) {
+    console.error("Failed to save GIS photo:", err)
+    throw err
+  }
+}
+
+export async function deleteGisPhoto(id: string): Promise<GisPhotoRecord[]> {
+  try {
+    const existing = await getGisPhotos()
+    const updated = existing.filter(p => p.id !== id)
+    await saveToCache(GIS_PHOTOS_KEY, updated)
+    return updated
+  } catch (err) {
+    console.error("Failed to delete GIS photo:", err)
+    throw err
+  }
+}
+
+export async function clearAllGisPhotos(): Promise<void> {
+  try {
+    await saveToCache(GIS_PHOTOS_KEY, [])
+  } catch (err) {
+    console.error("Failed to clear GIS photos:", err)
+    throw err
+  }
+}

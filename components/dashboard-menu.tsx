@@ -23,7 +23,8 @@ import {
   FileCheck2,
   ShieldAlert,
   Building2,
-  Calendar
+  Calendar,
+  Camera
 } from "lucide-react"
 import { GlobalConsumerSearch } from "@/components/global-consumer-search"
 import { ViewType } from "@/components/app-sidebar"
@@ -257,13 +258,24 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     },
     {
       id: "osd",
-      title: "Live OSD Check",
-      description: "Live consumer details & OSD check from WBSEDCL",
-      icon: FileCheck2,
-      color: "text-emerald-600",
-      bgColor: "bg-emerald-50",
-      borderColor: "hover:border-emerald-400 hover:shadow-emerald-500/10",
+      title: "Consumer Details",
+      description: "Live dues, payment receipts, meter readings & bills",
+      icon: Zap,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "hover:border-blue-400 hover:shadow-blue-500/10",
       allowed: ["admin", "executive", "agency", "viewer", "technical"],
+      status: "live"
+    },
+    {
+      id: "gis-camera",
+      title: "GIS Camera",
+      description: "Geotagged field camera with map & instant watermark",
+      icon: Camera,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "hover:border-blue-400 hover:shadow-blue-500/10",
+      allowed: ["all"],
       status: "live"
     },
     {
@@ -933,7 +945,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                     <div
                       key={module.id}
                       onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         onSelect(module.id as ViewType)
                       }}
                       className="rounded-2xl border border-red-500/20 hover:border-red-500/35 bg-gradient-to-b from-white via-red-50/20 to-red-50/40 p-3.5 flex items-center justify-between shadow-[0_4px_14px_rgba(239,68,68,0.08),0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_22px_rgba(239,68,68,0.14)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
@@ -988,7 +1000,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   <div
                     key={module.id}
                     onClick={() => {
-                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                       onSelect(module.id as ViewType)
                     }}
                     className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.20] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] select-none"
@@ -999,7 +1011,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                         <Icon className="h-5 w-5" />
                       </div>
 
-                      {module.id !== "osd" && module.id !== "admin" && (
+                      {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] ${pillStyleClass}`}>
                           {module.isLoading ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
@@ -1060,12 +1072,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   key={module.id}
                   className="group relative cursor-pointer transition-all duration-300 hover:-translate-y-1.5 border border-black/[0.08] hover:border-black/[0.22] bg-white/85 backdrop-blur-xl rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden"
                   onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     onSelect(module.id as ViewType)
                   }}
                 >
                   {/* Executive Dark Badge Counter */}
-                  {module.id !== "osd" && module.id !== "admin" && (
+                  {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
                     <div className={`absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
                       module.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
                     }`}>

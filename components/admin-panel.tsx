@@ -14,10 +14,11 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert } from "lucide-react"
+import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Condition, Group, Operator, rowMatchesGroups, isNumericOp, OPERATOR_LABELS } from "@/lib/upload-filter"
 import { userStorage } from "@/lib/user-storage";
+import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 
 // Optional filter-only source columns (mapped for filtering/conflict, never uploaded).
 const FILTER_COLUMNS = ["Class", "Gov/Non-Gov", "Discon Status"] as const
@@ -175,7 +176,7 @@ interface Agency {
 
 
 export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
-
+    const [showPushModal, setShowPushModal] = useState(false);
     const [sheetName, setSheetName] = useState("Sheet1"); // Default sheet name
     const [isUploading, setIsUploading] = useState(false);
     const expectedColumns = [
@@ -1382,6 +1383,12 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             onClick={() => setView("roles")}
           />
           <DashboardCard
+            icon={<Bell className="h-12 w-12 text-emerald-500" />}
+            title="Broadcast Alert"
+            description="Send mobile push notification to team"
+            onClick={() => setShowPushModal(true)}
+          />
+          <DashboardCard
             icon={<KeyRound className="h-12 w-12 text-blue-600" />}
             title="Google Integration"
             description="Link Google drive and sheets"
@@ -1389,6 +1396,14 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
           />
         </div>
       )}
+
+      {/* Broadcast Push Modal for Tenant Admin */}
+      <BroadcastPushModal
+        isOpen={showPushModal}
+        onClose={() => setShowPushModal(false)}
+        isSuperuser={false}
+        currentCccCode={tenantStatus?.cccCode || "SYSTEM"}
+      />
 
       {view === "google-onboarding" && (
         <Card className="max-w-2xl mx-auto">

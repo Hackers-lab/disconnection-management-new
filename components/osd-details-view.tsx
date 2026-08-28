@@ -1,400 +1,1270 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import {
-  Search,
-  FileCheck2,
-  FileWarning,
-  Download,
-  Printer,
-  Loader2,
-  User,
-  MapPin,
-  Building2,
-  Calendar,
-  IndianRupee,
-  ShieldCheck,
-  AlertTriangle,
-  X,
+import React, { useState, useEffect } from "react"
+import { 
+  Zap, 
+  ShieldCheck, 
+  Lock, 
+  User, 
+  Phone, 
+  MapPin, 
+  Gauge, 
+  CreditCard, 
+  FileText, 
+  AlertCircle, 
+  CheckCircle2, 
+  RefreshCw, 
+  Search, 
+  ArrowRight, 
+  LogOut, 
+  Calendar, 
+  IndianRupee, 
+  Layers, 
+  Sparkles, 
+  TrendingUp, 
+  Activity, 
+  ExternalLink, 
+  ChevronRight, 
+  Copy, 
+  Check, 
+  Building2, 
+  Clock, 
+  Eye, 
+  Receipt, 
+  AlertTriangle, 
   ArrowLeft,
+  ChevronDown,
+  Info,
+  Download,
+  Loader2
 } from "lucide-react"
 
-interface OsdDetailsData {
-  consumerId: string
-  name: string
-  address: string
-  office: string
-  connectionStatus: string
-  connDate: string
-  docType: string
-  osd: number
-  lpsc: number
-  totalDues: number
-  pdfBase64: string
-  fileSizeKb: number
+interface SessionData {
+  username: string
+  token: string
+  offCode: string
+  offName?: string
+  name?: string
+  designation?: string
 }
 
 interface OsdDetailsViewProps {
   onBack?: () => void
+  initialConsumerId?: string
 }
 
-export function OsdDetailsView({ onBack }: OsdDetailsViewProps) {
-  const [consumerId, setConsumerId] = useState("")
+export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProps) {
+  // Auth state
+  const [session, setSession] = useState<SessionData | null>(null)
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [otp, setOtp] = useState("")
+  const [otpSent, setOtpSent] = useState(false)
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authError, setAuthError] = useState("")
+
+  // Consumer query state
+  const [consumerId, setConsumerId] = useState(initialConsumerId || "")
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<OsdDetailsData | null>(null)
+  const [activeTab, setActiveTab] = useState<"overview" | "master" | "billing" | "payments" | "readings" | "meter">("overview")
+  const [data, setData] = useState<any>(null)
+  const [queryError, setQueryError] = useState("")
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [showA3Details, setShowA3Details] = useState(false)
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  // Direct Bill PDF Viewing State
+  const [fetchingBillInvoice, setFetchingBillInvoice] = useState<string | null>(null)
+  const [billError, setBillError] = useState<string | null>(null)
 
-    const cleanId = consumerId.trim()
-    if (!cleanId) {
-      setError("Please enter a 9-digit Consumer ID")
-      return
+  // Load saved session on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("consumer_portal_session")
+    if (saved) {
+      try {
+        setSession(JSON.parse(saved))
+      } catch (e) {}
     }
+  }, [])
 
-    if (!/^\d{9}$/.test(cleanId)) {
-      setError("Consumer ID must be a 9-digit number")
-      return
+  // Auto-search if initialConsumerId is passed
+  useEffect(() => {
+    if (initialConsumerId && session) {
+      handleFetchConsumer(undefined, initialConsumerId)
     }
+  }, [initialConsumerId, session])
 
-    setLoading(true)
-    setError(null)
-    setData(null)
+  const saveSession = (sess: SessionData | null) => {
+    setSession(sess)
+    if (sess) {
+      localStorage.setItem("consumer_portal_session", JSON.stringify(sess))
+    } else {
+      localStorage.removeItem("consumer_portal_session")
+    }
+  }
+
+  const copyToClipboard = (text: string, fieldName: string) => {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopiedField(fieldName)
+    setTimeout(() => setCopiedField(null), 1500)
+  }
+
+  // Direct client-side HK encryption for SpotAI
+  const clientSideHkEncrypt = (passwordStr: string): string => {
+    const secretKey = '@FrTu^^&!#$%^/41'
+    const keyLen = secretKey.length
+    const xorChars: string[] = []
+    for (let r = 0; r < passwordStr.length; r++) {
+      const cCode = passwordStr.charCodeAt(r)
+      const kCode = secretKey.charCodeAt(r % keyLen)
+      xorChars.push(String.fromCharCode(cCode ^ kCode))
+    }
+    return btoa(xorChars.join(''))
+  }
+
+  // Direct SpotAI API caller from user's device (bypasses serverless firewall timeout)
+  const spotAiDirectPost = async (path: string, payload: any): Promise<any> => {
+    const res = await fetch(`https://spotai.wbsedcl.in${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain",
+        "Accept": "application/json, text/plain, */*"
+      },
+      body: JSON.stringify(payload)
+    })
+    const text = await res.text()
+    try {
+      const parsed = JSON.parse(text)
+      return parsed
+    } catch {
+      return { code: "500", message: text.slice(0, 150) }
+    }
+  }
+
+  // Direct PDF Download / View function using captured API
+  const handleViewBillPdf = async (invoiceNo: string) => {
+    if (!session || !consumerId.trim()) return
+    setFetchingBillInvoice(invoiceNo)
+    setBillError(null)
 
     try {
-      const res = await fetch(`/api/osd-details?consumerId=${encodeURIComponent(cleanId)}`)
-      const responseText = await res.text()
+      const payload = {
+        username: session.username,
+        token: session.token,
+        off_code: session.offCode,
+        con_id: consumerId.trim(),
+        parameter: "BILLING",
+        flag: "P",
+        printdoc: invoiceNo.trim()
+      }
 
-      let json: any = null
-      try {
-        json = JSON.parse(responseText)
-      } catch {
-        if (res.status === 401) {
-          throw new Error("Session expired or unauthorized. Please log in again.")
+      const res = await spotAiDirectPost("/spotaiportal/con_dtls", [payload])
+
+      if (res?.code === "200" && Array.isArray(res.message) && res.message[0]?.base64) {
+        const byteCharacters = atob(res.message[0].base64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
         }
-        throw new Error(`Server returned HTTP status ${res.status}. Check Vercel server logs.`)
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], { type: "application/pdf" })
+        const fileURL = URL.createObjectURL(blob)
+        window.open(fileURL, "_blank")
+      } else {
+        setBillError(res?.message || "Bill copy not available for this invoice")
       }
-
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || "Failed to fetch consumer OSD details")
-      }
-
-      setData(json.data)
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred")
+      setBillError(err.message || "Failed to load bill PDF")
+    } finally {
+      setFetchingBillInvoice(null)
+    }
+  }
+
+  // Step 1: Request OTP (Direct Fast Dispatch)
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthLoading(true)
+    setAuthError("")
+    try {
+      const payload = [{ username: username.trim(), password: clientSideHkEncrypt(password) }]
+      const raw = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
+      const json = Array.isArray(raw) ? raw[0] : raw
+
+      if (json?.code === "200") {
+        setOtpSent(true)
+      } else {
+        setAuthError(json?.message || json?.error || "Failed to dispatch OTP")
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Network connection error")
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  // Step 2: Verify OTP & Login (Direct Fast Verification)
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthLoading(true)
+    setAuthError("")
+    try {
+      const payload = [{ username: username.trim(), otp: otp.trim() }]
+      const raw = await spotAiDirectPost("/spotaiportal/spot_ai_portal_login", payload)
+      const json = Array.isArray(raw) ? raw[0] : raw
+
+      if (json?.code === "200" && json.message?.JWT_token) {
+        const sess: SessionData = {
+          username: username.trim(),
+          token: json.message.JWT_token,
+          offCode: json.message.off_code,
+          offName: json.message.off_name,
+          name: json.message.name,
+          designation: json.message.designation
+        }
+        saveSession(sess)
+        setOtpSent(false)
+        setPassword("")
+        setOtp("")
+      } else {
+        setAuthError(json?.message || json?.error || "Invalid OTP entered")
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Authentication failed")
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  // Query consumer details (Direct 360 lookup)
+  const handleFetchConsumer = async (e?: React.FormEvent, targetId?: string) => {
+    if (e) e.preventDefault()
+    const idToSearch = targetId || consumerId
+    if (!idToSearch.trim()) {
+      setQueryError("Please enter a 9-digit Consumer ID")
+      return
+    }
+    if (!session) return
+
+    setLoading(true)
+    setQueryError("")
+    try {
+      const basePayload = {
+        username: session.username,
+        token: session.token,
+        off_code: session.offCode || "",
+        con_id: idToSearch.trim()
+      }
+
+      // Helper to unpack SpotAI { code, message } responses
+      const unpack = (res: any) => (Array.isArray(res) ? res[0] : res)
+
+      // Parallel direct queries from user device
+      const [masterRaw, paymentsRaw, osdRaw, billingRaw, readingsRaw, meterRaw] = await Promise.all([
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "MASTER", flag: "C" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "PAYMENT", flag: "P" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "OSD", flag: "O" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "BILLING", flag: "B" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "READING", flag: "R" }]),
+        spotAiDirectPost("/spotaiportal/con_dtls", [{ ...basePayload, parameter: "METER", flag: "M" }]),
+      ])
+
+      const masterRes = unpack(masterRaw)
+      const paymentsRes = unpack(paymentsRaw)
+      const osdRes = unpack(osdRaw)
+      const billingRes = unpack(billingRaw)
+      const readingsRes = unpack(readingsRaw)
+      const meterRes = unpack(meterRaw)
+
+      const masterData = Array.isArray(masterRes?.message) ? masterRes.message[0] : (typeof masterRes?.message === 'object' ? masterRes.message : null)
+
+      if (!masterData) {
+        setQueryError(masterRes?.message || "Consumer record not found or session timed out")
+        if (String(masterRes?.message || "").toLowerCase().includes("session") || String(masterRes?.code) === "600") {
+          saveSession(null)
+        }
+      } else {
+        setData({
+          success: true,
+          master: masterData,
+          payments: Array.isArray(paymentsRes?.message) ? paymentsRes.message : [],
+          osd: Array.isArray(osdRes?.message) ? osdRes.message[0] : (osdRes?.message || null),
+          billing: Array.isArray(billingRes?.message) ? billingRes.message : [],
+          readings: Array.isArray(readingsRes?.message) ? readingsRes.message : [],
+          meter: Array.isArray(meterRes?.message) ? meterRes.message : [],
+        })
+      }
+    } catch (err: any) {
+      setQueryError(err.message || "Query request failed")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDownloadPdf = () => {
-    if (!data?.pdfBase64) return
+  const master = data?.master
+  const payments = data?.payments || []
+  const billing = data?.billing || []
+  const readings = data?.readings || []
+  const osd = data?.osd
 
+  // Formatting helpers
+  const cleanName = master?.ZNAME ? master.ZNAME.replace(/\s*\.\s*$/, "").trim() : ""
+  const cleanAddress = master?.ZADDRESS ? master.ZADDRESS.replace(/,\s*$/, "").replace(/\s+,/g, ",").trim() : ""
+  const cleanCccName = master?.ZOFF_NAME ? master.ZOFF_NAME.replace(/CUSTOMER CARE CENTRE/i, "CCC").replace(/CUSTOMER CARE CENTER/i, "CCC").trim() : (master?.ZOFF_CODE || "N/A")
+  const cleanLoad = master?.ZCONN_LOAD ? `${parseFloat(master.ZCONN_LOAD)} kW` : ""
+
+  // Exact Dues Math Alignment (Direct ERP SAP Fields)
+  const masterOsd = master?.ZTOT_OSD ? parseFloat(master.ZTOT_OSD) : 0
+  const t6Amt = osd?.T6?.[0]?.AMT ? parseFloat(osd.T6[0].AMT) : 0
+  const totalGrossDue = Math.max(t6Amt, masterOsd > 0 ? masterOsd : 0)
+  const totalEnergyOsd = osd?.T4?.[0]?.AMT ? parseFloat(osd.T4[0].AMT) : 0
+  const priorCarryover = osd?.T3?.[0]?.AMT ? parseFloat(osd.T3[0].AMT) : (masterOsd > 0 ? masterOsd : 0)
+  const currentCycleAmt = osd?.T2?.[0]?.AMT ? parseFloat(osd.T2[0].AMT) : (osd?.A2?.[0]?.AMT ? parseFloat(osd.A2[0].AMT) : (osd?.A1?.[0]?.AMT ? parseFloat(osd.A1[0].AMT) : 0))
+  const futureInstallments = osd?.T1?.[0]?.AMT ? parseFloat(osd.T1[0].AMT) : 0
+  const otherCharges = osd?.T5?.[0]?.AMT ? parseFloat(osd.T5[0].AMT) : 0
+  const liveLpsc = osd?.L4?.[0]?.AMT ? parseFloat(osd.L4[0].AMT) : 0
+  const legacyArrears = osd?.L3?.[0]?.AMT ? parseFloat(osd.L3[0].AMT) : 0
+  const a3List = osd?.A3 || []
+  const a3Sum = a3List.reduce((acc: number, item: any) => acc + (parseFloat(item.AMT) || 0), 0)
+  const surchargesTotal = liveLpsc + otherCharges
+
+  // Total Real-Time Demand (Total Principal OSD + Live Dynamic LPSC)
+  const totalDemand = totalGrossDue + liveLpsc
+
+  // Check latest bill coupons and due dates
+  const latestBill = billing?.[0]
+  const latestBillDueStr = latestBill?.DUE_DATE || ""
+  
+  // Parse coupon due date
+  const parseDueDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null
     try {
-      const byteCharacters = atob(data.pdfBase64)
-      const byteNumbers = new Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      const parts = dateStr.trim().split('.')
+      if (parts.length === 3) {
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
       }
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: "application/pdf" })
-
-      const filename =
-        data.docType === "NO DUES CERTIFICATE"
-          ? `WBSEDCL_NoDues_${data.consumerId}.pdf`
-          : `WBSEDCL_OSD_Report_${data.consumerId}.pdf`
-
-      const link = document.createElement("a")
-      link.href = URL.createObjectURL(blob)
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      setTimeout(() => URL.revokeObjectURL(link.href), 1000)
-    } catch (err) {
-      console.error("Failed to download PDF", err)
-    }
+      const slashParts = dateStr.trim().split('/')
+      if (slashParts.length === 3) {
+        return new Date(`${slashParts[2]}-${slashParts[1]}-${slashParts[0]}`)
+      }
+    } catch (e) {}
+    return null
   }
 
-  const handlePrintPdf = () => {
-    if (!data?.pdfBase64) return
+  const today = new Date()
+  const latestDueDate = parseDueDate(latestBillDueStr)
+  const isLatestBillOverdue = latestDueDate ? latestDueDate < today : true
 
-    try {
-      const byteCharacters = atob(data.pdfBase64)
-      const byteNumbers = new Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i)
+  // Scan future coupons in billing array to find any unexpired grace amount
+  let inGraceCouponsAmt = 0
+  let nextGraceDueDate = ""
+  if (Array.isArray(billing) && billing.length > 0) {
+    billing.forEach((b: any) => {
+      const d = parseDueDate(b.DUE_DATE)
+      if (d && d >= today) {
+        const amt = parseFloat(b.AMT_BFR_D_DT || b.AMT_AFTR_DUE_DT || "0")
+        // If it's not the massive gross first coupon (which includes old arrears)
+        if (amt > 0 && amt < (masterOsd > 0 ? masterOsd * 0.8 : 50000)) {
+          inGraceCouponsAmt += amt
+          if (!nextGraceDueDate || d < parseDueDate(nextGraceDueDate)!) {
+            nextGraceDueDate = b.DUE_DATE
+          }
+        }
       }
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: "application/pdf" })
-      const blobUrl = URL.createObjectURL(blob)
-
-      const iframe = document.createElement("iframe")
-      iframe.style.position = "fixed"
-      iframe.style.right = "0"
-      iframe.style.bottom = "0"
-      iframe.style.width = "0"
-      iframe.style.height = "0"
-      iframe.style.border = "0"
-      iframe.src = blobUrl
-
-      document.body.appendChild(iframe)
-
-      iframe.onload = () => {
-        setTimeout(() => {
-          iframe.contentWindow?.focus()
-          iframe.contentWindow?.print()
-          setTimeout(() => {
-            document.body.removeChild(iframe)
-            URL.revokeObjectURL(blobUrl)
-          }, 2000)
-        }, 300)
-      }
-    } catch (err) {
-      console.error("Failed to print PDF", err)
-    }
+    })
   }
+
+  // Fallback to T1 if billing scan did not find future coupons but T1 exists
+  if (inGraceCouponsAmt === 0 && futureInstallments > 0) {
+    inGraceCouponsAmt = futureInstallments
+  }
+
+  // If current latest bill cycle itself is not overdue, add currentCycleAmt to grace
+  if (!isLatestBillOverdue && currentCycleAmt > 0 && inGraceCouponsAmt === 0) {
+    inGraceCouponsAmt = currentCycleAmt
+    nextGraceDueDate = latestBillDueStr
+  }
+
+  // 1. Must Pay Principal (Excludes LPSC): Expired gross principal dues
+  const mustPayPrincipal = Math.max(0, totalGrossDue - inGraceCouponsAmt)
+  
+  // 2. Future Due Date Amount (In Grace)
+  const futureDueDateAmt = inGraceCouponsAmt
+
+  // 3. Live LPSC (Live dynamic interest surcharge)
+  // liveLpsc
+
+  // 4. Total Demand (Including LPSC)
+  // totalDemand = totalGrossDue + liveLpsc
+
+  // Combined Must Pay Overdue (Principal + LPSC)
+  const mustPayWithLpsc = mustPayPrincipal + liveLpsc
+
+  // Master Disconnection OSD (Notice amount directly from SAP Master)
+  const disconnectionBaseOsd = masterOsd > 0 ? masterOsd : (legacyArrears + a3Sum + currentCycleAmt)
 
   return (
-    <div className="max-w-6xl mx-auto px-2 py-3 sm:px-4 space-y-3">
-      {/* Top Search Bar (Same row compact layout like modules) */}
-      <div className="bg-card border rounded-lg p-2.5 shadow-xs">
-        <form onSubmit={handleSearch} className="flex items-center gap-2">
+    <div className="space-y-4 font-sans antialiased text-slate-900 pb-16">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-2.5">
           {onBack && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
+            <button
               onClick={onBack}
-              className="h-9 w-9 text-slate-500 hover:text-slate-900 shrink-0"
-              title="Back to Dashboard"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors mr-1 cursor-pointer"
+              title="Go Back"
             >
-              <ArrowLeft className="h-4 h-4" />
-            </Button>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
           )}
-
-          <div className="hidden sm:flex items-center gap-1.5 px-2 font-bold text-sm text-slate-800 dark:text-slate-200 shrink-0 border-r pr-3 border-slate-200 dark:border-slate-800">
-            <FileCheck2 className="w-4 h-4 text-emerald-600" />
-            <span>OSD Check</span>
+          <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20">
+            <Zap className="w-4 h-4" />
           </div>
-
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              id="consumerIdInputView"
-              placeholder="Search 9-digit Consumer ID..."
-              value={consumerId}
-              onChange={(e) => setConsumerId(e.target.value)}
-              className="pl-8 pr-8 h-9 text-xs sm:text-sm bg-background"
-              maxLength={9}
-              disabled={loading}
-              autoFocus
-            />
-            {consumerId && !loading && (
-              <button
-                type="button"
-                onClick={() => setConsumerId("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div>
+            <h2 className="text-sm sm:text-base font-bold tracking-tight text-slate-900">Consumer Details</h2>
           </div>
+        </div>
 
-          <Button
-            type="submit"
-            disabled={loading || !consumerId.trim()}
-            className="h-9 px-4 gap-1.5 text-xs sm:text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Checking...</span>
-              </>
-            ) : (
-              <>
-                <Search className="w-3.5 h-3.5" />
-                <span>Search</span>
-              </>
-            )}
-          </Button>
-        </form>
-
-        {/* Compact Error Banner */}
-        {error && (
-          <div className="mt-2 p-2 px-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-medium">{error}</span>
+        {session ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hidden sm:inline">
+              LIVE SESSION
+            </span>
+            <button
+              onClick={() => saveSession(null)}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
+        ) : (
+          <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" /> Login Required
+          </span>
         )}
       </div>
 
-      {/* Loading Skeleton */}
-      {loading && (
-        <div className="space-y-2 py-2 animate-pulse">
-          <div className="h-10 rounded-lg bg-slate-100 dark:bg-slate-800" />
-          <div className="grid grid-cols-3 gap-2">
-            <div className="h-16 rounded-lg bg-slate-100 dark:bg-slate-800" />
-            <div className="h-16 rounded-lg bg-slate-100 dark:bg-slate-800" />
-            <div className="h-16 rounded-lg bg-slate-100 dark:bg-slate-800" />
+      {/* --- 1. AUTHENTICATION VIEW --- */}
+      {!session ? (
+        <div className="max-w-md mx-auto my-6 p-6 rounded-2xl bg-white border border-slate-200 shadow-xl">
+          <div className="text-center mb-6">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-inner">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900">Login to continue</h3>
+            <p className="text-xs text-slate-500 mt-1">2-Step OTP authentication required for live queries</p>
           </div>
-          <div className="h-32 rounded-lg bg-slate-100 dark:bg-slate-800" />
-        </div>
-      )}
 
-      {/* Compact Results Section (Disconnection List Style) */}
-      {data && !loading && (
-        <div className="space-y-2.5">
-          {/* Status Header Bar + Action Buttons */}
-          <div
-            className={`p-2.5 px-3 rounded-lg border flex flex-wrap items-center justify-between gap-2 shadow-2xs ${
-              data.docType === "NO DUES CERTIFICATE"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
-                : "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {data.docType === "NO DUES CERTIFICATE" ? (
-                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              ) : (
-                <FileWarning className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-              )}
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm">{data.docType}</span>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] px-1.5 py-0 h-4 font-bold ${
-                    data.docType === "NO DUES CERTIFICATE"
-                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
-                      : "bg-amber-500/20 border-amber-500/40 text-amber-800 dark:text-amber-200"
+          {authError && (
+            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          {!otpSent ? (
+            <form onSubmit={handleRequestOtp} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ERP ID</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  placeholder="Enter ERP ID"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  placeholder="Enter Password"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl text-sm font-semibold text-white shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                {authLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Send OTP"}
+                {!authLoading && <ArrowRight className="w-4 h-4" />}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-3.5">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>OTP dispatched to registered mobile</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Enter 5-Digit OTP</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  autoFocus
+                  required
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-lg tracking-widest font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  placeholder="•••••"
+                />
+              </div>
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setOtpSent(false)}
+                  className="w-1/3 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-2/3 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-xl text-sm font-semibold text-white shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {authLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : "Verify & Start"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      ) : (
+        /* --- 2. MAIN SEARCH & DASHBOARD --- */
+        <div className="space-y-4">
+          {/* Search Input Bar */}
+          <form onSubmit={(e) => handleFetchConsumer(e)} className="flex items-center gap-2 p-1.5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={consumerId}
+                onChange={(e) => setConsumerId(e.target.value)}
+                placeholder="Enter 9-Digit Consumer ID..."
+                autoFocus
+                className="w-full pl-10 pr-3 py-2.5 bg-transparent text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none font-mono"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              <span>Lookup</span>
+            </button>
+          </form>
+
+          {/* Error Message */}
+          {queryError && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-medium flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{queryError}</span>
+            </div>
+          )}
+
+          {/* Empty Prompt State */}
+          {!master && !loading && (
+            <div className="text-center py-16 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-inner">
+                <Search className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">Query Any Consumer Record</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                Enter a 9-digit consumer ID above to view live dues, disconnection OSD, full payment receipts, and billing history.
+              </p>
+            </div>
+          )}
+
+          {/* Loaded Consumer View */}
+          {master && (
+            <div className="space-y-4">
+              {/* HERO CARD: CONSUMER OVERVIEW */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <button
+                        onClick={() => copyToClipboard(master.ZCON_ID?.replace(/^0+/, ""), "conId")}
+                        className="text-xs font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg flex items-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer"
+                        title="Click to copy Consumer ID"
+                      >
+                        <span>{master.ZCON_ID?.replace(/^0+/, "")}</span>
+                        {copiedField === "conId" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-blue-500" />}
+                      </button>
+
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                        master.ZCONN_STAT === "LIVE" 
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                      }`}>
+                        <Activity className="w-2.5 h-2.5" /> {master.ZCONN_STAT || "LIVE"}
+                      </span>
+
+                      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                        {master.ZCLASS_DESC || "DOMESTIC"}
+                      </span>
+                    </div>
+
+                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">{cleanName}</h2>
+                    <p className="text-xs text-slate-500 mt-1 flex items-start gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span>{cleanAddress}</span>
+                    </p>
+                  </div>
+
+                  {/* Universal 4-Part Dues Highlights */}
+                  <div className="flex flex-col gap-1.5 bg-rose-50/90 border border-rose-200 rounded-xl p-3 sm:text-right min-w-[250px]">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 flex items-center justify-between sm:justify-end gap-1.5">
+                      <span>Total Real-Time Demand</span>
+                      <span className="text-[9px] bg-rose-200/80 text-rose-900 px-1.5 py-0.5 rounded font-mono font-bold">INCL. LPSC</span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-bold font-mono text-rose-700 tracking-tight">
+                      ₹{totalDemand.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-[10px] text-slate-600 font-semibold pt-1 border-t border-rose-200/60 flex flex-col gap-0.5 sm:items-end">
+                      <div className="flex items-center gap-1.5 justify-between sm:justify-end">
+                        <span className="text-slate-500">1. Must Pay (Excl. LPSC):</span>
+                        <span className="text-rose-700 font-mono font-bold">₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex items-center gap-2 justify-between sm:justify-end text-[9px] text-slate-500">
+                        <span>3. LPSC: <strong className="text-amber-700 font-mono font-bold">₹{liveLpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                        {futureDueDateAmt > 0 && (
+                          <>
+                            <span>•</span>
+                            <span>2. Future Due: <strong className="text-blue-700 font-mono">₹{futureDueDateAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Clean Metric Chips */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-100">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase flex items-center gap-1">
+                      <Gauge className="w-3 h-3 text-blue-600" /> Meter No
+                    </div>
+                    <div className="text-xs font-mono font-bold text-slate-800 mt-1">{master.ZMET1 || "N/A"}</div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-emerald-600" /> Mobile
+                    </div>
+                    <div className="text-xs font-mono font-bold text-slate-800 mt-1 flex items-center justify-between">
+                      <span>{master.ZMOB_NO || "N/A"}</span>
+                      {master.ZMOB_NO && (
+                        <a href={`tel:${master.ZMOB_NO}`} className="text-[10px] text-emerald-700 hover:underline">Call</a>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3 text-amber-600" /> Load / Tariff
+                    </div>
+                    <div className="text-xs font-bold text-slate-800 mt-1 truncate" title={`${cleanLoad} (${master.ZTARIFF || "A"})`}>
+                      {cleanLoad ? `${cleanLoad} (${master.ZTARIFF || "A"})` : (master.ZTARIFF || "A")}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-purple-600" /> Office
+                    </div>
+                    <div className="text-xs font-bold text-slate-800 mt-1 truncate" title={cleanCccName}>
+                      {cleanCccName}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TAB SELECTOR BAR */}
+              <div className="flex gap-1 p-1 bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
+                <button
+                  onClick={() => setActiveTab("overview")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                    activeTab === "overview" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
-                  {data.docType === "NO DUES CERTIFICATE" ? "CLEAR" : "OUTSTANDING"}
-                </Badge>
+                  OSD & Dues
+                </button>
+                <button
+                  onClick={() => setActiveTab("master")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "master" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" /> Master Details
+                </button>
+                <button
+                  onClick={() => setActiveTab("billing")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "billing" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" /> All Bills ({billing.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab("payments")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "payments" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> Payment History ({payments.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab("readings")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "readings" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Activity className="w-3.5 h-3.5" /> Readings ({readings.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab("meter")}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === "meter" ? "bg-blue-600 text-white shadow-sm" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  }`}
+                >
+                  <Gauge className="w-3.5 h-3.5" /> Meter Specs ({master?.ZMET1 ? 1 : 0})
+                </button>
               </div>
+
+              {/* --- TAB CONTENT 1: OVERVIEW (OSD MATH + PAYMENTS) --- */}
+              {activeTab === "overview" && (
+                <div className="space-y-3">
+                  {/* PERFECTLY BALANCED OSD BREAKDOWN GRID */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Exact 4-Part Dues Structure</h3>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-500 font-medium">
+                          Must Pay (Excl. LPSC): <strong className="text-rose-700 font-mono">₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                        </span>
+                        {futureDueDateAmt > 0 && (
+                          <span className="text-slate-500 font-medium">
+                            Future Due: <strong className="text-amber-600 font-mono">₹{futureDueDateAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                      {/* Card 1: Must Pay Principal (Excl. LPSC) */}
+                      <div className="p-3 bg-rose-50/50 border border-rose-200/70 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-rose-800">1. Must Pay (Excl. LPSC)</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-600 text-white rounded">MUST PAY</span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-rose-700 mt-1">
+                          ₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-rose-600/80 font-medium mt-0.5">Expired principal • Active DC</div>
+                      </div>
+
+                      {/* Card 2: Future Due Date (In Grace) */}
+                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">2. Future Due Date</div>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                            futureDueDateAmt > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
+                          }`}>
+                            {futureDueDateAmt > 0 ? "IN GRACE" : "NO FUTURE DUE"}
+                          </span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-slate-900 mt-1">
+                          ₹{futureDueDateAmt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                          {futureDueDateAmt > 0
+                            ? `Can pay by: ${nextGraceDueDate || latestBillDueStr}`
+                            : "No upcoming unexpired bills"}
+                        </div>
+                      </div>
+
+                      {/* Card 3: Live Dynamic LPSC */}
+                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">3. Live LPSC</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded">
+                            LPSC (L4)
+                          </span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-amber-600 mt-1">
+                          ₹{liveLpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Real-time late payment interest
+                        </div>
+                      </div>
+
+                      {/* Card 4: Total Demand (Incl. LPSC) */}
+                      <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-bold uppercase text-blue-900">4. Total (Incl. LPSC)</div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-600 text-white rounded">TOTAL</span>
+                        </div>
+                        <div className="text-sm font-bold font-mono text-blue-900 mt-1">
+                          ₹{totalDemand.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-blue-700/80 mt-0.5 font-medium">
+                          ₹{totalGrossDue.toFixed(2)} (Principal) + ₹{liveLpsc.toFixed(2)} (LPSC)
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable A3 Detail List */}
+                    {showA3Details && a3List.length > 0 && (
+                      <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl space-y-1.5 text-xs animate-in fade-in-50">
+                        <div className="text-[11px] font-bold text-blue-900">Unpaid Past Invoices Breakdown:</div>
+                        {a3List.map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between py-1 border-b border-blue-100/50 last:border-0 font-mono text-[11px]">
+                            <span className="text-slate-600">Period: {item.DUE_FROM} to {item.DUE_TO} (Inv: {item.INV_NO})</span>
+                            <span className="font-bold text-slate-900">₹{item.AMT}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* LATEST PAYMENTS SUMMARY */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="w-4 h-4 text-emerald-600" />
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Latest Payment Activity</h3>
+                      </div>
+                      <button 
+                        onClick={() => setActiveTab("payments")} 
+                        className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        View All ({payments.length}) <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {payments.length === 0 ? (
+                      <div className="text-center py-6 text-slate-400 text-xs">No recent payment history found</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {payments.slice(0, 3).map((p: any, idx: number) => (
+                          <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                ✓
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-slate-800">{p.MODE_OF_PAYMENT || "BILL PAYMENT"}</div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  Doc: {p.CLEAR_DOC_NO || p.REC_NO} • {p.PAYMENT_GATEWAY || "ONLINE"}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-bold font-mono text-emerald-600">
+                                ₹{parseFloat(p.PAY_AMOUNT || "0").toLocaleString("en-IN")}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 justify-end">
+                                <Calendar className="w-3 h-3" /> {p.PAY_DATE}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* NETWORK & LOCATION SPECS */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2 text-xs">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Network & Location Specs</div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Feeder Name</span>
+                      <span className="text-slate-800 font-medium">{master.ZFEEDER_NM || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">DTR Location / Code</span>
+                      <span className="text-slate-800 font-medium">{master.ZDTR_CODE} ({master.ZDTR_LOC})</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-500">Installation No</span>
+                      <span className="text-slate-800 font-mono font-medium">{master.ZINST_NO || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-500">Business Partner (BP)</span>
+                      <span className="text-slate-800 font-mono font-medium">{master.ZBP_NO || "N/A"}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --- TAB CONTENT 2: MASTER DETAILS (FULL 360 CONSUMER PROFILE) --- */}
+              {activeTab === "master" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {/* Card 1: Consumer & Premise Info */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-blue-700">
+                        <User className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Consumer & Location</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Consumer ID</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZCON_ID?.replace(/^0+/, "")}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Consumer Name</span>
+                          <span className="text-slate-900 font-medium">{cleanName}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Premise Type</span>
+                          <span className="text-slate-900 font-medium">{master.ZPREMISE_TYPE || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Mobile Number</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZMOB_NO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Customer Care Centre</span>
+                          <span className="text-slate-900 font-medium">{cleanCccName}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Area Classification</span>
+                          <span className="text-slate-900 font-medium">{master.ZRURAL_URBAN === "R" ? "Rural Area (R)" : (master.ZRURAL_URBAN === "U" ? "Urban Area (U)" : master.ZRURAL_URBAN || "N/A")}</span>
+                        </div>
+                        <div className="py-1">
+                          <span className="text-slate-500 block mb-0.5">Service Location Address</span>
+                          <span className="text-slate-800 font-medium leading-relaxed block">{cleanAddress}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Connection & Tariff Specs */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-amber-600">
+                        <Zap className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Connection & Tariff</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Connection Status</span>
+                          <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                            master.ZCONN_STAT === "LIVE" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+                          }`}>
+                            {master.ZCONN_STAT || "LIVE"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Connection Date</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZCONN_DT || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Move-in Date</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZMOVE_IN_DT || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Connected Sanctioned Load</span>
+                          <span className="text-slate-900 font-bold font-mono">{cleanLoad || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Base Class & Category</span>
+                          <span className="text-slate-900 font-medium">{master.ZCLASS_DESC} ({master.ZCLASS || "A"})</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Billing Voltage Class</span>
+                          <span className="text-slate-900 font-medium">{master.ZBILING_CLS || "Low & Medium Voltage"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Tariff Code</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZTARIFF || "N/A"}</span>
+                        </div>
+                        <div className="py-1">
+                          <span className="text-slate-500 block mb-0.5">Rate Category</span>
+                          <span className="text-slate-800 font-medium block">{master.ZRATE_CATG || "N/A"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Distribution & Grid Network */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-purple-600">
+                        <Building2 className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Grid & Network Mapping</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">11kV Feeder Name</span>
+                          <span className="text-slate-900 font-medium">{master.ZFEEDER_NM || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Feeder Code</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZFEEDER_CODE || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">DTR Transformer Code</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZDTR_CODE || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">DTR Location</span>
+                          <span className="text-slate-900 font-medium">{master.ZDTR_LOC || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Meter Reading Unit (MRU)</span>
+                          <span className="text-slate-900 font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{master.ZMRU || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Office Code</span>
+                          <span className="text-slate-900 font-mono font-medium">{master.ZOFF_CODE || "N/A"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Account & Billing Identifiers */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="flex items-center gap-2 pb-2 border-b border-slate-100 text-emerald-600">
+                        <Receipt className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Account & Billing Specs</h3>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">SAP Installation No</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZINST_NO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Business Partner (BP) No</span>
+                          <span className="text-slate-900 font-mono font-bold">{master.ZBP_NO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Metered Connection</span>
+                          <span className="text-slate-900 font-medium">{master.ZMETERED || "YES"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Spot Billing</span>
+                          <span className="text-slate-900 font-medium">{master.ZSPOT_BL || "YES"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">Government Entity</span>
+                          <span className="text-slate-900 font-medium">{master.ZGOVT_FLAG || "NO"}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-50">
+                          <span className="text-slate-500">ECS / Auto-Debit</span>
+                          <span className="text-slate-900 font-medium">{master.ZECS || "NO"}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-500">Wallet Balance</span>
+                          <span className="text-slate-900 font-mono font-medium">₹{master.WALLET_BALANCE || "0.00"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* --- TAB CONTENT 3: ALL BILLS (WITH DIRECT OFFICIAL PDF VIEWER) --- */}
+              {activeTab === "billing" && (
+                <div className="space-y-2.5">
+                  {billError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{billError}</span>
+                    </div>
+                  )}
+
+                  {billing.length === 0 ? (
+                    <div className="text-center py-10 bg-white border border-slate-200 rounded-2xl text-slate-500 text-xs font-medium">
+                      No billing records available
+                    </div>
+                  ) : (
+                    billing.map((b: any, idx: number) => {
+                      const isFetching = fetchingBillInvoice === b.INV_NO
+                      return (
+                        <div key={idx} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-900">Month: {b.BIL_MM_YY}</span>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                                {b.BILL_TYPE || "POST-PAID"}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 flex-wrap">
+                              <span>Invoice: <strong className="text-slate-700">{b.INV_NO}</strong></span>
+                              <span>• Energy: ₹{b.ENERGY_CH}</span>
+                              <span>• Fixed: ₹{b.FXD_DMND_CH}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              <span>Due Date: <strong className="text-slate-700">{b.DUE_DATE}</strong></span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100">
+                            <div className="sm:text-right">
+                              <div className="text-xs text-slate-500 font-medium">Amount Due</div>
+                              <div className="text-base font-bold font-mono text-slate-900">₹{b.AMT_BFR_D_DT}</div>
+                              {b.AMT_AFTR_DUE_DT !== b.AMT_BFR_D_DT && (
+                                <div className="text-[10px] text-rose-600 font-medium font-mono">After Due: ₹{b.AMT_AFTR_DUE_DT}</div>
+                              )}
+                            </div>
+
+                            {/* DIRECT OFFICIAL BILL PDF ACTION */}
+                            <button
+                              onClick={() => handleViewBillPdf(b.INV_NO)}
+                              disabled={isFetching}
+                              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm shrink-0 cursor-pointer"
+                              title="Fetch and view official Bill PDF"
+                            >
+                              {isFetching ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <FileText className="w-3.5 h-3.5" />
+                              )}
+                              <span>{isFetching ? "Loading PDF..." : "View Bill"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* --- TAB CONTENT 4: PAYMENTS --- */}
+              {activeTab === "payments" && (
+                <div className="space-y-2.5">
+                  {payments.length === 0 ? (
+                    <div className="text-center py-10 bg-white border border-slate-200 rounded-2xl text-slate-500 text-xs font-medium">
+                      No payment history found
+                    </div>
+                  ) : (
+                    payments.map((p: any, idx: number) => (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">{p.MODE_OF_PAYMENT || "BILL PAYMENT"}</div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                              Doc: {p.CLEAR_DOC_NO || p.REC_NO} • {p.PAYMENT_GATEWAY || "ONLINE"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold font-mono text-emerald-600">
+                            ₹{parseFloat(p.PAY_AMOUNT || "0").toLocaleString("en-IN")}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-1 justify-end">
+                            <Calendar className="w-3 h-3 text-slate-400" /> {p.PAY_DATE}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* --- TAB CONTENT 5: METER READINGS --- */}
+              {activeTab === "readings" && (
+                <div className="space-y-2.5">
+                  {readings.length === 0 ? (
+                    <div className="text-center py-10 bg-white border border-slate-200 rounded-2xl text-slate-500 text-xs font-medium">
+                      No reading records found
+                    </div>
+                  ) : (
+                    readings.map((r: any, idx: number) => (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">{r.Acc_Bill_Month} ({r.Reading_Stat})</div>
+                          <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                            Meter: {r.Meter_No} • {r.Prev_Reading} ➔ {r.Curr_Reading} ({r.Reading_Days || "30"} days)
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold font-mono text-blue-700">{r.TOT_UNIT} Units</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{r.Curr_Reading_Dt}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* --- TAB CONTENT 6: METER HARDWARE & SPECS --- */}
+              {activeTab === "meter" && (
+                <div className="space-y-3">
+                  {/* Primary Meter Summary Card */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Gauge className="w-4 h-4" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Active Meter Specification</h3>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                        {master.ZMET_CON_STAT || "POSTPAID METER"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">Primary Meter Serial</div>
+                        <div className="text-sm font-mono font-bold text-slate-900 mt-1">{master.ZMET1 || "N/A"}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">Phase / Supply</div>
+                        <div className="text-sm font-bold text-slate-900 mt-1">{master.ZCLASS || "3-Phase"}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">Metered Status</div>
+                        <div className="text-sm font-bold text-slate-900 mt-1">{master.ZMETERED || "YES"}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-[10px] font-semibold text-slate-500 uppercase">HES / Smart AMI</div>
+                        <div className="text-sm font-bold text-slate-900 mt-1">{master.HES || "NA"}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Meter History Records from ERP */}
+                  {Array.isArray(data?.meter) && data.meter.length > 0 && (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                      <div className="text-xs font-bold text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-100">
+                        ERP Meter Hardware Registry ({data.meter.length})
+                      </div>
+                      <div className="space-y-2.5">
+                        {data.meter.map((m: any, idx: number) => (
+                          <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono font-bold text-slate-900 text-sm">Serial: {m.ZMETER_NO || master.ZMET1}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                                {m.ZMETER_STATUS || "OK"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+                              <div>Type: <strong className="text-slate-800">{m.ZMET_TYPE || "STATIC"}</strong></div>
+                              <div>Phase: <strong className="text-slate-800">{m.ZPHASE || "3-PHASE"}</strong></div>
+                              <div>Multiplying Factor: <strong className="text-slate-800 font-mono">{m.ZMUL_FACTOR || "1.0"}</strong></div>
+                              <div>Installed Date: <strong className="text-slate-800 font-mono">{m.ZMET_INST_MOVE_IN_DT || master.ZCONN_DT || "N/A"}</strong></div>
+                              <div>Present Reading: <strong className="text-blue-700 font-mono">{m.ZPRESENT_READING || "N/A"}</strong></div>
+                              <div>Reading Date: <strong className="text-slate-800 font-mono">{m.ZPRSNT_READING_DT || "N/A"}</strong></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            {/* Action Buttons (Print / Download) with tight spacings */}
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintPdf}
-                className="h-8 px-2.5 text-xs gap-1.5 bg-background shadow-none"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleDownloadPdf}
-                className="h-8 px-2.5 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-none"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Financial Cards Grid (Compact Spacing) */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="bg-card border rounded-lg p-2.5 shadow-2xs">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                OSD Amount
-              </span>
-              <div className="flex items-baseline gap-0.5 text-base font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                <IndianRupee className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>{data.osd.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-
-            <div className="bg-card border rounded-lg p-2.5 shadow-2xs">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                LPSC Surcharge
-              </span>
-              <div className="flex items-baseline gap-0.5 text-base font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                <IndianRupee className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>{data.lpsc.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-
-            <div
-              className={`border rounded-lg p-2.5 shadow-2xs ${
-                data.totalDues === 0
-                  ? "bg-emerald-500/5 border-emerald-500/30"
-                  : "bg-amber-500/5 border-amber-500/30"
-              }`}
-            >
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                Total Payable Dues
-              </span>
-              <div
-                className={`flex items-baseline gap-0.5 text-base font-extrabold mt-0.5 ${
-                  data.totalDues === 0
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-amber-600 dark:text-amber-400"
-                }`}
-              >
-                <IndianRupee className="w-3.5 h-3.5" />
-                <span>{data.totalDues.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Consumer Details Card (Compact Disconnection List Format) */}
-          <div className="bg-card border rounded-lg p-3 shadow-2xs space-y-2.5">
-            <div className="flex items-center justify-between border-b pb-2">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-emerald-600" />
-                Consumer Details
-              </span>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                ID: {data.consumerId}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
-              <div className="bg-slate-50 dark:bg-slate-900/60 p-2 rounded border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] text-muted-foreground block font-medium">Consumer Name</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block truncate">{data.name}</span>
-              </div>
-
-              <div className="bg-slate-50 dark:bg-slate-900/60 p-2 rounded border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] text-muted-foreground block font-medium">CCC / Office</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 truncate">
-                  <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                  {data.office}
-                </span>
-              </div>
-
-              <div className="bg-slate-50 dark:bg-slate-900/60 p-2 rounded border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] text-muted-foreground block font-medium">Connection Status</span>
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-semibold mt-0.5">
-                  {data.connectionStatus}
-                </Badge>
-              </div>
-
-              <div className="bg-slate-50 dark:bg-slate-900/60 p-2 rounded border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] text-muted-foreground block font-medium">Conn. Date</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                  <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                  {data.connDate}
-                </span>
-              </div>
-
-              <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-900/60 p-2 rounded border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] text-muted-foreground block font-medium">Service Location Address</span>
-                <span className="font-medium text-slate-800 dark:text-slate-200 flex items-start gap-1">
-                  <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                  <span className="line-clamp-2">{data.address}</span>
-                </span>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

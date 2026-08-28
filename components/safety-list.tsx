@@ -759,37 +759,52 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
           </div>
         </div>
 
-        {/* Full-width Radar Map Button */}
-        <div>
+        {/* Spacious Radar Map Button */}
+        <div className="pt-0.5">
           <Button
             type="button"
             onClick={() => setShowNearbyMap(v => !v)}
-            className="w-full h-8 rounded-lg font-bold flex items-center justify-center gap-1.5 text-xs shadow-sm bg-gradient-to-r from-amber-600 to-orange-650 text-white"
+            className="w-full h-10 sm:h-11 rounded-xl font-bold flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white cursor-pointer active:scale-[0.99]"
           >
-            <MapPin className="h-3.5 w-3.5 animate-bounce" />
-            {showNearbyMap ? "Hide Safety Radar Map" : "Locate Safety Hazards on Radar Map"}
+            <div className="p-1 rounded-md bg-white/20">
+              <MapPin className="h-4 w-4 text-white animate-bounce" />
+            </div>
+            <span>{showNearbyMap ? "Hide Safety Radar Map" : "Locate Safety Hazards on Radar Map"}</span>
           </Button>
         </div>
 
-        {/* Sub-tab chips pipeline */}
-        <div className="flex gap-1 overflow-x-auto pb-0.5 pt-1.5 border-t">
-          {[
-            { value: "pending_site", label: `Pending Site (${tickets.filter(t => t.physicalStatus === "pending").length})` },
-            { value: "rectified",    label: `Site Rectified (${tickets.filter(t => t.physicalStatus === "rectified" && t.adminStatus !== "po_done" && t.adminStatus !== "not_required").length})` },
-            { value: "notesheet",    label: `Note Approved (${tickets.filter(t => t.adminStatus === "notesheet_done").length})` },
-            { value: "closed",       label: `Closed (${tickets.filter(t => t.physicalStatus === "rectified" && (t.adminStatus === "po_done" || t.adminStatus === "not_required")).length})` },
-            { value: "all",          label: `All (${tickets.length})` },
-          ].map(sub => (
-            <button
-              key={sub.value}
-              onClick={() => setSubTab(sub.value as any)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border transition ${
-                subTab === sub.value ? "bg-slate-950 text-white border-slate-950" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-              }`}
-            >
-              {sub.label}
-            </button>
-          ))}
+        {/* Sleek Bar-Style Stage Tabs with Dynamic Counts & Mobile Single-Line Optimization (ICDS Style) */}
+        <div className="relative flex items-center border-b border-slate-200/90 pt-1">
+          <div className="flex items-center gap-1 sm:gap-4 overflow-x-auto scrollbar-none w-full px-0.5">
+            {[
+              { value: "pending_site", label: "Pending Site", shortLabel: "Pending", count: tickets.filter(t => t.physicalStatus === "pending").length },
+              { value: "rectified",    label: "Site Rectified", shortLabel: "Rectified", count: tickets.filter(t => t.physicalStatus === "rectified" && t.adminStatus !== "po_done" && t.adminStatus !== "not_required").length },
+              { value: "notesheet",    label: "Note Approved", shortLabel: "Note Appr", count: tickets.filter(t => t.adminStatus === "notesheet_done").length },
+              { value: "closed",       label: "Closed", shortLabel: "Closed", count: tickets.filter(t => t.physicalStatus === "rectified" && (t.adminStatus === "po_done" || t.adminStatus === "not_required")).length },
+              { value: "all",          label: "All Tickets", shortLabel: "All", count: tickets.length },
+            ].map(sub => {
+              const isActive = subTab === sub.value
+              return (
+                <button
+                  key={sub.value}
+                  onClick={() => setSubTab(sub.value as any)}
+                  className={`pb-2 pt-0.5 px-1 sm:px-1.5 text-xs whitespace-nowrap transition-all border-b-2 flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer select-none flex-1 sm:flex-initial ${
+                    isActive
+                      ? "border-slate-900 text-slate-900 font-extrabold"
+                      : "border-transparent text-slate-500 font-medium hover:text-slate-800 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="hidden sm:inline">{sub.label}</span>
+                  <span className="sm:hidden text-[11px]">{sub.shortLabel}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full transition-colors ${
+                    isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
+                  }`}>
+                    {sub.count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -804,59 +819,67 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
             const canEdit = isAdmin || ticket.physicalStatus === "pending"
 
             return (
-              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className="shadow-sm hover:shadow-md transition-shadow overflow-hidden border-slate-200 flex flex-col justify-between rounded-xl">
+              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className="shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden border border-slate-200/90 flex flex-col justify-between rounded-xl bg-white group">
                 <div>
                   {/* Card Header */}
-                  <CardHeader className="pb-2 p-3 bg-slate-50 border-b">
+                  <CardHeader className="pb-2 p-3 bg-slate-50/80 border-b border-slate-100">
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono font-bold text-xs text-slate-900">{ticket.safetyId}</span>
                           {ticket.priority === "urgent" && (
-                            <span className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">URGENT</span>
+                            <span className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                              URGENT
+                            </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-slate-500">{ticket.reportedDate} • By {ticket.reportedBy}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          <span>{ticket.reportedDate}</span>
+                          <span>•</span>
+                          <span>By {ticket.reportedBy}</span>
+                        </p>
                       </div>
 
                       {/* Top Right: Status Pill & Agency Name directly below */}
-                      <div className="flex flex-col items-end">
-                        <Badge className={
-                          isFullyClosed ? "bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]" :
-                          isSiteRectified ? "bg-blue-100 text-blue-800 border-blue-300 text-[10px]" :
-                          "bg-amber-100 text-amber-800 border-amber-300 text-[10px]"
-                        }>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                          isFullyClosed ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                          isSiteRectified ? "bg-blue-50 text-blue-800 border-blue-200" :
+                          "bg-amber-50 text-amber-800 border-amber-200"
+                        }`}>
                           {isFullyClosed ? "Closed" : isSiteRectified ? "Rectified" : "Pending Work"}
                         </Badge>
-                        <span className="text-[10px] font-bold text-slate-700 text-right mt-1">
+                        <span className="text-[10px] font-semibold text-slate-600 text-right truncate max-w-[120px]">
                           {ticket.agency ? ticket.agency : <span className="text-red-500 font-bold">Unassigned</span>}
                         </span>
                       </div>
                     </div>
                   </CardHeader>
 
-                  <CardContent className="p-3 space-y-2.5 text-xs">
+                  <CardContent className="p-3 space-y-2 text-xs">
                     {/* Hazard Chips */}
                     <div className="flex flex-wrap gap-1">
                       {(ticket.hazardCategories || []).map(h => (
-                        <span key={h} className="bg-amber-50 text-amber-900 border border-amber-200 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                        <span key={h} className="bg-amber-50/80 text-amber-900 border border-amber-200/80 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
                           {h}
                         </span>
                       ))}
                     </div>
 
-                    {/* Address with Google Maps Icon right beside text */}
-                    <div className="flex items-start justify-between gap-1 text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-150">
+                    {/* Address with Google Maps Icon */}
+                    <div className="flex items-start justify-between gap-1.5 text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200/70">
                       <div className="flex items-start gap-1 min-w-0">
                         <MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
-                        <p className="line-clamp-2 leading-snug">{ticket.address}</p>
+                        <p className="line-clamp-2 leading-tight text-[11px]">{ticket.address}</p>
                       </div>
                       {ticket.latitude && ticket.longitude ? (
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${ticket.latitude},${ticket.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1 text-blue-600 hover:bg-blue-100 rounded border border-blue-200 shrink-0 transition-colors bg-white shadow-xs"
+                          className="p-1 text-blue-600 hover:bg-blue-100 rounded-md border border-blue-200 shrink-0 transition-colors bg-white shadow-2xs"
                           title="Open Location in Google Maps"
                         >
                           <MapPin className="h-3.5 w-3.5 text-blue-600" />
@@ -866,18 +889,19 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
 
                     {/* DTR Code info */}
                     {ticket.dtrCode && (
-                      <div className="text-[11px] text-slate-600">
-                        <span className="font-semibold text-slate-500">DTR Code:</span> <strong className="font-mono text-slate-900">{ticket.dtrCode}</strong>
+                      <div className="text-[11px] text-slate-600 flex items-center gap-1 bg-slate-50/50 px-2 py-1 rounded-md border border-slate-100">
+                        <span className="font-semibold text-slate-500">DTR Code:</span>
+                        <strong className="font-mono text-slate-900">{ticket.dtrCode}</strong>
                       </div>
                     )}
 
-                    {/* DIRECT IMAGE DISPLAY WITH EQUAL BLACK BORDER ON ALL SIDES */}
+                    {/* DIRECT IMAGE DISPLAY WITH SLEEK BORDER */}
                     {directImage ? (
-                      <div className="relative rounded-lg overflow-hidden border border-black shadow-sm bg-slate-100 max-h-40 flex items-center justify-center group">
+                      <div className="relative rounded-lg overflow-hidden border border-slate-300 shadow-2xs bg-slate-100 max-h-40 flex items-center justify-center group/img">
                         <img
                           src={directImage}
                           alt="Safety Hazard Photo"
-                          className="w-full max-h-40 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                          className="w-full max-h-40 object-cover cursor-pointer group-hover/img:scale-105 transition-transform duration-200"
                           onClick={() => setPreviewImage({
                             url: rawImage || "",
                             title: `${ticket.safetyId} — ${ticket.afterImageUrl ? "Rectified Photo" : "Before Hazard Photo"}`,
@@ -892,21 +916,21 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                             ticketId: ticket.safetyId,
                             type: ticket.afterImageUrl ? "Rectified" : "Before"
                           })}
-                          className="absolute bottom-1.5 right-1.5 bg-black/80 hover:bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur-sm cursor-pointer flex items-center gap-1 transition-all border border-slate-700"
+                          className="absolute bottom-1.5 right-1.5 bg-black/75 hover:bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs cursor-pointer flex items-center gap-1 transition-all border border-white/20 shadow-xs"
                         >
                           <ImageIcon className="h-3 w-3 text-amber-400" />
-                          <span>Tap to Preview & Download ↗</span>
+                          <span>Preview Photo ↗</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="w-full h-20 rounded-lg border border-black bg-slate-50 flex items-center justify-center text-[11px] text-slate-400 font-medium">
+                      <div className="w-full h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 flex items-center justify-center text-[11px] text-slate-400 font-medium">
                         No Image Uploaded
                       </div>
                     )}
 
                     {/* Administrative PO / Note Sheet Badges */}
                     {(ticket.noteSheetNo || ticket.poNumber || ticket.adminStatus === "not_required") && (
-                      <div className="text-[11px] bg-slate-100 p-1.5 rounded-md space-y-0.5">
+                      <div className="text-[11px] bg-slate-50 p-1.5 rounded-md space-y-0.5 border border-slate-150">
                         {ticket.noteSheetNo && <p>Note Sheet: <strong className="font-mono text-purple-700">{ticket.noteSheetNo}</strong></p>}
                         {ticket.poNumber && <p>PO No: <strong className="font-mono text-emerald-700">{ticket.poNumber}</strong></p>}
                         {ticket.adminStatus === "not_required" && <p className="text-slate-600 font-medium">✓ PO Not Required</p>}
@@ -916,12 +940,12 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                 </div>
 
                 {/* Streamlined Card Action Footer */}
-                <CardContent className="p-3 pt-0 border-t mt-1">
+                <CardContent className="p-3 pt-0 border-t border-slate-100 mt-1">
                   <div className="grid grid-cols-2 gap-2 pt-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full text-xs font-bold h-8 rounded-lg border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1"
+                      className="w-full text-xs font-bold h-8 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-1"
                       onClick={() => setSelectedForView(ticket)}
                     >
                       <Eye className="h-3.5 w-3.5 text-blue-600" />

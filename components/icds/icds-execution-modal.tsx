@@ -120,12 +120,28 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
           : photoType === "after"
           ? "AFTER COMPLETION WITH AWW"
           : "SIGNED SERVICE CERTIFICATE"
-      const watermark = `${record.awcCode} | ${label} | ${new Date().toLocaleString("en-IN")}`
-      const processed = await compressAndWatermarkImage(file, { watermarkLines: [watermark] })
+
+      const dateStr = new Date().toLocaleString("en-IN", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+      })
+      const gpsStr = record.inspectGeoCoordinates || "GPS: Logged"
+      const watermarkLines = [
+        `ICDS: ${record.awcName} (${record.awcCode})`,
+        `${label} • ${dateStr}`,
+        `LOC: ${gpsStr} • ${record.blockName}, ${record.gpName}`,
+      ]
+
+      const processed = await compressAndWatermarkImage(file, {
+        maxDim: 900,
+        watermarkLines,
+        targetKb: 90, // Strict compression under 95KB
+      })
 
       const form = new FormData()
       form.append("file", processed)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", photoType)
 
@@ -137,7 +153,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
       if (photoType === "after") setAfterPhotoUrl(data.url)
       if (photoType === "certificate") setCertificatePhotoUrl(data.url)
 
-      toast.success(`${label} compressed and uploaded successfully!`)
+      toast.success(`${label} with GPS stamp compressed & uploaded!`)
     } catch (e: any) {
       toast.error("Photo upload failed: " + e.message)
     } finally {

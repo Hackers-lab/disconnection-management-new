@@ -1,0 +1,441 @@
+{
+  "consumerId": "342294907",
+  "queryTimestamp": "2026-08-25T09:55:38.824Z",
+  "officer": "PRAMOD KUMAR VERMA",
+  "designation": "JR. ENGINEER (ELEC.) GR.-II",
+  "offCode": "6612107",
+  "office": "KUSHIDA CCC",
+  "master": {
+    "ZCENPAY": "",
+    "ZCONN_DT": "24/03/2010",
+    "ZMOVE_IN_DT": "26/04/2014",
+    "ZMETERED": "YES",
+    "ZOFF_NAME": "KUSHIDA CUSTOMER CARE CENTRE",
+    "ZMET2": "",
+    "ZMET3": "",
+    "ZRURAL_URBAN": "R",
+    "ZDISCON_DT": "",
+    "ZCLASS_DESC": "DOMESTIC",
+    "MINIMUM_RECHARGE": "0.00",
+    "ZTOT_OSD": "45241.00",
+    "ZDTR_LOC": "ASHINPUR MD AKTAR INDUSTRY",
+    "ZPREMISE_TYPE": "BPL",
+    "ZMOB_NO": "8768088652",
+    "ZDTR_CODE": "9Q03T",
+    "ZMET_CON_STAT": "POSTPAID METER",
+    "ZMET1": "HE0420958",
+    "ZCLASS": "D",
+    "ZFEEDER_NM": "HARISHCHANDRAPUR 11 KV",
+    "ZMRU": "K4N35QMR",
+    "ZEMANIL_ID": "",
+    "ZSPOT_BL": "YES",
+    "ZGOVT_FLAG": "NO",
+    "WALLET_BALANCE": "0.00",
+    "ZINST_NO": "0009699265",
+    "ZBP_NO": "0010521091",
+    "ZFEEDER_CODE": "3081",
+    "ZCONN_LOAD": "0.0100000",
+    "ZBILING_CLS": "Low and Medium Voltage",
+    "ZCOLL_BL_AC": "NO",
+    "ZCON_ID": "000342294907",
+    "ZECS": "NO",
+    "ZCONN_STAT": "LIVE",
+    "ZADDRESS": "C/O-HASIMUDDIN KOTOL , BISHANPUR   ,",
+    "HES": "NA",
+    "ZOFF_CODE": "6612107",
+    "ZRATE_CATG": "Domestic Rural-normal",
+    "ZTARIFF": "A(DM-R)",
+    "ZNAME": "HABIBUR RAHAMAN"
+  },
+  "osd": {
+    "T4": [
+      {
+        "AMT": "33194.57",
+        "INV_NO": "",
+        "FLAG": "T4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T5": [
+      {
+        "AMT": "100.00",
+        "INV_NO": "",
+        "FLAG": "T5",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T6": [
+      {
+        "AMT": "33791.25",
+        "INV_NO": "",
+        "FLAG": "T6",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L3": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L4": [
+      {
+        "AMT": "18756.04",
+        "INV_NO": "",
+        "FLAG": "L4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "A1": [
+      {
+        "AMT": "496.68",
+        "INV_NO": "0000448019501952",
+        "FLAG": "A1",
+        "DUE_FROM": "09.2026",
+        "DUE_TO": "10.2026"
+      }
+    ],
+    "A2": [
+      {
+        "AMT": "251.28",
+        "INV_NO": "0000448019501952",
+        "FLAG": "A2",
+        "DUE_FROM": "08.2026",
+        "DUE_TO": "08.2026"
+      }
+    ],
+    "A3": [
+      {
+        "AMT": "1553.54",
+        "INV_NO": "0000474005344107",
+        "FLAG": "A3",
+        "DUE_FROM": "11.2021",
+        "DUE_TO": "01.2022"
+      },
+      {
+        "AMT": "2958.38",
+        "INV_NO": "0000402016539001",
+        "FLAG": "A3",
+        "DUE_FROM": "08.2021",
+        "DUE_TO": "10.2021"
+      },
+      {
+        "AMT": "28431.37",
+        "INV_NO": "0000652000196695",
+        "FLAG": "A3",
+        "DUE_FROM": "06.2026",
+        "DUE_TO": "07.2026"
+      }
+    ],
+    "T1": [
+      {
+        "AMT": "496.68",
+        "INV_NO": "",
+        "FLAG": "T1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T2": [
+      {
+        "AMT": "251.28",
+        "INV_NO": "",
+        "FLAG": "T2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T3": [
+      {
+        "AMT": "32943.29",
+        "INV_NO": "",
+        "FLAG": "T3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ]
+  },
+  "billing": [
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "10.08.2026",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "265.68",
+      "LOCK": "",
+      "INV_NO": "448019501952",
+      "MONTHLY_REB": "-2.95",
+      "BIL_MM_YY": "08.2026",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "0.00",
+      "SP_REB": "-14.80",
+      "AMT_AFTR_DUE_DT": "45240.88",
+      "MET_RENT": "10",
+      "AMT_BFR_D_DT": "45237.88"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "08.09.2026",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "265.68",
+      "LOCK": "",
+      "INV_NO": "448019501952",
+      "MONTHLY_REB": "-2.95",
+      "BIL_MM_YY": "09.2026",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "251.00",
+      "MET_RENT": "10",
+      "AMT_BFR_D_DT": "248.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "08.10.2026",
+      "FXD_DMND_CH": "30.00",
+      "ENERGY_CH": "265.68",
+      "LOCK": "",
+      "INV_NO": "448019501952",
+      "MONTHLY_REB": "-2.95",
+      "BIL_MM_YY": "10.2026",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "251.00",
+      "MET_RENT": "10",
+      "AMT_BFR_D_DT": "248.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "24.06.2026",
+      "FXD_DMND_CH": "452.71",
+      "ENERGY_CH": "10467.38",
+      "LOCK": "",
+      "INV_NO": "652000196695",
+      "MONTHLY_REB": "-109.20",
+      "BIL_MM_YY": "06.2026",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "0.00",
+      "SP_REB": "-515.30",
+      "AMT_AFTR_DUE_DT": "26035.51",
+      "MET_RENT": "179",
+      "AMT_BFR_D_DT": "25926.51"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "31.07.2026",
+      "FXD_DMND_CH": "452.71",
+      "ENERGY_CH": "10467.38",
+      "LOCK": "",
+      "INV_NO": "652000196695",
+      "MONTHLY_REB": "-109.20",
+      "BIL_MM_YY": "07.2026",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "9477.00",
+      "MET_RENT": "179",
+      "AMT_BFR_D_DT": "9368.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "12.11.2021",
+      "FXD_DMND_CH": "15.00",
+      "ENERGY_CH": "571.24",
+      "LOCK": "",
+      "INV_NO": "474005344107",
+      "MONTHLY_REB": "-6.08",
+      "BIL_MM_YY": "11.2021",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "0.00",
+      "SP_REB": "-28.70",
+      "AMT_AFTR_DUE_DT": "20664.82",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "20658.82"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "13.12.2021",
+      "FXD_DMND_CH": "15.00",
+      "ENERGY_CH": "571.24",
+      "LOCK": "",
+      "INV_NO": "474005344107",
+      "MONTHLY_REB": "-6.08",
+      "BIL_MM_YY": "12.2021",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "518.00",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "512.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "11.01.2022",
+      "FXD_DMND_CH": "15.00",
+      "ENERGY_CH": "571.24",
+      "LOCK": "",
+      "INV_NO": "474005344107",
+      "MONTHLY_REB": "-6.08",
+      "BIL_MM_YY": "01.2022",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "518.00",
+      "MET_RENT": "0",
+      "AMT_BFR_D_DT": "512.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "17.08.2021",
+      "FXD_DMND_CH": "15.00",
+      "ENERGY_CH": "1067.94",
+      "LOCK": "",
+      "INV_NO": "402016539001",
+      "MONTHLY_REB": "-11.20",
+      "BIL_MM_YY": "08.2021",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "0.00",
+      "SP_REB": "-49.40",
+      "AMT_AFTR_DUE_DT": "18174.44",
+      "MET_RENT": "10",
+      "AMT_BFR_D_DT": "18163.44"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "16.09.2021",
+      "FXD_DMND_CH": "15.00",
+      "ENERGY_CH": "1067.94",
+      "LOCK": "",
+      "INV_NO": "402016539001",
+      "MONTHLY_REB": "-11.20",
+      "BIL_MM_YY": "09.2021",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "986.00",
+      "MET_RENT": "10",
+      "AMT_BFR_D_DT": "975.00"
+    },
+    {
+      "ELCT_DUTY": "0.00",
+      "DUE_DATE": "25.10.2021",
+      "FXD_DMND_CH": "15.00",
+      "ENERGY_CH": "1067.94",
+      "LOCK": "",
+      "INV_NO": "402016539001",
+      "MONTHLY_REB": "-11.20",
+      "BIL_MM_YY": "10.2021",
+      "BILL_TYPE": "POST-PAID",
+      "LPSC": "",
+      "SP_REB": "",
+      "AMT_AFTR_DUE_DT": "986.00",
+      "MET_RENT": "10",
+      "AMT_BFR_D_DT": "975.00"
+    }
+  ],
+  "payments": {
+    "code": "400",
+    "message": "Meter Number does not exist"
+  },
+  "readings": [
+    {
+      "Curr_Reading": "879",
+      "TOT_UNIT": "148",
+      "Consum_Unit": "148",
+      "TIME": "N",
+      "Prev_Reading": "731",
+      "Estimated_Unit": "0",
+      "Meter_No": "HE0420958",
+      "Prev_Reading_Dt": "24.04. 2026",
+      "Reading_Stat": "SPOT READI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2026",
+      "Reading_Days": "97",
+      "Curr_Reading_Dt": "30.07. 2026"
+    },
+    {
+      "Curr_Reading": "731",
+      "TOT_UNIT": "731",
+      "Consum_Unit": "731",
+      "TIME": "N",
+      "Prev_Reading": "0",
+      "Estimated_Unit": "0",
+      "Meter_No": "HE0420958",
+      "Prev_Reading_Dt": "25.10. 2024",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "06.2026",
+      "Reading_Days": "546",
+      "Curr_Reading_Dt": "24.04. 2026"
+    },
+    {
+      "Curr_Reading": "3797",
+      "TOT_UNIT": "287",
+      "Consum_Unit": "287",
+      "TIME": "N",
+      "Prev_Reading": "3510",
+      "Estimated_Unit": "0",
+      "Meter_No": "L2913934",
+      "Prev_Reading_Dt": "07.08. 2021",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2021",
+      "Reading_Days": "87",
+      "Curr_Reading_Dt": "02.11. 2021"
+    },
+    {
+      "Curr_Reading": "3510",
+      "TOT_UNIT": "494",
+      "Consum_Unit": "494",
+      "TIME": "N",
+      "Prev_Reading": "3016",
+      "Estimated_Unit": "0",
+      "Meter_No": "L2913934",
+      "Prev_Reading_Dt": "24.04. 2021",
+      "Reading_Stat": "SPOT READI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2021",
+      "Reading_Days": "105",
+      "Curr_Reading_Dt": "07.08. 2021"
+    }
+  ],
+  "meter": [
+    {
+      "ZMETER_NO": "HE0420958",
+      "ZMUL_FACTOR": "1.00000",
+      "ZMET_INST_MOVE_IN_DT": "26/10/2024",
+      "ZMET_TYPE": "STATIC",
+      "ZPRSNT_READING_DT": "30/07/2026",
+      "ZPRESENT_READING": "879",
+      "ZREG_GRP": "RGWL0602",
+      "ZPHASE": "1-PHASE",
+      "ZMETER_STATUS": "OK",
+      "ZTOD_FLG": "NO"
+    }
+  ]
+}

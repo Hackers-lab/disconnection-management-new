@@ -52,6 +52,17 @@ async function ensureTursoTable(client: Client) {
     `)
     await withTimeout(p, 1000, null)
     tursoTableInitialized = true
+
+    // Opportunistically purge all legacy presence keys and expired records from system_kv_store
+    withTimeout(
+      client.execute(`
+        DELETE FROM system_kv_store 
+        WHERE key LIKE 'presence:%' 
+           OR (expires_at IS NOT NULL AND expires_at < unixepoch() * 1000);
+      `),
+      1500,
+      null
+    ).catch(() => {})
   } catch (err) {
     console.warn("[kv-store] Error creating system_kv_store table in Turso:", err)
   }

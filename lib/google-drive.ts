@@ -119,6 +119,9 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   if (moduleName) return moduleName.trim().toLowerCase()
 
   const id = String(consumerId).toUpperCase()
+  if (id.startsWith("GIS-") || id.startsWith("GIS_") || id.startsWith("GPS-") || id.includes("GIS")) {
+    return "gis_camera"
+  }
   if (id.startsWith("SAF-") || id.startsWith("SAFETY") || id.includes("SAFETY")) {
     return "safety"
   }
@@ -142,6 +145,9 @@ function detectFolderForModule(consumerId: string, moduleName?: string): string 
   }
   if (id.startsWith("DD-")) {
     return "deemed"
+  }
+  if (id.startsWith("ICDS-") || id.includes("AWC-") || id.includes("ICDS")) {
+    return "icds"
   }
 
   // Fallback to disconnection

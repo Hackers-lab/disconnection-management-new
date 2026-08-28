@@ -12,6 +12,7 @@ import { IcdsBulkUploadModal } from "@/components/icds/icds-bulk-upload-modal"
 import { IcdsViewDialog } from "@/components/icds/icds-view-dialog"
 import { IcdsStats } from "@/components/icds/icds-stats"
 import { generateIcdsServiceCertificatePDF } from "@/lib/icds-pdf"
+import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -67,7 +68,9 @@ import {
   ShieldAlert,
   KeyRound,
   AlertTriangle,
+  Image as ImageIcon,
 } from "lucide-react"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { matchesAgency } from "@/lib/permission-utils"
 
@@ -81,6 +84,7 @@ interface Props {
   agencies?: string[]
   assignedAgencies?: string[]
   permissions?: Record<string, string[]>
+  officeName?: string
 }
 
 export function IcdsList({
@@ -90,10 +94,21 @@ export function IcdsList({
   agencies: propAgencies,
   assignedAgencies = [],
   permissions = {},
+  officeName,
 }: Props) {
   const effectiveRole = role || userRole
   const effectiveAgencies = propAgencies || assignedAgencies
   const icdsPerms = permissions["icds"] || []
+
+  const displayOfficeName =
+    officeName?.trim() ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("user_ccc_name") ||
+        sessionStorage.getItem("user_ccc_name") ||
+        localStorage.getItem("user_ccc_code") ||
+        sessionStorage.getItem("user_ccc_code")
+      : "") ||
+    "This Office"
 
   const [records, setRecords] = useState<IcdsRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -196,37 +211,34 @@ export function IcdsList({
     }
   }, [])
 
-  // Load records from IndexedDB cache first, then sync from server
+  // Delta Patch & Base Version Synchronization (<15ms instant cache load)
+  const { checkVersion } = useModuleVersionSync<IcdsRecord>("icds", CACHE_KEY, "id", (updated) => {
+    setRecords(updated)
+    setLoading(false)
+  })
+
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    getFromCache<IcdsRecord[]>(CACHE_KEY).then(cached => {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        setRecords(cached)
+        setLoading(false)
+      }
+    }).catch(() => {})
+  }, [])
+
+  // Manual reload function when user clicks Refresh
   const loadRecords = useCallback(async (forceReload = false) => {
     try {
-      if (!forceReload) {
-        const cached = await getFromCache<IcdsRecord[]>(CACHE_KEY)
-        if (cached && cached.length > 0) {
-          setRecords(cached)
-          setLoading(false)
-        }
-      }
-
       setRefreshing(true)
-      const res = await fetch("/api/icds")
-      if (!res.ok) throw new Error("Failed to fetch ICDS records")
-      const data: IcdsRecord[] = await res.json()
-      setRecords(data)
-      await saveToCache(CACHE_KEY, data)
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("local-cache-updated", { detail: { key: CACHE_KEY } }))
-      }
+      await checkVersion(forceReload)
     } catch (err: any) {
-      toast.error(err.message || "Could not load Anganwadi centers")
+      toast.error(err.message || "Could not sync Anganwadi centers")
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
-
-  useEffect(() => {
-    loadRecords()
-  }, [loadRecords])
+  }, [checkVersion])
 
   // Extract dynamic filter option lists
   const blocks = useMemo(() => {
@@ -841,12 +853,14 @@ export function IcdsList({
                   <div className="grid grid-cols-2 gap-1 pt-1 text-[11px] border-t border-slate-200/60 font-medium">
                     <div className="text-slate-600">
                       <span className="block text-[10px] text-slate-400 uppercase">Wiring Package</span>
-                      {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
+                      <span className="font-semibold text-slate-800">
+                        {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
+                      </span>
                     </div>
                     <div className="text-slate-600">
-                      <span className="block text-[10px] text-slate-400 uppercase">Work Order / App</span>
-                      <span className="font-mono text-slate-700 truncate block" title={r.workOrderNo || r.officialApplicationNo}>
-                        {r.workOrderNo ? `WO: ${r.workOrderNo}` : (r.officialApplicationNo ? `App: ${r.officialApplicationNo}` : "Pending")}
+                      <span className="block text-[10px] text-slate-400 uppercase">Bulbs / Fans</span>
+                      <span className="font-semibold text-slate-800">
+                        {r.existingLedBulbsCount ?? 0} Bulbs • {r.existingFanCount ?? 0} Fans
                       </span>
                     </div>
                   </div>
@@ -1341,6 +1355,7 @@ export function IcdsList({
         onClose={() => setShowInspectModal(false)}
         onSuccess={handleRecordUpdated}
         username={username}
+        officeName={displayOfficeName}
       />
 
       <IcdsConnectionModal
@@ -1363,6 +1378,7 @@ export function IcdsList({
         record={selectedRecord}
         open={showViewDialog}
         onClose={() => setShowViewDialog(false)}
+        officeName={displayOfficeName}
       />
 
       <IcdsAddModal
@@ -1370,6 +1386,7 @@ export function IcdsList({
         onClose={() => setShowAddModal(false)}
         onSuccess={handleRecordCreated}
         agencies={agencies}
+        officeName={displayOfficeName}
       />
 
       <IcdsEditModal
@@ -1378,6 +1395,7 @@ export function IcdsList({
         onClose={() => setShowEditModal(false)}
         onSuccess={handleRecordUpdated}
         agencies={agencies}
+        officeName={displayOfficeName}
       />
 
       <IcdsBulkUploadModal

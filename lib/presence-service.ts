@@ -1,4 +1,4 @@
-import { getKV, setKV } from "./kv-store"
+import { createClient, type Client } from "@libsql/client"
 import { getTenantRegistry } from "./tenant-resolver"
 
 export interface ActiveUserInfo {
@@ -48,8 +48,63 @@ export interface OnlineUsersReport {
   serverTime: number
 }
 
+// In-Memory Fast Cache for instantaneous UI reads
 const inMemoryPresence = new Map<string, ActiveUserInfo>()
 const PRESENCE_TIMEOUT_MS = 180_000 // 3 minutes
+
+let tursoClient: Client | null = null
+let presenceTableInitialized = false
+
+function getTursoClient(): Client | null {
+  const url =
+    process.env.TURSO_DATABASE_URL ||
+    process.env.TURSO_URL ||
+    process.env.LIBSQL_URL ||
+    process.env.STORAGE_DATABASE_URL ||
+    process.env.STORAGE_URL ||
+    process.env.TURSO_DATABASE_URL_URL
+  const authToken =
+    process.env.TURSO_AUTH_TOKEN ||
+    process.env.LIBSQL_AUTH_TOKEN ||
+    process.env.STORAGE_AUTH_TOKEN ||
+    process.env.TURSO_AUTH_TOKEN_TOKEN
+  if (!url) return null
+  if (!tursoClient) {
+    tursoClient = createClient({ url, authToken })
+  }
+  return tursoClient
+}
+
+async function ensurePresenceTable(client: Client) {
+  if (presenceTableInitialized) return
+  try {
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS user_presence (
+        user_id TEXT PRIMARY KEY,
+        username TEXT,
+        name TEXT,
+        role TEXT,
+        ccc_code TEXT,
+        agencies TEXT,
+        active_module TEXT,
+        last_action TEXT,
+        device_type TEXT,
+        browser_name TEXT,
+        ip TEXT,
+        last_seen INTEGER,
+        last_login INTEGER,
+        is_online INTEGER DEFAULT 1
+      );
+    `)
+    // Ensure newly added columns exist in existing tables
+    await client.execute(`ALTER TABLE user_presence ADD COLUMN last_login INTEGER;`).catch(() => {})
+    await client.execute(`ALTER TABLE user_presence ADD COLUMN is_online INTEGER DEFAULT 1;`).catch(() => {})
+
+    presenceTableInitialized = true
+  } catch (err) {
+    console.warn("[presence-service] Error creating user_presence table:", err)
+  }
+}
 
 export function parseDeviceFromUserAgent(ua = ""): {
   deviceType: "Desktop" | "Mobile" | "Tablet"
@@ -58,31 +113,27 @@ export function parseDeviceFromUserAgent(ua = ""): {
   let deviceType: "Desktop" | "Mobile" | "Tablet" = "Desktop"
   if (/ipad|tablet|playbook|silk/i.test(ua)) {
     deviceType = "Tablet"
-  } else if (/mobile|iphone|ipod|android|blackberry|iemobile|kindle/i.test(ua)) {
+  } else if (/mobi|iphone|android|touch/i.test(ua)) {
     deviceType = "Mobile"
   }
 
-  let browserName = "Web Browser"
+  let browserName = "Browser"
   if (/edg\//i.test(ua)) browserName = "Edge"
+  else if (/opr\/|opera/i.test(ua)) browserName = "Opera"
   else if (/chrome|crios/i.test(ua)) browserName = "Chrome"
   else if (/firefox|fxios/i.test(ua)) browserName = "Firefox"
-  else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browserName = "Safari"
-  else if (/opera|opr\//i.test(ua)) browserName = "Opera"
-
-  if (/windows/i.test(ua)) browserName += " (Windows)"
-  else if (/android/i.test(ua)) browserName += " (Android)"
-  else if (/iphone|ipad|ios/i.test(ua)) browserName += " (iOS)"
-  else if (/macintosh|mac os/i.test(ua)) browserName += " (macOS)"
-  else if (/linux/i.test(ua)) browserName += " (Linux)"
+  else if (/safari/i.test(ua)) browserName = "Safari"
 
   return { deviceType, browserName }
 }
 
+/**
+ * Track user login / active access (upserts exactly 1 persistent row per user in Turso)
+ */
 export async function trackUserPresence(
   user: Omit<ActiveUserInfo, "isLive">
 ): Promise<void> {
   const now = Date.now()
-  const key = `presence:user:${user.userId}`
   const device = parseDeviceFromUserAgent(user.userAgent || "")
 
   const record: ActiveUserInfo = {
@@ -96,24 +147,68 @@ export async function trackUserPresence(
 
   inMemoryPresence.set(user.userId, record)
 
-  try {
-    setKV(key, record, 180).catch(() => {})
-    const indexKey = "presence:active_user_index"
-    getKV<string[]>(indexKey)
-      .then((existingIds) => {
-        const idSet = new Set(existingIds || [])
-        idSet.add(user.userId)
-        setKV(indexKey, Array.from(idSet).slice(-200), 300).catch(() => {})
+  const turso = getTursoClient()
+  if (turso) {
+    try {
+      await ensurePresenceTable(turso)
+      const agenciesJson = JSON.stringify(record.agencies || [])
+
+      await turso.execute({
+        sql: `INSERT INTO user_presence (
+          user_id, username, name, role, ccc_code, agencies, active_module,
+          last_action, device_type, browser_name, ip, last_seen, last_login, is_online
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ON CONFLICT(user_id) DO UPDATE SET
+          username = excluded.username,
+          name = excluded.name,
+          role = excluded.role,
+          ccc_code = excluded.ccc_code,
+          agencies = excluded.agencies,
+          active_module = excluded.active_module,
+          last_action = excluded.last_action,
+          device_type = excluded.device_type,
+          browser_name = excluded.browser_name,
+          ip = excluded.ip,
+          last_seen = excluded.last_seen,
+          last_login = coalesce(excluded.last_login, user_presence.last_login),
+          is_online = 1`,
+        args: [
+          record.userId,
+          record.username,
+          record.name,
+          record.role,
+          record.cccCode,
+          agenciesJson,
+          record.activeModule || "",
+          record.lastAction || "Active",
+          record.deviceType || "Desktop",
+          record.browserName || "Browser",
+          record.ip || "",
+          now,
+          now,
+        ],
       })
-      .catch(() => {})
-  } catch (e) {}
+    } catch (e) {
+      console.warn("[presence-service] Error updating user_presence row:", e)
+    }
+  }
 }
 
+/**
+ * Marks user offline on logout while retaining their historical last seen and last login trail
+ */
 export async function removeUserPresence(userId: string): Promise<void> {
   inMemoryPresence.delete(userId)
-  try {
-    setKV(`presence:user:${userId}`, null, 1).catch(() => {})
-  } catch (er2) {}
+  const turso = getTursoClient()
+  if (turso) {
+    try {
+      await ensurePresenceTable(turso)
+      await turso.execute({
+        sql: "UPDATE user_presence SET is_online = 0, last_action = 'Logged Out', last_seen = ? WHERE user_id = ?",
+        args: [Date.now(), userId],
+      })
+    } catch (e) {}
+  }
 }
 
 export async function updateUserAction(
@@ -121,14 +216,24 @@ export async function updateUserAction(
   action: string,
   moduleKey?: string
 ): Promise<void> {
+  const now = Date.now()
   const existing = inMemoryPresence.get(userId)
   if (existing) {
     existing.lastAction = action
     if (moduleKey) existing.activeModule = moduleKey
-    existing.lastSeen = Date.now()
+    existing.lastSeen = now
     existing.isLive = true
     inMemoryPresence.set(userId, existing)
-    setKV(`presence:user:${userId}`, existing, 180).catch(() => {})
+  }
+  
+  const turso = getTursoClient()
+  if (turso) {
+    turso.execute({
+      sql: `UPDATE user_presence 
+            SET last_action = ?, active_module = coalesce(?, active_module), last_seen = ?, is_online = 1
+            WHERE user_id = ?`,
+      args: [action, moduleKey || null, now, userId]
+    }).catch(() => {})
   }
 }
 
@@ -136,6 +241,7 @@ export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
   const now = Date.now()
   const activeUsersMap = new Map<string, ActiveUserInfo>()
 
+  // 1. Read in-memory fast map
   for (const [userId, user] of inMemoryPresence.entries()) {
     if (now - user.lastSeen <= PRESENCE_TIMEOUT_MS) {
       activeUsersMap.set(userId, {
@@ -147,114 +253,111 @@ export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
     }
   }
 
-  try {
-    const indexKey = "presence:active_user_index"
-    const userIds = await getKV<string[]>(indexKey)
-    if (Array.isArray(userIds) && userIds.length > 0) {
-      const missingIds = userIds.filter(id => !activeUsersMap.has(id))
-      const kvPromises = missingIds.map(async id => {
+  // 2. Read dedicated user_presence table for multi-instance sync and historical trail
+  const turso = getTursoClient()
+  if (turso) {
+    try {
+      await ensurePresenceTable(turso)
+      const res = await turso.execute({
+        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC",
+      })
+
+      for (const row of res.rows) {
+        const uId = String(row.user_id)
+        let agencies: string[] = []
         try {
-          const u = await getKV<ActiveUserInfo>(`presence:user:${id}`)
-          if (u && typeof u === "object" && u.userId && now - u.lastSeen <= PRESENCE_TIMEOUT_MS) {
-            return {
-              ...u,
-              isLive: now - user.lastSeen < 60_000,
-            }
-          }
-        } catch (err) {}
-        return null
-      })
+          agencies = JSON.parse(String(row.agencies || "[]"))
+        } catch {}
 
-      const fetchedUsers = await Promise.allSettled(kvPromises)
-      fetchedUsers.forEach(res => {
-        if (res.status === "i�lfilled" && res.value) {
-          activeUsersMap.set(res.value.userId, res.value)
-          inMemoryPresence.set(res.value.userId, res.value)
+        const lastSeen = Number(row.last_seen || 0)
+        const isLive = now - lastSeen < 60_000 && Number(row.is_online || 0) === 1
+
+        const info: ActiveUserInfo = {
+          userId: uId,
+          username: String(row.username || ""),
+          name: String(row.name || row.username || ""),
+          role: String(row.role || ""),
+          cccCode: String(row.ccc_code || ""),
+          agencies,
+          activeModule: row.active_module ? String(row.active_module) : undefined,
+          lastAction: row.last_action ? String(row.last_action) : undefined,
+          deviceType: (row.device_type as any) || "Desktop",
+          browserName: String(row.browser_name || "Browser"),
+          ip: String(row.ip || ""),
+          lastSeen,
+          isLive,
         }
-      })
+        activeUsersMap.set(uId, info)
+      }
+    } catch (e) {
+      console.warn("[presence-service] Error reading online users from Turso:", e)
     }
-  } catch (er2) {}
+  }
 
-
-  let tenantsRegistry: Record<string, { cccCode: string; cccName: string }> = {}
+  // 3. Enrich CCC names from Registry
+  let tenantRegistry: Record<string, any> = {}
   try {
-    tenantsRegistry = await getTenantRegistry()
-  } catch (err) {}
+    tenantRegistry = await getTenantRegistry()
+  } catch {}
 
-  const onlineUsersList = Array.from(activeUsersMap.values()).map((user) => {
-    const tenant = tenantsRegistry[user.cccCode] || tenantsRegistry[user.cccCode.toLowerCase()]
-    const cccName = user.cccName || tenant?.cccName || `Care Center ${user.cccCode}`
-    return {
-      ...user,
-      cccName,
-      isLive: now - user.lastSeen < 60_000,
-    }
+  const onlineUsers = Array.from(activeUsersMap.values()).map((user) => {
+    const cccName = tenantRegistry[user.cccCode]?.cccName || user.cccCode
+    return { ...user, cccName }
   })
 
-  // Sort: isLive first, then by lastSeen descending
-  onlineUsersList.sort((a, b) => {
-    if (a.isLive !== b.isLive) return a.isLive ? -1 : 1
-    return b.lastSeen - a.lastSeen
-  })
+  // 4. Calculate Aggregate Stats
+  const officeStats: Record<string, OfficeOnlineSummary> = {}
+  const roleStats: Record<string, number> = {}
+  const moduleStats: Record<string, number> = {}
 
   let activeNowCount = 0
   let idleCount = 0
-  const roleStats: Record<string, number> = {}
-  const moduleStats: Record<string, number> = {}
-  const officeStats: Record<string, OfficeOnlineSummary> = {}
 
-  Object.values(tenantsRegistry).forEach((t) => {
-    const code = t.cccCode.trim().toUpperCase()
-    officeStats[code] = {
-      cccCode: code,
-      cccName: t.cccName || `Care Center ${code}`,
-      onlineCount: 0,
-      users: [],
-    }
-  })
-
-
-  for (const user of onlineUsersList) {
+  onlineUsers.forEach((user) => {
     if (user.isLive) activeNowCount++
     else idleCount++
-    const roleKey = (user.role || "user").toLowerCase()
-    roleStats[roleKey] = (roleStats[roleKey] || 0) + 1
 
-    if (user.activeModule) {
-      moduleStats[user.activeModule] = (moduleStats[user.activeModule] || 0) + 1
-    }
+    // Role Stats
+    const r = user.role || "unknown"
+    roleStats[r] = (roleStats[r] || 0) + 1
 
-    const cccKey = (user.cccCode || "UNKNOWN").trim().toUpperCase()
-    if (!officeStats[cccKey]) {
-      officeStats[cccKey] = {
-        cccCode: cccKey,
-        cccName: user.cccName || `Care Center ${cccKey}`,
+    // Module Stats
+    const m = user.activeModule || "Home"
+    moduleStats[m] = (moduleStats[m] || 0) + 1
+
+    // Office Stats
+    const cCode = user.cccCode || "HQ"
+    const cName = user.cccName || cCode
+
+    if (!officeStats[cCode]) {
+      officeStats[cCode] = {
+        cccCode: cCode,
+        cccName: cName,
         onlineCount: 0,
         users: [],
       }
     }
-    officeStats[cccKey].onlineCount++
-    officeStats[cccKey].users.push({
+
+    officeStats[cCode].onlineCount++
+    officeStats[cCode].users.push({
       userId: user.userId,
       username: user.username,
       name: user.name,
       role: user.role,
-      agencies: user.agencies || [],
+      agencies: user.agencies,
       activeModule: user.activeModule,
       lastAction: user.lastAction,
       lastSeen: user.lastSeen,
       isLive: user.isLive,
     })
-  }
-
-  const totalOfficesActive = Object.values(officeStats).filter((o) => o.onlineCount > 0).length
+  })
 
   return {
-    onlineUsers: onlineUsersList,
-    totalOnline: onlineUsersList.length,
+    onlineUsers,
+    totalOnline: onlineUsers.length,
     activeNowCount,
     idleCount,
-    totalOfficesActive,
+    totalOfficesActive: Object.keys(officeStats).length,
     officeStats,
     roleStats,
     moduleStats,

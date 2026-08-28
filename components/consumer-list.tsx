@@ -66,6 +66,7 @@ import {
   Footprints,
   PlusCircle,
   Navigation,
+  Zap,
 } from "lucide-react"
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -74,6 +75,7 @@ import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix }
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs, getPaymentDuesBreakdown } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"
+import { OsdDetailsDialog } from "@/components/osd-details-dialog"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
   loading: () => <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
@@ -210,6 +212,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeHistoryConsumer, setActiveHistoryConsumer] = useState<ConsumerData | null>(null)
   const [showNearbyMap, setShowNearbyMap] = useState(false)
+  const [showOsdModal, setShowOsdModal] = useState(false)
+  const [osdTargetId, setOsdTargetId] = useState("")
 
   // Handle back button navigation for modals/overlays
   useBackNavigation(isFilterOpen, () => setIsFilterOpen(false))
@@ -218,6 +222,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   useBackNavigation(!!activeHistoryConsumer, () => setActiveHistoryConsumer(null))
   useBackNavigation(showAdminPanel, onCloseAdminPanel)
   useBackNavigation(showNearbyMap, () => setShowNearbyMap(false))
+  useBackNavigation(showOsdModal, () => setShowOsdModal(false))
 
   useEffect(() => {
     const savedMode = localStorage.getItem("consumerListViewMode") as "card" | "list"
@@ -370,7 +375,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   }
 
   const handleManualRefresh = async () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     
     const now = Date.now()
     if (now - lastRefreshTimeRef.current < 10_000) {
@@ -764,7 +769,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
 
   const handleUpdateConsumer = async (updatedConsumer: ConsumerData) => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     // Clean binary File object if attached in form
     const cleanedConsumer: ConsumerData = { ...updatedConsumer }
     if ('image' in cleanedConsumer) {
@@ -839,7 +844,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   }
 
   const clearFilters = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     setFilters({
       agency: [],
       address: "",
@@ -866,7 +871,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   }
 
   const toggleOSDSort = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     if (sortByOSD === "none") setSortByOSD("desc")
     else if (sortByOSD === "desc") setSortByOSD("asc")
     else setSortByOSD("none")
@@ -1284,7 +1289,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 size="icon"
                 className={`h-9 w-9 rounded-none rounded-l-md ${viewMode === "card" ? "bg-gray-100 text-blue-600" : "text-gray-500"}`}
                 onClick={() => {
-                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   setViewMode("card")
                   localStorage.setItem("consumerListViewMode", "card")
                 }}
@@ -1298,7 +1303,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 size="icon"
                 className={`h-9 w-9 rounded-none rounded-r-md ${viewMode === "list" ? "bg-gray-100 text-blue-600" : "text-gray-500"}`}
                 onClick={() => {
-                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   setViewMode("list")
                   localStorage.setItem("consumerListViewMode", "list")
                 }}
@@ -1314,7 +1319,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
             <Button
               type="button"
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 setShowNearbyMap(v => !v)
               }}
               className={`w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white`}
@@ -1394,7 +1399,20 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                          setOsdTargetId(consumer.consumerId)
+                          setShowOsdModal(true)
+                        }}
+                        className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold"
+                        title="Live OSD Check"
+                      >
+                        <Zap className="h-3 w-3 fill-blue-600" />
+                        <span>Live</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                           setActiveHistoryConsumer(consumer)
                         }}
                         className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer"
@@ -1546,7 +1564,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   return (
                     <Button
                       onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         setSelectedConsumer(consumer)
                       }}
                       className={`w-full mt-4 ${
@@ -1600,7 +1618,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                               setActiveHistoryConsumer(consumer)
                             }}
                             className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer"
@@ -1656,7 +1674,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                           return (
                             <Button
                               onClick={() => {
-                                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                                 setSelectedConsumer(consumer)
                               }}
                               size="sm"
@@ -1686,7 +1704,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 id={`consumer-item-${consumer.consumerId}`}
                 key={consumer.consumerId} 
                 onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     setPreviewConsumer(consumer)
                 }}
                 className={`p-2 rounded-lg shadow-sm border active:bg-gray-50 transition-colors ${
@@ -1707,7 +1725,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                        <button
                          onClick={(e) => {
                            e.stopPropagation()
-                           if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                           if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                            setActiveHistoryConsumer(consumer)
                          }}
                          className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer"
@@ -1747,7 +1765,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       className="h-6 w-6 text-blue-600 shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         if (!((!["connected", "visited", "not found"].includes(consumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer")) {
                           setSelectedConsumer(consumer)
                         }
@@ -1776,7 +1794,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               variant="outline"
               size="sm"
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 setCurrentPage(Math.max(1, currentPage - 1))
               }}
               disabled={currentPage === 1}
@@ -1804,7 +1822,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     variant={currentPage === pageNum ? "default" : "outline"}
                     size="sm"
                     onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         setCurrentPage(pageNum)
                     }}
                     className="w-8 h-8 p-0"
@@ -1819,7 +1837,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               variant="outline"
               size="sm"
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 setCurrentPage(Math.min(totalPages, currentPage + 1))
               }}
               disabled={currentPage === totalPages}
@@ -1917,7 +1935,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 <Button 
                   className="w-full" 
                   onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     setPreviewConsumer(null);
                     if (!((!["connected", "visited", "not found"].includes(previewConsumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer")) {
                       setSelectedConsumer(previewConsumer);
@@ -1941,6 +1959,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
           onClose={() => setActiveHistoryConsumer(null)}
         />
       )}
+      {/* Floating Live OSD Check Modal */}
+      <OsdDetailsDialog
+        open={showOsdModal}
+        onOpenChange={setShowOsdModal}
+        initialConsumerId={osdTargetId}
+      />
     </div>
   )
 })

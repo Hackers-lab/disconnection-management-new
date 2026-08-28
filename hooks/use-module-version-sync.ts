@@ -22,7 +22,9 @@ const MODULE_ENDPOINT_MAP: Record<string, string> = {
   meter: "/api/meters/stock",
   dtr: "/api/dtr",
   material: "/api/material",
-  icds: "/api/icds",
+  icds: "/api/icds/base",
+  gis: "/api/gis/base",
+  gis_captures: "/api/gis/base",
 }
 
 export function useModuleVersionSync<T extends Record<string, any>>(
@@ -167,7 +169,7 @@ export function useModuleVersionSync<T extends Record<string, any>>(
           const baseRes = await fetch(actualBaseUrl)
           if (baseRes.ok) {
             const result = await baseRes.json()
-            const freshItems = (Array.isArray(result) ? result : (result.patchData || result.data || [])) as T[]
+            const freshItems = (Array.isArray(result) ? result : (result.patchData || result.data || result.photos || result.records || result.items || [])) as T[]
 
             await saveToCache(cacheKey, freshItems)
             if (typeof window !== "undefined") {

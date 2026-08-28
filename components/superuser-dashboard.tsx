@@ -21,6 +21,8 @@ import {
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
+import { BroadcastPushModal } from "@/components/broadcast-push-modal"
+import { PushNotificationManager } from "@/components/push-notification-manager"
 import { 
   Building2, 
   Users, 
@@ -46,6 +48,7 @@ import {
   ShieldAlert,
   Link2,
   Unlink,
+  Bell,
   UserPlus,
   FileSpreadsheet,
   ChevronDown,
@@ -112,6 +115,7 @@ export function SuperuserDashboard() {
   const [showAddTenantModal, setShowAddTenantModal] = useState(false)
   const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [showEditUserModal, setShowEditUserModal] = useState(false)
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false)
   const [submittingTenant, setSubmittingTenant] = useState(false)
   const [submittingUser, setSubmittingUser] = useState(false)
 
@@ -496,53 +500,47 @@ export function SuperuserDashboard() {
   const isAllExpanded = filteredTenantRows.length > 0 && filteredTenantRows.every(code => !!expandedCccs[code])
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 dark selection:bg-blue-600/30">
-      {/* HEADER - Mobile & Desktop Optimized */}
-      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3.5 py-2.5 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 relative overflow-x-hidden">
+      {/* Ambient Aurora Mesh Glow Lights (Apple / iOS style) */}
+      <div className="fixed top-0 left-1/4 w-96 h-96 bg-blue-400/[0.08] rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed bottom-10 right-1/4 w-[28rem] h-[28rem] bg-indigo-400/[0.07] rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="fixed top-1/3 right-10 w-72 h-72 bg-sky-300/[0.06] rounded-full blur-3xl pointer-events-none -z-10" />
+
+      {/* HEADER - Default Clean Theme */}
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-50 shadow-xs">
+        <div className="max-w-7xl mx-auto px-3.5 py-2.5 sm:px-6">
           <div className="flex items-center justify-between gap-2">
             {/* Title & Brand */}
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="bg-blue-600/15 p-2 rounded-xl border border-blue-500/20 shrink-0">
-                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-blue-400 animate-pulse" />
+              <div className="bg-blue-50 p-1.5 sm:p-2 rounded-xl border border-blue-100 shrink-0">
+                <Sparkles className="h-4 w-4 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-sm sm:text-base md:text-lg font-bold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-teal-300 bg-clip-text text-transparent truncate">
-                  Superadmin Dashboard
+                <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                  Superadmin Console
                 </h1>
-                <p className="text-[10px] sm:text-xs text-slate-400 truncate">
-                  {tenants.length} Care Centers • Live Multi-Tenant Console
+                <p className="text-[10px] text-slate-500 truncate">
+                  {tenants.length} Care Centers Registered
                 </p>
               </div>
             </div>
 
             {/* Actions Bar */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               {/* OPEN MASTER SHEET BUTTON */}
               {masterSheetId ? (
                 <a
                   href={`https://docs.google.com/spreadsheets/d/${masterSheetId}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-950 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 transition-colors shadow-2xs"
                   title="Open Master Config Google Spreadsheet"
                 >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span className="hidden sm:inline">Open Master Sheet</span>
-                  <span className="sm:hidden">Master</span>
-                  <ExternalLink className="h-3 w-3 text-emerald-400/80 hidden sm:inline" />
-                </a>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => alert("Master Spreadsheet ID will appear once loaded or configured in MASTER_CONFIG_SHEET.")}
-                  className="h-8 text-xs border-emerald-800/40 bg-emerald-950/40 text-emerald-300 px-2.5"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1 text-emerald-400" />
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                   <span className="hidden sm:inline">Master Sheet</span>
-                </Button>
-              )}
+                  <ExternalLink className="h-3 w-3 text-emerald-600/80 hidden sm:inline" />
+                </a>
+              ) : null}
 
               {/* Refresh Button */}
               <Button
@@ -553,35 +551,45 @@ export function SuperuserDashboard() {
                   fetchUsers()
                   fetchStats()
                 }}
-                className="h-8 text-xs border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-300 px-2 sm:px-3"
-                title="Refresh Metrics & Data"
+                className="h-8 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 sm:px-2.5 shadow-2xs"
+                title="Refresh Metrics"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingStats ? "animate-spin text-blue-400" : ""}`} />
-                <span className="hidden md:inline ml-1.5">Refresh</span>
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingStats ? "animate-spin text-blue-600" : ""}`} />
+                <span className="hidden md:inline ml-1">Refresh</span>
+              </Button>
+
+              {/* Send Broadcast Push Alert */}
+              <Button
+                size="sm"
+                onClick={() => setShowBroadcastModal(true)}
+                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2.5 sm:px-3 rounded-lg shadow-sm"
+                title="Send Push Notification to Connected Phones"
+              >
+                <Bell className="h-3.5 w-3.5 mr-1" />
+                <span className="hidden sm:inline">Broadcast Alert</span>
+                <span className="sm:hidden">Alert</span>
               </Button>
 
               {/* Add CCC Button */}
               <Button
                 size="sm"
                 onClick={() => setShowAddTenantModal(true)}
-                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-2.5 sm:px-3 shadow-md shadow-blue-600/20"
+                className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-2.5 sm:px-3 rounded-lg shadow-sm"
                 title="Register New CCC"
               >
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden sm:inline">Add CCC</span>
-                <span className="sm:hidden">CCC</span>
+                <span>Add CCC</span>
               </Button>
 
               {/* Create User Button */}
               <Button
                 size="sm"
                 onClick={() => setShowAddUserModal(true)}
-                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-2.5 sm:px-3 shadow-md shadow-indigo-600/20"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-2.5 sm:px-3 rounded-lg shadow-sm"
                 title="Create User Account"
               >
                 <UserPlus className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden sm:inline">Add User</span>
-                <span className="sm:hidden">User</span>
+                <span>Add User</span>
               </Button>
 
               {/* Logout Button */}
@@ -590,11 +598,11 @@ export function SuperuserDashboard() {
                   type="submit"
                   size="sm"
                   variant="ghost"
-                  className="h-8 px-2 sm:px-2.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                  className="h-8 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg"
                   title="Logout"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline ml-1.5">Logout</span>
+                  <span className="hidden lg:inline ml-1">Logout</span>
                 </Button>
               </form>
             </div>
@@ -603,27 +611,27 @@ export function SuperuserDashboard() {
       </header>
 
       {/* MAIN CONTAINER */}
-      <main className="max-w-7xl mx-auto px-3.5 py-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
+      <main className="max-w-7xl mx-auto px-3 py-3.5 sm:px-6 space-y-3.5">
         
-        {/* TOP NAVIGATION TABS */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5 overflow-x-auto scrollbar-none">
+        {/* TOP NAVIGATION TABS - Clean Light Style */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 border-b border-slate-200/80 pb-2.5">
           <button
             type="button"
             onClick={() => setActiveTab("overview")}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
               activeTab === "overview"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
-                : "bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
             }`}
           >
-            <Building2 className="h-4 w-4" />
-            <span>Care Centers & Accounts</span>
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Care Centers</span>
             <Badge
               variant="outline"
-              className={`text-[10px] ml-1 px-1.5 py-0 ${
+              className={`text-[9px] px-1 py-0 ${
                 activeTab === "overview"
-                  ? "bg-blue-700/80 border-blue-400/30 text-white"
-                  : "bg-slate-800 border-slate-700 text-slate-400"
+                  ? "bg-blue-700 border-blue-400 text-white"
+                  : "bg-slate-100 border-slate-200 text-slate-600"
               }`}
             >
               {tenants.length}
@@ -633,74 +641,70 @@ export function SuperuserDashboard() {
           <button
             type="button"
             onClick={() => setActiveTab("online_users")}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
               activeTab === "online_users"
-                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
-                : "bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
             }`}
           >
-            <Users className="h-4 w-4 text-emerald-400" />
-            <span>Live Online Users</span>
+            <Users className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            <span className="truncate">Online Users</span>
             <Badge
               variant="outline"
-              className={`text-[10px] ml-1 px-1.5 py-0 ${
+              className={`text-[9px] px-1 py-0 ${
                 activeTab === "online_users"
-                  ? "bg-emerald-700/80 border-emerald-400/30 text-white"
+                  ? "bg-emerald-700 border-emerald-400 text-white"
                   : onlineUserCount !== null && onlineUserCount > 0
-                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold animate-pulse"
-                  : "bg-slate-800 border-slate-700 text-slate-400"
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold"
+                  : "bg-slate-100 border-slate-200 text-slate-600"
               }`}
             >
-              {onlineUserCount !== null ? `${onlineUserCount} Online` : "Live"}
+              {onlineUserCount !== null ? onlineUserCount : "Live"}
             </Badge>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("module_versions")}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
               activeTab === "module_versions"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
-                : "bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
             }`}
           >
-            <Layers className="h-4 w-4 text-blue-300" />
-            <span>Supply Module Versions Report</span>
+            <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+            <span className="truncate">Module Sync</span>
             <Badge
               variant="outline"
-              className={`text-[10px] ml-1 px-1.5 py-0 ${
+              className={`text-[9px] px-1 py-0 ${
                 activeTab === "module_versions"
-                  ? "bg-blue-700/80 border-blue-400/30 text-white"
-                  : "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                  ? "bg-blue-700 border-blue-400 text-white"
+                  : "bg-blue-50 border-blue-200 text-blue-700"
               }`}
             >
-              KV Report
+              KV
             </Badge>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab("vercel_usage")}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
               activeTab === "vercel_usage"
-                ? "bg-amber-600 text-white shadow-md shadow-amber-600/25"
-                : "bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
             }`}
           >
-            <Flame className="h-4 w-4 text-amber-400" />
-            <span>Vercel Usage (&gt;50% Spikes)</span>
-            <Badge
-              variant="outline"
-              className={`text-[10px] ml-1 px-1.5 py-0 ${
-                activeTab === "vercel_usage"
-                  ? "bg-amber-700/80 border-amber-400/30 text-white"
-                  : vercelSpikeCount && vercelSpikeCount > 0
-                  ? "bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold animate-pulse"
-                  : "bg-slate-800 border-slate-700 text-slate-400"
-              }`}
-            >
-              {vercelSpikeCount !== null && vercelSpikeCount > 0 ? `${vercelSpikeCount} Spikes` : "Usage"}
-            </Badge>
+            <Flame className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span className="truncate">Vercel Quota</span>
+            {vercelSpikeCount !== null && vercelSpikeCount > 0 && (
+              <Badge
+                variant="outline"
+                className="text-[9px] px-1 py-0 bg-amber-50 border-amber-300 text-amber-800 font-bold"
+              >
+                {vercelSpikeCount}
+              </Badge>
+            )}
           </button>
         </div>
 
@@ -714,196 +718,121 @@ export function SuperuserDashboard() {
           <>
             {/* VERCEL USAGE SPIKE ALERT BANNER IF SPIKES > 0 */}
             {vercelSpikeCount !== null && vercelSpikeCount > 0 && (
-              <div className="bg-amber-950/25 border border-amber-800/60 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md shadow-amber-950/20">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
-                    <Flame className="h-5 w-5 animate-pulse" />
+              <div className="bg-amber-950/30 border border-amber-800/60 p-3 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400 shrink-0">
+                    <Flame className="h-4 w-4" />
                   </div>
-                  <div>
-                    <h3 className="text-xs sm:text-sm font-bold text-amber-200">
-                      Vercel Infrastructure Spike Alert ({vercelSpikeCount} resource{vercelSpikeCount > 1 ? "s" : ""} &gt; 50% limit)
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-semibold text-amber-200 truncate">
+                      Vercel Quota Alert ({vercelSpikeCount} metric &gt; 50%)
                     </h3>
-                    <p className="text-[11px] text-amber-300/80 mt-0.5">
-                      One or more serverless/bandwidth resources have crossed 50% of your Vercel plan quota.
-                    </p>
                   </div>
                 </div>
                 <Button
                   size="sm"
                   onClick={() => setActiveTab("vercel_usage")}
-                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs h-8 px-3 shrink-0 shadow-md shadow-amber-600/20 cursor-pointer"
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs h-7 px-2.5 shrink-0 rounded-lg"
                 >
-                  <Flame className="h-3.5 w-3.5 mr-1" />
-                  View Spiked Resources
+                  View
                 </Button>
               </div>
             )}
 
-            {/* KPI OVERVIEW METRICS GRID - Live Authenticated Counts */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-          {/* Card 1: Total CCCs */}
-          <Card className="bg-slate-900/70 border-slate-800/90 backdrop-blur shadow-sm">
-            <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-              <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-                Total CCCs
-                <Building2 className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2.5 sm:p-3 pt-0">
-              {loadingTenants ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500 my-1" />
-              ) : (
-                <div>
-                  <div className="text-xl sm:text-2xl font-black text-slate-100">{tenants.length}</div>
-                  <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-0.5">Care Centers</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            {/* KPI OVERVIEW METRICS GRID - White iPhone Style Cards */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {/* Card 1: Total CCCs */}
+              <Card className="bg-white border-slate-200/80 shadow-2xs rounded-xl">
+                <CardContent className="p-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500">Total CCCs</div>
+                  {loadingTenants ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 mx-auto my-1" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-slate-900 mt-0.5">{tenants.length}</div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Card 2: Linked Supplies */}
-          <Card className="bg-slate-900/70 border-slate-800/90 backdrop-blur shadow-sm">
-            <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-              <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-                Linked Sheets
-                <Link2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2.5 sm:p-3 pt-0">
-              {loadingTenants ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500 my-1" />
-              ) : (
-                <div>
-                  <div className="text-xl sm:text-2xl font-black text-emerald-400">
-                    {linkedTenantsCount} <span className="text-[11px] text-slate-500 font-normal">/ {tenants.length}</span>
-                  </div>
-                  <p className="text-[9px] sm:text-[10px] text-emerald-400/80 font-mono mt-0.5">
-                    {tenants.length ? Math.round((linkedTenantsCount / tenants.length) * 100) : 0}% Active Sheets
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Card 2: Linked Supplies */}
+              <Card className="bg-white border-slate-200/80 shadow-2xs rounded-xl">
+                <CardContent className="p-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500">Linked Sheets</div>
+                  {loadingTenants ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 mx-auto my-1" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-emerald-600 mt-0.5">
+                      {linkedTenantsCount}<span className="text-[10px] text-slate-400 font-normal">/{tenants.length}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Card 3: Agencies (CCC count + Total) */}
-          <Card className="bg-slate-900/70 border-slate-800/90 backdrop-blur shadow-sm">
-            <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-              <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-                Agencies
-                <Layers className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2.5 sm:p-3 pt-0">
-              {loadingUsers ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500 my-1" />
-              ) : (
-                <div>
-                  <div className="text-xl sm:text-2xl font-black text-amber-400">
-                    {activeAgencyTenantsCount} <span className="text-[11px] text-slate-500 font-normal">/ {tenants.length}</span>
-                  </div>
-                  <p className="text-[9px] sm:text-[10px] text-amber-400/80 font-mono mt-0.5">
-                    {totalAgenciesCount} Total Agencies
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Card 3: Agencies */}
+              <Card className="bg-white border-slate-200/80 shadow-2xs rounded-xl">
+                <CardContent className="p-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500">Agencies</div>
+                  {loadingUsers ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 mx-auto my-1" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-amber-600 mt-0.5">{totalAgenciesCount}</div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Card 4: Active Users (CCC count + Total Logins) */}
-          <Card className="bg-slate-900/70 border-slate-800/90 backdrop-blur shadow-sm">
-            <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-              <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-                User Logins
-                <Users className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2.5 sm:p-3 pt-0">
-              {loadingUsers ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500 my-1" />
-              ) : (
-                <div>
-                  <div className="text-xl sm:text-2xl font-black text-indigo-400">
-                    {activeUserTenantsCount} <span className="text-[11px] text-slate-500 font-normal">/ {tenants.length}</span>
-                  </div>
-                  <p className="text-[9px] sm:text-[10px] text-indigo-400/80 font-mono mt-0.5">
-                    {users.length} Total Accounts
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Card 4: Active Users */}
+              <Card className="bg-white border-slate-200/80 shadow-2xs rounded-xl">
+                <CardContent className="p-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500">Accounts</div>
+                  {loadingUsers ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 mx-auto my-1" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-indigo-600 mt-0.5">{users.length}</div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Card 5: DC Configured (CCC count) */}
-          <Card className="bg-slate-900/70 border-slate-800/90 backdrop-blur shadow-sm">
-            <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-              <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-                DC Data
-                <Database className="h-3.5 w-3.5 text-rose-400 shrink-0" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2.5 sm:p-3 pt-0">
-              {loadingStats ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500 my-1" />
-              ) : (
-                <div>
-                  <div className="text-xl sm:text-2xl font-black text-rose-400">
-                    {activeDcTenantsCount} <span className="text-[11px] text-slate-500 font-normal">/ {tenants.length}</span>
-                  </div>
-                  <p className="text-[9px] sm:text-[10px] text-rose-400/80 font-mono mt-0.5">
-                    {tenants.length ? Math.round((activeDcTenantsCount / tenants.length) * 100) : 0}% CCCs with DC List
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Card 5: DC Rows */}
+              <Card className="bg-white border-slate-200/80 shadow-2xs rounded-xl">
+                <CardContent className="p-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500">DC Lists</div>
+                  {loadingStats ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 mx-auto my-1" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-rose-600 mt-0.5">{activeDcTenantsCount}</div>
+                  )}
+                </CardContent>
+              </Card>
 
-          {/* Card 6: Zone Maps (CCC count) */}
-          <Card className="bg-slate-900/70 border-slate-800/90 backdrop-blur shadow-sm">
-            <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-              <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-                Zone Maps
-                <MapPin className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2.5 sm:p-3 pt-0">
-              {loadingStats ? (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-500 my-1" />
-              ) : (
-                <div>
-                  <div className="text-xl sm:text-2xl font-black text-cyan-400">
-                    {activeZoneTenantsCount} <span className="text-[11px] text-slate-500 font-normal">/ {tenants.length}</span>
-                  </div>
-                  <p className="text-[9px] sm:text-[10px] text-cyan-400/80 font-mono mt-0.5">
-                    {tenants.length ? Math.round((activeZoneTenantsCount / tenants.length) * 100) : 0}% CCCs with Map
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              {/* Card 6: Zone Maps */}
+              <Card className="bg-white border-slate-200/80 shadow-2xs rounded-xl">
+                <CardContent className="p-2.5 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500">Zone Maps</div>
+                  {loadingStats ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 mx-auto my-1" />
+                  ) : (
+                    <div className="text-lg sm:text-xl font-bold text-cyan-600 mt-0.5">{activeZoneTenantsCount}</div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
         {/* PENDINGS & ACTION NEEDED BANNER */}
         {(pendingTenantsCount > 0 || noUsersTenants.length > 0 || noAgenciesTenants.length > 0) && (
-          <div className="bg-amber-950/25 border border-amber-800/40 p-3 sm:p-4 rounded-xl">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="bg-amber-50 border border-amber-200 p-3 sm:p-3.5 rounded-xl shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-amber-200">System Setup & Provisioning Pending</h3>
-                  <div className="flex flex-wrap gap-1.5 mt-1 text-[11px] text-amber-300/80">
+                  <h3 className="text-xs font-bold text-amber-900">Pending Setup Actions</h3>
+                  <div className="flex flex-wrap gap-1 mt-1 text-[11px] text-amber-800">
                     {pendingTenantsCount > 0 && (
-                      <span className="bg-amber-900/40 border border-amber-700/50 px-1.5 py-0.5 rounded font-mono">
+                      <span className="bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded font-mono">
                         {pendingTenantsCount} Unlinked
                       </span>
                     )}
                     {noUsersTenants.length > 0 && (
-                      <span className="bg-amber-900/40 border border-amber-700/50 px-1.5 py-0.5 rounded font-mono">
+                      <span className="bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded font-mono">
                         {noUsersTenants.length} Missing Users
-                      </span>
-                    )}
-                    {noAgenciesTenants.length > 0 && (
-                      <span className="bg-amber-900/40 border border-amber-700/50 px-1.5 py-0.5 rounded font-mono">
-                        {noAgenciesTenants.length} Missing Agencies
                       </span>
                     )}
                   </div>
@@ -917,19 +846,9 @@ export function SuperuserDashboard() {
                     size="sm"
                     variant="outline"
                     onClick={() => setStatusFilter("pending_link")}
-                    className="border-amber-700/60 bg-amber-950/50 text-amber-300 hover:bg-amber-900/60 text-[11px] h-7 px-2"
+                    className="border-amber-300 bg-white text-amber-800 hover:bg-amber-100/60 text-[11px] h-7 px-2"
                   >
                     View Unlinked ({pendingTenantsCount})
-                  </Button>
-                )}
-                {noUsersTenants.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStatusFilter("no_users")}
-                    className="border-amber-700/60 bg-amber-950/50 text-amber-300 hover:bg-amber-900/60 text-[11px] h-7 px-2"
-                  >
-                    View Missing Users ({noUsersTenants.length})
                   </Button>
                 )}
               </div>
@@ -938,25 +857,25 @@ export function SuperuserDashboard() {
         )}
 
         {/* SEARCH, FILTER & EXPAND CONTROL BAR */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 bg-slate-900/80 p-3 sm:p-4 rounded-xl border border-slate-800 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-2xs">
           {/* Search bar */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input
-              placeholder="Search CCC code, name, agency, user..."
+              placeholder="Search CCC, agency, user..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="pl-8 bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500 text-xs h-8.5 rounded-lg"
+              className="pl-8 bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 text-xs h-8 rounded-lg"
             />
           </div>
 
           {/* Filter Pills, Expand All, and Password Toggle */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:pb-0 scrollbar-none flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Button
               size="sm"
               variant={statusFilter === "all" ? "default" : "outline"}
               onClick={() => setStatusFilter("all")}
-              className={`text-[11px] sm:text-xs h-7.5 px-2.5 shrink-0 ${statusFilter === "all" ? "bg-blue-600 text-white font-semibold" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+              className={`text-[11px] h-7 px-2 ${statusFilter === "all" ? "bg-blue-600 text-white font-semibold" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
             >
               All ({allTenantCodes.length})
             </Button>
@@ -964,7 +883,7 @@ export function SuperuserDashboard() {
               size="sm"
               variant={statusFilter === "linked" ? "default" : "outline"}
               onClick={() => setStatusFilter("linked")}
-              className={`text-[11px] sm:text-xs h-7.5 px-2.5 shrink-0 ${statusFilter === "linked" ? "bg-emerald-600 text-white font-semibold" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+              className={`text-[11px] h-7 px-2 ${statusFilter === "linked" ? "bg-emerald-600 text-white font-semibold" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
             >
               Linked ({linkedTenantsCount})
             </Button>
@@ -972,7 +891,7 @@ export function SuperuserDashboard() {
               size="sm"
               variant={statusFilter === "pending_link" ? "default" : "outline"}
               onClick={() => setStatusFilter("pending_link")}
-              className={`text-[11px] sm:text-xs h-7.5 px-2.5 shrink-0 ${statusFilter === "pending_link" ? "bg-amber-600 text-white font-semibold" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+              className={`text-[11px] h-7 px-2 ${statusFilter === "pending_link" ? "bg-amber-600 text-white font-semibold" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
             >
               Unlinked ({pendingTenantsCount})
             </Button>
@@ -982,11 +901,10 @@ export function SuperuserDashboard() {
               size="sm"
               variant="outline"
               onClick={isAllExpanded ? collapseAllCccs : expandAllCccs}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800 text-[11px] sm:text-xs h-7.5 px-2 shrink-0 ml-auto sm:ml-1"
-              title={isAllExpanded ? "Collapse all CCC details" : "Expand all CCC details"}
+              className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11px] h-7 px-2 ml-auto sm:ml-0"
             >
-              <ChevronsUpDown className="h-3.5 w-3.5 text-indigo-400 mr-1" />
-              <span>{isAllExpanded ? "Collapse All" : "Expand All"}</span>
+              <ChevronsUpDown className="h-3 w-3 text-indigo-600 mr-1" />
+              <span>{isAllExpanded ? "Collapse" : "Expand"}</span>
             </Button>
 
             {/* Password toggle button */}
@@ -994,33 +912,24 @@ export function SuperuserDashboard() {
               size="sm"
               variant="outline"
               onClick={() => setShowAllPasswords(!showAllPasswords)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800 text-[11px] sm:text-xs h-7.5 px-2 shrink-0"
-              title={showAllPasswords ? "Hide all passwords" : "Show all passwords"}
+              className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-[11px] h-7 px-2"
             >
-              {showAllPasswords ? <EyeOff className="h-3.5 w-3.5 text-amber-400 mr-1" /> : <Eye className="h-3.5 w-3.5 text-blue-400 mr-1" />}
-              <span className="hidden sm:inline">{showAllPasswords ? "Hide Passwords" : "Show Passwords"}</span>
-              <span className="sm:hidden">{showAllPasswords ? "Hide" : "Show"}</span>
+              {showAllPasswords ? <EyeOff className="h-3 w-3 text-amber-600 mr-1" /> : <Eye className="h-3 w-3 text-blue-600 mr-1" />}
+              <span>{showAllPasswords ? "Hide Pass" : "Pass"}</span>
             </Button>
           </div>
         </div>
 
         {/* UNIFIED SINGLE DASHBOARD VIEW */}
-        <Card className="bg-slate-900/70 border-slate-800 overflow-hidden shadow-2xl rounded-xl">
-          <CardHeader className="py-3 px-3.5 sm:px-6 sm:py-4 border-b border-slate-800/80 bg-slate-900/90">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xs sm:text-sm md:text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Database className="h-4 w-4 text-blue-400" />
-                  Supply Overview & Collapsible Console
-                </CardTitle>
-                <CardDescription className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-                  Click any CCC row or the right expand button to view internal Agencies and ID/Password credentials.
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="border-slate-700 text-slate-300 text-[10px] sm:text-xs font-mono shrink-0 ml-2">
-                {filteredTenantRows.length} Supplies
-              </Badge>
-            </div>
+        <Card className="bg-white border-slate-200/90 overflow-hidden shadow-sm rounded-xl">
+          <CardHeader className="py-2.5 px-3 sm:px-5 border-b border-slate-100 bg-slate-50/70 flex flex-row items-center justify-between">
+            <CardTitle className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Database className="h-4 w-4 text-blue-600" />
+              Care Center Console
+            </CardTitle>
+            <Badge variant="outline" className="border-slate-200 bg-white text-slate-600 text-[10px] font-mono">
+              {filteredTenantRows.length} Care Centers
+            </Badge>
           </CardHeader>
 
           <CardContent className="p-0">
@@ -1036,8 +945,8 @@ export function SuperuserDashboard() {
               </div>
             ) : (
               <>
-                {/* 1. MOBILE COLLAPSIBLE CARD VIEW (Tailored for phones / small screens) */}
-                <div className="block lg:hidden divide-y divide-slate-800/80">
+                {/* 1. MOBILE COLLAPSIBLE CARD VIEW (Clean iOS white cards) */}
+                <div className="block lg:hidden divide-y divide-slate-100">
                   {filteredTenantRows.map(cccCode => {
                     const tenant = tenants.find(t => t.cccCode === cccCode)
                     const cccName = tenant ? tenant.cccName : cccCode === "SYSTEM" ? "Global System & Master Users" : "Unregistered CCC"
@@ -1047,27 +956,25 @@ export function SuperuserDashboard() {
                     const isExpanded = !!expandedCccs[cccCode]
 
                     return (
-                      <div key={cccCode} className="p-3.5 space-y-3 hover:bg-slate-900/40 transition-colors">
+                      <div key={cccCode} className="p-3 space-y-2.5 hover:bg-slate-50/80 transition-colors">
                         {/* Header: CCC Code, Name, Linked Status & Expand Button */}
                         <div 
                           onClick={() => toggleCccExpand(cccCode)}
-                          className="flex items-start justify-between gap-2 cursor-pointer select-none"
+                          className="flex items-center justify-between gap-2 cursor-pointer select-none"
                         >
-                          <div className="space-y-1 min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono font-bold text-xs text-blue-300 bg-blue-500/15 px-2 py-0.5 rounded border border-blue-500/30">
-                                {cccCode}
-                              </span>
-                              <h3 className="font-bold text-xs sm:text-sm text-slate-100 truncate">
-                                {cccName}
-                              </h3>
-                            </div>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 shrink-0">
+                              {cccCode}
+                            </span>
+                            <h3 className="font-bold text-xs text-slate-800 truncate">
+                              {cccName}
+                            </h3>
                           </div>
 
                           {/* Link Status Pill & Expand Chevron */}
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
                             {cccCode === "SYSTEM" ? (
-                              <Badge variant="outline" className="bg-slate-900 border-slate-700 text-slate-400 text-[10px]">
+                              <Badge variant="outline" className="bg-slate-50 border-slate-200 text-slate-500 text-[9px] px-1.5 py-0">
                                 Global
                               </Badge>
                             ) : tenant?.spreadsheetId ? (
@@ -1076,58 +983,50 @@ export function SuperuserDashboard() {
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={e => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 transition-colors cursor-pointer"
-                                title="Open Tenant Google Sheet"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors"
                               >
-                                <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
                                 <span>Sheet</span>
-                                <ExternalLink className="h-2.5 w-2.5 text-emerald-400/80" />
                               </a>
                             ) : (
-                              <Badge variant="outline" className="bg-amber-500/15 border-amber-500/30 text-amber-400 text-[10px] font-semibold flex items-center gap-1">
-                                <Unlink className="h-3 w-3" />
+                              <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[9px] px-1.5 py-0 font-medium">
                                 Unlinked
                               </Badge>
                             )}
 
                             {/* Chevron Toggle Button */}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg shrink-0"
-                              title={isExpanded ? "Collapse Details" : "Expand Details"}
-                            >
-                              {isExpanded ? <ChevronUp className="h-4 w-4 text-blue-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
-                            </Button>
+                            <div className="p-1 text-slate-400 rounded hover:bg-slate-100">
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-blue-600" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Top Summary Metrics Row (Always Visible) */}
+                        {/* Summary Metrics Row */}
                         <div 
                           onClick={() => toggleCccExpand(cccCode)}
-                          className="grid grid-cols-4 gap-1.5 text-center cursor-pointer"
+                          className="grid grid-cols-4 gap-1 text-center cursor-pointer"
                         >
-                          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
-                            <div className="text-[9px] text-slate-400 font-medium">DC Rows</div>
-                            <div className="text-xs font-mono font-bold text-rose-400 mt-0.5">
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg py-1 px-0.5">
+                            <div className="text-[9px] text-slate-500">DC Rows</div>
+                            <div className="text-[11px] font-mono font-bold text-rose-600">
                               {(tenantStat.dcCount || 0).toLocaleString()}
                             </div>
                           </div>
-                          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
-                            <div className="text-[9px] text-slate-400 font-medium">Zone Maps</div>
-                            <div className="text-xs font-mono font-bold text-cyan-400 mt-0.5">
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg py-1 px-0.5">
+                            <div className="text-[9px] text-slate-500">Maps</div>
+                            <div className="text-[11px] font-mono font-bold text-cyan-600">
                               {(tenantStat.zoneCount || 0).toLocaleString()}
                             </div>
                           </div>
-                          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
-                            <div className="text-[9px] text-slate-400 font-medium">Agencies</div>
-                            <div className="text-xs font-mono font-bold text-amber-400 mt-0.5">
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg py-1 px-0.5">
+                            <div className="text-[9px] text-slate-500">Agencies</div>
+                            <div className="text-[11px] font-mono font-bold text-amber-600">
                               {cccAgencies.length}
                             </div>
                           </div>
-                          <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-1.5">
-                            <div className="text-[9px] text-slate-400 font-medium">Users</div>
-                            <div className="text-xs font-mono font-bold text-indigo-400 mt-0.5">
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg py-1 px-0.5">
+                            <div className="text-[9px] text-slate-500">Users</div>
+                            <div className="text-[11px] font-mono font-bold text-indigo-600">
                               {cccUsers.length}
                             </div>
                           </div>
@@ -1135,32 +1034,32 @@ export function SuperuserDashboard() {
 
                         {/* EXPANDABLE INTERNAL DETAILS (Agencies & Users) */}
                         {isExpanded && (
-                          <div className="space-y-3 pt-2 border-t border-slate-800/80 animate-in fade-in-50 duration-200">
+                          <div className="space-y-2.5 pt-2 border-t border-slate-100">
                             {/* Agencies Section */}
                             <div className="space-y-1">
-                              <div className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                                <Layers className="h-3 w-3 text-amber-400" />
-                                <span>Created Agencies ({cccAgencies.length})</span>
+                              <div className="text-[10px] font-semibold text-slate-600 flex items-center gap-1">
+                                <Layers className="h-3 w-3 text-amber-600" />
+                                <span>Agencies ({cccAgencies.length})</span>
                               </div>
                               {cccAgencies.length > 0 ? (
-                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                <div className="flex items-center gap-1 flex-wrap">
                                   {cccAgencies.map(a => (
-                                    <span key={a} className="text-[10px] font-mono bg-slate-950 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-md font-semibold">
+                                    <span key={a} className="text-[9px] font-mono bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded font-semibold">
                                       {a}
                                     </span>
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-[10px] text-slate-500 italic">No agencies created for this CCC</p>
+                                <p className="text-[9px] text-slate-400 italic">No agencies configured</p>
                               )}
                             </div>
 
                             {/* Users & Credential List */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold px-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <Users className="h-3 w-3 text-indigo-400" />
-                                  <span>User Access & Passwords ({cccUsers.length})</span>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-[10px] text-slate-600 font-semibold">
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-3 w-3 text-indigo-600" />
+                                  <span>User Accounts ({cccUsers.length})</span>
                                 </div>
                                 <Button
                                   size="sm"
@@ -1169,38 +1068,37 @@ export function SuperuserDashboard() {
                                     setNewUser(prev => ({ ...prev, cccCode }))
                                     setShowAddUserModal(true)
                                   }}
-                                  className="h-5 px-1.5 text-[10px] text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10"
+                                  className="h-5 px-1.5 text-[9px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
                                 >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add User
+                                  <Plus className="h-2.5 w-2.5 mr-0.5" />
+                                  Add
                                 </Button>
                               </div>
 
                               {cccUsers.length === 0 ? (
-                                <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 text-center text-amber-500/80 text-[11px] italic flex items-center justify-center gap-1.5">
-                                  <AlertCircle className="h-3.5 w-3.5" />
-                                  No user credentials created yet
+                                <div className="bg-slate-50 border border-slate-100 rounded-md p-2 text-center text-amber-700 text-[10px] italic">
+                                  No accounts created
                                 </div>
                               ) : (
-                                <div className="space-y-1.5">
+                                <div className="space-y-1">
                                   {cccUsers.map(u => {
                                     const isPassVisible = showAllPasswords || visiblePasswords[u.id]
 
                                     return (
                                       <div
                                         key={`${u.id}-${u.username}`}
-                                        className="bg-slate-950/90 border border-slate-800/90 rounded-lg p-2.5 flex items-center justify-between gap-2 text-xs shadow-inner"
+                                        className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 flex items-center justify-between gap-2 text-xs"
                                       >
-                                        <div className="space-y-1 min-w-0 flex-1">
+                                        <div className="space-y-0.5 min-w-0 flex-1">
                                           <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-bold text-slate-200 truncate">{u.name || u.username}</span>
+                                            <span className="font-semibold text-slate-800 text-xs truncate">{u.name || u.username}</span>
                                             <Badge
-                                              className={`text-[9px] uppercase font-semibold h-4 px-1.5 ${
+                                              className={`text-[8px] uppercase font-semibold px-1 py-0 ${
                                                 u.role === "superuser"
-                                                  ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                                                  ? "bg-purple-50 text-purple-700 border-purple-200"
                                                   : u.role === "admin"
-                                                  ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                                  : "bg-slate-800 text-slate-300 border-slate-700"
+                                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                  : "bg-slate-100 text-slate-700 border-slate-200"
                                               }`}
                                               variant="outline"
                                             >
@@ -1208,48 +1106,42 @@ export function SuperuserDashboard() {
                                             </Badge>
                                           </div>
 
-                                          <div className="flex items-center gap-2.5 font-mono text-[11px] text-slate-400 flex-wrap">
-                                            <div>
-                                              <span className="text-slate-500 text-[10px]">ID:</span>{" "}
-                                              <span className="text-blue-300 font-semibold">{u.username}</span>
-                                            </div>
+                                          <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500 flex-wrap">
+                                            <span className="text-slate-700">{u.username}</span>
+                                            <span>•</span>
                                             <div className="flex items-center gap-1">
-                                              <span className="text-slate-500 text-[10px]">PASS:</span>{" "}
-                                              <span className="text-emerald-300 font-semibold bg-slate-900 px-1 py-0.2 rounded border border-slate-800">
-                                                {isPassVisible ? (u.password || "N/A") : "••••••••"}
+                                              <span className="text-emerald-700 font-semibold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                                {isPassVisible ? (u.password || "N/A") : "••••••"}
                                               </span>
                                               <button
                                                 type="button"
                                                 onClick={() => togglePasswordVisibility(u.id)}
-                                                className="text-slate-400 hover:text-slate-200 p-0.5 cursor-pointer"
-                                                title={isPassVisible ? "Hide Password" : "Show Password"}
+                                                className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                                               >
-                                                {isPassVisible ? <EyeOff className="h-3 w-3 text-amber-400" /> : <Eye className="h-3 w-3 text-blue-400" />}
+                                                {isPassVisible ? <EyeOff className="h-2.5 w-2.5 text-amber-600" /> : <Eye className="h-2.5 w-2.5 text-blue-600" />}
                                               </button>
                                             </div>
                                           </div>
                                         </div>
 
-                                        {/* Edit & Delete Action Buttons */}
+                                        {/* Actions */}
                                         {u.role !== "superuser" && (
-                                          <div className="flex items-center gap-1 shrink-0">
+                                          <div className="flex items-center gap-0.5 shrink-0">
                                             <Button
                                               variant="ghost"
                                               size="icon"
                                               onClick={() => startEditUser(u)}
-                                              className="h-7 w-7 text-blue-400 hover:text-blue-200 hover:bg-blue-500/15"
-                                              title="Edit User"
+                                              className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                                             >
-                                              <Pencil className="h-3.5 w-3.5" />
+                                              <Pencil className="h-3 w-3" />
                                             </Button>
                                             <Button
                                               variant="ghost"
                                               size="icon"
                                               onClick={() => handleDeleteUser(u.id, u.username)}
-                                              className="h-7 w-7 text-red-400 hover:text-red-200 hover:bg-red-500/15"
-                                              title="Delete User"
+                                              className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50"
                                             >
-                                              <Trash2 className="h-3.5 w-3.5" />
+                                              <Trash2 className="h-3 w-3" />
                                             </Button>
                                           </div>
                                         )}
@@ -1266,30 +1158,30 @@ export function SuperuserDashboard() {
                   })}
                 </div>
 
-                {/* 2. DESKTOP COLLAPSIBLE TABLE VIEW (Visible on tablet & desktop) */}
+                {/* 2. DESKTOP COLLAPSIBLE TABLE VIEW (Clean iOS white table) */}
                 <div className="hidden lg:block overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-slate-950/80 border-b border-slate-800">
-                      <TableRow className="border-slate-800 hover:bg-transparent">
-                        <TableHead className="w-[180px] text-slate-400 font-bold text-xs uppercase tracking-wider">
+                    <TableHeader className="bg-slate-50/80 border-b border-slate-200">
+                      <TableRow className="border-slate-200 hover:bg-transparent">
+                        <TableHead className="w-[180px] text-slate-600 font-bold text-xs uppercase tracking-wider">
                           Supply (CCC Code)
                         </TableHead>
-                        <TableHead className="w-[160px] text-slate-400 font-bold text-xs uppercase tracking-wider">
+                        <TableHead className="w-[160px] text-slate-600 font-bold text-xs uppercase tracking-wider">
                           Linked Connection
                         </TableHead>
-                        <TableHead className="w-[160px] text-slate-400 font-bold text-xs uppercase tracking-wider">
+                        <TableHead className="w-[160px] text-slate-600 font-bold text-xs uppercase tracking-wider">
                           Agencies Created
                         </TableHead>
-                        <TableHead className="text-slate-400 font-bold text-xs uppercase tracking-wider">
+                        <TableHead className="text-slate-600 font-bold text-xs uppercase tracking-wider">
                           Users & Credentials (ID & Pass)
                         </TableHead>
-                        <TableHead className="w-[100px] text-slate-400 font-bold text-xs uppercase tracking-wider text-right">
+                        <TableHead className="w-[100px] text-slate-600 font-bold text-xs uppercase tracking-wider text-right">
                           DC Rows
                         </TableHead>
-                        <TableHead className="w-[100px] text-slate-400 font-bold text-xs uppercase tracking-wider text-right">
+                        <TableHead className="w-[100px] text-slate-600 font-bold text-xs uppercase tracking-wider text-right">
                           Zone Maps
                         </TableHead>
-                        <TableHead className="w-[70px] text-slate-400 font-bold text-xs uppercase tracking-wider text-center">
+                        <TableHead className="w-[70px] text-slate-600 font-bold text-xs uppercase tracking-wider text-center">
                           View
                         </TableHead>
                       </TableRow>
@@ -1306,17 +1198,17 @@ export function SuperuserDashboard() {
                         return (
                           <TableRow 
                             key={cccCode} 
-                            className={`border-slate-800/80 transition-colors ${isExpanded ? "bg-slate-900/50" : "hover:bg-slate-800/25"}`}
+                            className={`border-slate-100 transition-colors ${isExpanded ? "bg-slate-50/70" : "hover:bg-slate-50/40"}`}
                           >
                             {/* 1. Supply Code & Name */}
                             <TableCell className="align-top py-3.5">
                               <div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-mono font-black text-sm text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                                  <span className="font-mono font-bold text-sm text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                                     {cccCode}
                                   </span>
                                 </div>
-                                <div className="font-semibold text-xs text-slate-200 mt-1.5 leading-snug">
+                                <div className="font-semibold text-xs text-slate-800 mt-1.5 leading-snug">
                                   {cccName}
                                 </div>
                                 <Button
@@ -1326,7 +1218,7 @@ export function SuperuserDashboard() {
                                     setNewUser(prev => ({ ...prev, cccCode }))
                                     setShowAddUserModal(true)
                                   }}
-                                  className="text-[10px] h-5 px-1.5 mt-2 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10"
+                                  className="text-[10px] h-5 px-1.5 mt-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
                                 >
                                   <Plus className="h-3 w-3 mr-1" />
                                   Add User
@@ -1337,20 +1229,20 @@ export function SuperuserDashboard() {
                             {/* 2. Linked Supply Status & Connection */}
                             <TableCell className="align-top py-3.5">
                               {cccCode === "SYSTEM" ? (
-                                <Badge variant="outline" className="bg-slate-900 border-slate-700 text-slate-400 text-[10px]">
+                                <Badge variant="outline" className="bg-slate-100 border-slate-200 text-slate-600 text-[10px]">
                                   Global System
                                 </Badge>
                               ) : tenant?.spreadsheetId ? (
                                 <div className="space-y-1.5">
-                                  <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-[10px] font-semibold flex items-center w-fit gap-1">
-                                    <CheckCircle2 className="h-3 w-3" />
+                                  <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700 text-[10px] font-semibold flex items-center w-fit gap-1">
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                                     Linked
                                   </Badge>
                                   <a
                                     href={`https://docs.google.com/spreadsheets/d/${tenant.spreadsheetId}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-[11px] text-blue-400 hover:underline flex items-center gap-1 font-mono break-all leading-tight"
+                                    className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-mono break-all leading-tight"
                                   >
                                     {tenant.spreadsheetId.substring(0, 14)}...
                                     <ExternalLink className="h-3 w-3 flex-shrink-0" />
@@ -1358,11 +1250,11 @@ export function SuperuserDashboard() {
                                 </div>
                               ) : (
                                 <div className="space-y-1">
-                                  <Badge variant="outline" className="bg-amber-500/10 border-amber-500/20 text-amber-400 text-[10px] font-semibold flex items-center w-fit gap-1">
+                                  <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-700 text-[10px] font-semibold flex items-center w-fit gap-1">
                                     <Unlink className="h-3 w-3" />
                                     Pending Link
                                   </Badge>
-                                  <p className="text-[10px] text-slate-500 italic">No spreadsheet connected</p>
+                                  <p className="text-[10px] text-slate-400 italic">No sheet connected</p>
                                 </div>
                               )}
                             </TableCell>
@@ -1370,19 +1262,19 @@ export function SuperuserDashboard() {
                             {/* 3. Created Agencies & Count */}
                             <TableCell className="align-top py-3.5">
                               <div>
-                                <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold mb-1.5">
+                                <Badge className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold mb-1.5">
                                   {cccAgencies.length} {cccAgencies.length === 1 ? "Agency" : "Agencies"}
                                 </Badge>
                                 {cccAgencies.length > 0 ? (
                                   <div className="flex flex-wrap gap-1">
                                     {cccAgencies.map(a => (
-                                      <span key={a} className="text-[10px] font-mono bg-slate-900 border border-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                                      <span key={a} className="text-[10px] font-mono bg-slate-100 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
                                         {a}
                                       </span>
                                     ))}
                                   </div>
                                 ) : (
-                                  <span className="text-xs text-slate-600 italic block">No agencies created</span>
+                                  <span className="text-xs text-slate-400 italic block">No agencies created</span>
                                 )}
                               </div>
                             </TableCell>
@@ -1390,7 +1282,7 @@ export function SuperuserDashboard() {
                             {/* 4. Supply Users (with ID & Pass & Role) */}
                             <TableCell className="align-top py-3.5">
                               {cccUsers.length === 0 ? (
-                                <span className="text-xs text-amber-500/90 italic flex items-center gap-1">
+                                <span className="text-xs text-amber-700 italic flex items-center gap-1">
                                   <AlertCircle className="h-3.5 w-3.5" />
                                   No users created yet
                                 </span>
@@ -1401,75 +1293,61 @@ export function SuperuserDashboard() {
 
                                     return (
                                       <div
-                                        key={`${u.id}-${u.username}`}
-                                        className="bg-slate-950/70 border border-slate-800/80 rounded-lg p-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs"
+                                        key={u.id}
+                                        className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 flex items-center justify-between gap-2"
                                       >
-                                        {/* User details */}
-                                        <div className="space-y-0.5">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-bold text-slate-200">{u.name || u.username}</span>
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-bold text-xs text-slate-800">{u.name || u.username}</span>
                                             <Badge
                                               className={`text-[9px] uppercase font-semibold h-4 px-1.5 ${
                                                 u.role === "superuser"
-                                                  ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                                                  ? "bg-purple-50 text-purple-700 border-purple-200"
                                                   : u.role === "admin"
-                                                  ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                                  : "bg-slate-800 text-slate-300 border-slate-700"
+                                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                                  : "bg-slate-100 text-slate-700 border-slate-200"
                                               }`}
                                               variant="outline"
                                             >
                                               {u.role}
                                             </Badge>
                                           </div>
-
-                                          {/* Username & Password */}
-                                          <div className="flex items-center gap-3 font-mono text-[11px] text-slate-400 pt-0.5">
-                                            <div>
-                                              <span className="text-slate-500 text-[10px]">ID:</span>{" "}
-                                              <span className="text-blue-300 font-semibold">{u.username}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                              <span className="text-slate-500 text-[10px]">PASS:</span>{" "}
-                                              <span className="text-emerald-300 font-semibold bg-slate-900 px-1 py-0.2 rounded border border-slate-800">
-                                                {isPassVisible ? (u.password || "N/A") : "••••••••"}
-                                              </span>
+                                          <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500">
+                                            <span>ID: <b className="text-slate-800">{u.username}</b></span>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1">
+                                              PASS: <b className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">{isPassVisible ? (u.password || "N/A") : "••••••••"}</b>
                                               <button
                                                 type="button"
                                                 onClick={() => togglePasswordVisibility(u.id)}
-                                                className="text-slate-500 hover:text-slate-200 ml-0.5 p-0.5 cursor-pointer"
-                                                title={isPassVisible ? "Hide Password" : "Show Password"}
+                                                className="text-slate-400 hover:text-slate-600 cursor-pointer"
                                               >
-                                                {isPassVisible ? <EyeOff className="h-3 w-3 text-amber-400" /> : <Eye className="h-3 w-3 text-blue-400" />}
+                                                {isPassVisible ? <EyeOff className="h-3 w-3 text-amber-600" /> : <Eye className="h-3 w-3 text-blue-600" />}
                                               </button>
-                                            </div>
+                                            </span>
                                           </div>
                                         </div>
 
-                                        {/* Action buttons */}
-                                        <div className="flex items-center gap-1 self-end sm:self-center">
-                                          {u.role !== "superuser" && (
-                                            <>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => startEditUser(u)}
-                                                className="h-6 w-6 text-blue-400 hover:text-blue-200 hover:bg-blue-500/10"
-                                                title="Edit User"
-                                              >
-                                                <Pencil className="h-3 w-3" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDeleteUser(u.id, u.username)}
-                                                className="h-6 w-6 text-red-400 hover:text-red-200 hover:bg-red-500/10"
-                                                title="Delete User"
-                                              >
-                                                <Trash2 className="h-3 w-3" />
-                                              </Button>
-                                            </>
-                                          )}
-                                        </div>
+                                        {u.role !== "superuser" && (
+                                          <div className="flex items-center gap-1">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => startEditUser(u)}
+                                              className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                            >
+                                              <Pencil className="h-3 w-3" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleDeleteUser(u.id, u.username)}
+                                              className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        )}
                                       </div>
                                     )
                                   })}
@@ -1477,30 +1355,25 @@ export function SuperuserDashboard() {
                               )}
                             </TableCell>
 
-                            {/* 5. DC Row Count */}
-                            <TableCell className="align-top py-3.5 text-right font-mono">
-                              <Badge variant="outline" className="bg-slate-900 border-slate-800 text-rose-300 font-bold text-xs">
-                                {(tenantStat.dcCount || 0).toLocaleString()}
-                              </Badge>
+                            {/* 5. DC Rows */}
+                            <TableCell className="align-top py-3.5 text-right font-mono font-bold text-xs text-rose-600">
+                              {(tenantStat.dcCount || 0).toLocaleString()}
                             </TableCell>
 
-                            {/* 6. Zone Map Count */}
-                            <TableCell className="align-top py-3.5 text-right font-mono">
-                              <Badge variant="outline" className="bg-slate-900 border-slate-800 text-cyan-300 font-bold text-xs">
-                                {(tenantStat.zoneCount || 0).toLocaleString()}
-                              </Badge>
+                            {/* 6. Zone Maps */}
+                            <TableCell className="align-top py-3.5 text-right font-mono font-bold text-xs text-cyan-600">
+                              {(tenantStat.zoneCount || 0).toLocaleString()}
                             </TableCell>
 
-                            {/* 7. Collapsible Details Toggle Button */}
+                            {/* 7. View Toggle */}
                             <TableCell className="align-top py-3.5 text-center">
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => toggleCccExpand(cccCode)}
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer"
-                                title={isExpanded ? "Collapse CCC Details" : "Expand CCC Details"}
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
                               >
-                                {isExpanded ? <ChevronUp className="h-4 w-4 text-blue-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                {isExpanded ? <ChevronUp className="h-4 w-4 text-blue-600" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1789,6 +1662,17 @@ export function SuperuserDashboard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Broadcast Push Alert Modal */}
+      <BroadcastPushModal
+        isOpen={showBroadcastModal}
+        onClose={() => setShowBroadcastModal(false)}
+        isSuperuser={true}
+        tenants={tenants}
+      />
+
+      {/* Push Notification Permission Manager */}
+      <PushNotificationManager />
     </div>
   )
 }

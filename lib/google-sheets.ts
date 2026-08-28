@@ -4,7 +4,7 @@ import * as path from "path"
 import * as os from "os"
 import { sanitizeDisconDate } from "./date-utils"
 
-// Tag used to invalidate the shared Data Cache after any consumer write.
+// Web Push Helper
 export const CONSUMERS_TAG = "consumers"
 
 export interface ConsumerData {

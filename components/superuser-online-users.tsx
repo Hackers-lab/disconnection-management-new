@@ -96,13 +96,13 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date())
   const [clientNow, setClientNow] = useState<number>(Date.now())
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedOffice, setSelectedOffice] = useState<string>("all")
   const [selectedRole, setSelectedRole] = useState<string>("all")
-  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "idle">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "offline">("all")
 
-  // Fetch online users data
+  const [showStatsDrawer, setShowStatsDrawer] = useState(false)
+
   const fetchData = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true)
     else if (!report) setLoading(true)
@@ -125,12 +125,10 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
     }
   }, [report])
 
-  // Initial load
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // Real-time ticking clock for relative seconds (every 2.5s)
   useEffect(() => {
     const timer = setInterval(() => {
       setClientNow(Date.now())
@@ -138,118 +136,95 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
     return () => clearInterval(timer)
   }, [])
 
-  // Auto-refresh interval (every 30 seconds while tab is active)
   useEffect(() => {
     if (!autoRefresh) return
     const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchData(false)
-      }
-    }, 30_000)
+      fetchData(false)
+    }, 30000)
     return () => clearInterval(interval)
   }, [autoRefresh, fetchData])
 
-  // Unique list of active offices from stats
-  const activeOfficesList = useMemo(() => {
+  const activeOfficesList: OfficeOnlineSummary[] = useMemo(() => {
     if (!report?.officeStats) return []
-    return Object.values(report.officeStats).filter(o => o.onlineCount > 0)
+    return Object.values(report.officeStats).sort((a, b) => b.onlineCount - a.onlineCount)
   }, [report?.officeStats])
 
-  // Filtered users list
-  const filteredUsers = useMemo(() => {
+  const filteredUsers: ActiveUserInfo[] = useMemo(() => {
     if (!report?.onlineUsers) return []
-
-    return report.onlineUsers.filter(user => {
-      // 1. Status filter
-      if (statusFilter === "live" && !user.isLive) return false
-      if (statusFilter === "idle" && user.isLive) return false
-
-      // 2. Role filter
-      if (selectedRole !== "all" && user.role.toLowerCase() !== selectedRole.toLowerCase()) {
-        return false
-      }
-
-      // 3. Office filter
-      if (selectedOffice !== "all" && user.cccCode.toUpperCase() !== selectedOffice.toUpperCase()) {
-        return false
-      }
-
-      // 4. Search query
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase().trim()
-        const matchName = (user.name || "").toLowerCase().includes(query)
-        const matchUsername = (user.username || "").toLowerCase().includes(query)
-        const matchCcc = (user.cccCode || "").toLowerCase().includes(query)
-        const matchCccName = (user.cccName || "").toLowerCase().includes(query)
-        const matchAction = (user.lastAction || "").toLowerCase().includes(query)
-        const matchModule = (user.activeModule || "").toLowerCase().includes(query)
-        const matchAgencies = (user.agencies || []).some(a => a.toLowerCase().includes(query))
-        if (!matchName && !matchUsername && !matchCcc && !matchCccName && !matchAction && !matchModule && !matchAgencies) {
+    return report.onlineUsers.filter(u => {
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase()
+        const matchName = (u.name || "").toLowerCase().includes(term)
+        const matchUser = u.username.toLowerCase().includes(term)
+        const matchCcc = (u.cccCode || "").toLowerCase().includes(term)
+        const matchRole = (u.role || "").toLowerCase().includes(term)
+        const matchAction = (u.lastAction || "").toLowerCase().includes(term)
+        const matchAgency = (u.agencies || []).some(a => a.toLowerCase().includes(term))
+        if (!matchName && !matchUser && !matchCcc && !matchRole && !matchAction && !matchAgency) {
           return false
         }
       }
 
+      if (selectedOffice !== "all" && u.cccCode !== selectedOffice) {
+        return false
+      }
+
+      if (selectedRole !== "all" && u.role?.toLowerCase() !== selectedRole.toLowerCase()) {
+        return false
+      }
+
+      if (statusFilter === "live" && !u.isLive) {
+        return false
+      }
+      if (statusFilter === "offline" && u.isLive) {
+        return false
+      }
+
       return true
     })
-  }, [report?.onlineUsers, statusFilter, selectedRole, selectedOffice, searchTerm])
+  }, [report?.onlineUsers, searchTerm, selectedOffice, selectedRole, statusFilter])
 
-  // Export to Excel
   const handleExportExcel = async () => {
-    if (!report) return
+    if (!report?.onlineUsers || report.onlineUsers.length === 0) {
+      alert("No active users to export.")
+      return
+    }
+
     try {
       const XLSX = await import("xlsx")
+      const rows = report.onlineUsers.map(u => ({
+        "User ID": u.userId,
+        Username: u.username,
+        Name: u.name || "-",
+        Role: u.role,
+        "CCC Code": u.cccCode || "-",
+        Agencies: (u.agencies || []).join(", ") || "-",
+        "Active Module": u.activeModule || "-",
+        "Last Action": u.lastAction || "-",
+        Device: u.deviceType || "-",
+        Browser: u.browserName || "-",
+        "Last Seen (Timestamp)": new Date(u.lastSeen).toLocaleString("en-IN"),
+        Status: u.isLive ? "Online" : "Offline",
+      }))
+
+      const ws = XLSX.utils.json_to_sheet(rows)
       const wb = XLSX.utils.book_new()
-
-      const headers = [
-        "Username",
-        "Name",
-        "Role",
-        "Care Center Code",
-        "Office Name",
-        "Assigned Agencies",
-        "Current Module",
-        "Last Action",
-        "Last Seen Time",
-        "Status",
-        "Device",
-        "Browser",
-        "IP Address",
-      ]
-
-      const rows = report.onlineUsers.map(u => [
-        u.username,
-        u.name,
-        u.role.toUpperCase(),
-        u.cccCode,
-        u.cccName || "N/A",
-        (u.agencies || []).join(", ") || "All / Full Access",
-        u.activeModule ? u.activeModule.toUpperCase() : "General",
-        u.lastAction || "Active",
-        formatTimeOnly(u.lastSeen),
-        u.isLive ? "Active Now (<1m)" : "Idle (1-3m)",
-        u.deviceType || "Desktop",
-        u.browserName || "Web Browser",
-        u.ip || "N/A",
-      ])
-
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
       ws["!cols"] = [
-        { wch: 18 },
-        { wch: 22 },
-        { wch: 14 },
+        { wch: 28 },
         { wch: 16 },
-        { wch: 26 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 12 },
         { wch: 24 },
         { wch: 16 },
-        { wch: 30 },
+        { wch: 26 },
+        { wch: 12 },
         { wch: 16 },
-        { wch: 18 },
-        { wch: 14 },
-        { wch: 20 },
-        { wch: 16 },
+        { wch: 22 },
+        { wch: 12 },
       ]
       XLSX.utils.book_append_sheet(wb, ws, "Online Users")
-      XLSX.writeFile(wb, `Online_Users_Activity_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      XLSX.writeFile(wb, `Online_Users_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`)
     } catch (e) {
       console.error("Export error:", e)
       alert("Failed to export online users.")
@@ -257,69 +232,61 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* ── HEADER BANNER ── */}
-      <div className="bg-slate-900/90 border border-slate-800 p-4 sm:p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-3.5">
-          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shrink-0 relative">
-            <Users className="h-6 w-6" />
-            <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
+    <div className="space-y-3">
+      {/* ── TOP ACTION BAR ── */}
+      <div className="bg-white border border-slate-200/90 p-2.5 sm:p-3 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 shrink-0">
+            <Users className="h-4 w-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base sm:text-lg font-bold text-slate-100">
-                Live Online Users & Office Activity
-              </h2>
-              <Badge
-                variant="outline"
-                className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono flex items-center gap-1.5"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live Real-Time
-              </Badge>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Real-time monitoring of connected personnel, active care center offices, and live updates.
-            </p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+              User Activity
+            </h2>
+            <Badge
+              variant="outline"
+              className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-mono px-1.5 py-0"
+            >
+              {report?.activeNowCount || 0} Online
+            </Badge>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <div className="flex items-center gap-2 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs text-slate-300">
-            <Radio className={`h-3 w-3 ${autoRefresh ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
-            <span className="text-[11px] font-medium hidden sm:inline">Auto-Sync (30s)</span>
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={e => setAutoRefresh(e.target.checked)}
-              className="h-3.5 w-3.5 rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-0 cursor-pointer"
-              title="Toggle 30-second automatic refresh"
-            />
-          </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowStatsDrawer(!showStatsDrawer)}
+            className={`h-7 text-xs px-2.5 shadow-2xs ${
+              showStatsDrawer
+                ? "bg-blue-50 border-blue-200 text-blue-700 font-semibold"
+                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+            }`}
+          >
+            <Activity className="h-3 w-3 mr-1 text-blue-600" />
+            <span className="hidden sm:inline">Stats</span>
+          </Button>
 
           <Button
             size="sm"
             variant="outline"
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-200 px-3 cursor-pointer"
+            className="h-7 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 shadow-2xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin text-emerald-400" : ""}`} />
-            <span>{refreshing ? "Syncing..." : "Refresh"}</span>
+            <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin text-emerald-600" : ""}`} />
+            <span className="hidden sm:inline ml-1">{refreshing ? "Syncing..." : "Refresh"}</span>
           </Button>
 
           <Button
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-8 text-xs border-emerald-700/60 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 px-3 cursor-pointer"
+            className="h-7 text-xs border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2 shadow-2xs"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
-            <span>Export Excel</span>
+            <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
+            <span className="hidden sm:inline ml-1">Export</span>
           </Button>
 
           {onBackToDashboard && (
@@ -327,7 +294,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
               size="sm"
               variant="ghost"
               onClick={onBackToDashboard}
-              className="h-8 text-xs text-slate-400 hover:text-slate-200 px-2.5"
+              className="h-7 text-xs text-slate-500 hover:text-slate-800 px-2"
             >
               Back
             </Button>
@@ -335,224 +302,115 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
         </div>
       </div>
 
-      {/* ── KPI STATS CARDS ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        {/* KPI 1: Total Online Users */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Total Online Users
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
-            {loading ? (
-              <div className="h-8 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div>
-                <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
+      {/* ── COLLAPSIBLE STATS DRAWER (Collapsed by Default) ── */}
+      {showStatsDrawer && (
+        <div className="bg-slate-50 border border-slate-200/90 p-2.5 sm:p-3 rounded-xl space-y-2.5 shadow-2xs animate-in fade-in duration-200">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+              Network Analytics & Office Breakdown
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowStatsDrawer(false)}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Card className="bg-white border-slate-200 shadow-2xs rounded-lg">
+              <CardContent className="p-2 text-center">
+                <div className="text-[10px] font-semibold text-slate-500">Total Registered</div>
+                <div className="text-lg font-bold text-slate-900 font-mono mt-0.5">
                   {report?.totalOnline || 0}
                 </div>
-                <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-mono">
-                  <span className="text-emerald-400 font-semibold">
-                    {report?.activeNowCount || 0} Active Now
-                  </span>
-                  <span>·</span>
-                  <span className="text-amber-400/90">
-                    {report?.idleCount || 0} Idle
-                  </span>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border-slate-200 shadow-2xs rounded-lg">
+              <CardContent className="p-2 text-center">
+                <div className="text-[10px] font-semibold text-slate-500">Active Offices</div>
+                <div className="text-lg font-bold text-blue-600 font-mono mt-0.5">
+                  {activeOfficesList.length}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* KPI 2: Active Offices */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Active Offices (CCCs)
-              <Building2 className="h-4 w-4 text-blue-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
-            {loading ? (
-              <div className="h-8 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div>
-                <div className="text-2xl sm:text-3xl font-black text-blue-400 font-mono">
-                  {report?.totalOfficesActive || 0}
+            <Card className="bg-white border-slate-200 shadow-2xs rounded-lg">
+              <CardContent className="p-2 text-center">
+                <div className="text-[10px] font-semibold text-slate-500">Online Now</div>
+                <div className="text-lg font-bold text-emerald-600 font-mono mt-0.5">
+                  {report?.activeNowCount || 0}
                 </div>
-                <p className="text-[10px] text-slate-400 font-mono mt-1">
-                  Care Centers with live users
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* KPI 3: Admin & Agency Breakdown */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Role Composition
-              <Shield className="h-4 w-4 text-purple-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
-            {loading ? (
-              <div className="h-8 w-20 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div className="space-y-1 mt-0.5">
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400">Admins:</span>
-                  <span className="font-bold text-blue-300">
-                    {(report?.roleStats?.["admin"] || 0) + (report?.roleStats?.["superuser"] || 0) + (report?.roleStats?.["executive"] || 0)}
-                  </span>
+            <Card className="bg-white border-slate-200 shadow-2xs rounded-lg">
+              <CardContent className="p-2 text-center">
+                <div className="text-[10px] font-semibold text-slate-500">Offline History</div>
+                <div className="text-lg font-bold text-slate-600 font-mono mt-0.5">
+                  {report?.idleCount || 0}
                 </div>
-                <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400">Agencies:</span>
-                  <span className="font-bold text-amber-300">
-                    {report?.roleStats?.["agency"] || 0}
-                  </span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* KPI 4: Active Modules Stream */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-md backdrop-blur">
-          <CardHeader className="p-3 sm:p-4 pb-1">
-            <CardTitle className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Pipeline Activity
-              <Activity className="h-4 w-4 text-cyan-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 sm:p-4 pt-0">
-            {loading ? (
-              <div className="h-8 w-20 bg-slate-800 animate-pulse rounded my-1" />
-            ) : Object.keys(report?.moduleStats || {}).length > 0 ? (
-              <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                {Object.entries(report?.moduleStats || {}).slice(0, 3).map(([mod, count]) => (
-                  <Badge
-                    key={mod}
-                    variant="outline"
-                    className={`text-[10px] font-mono uppercase px-1.5 py-0.5 ${getModuleBadgeColor(mod)}`}
-                  >
-                    {mod}: {count}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 italic my-1">No active modules yet</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── ACTIVE OFFICES PILLS / QUICK SELECTOR ── */}
-      {activeOfficesList.length > 0 && (
-        <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center gap-2 overflow-x-auto scrollbar-none">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
-            <Building2 className="h-3.5 w-3.5 text-blue-400" /> Active Offices:
-          </span>
-
-          <Button
-            size="sm"
-            variant={selectedOffice === "all" ? "default" : "outline"}
-            onClick={() => setSelectedOffice("all")}
-            className={`h-7 text-xs px-2.5 rounded-lg shrink-0 ${
-              selectedOffice === "all"
-                ? "bg-blue-600 text-white font-semibold"
-                : "border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800"
-            }`}
-          >
-            All Offices ({report?.totalOnline || 0})
-          </Button>
-
-          {activeOfficesList.map(off => (
-            <Button
-              key={off.cccCode}
-              size="sm"
-              variant={selectedOffice === off.cccCode ? "default" : "outline"}
-              onClick={() => setSelectedOffice(selectedOffice === off.cccCode ? "all" : off.cccCode)}
-              className={`h-7 text-xs px-2.5 rounded-lg shrink-0 flex items-center gap-1.5 ${
-                selectedOffice === off.cccCode
-                  ? "bg-emerald-600 text-white font-semibold shadow-sm shadow-emerald-600/30"
-                  : "border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800"
-              }`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-mono font-bold">{off.cccCode}</span>
-              <span className="text-slate-400 font-normal truncate max-w-[120px]">{off.cccName}</span>
-              <Badge variant="outline" className="ml-0.5 text-[9px] bg-slate-900 border-slate-700 text-emerald-300 px-1 py-0">
-                {off.onlineCount}
-              </Badge>
-            </Button>
-          ))}
+          {activeOfficesList.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">
+                Offices:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedOffice("all")}
+                className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0 ${
+                  selectedOffice === "all"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                All ({report?.totalOnline || 0})
+              </button>
+              {activeOfficesList.map(off => (
+                <button
+                  key={off.cccCode}
+                  type="button"
+                  onClick={() => setSelectedOffice(off.cccCode === selectedOffice ? "all" : off.cccCode)}
+                  className={`text-[10px] px-2 py-0.5 rounded font-mono shrink-0 flex items-center gap-1 ${
+                    selectedOffice === off.cccCode
+                      ? "bg-blue-600 text-white font-bold"
+                      : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <span>{off.cccCode}</span>
+                  <span className="opacity-75">({off.onlineCount})</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── FILTER & SEARCH BAR ── */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-900/80 p-3 sm:p-4 rounded-xl border border-slate-800 shadow-sm">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200/90 shadow-2xs">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
           <Input
-            placeholder="Search by user, office, role, action, agency..."
+            placeholder="Search user, office, role..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="pl-8 bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500 text-xs h-8.5 rounded-lg"
+            className="pl-8 bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 text-xs h-8 rounded-lg"
           />
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Status Filter Buttons */}
-          <div className="flex items-center border border-slate-700 rounded-lg p-0.5 bg-slate-950">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setStatusFilter("all")}
-              className={`h-6.5 px-2.5 text-[11px] rounded ${
-                statusFilter === "all" ? "bg-blue-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              All ({report?.totalOnline || 0})
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setStatusFilter("live")}
-              className={`h-6.5 px-2.5 text-[11px] rounded ${
-                statusFilter === "live" ? "bg-emerald-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
-              Live Now ({report?.activeNowCount || 0})
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setStatusFilter("idle")}
-              className={`h-6.5 px-2.5 text-[11px] rounded ${
-                statusFilter === "idle" ? "bg-amber-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Idle ({report?.idleCount || 0})
-            </Button>
-          </div>
-
-          {/* Role Filter */}
-          <select
-            value={selectedRole}
-            onChange={e => setSelectedRole(e.target.value)}
-            className="bg-slate-950 border border-slate-700 text-slate-200 text-xs h-7.5 px-2 rounded-lg outline-none cursor-pointer hover:border-slate-600"
-          >
+        <div className="flex items-center gap-1.5 shrink-0">
+           <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50">
+            <Button size="sm" variant="ghost" onClick={() => setStatusFilter("all")} className={`h-6 px-2 text-[11px] rounded ${statusFilter === "all" ? "bg-slate-700 text-white" : "text-slate-600"}`}>All</Button>
+            <Button size="sm" variant="ghost" onClick={() => setStatusFilter("live")} className={`h-6 px-2 text-[11px] rounded ${statusFilter === "live" ? "bg-emerald-600 text-white" : "text-slate-600"}`}>Live</Button>
+            <Button size="sm" variant="ghost" onClick={() => setStatusFilter("offline")} className={`h-6 px-2 text-[11px] rounded ${statusFilter === "offline" ? "bg-slate-400 text-white" : "text-slate-600"}`}>Offline</Button>
+           </div>
+           <select value={selectedRole} onChange={e => setSelectedRole(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-800 text-xs h-7 px-2 rounded-lg outline-none cursor-pointer">
             <option value="all">All Roles</option>
             <option value="admin">Admin</option>
             <option value="agency">Agency</option>
@@ -562,166 +420,121 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
         </div>
       </div>
 
-      {/* ── ONLINE USERS TABLE ── */}
-      <Card className="bg-slate-900/70 border-slate-800 overflow-hidden shadow-2xl rounded-2xl">
-        <CardHeader className="py-3 px-4 sm:px-6 border-b border-slate-800/80 bg-slate-900/90 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-xs sm:text-sm font-bold text-slate-100 flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-emerald-400" />
-              Active Online Personnel List
-            </CardTitle>
-            <CardDescription className="text-[11px] text-slate-400 mt-0.5">
-              Showing {filteredUsers.length} user{filteredUsers.length !== 1 ? "s" : ""} currently connected.
-            </CardDescription>
-          </div>
+      {/* ── USER ACTIVITY LIST ── */}
+      <Card className="bg-white border-slate-200/90 shadow-sm rounded-xl overflow-hidden">
+        <CardHeader className="py-2.5 px-3 sm:px-4 border-b border-slate-100 bg-slate-50/70 flex flex-row items-center justify-between">
+          <CardTitle className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-emerald-600" />
+            Personnel Activity ({filteredUsers.length})
+          </CardTitle>
           <span className="text-[10px] text-slate-400 font-mono">
-            Checked: {lastRefreshedAt.toLocaleTimeString("en-IN")}
+            {lastRefreshedAt.toLocaleTimeString("en-IN")}
           </span>
         </CardHeader>
 
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center">
-              <RefreshCw className="h-6 w-6 animate-spin text-emerald-400 mx-auto mb-2" />
-              <p className="text-xs text-slate-400">Scanning online users across all care centers...</p>
+              <RefreshCw className="h-5 w-5 animate-spin text-emerald-600 mx-auto mb-2" />
+              <p className="text-xs text-slate-400">Loading user registry...</p>
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="p-8 sm:p-12 text-center">
-              <Users className="h-10 w-10 text-slate-600 mx-auto mb-2" />
-              <h3 className="text-sm font-semibold text-slate-300">No online users found</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                {report?.totalOnline === 0
-                  ? "There are currently no authenticated users connected to any care center."
-                  : "No connected users match your active search and filter criteria."}
-              </p>
+            <div className="p-8 text-center">
+              <Users className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <h3 className="text-xs font-semibold text-slate-700">No personnel found</h3>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse min-w-[850px]">
-              <thead className="bg-slate-950/90 border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400 font-bold sticky top-0 z-20">
-                <tr>
-                  <th className="py-3 px-4 min-w-[220px]">User & Role</th>
-                  <th className="py-3 px-3.5 min-w-[180px]">Care Center / Office</th>
-                  <th className="py-3 px-3.5 min-w-[240px]">Current Activity & Module</th>
-                  <th className="py-3 px-3 min-w-[140px]">Device & Client</th>
-                  <th className="py-3 px-3 text-right min-w-[130px]">Last Active</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-800/60 text-xs">
-                {filteredUsers.map(user => {
-                  return (
-                    <tr key={user.userId} className="hover:bg-slate-800/40 transition-colors group">
-                      {/* 1. User & Role */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="relative">
-                            <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200 uppercase">
-                              {(user.name || user.username || "U").slice(0, 2)}
-                            </div>
-                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-                              {user.isLive && (
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                              )}
-                              <span
-                                className={`relative inline-flex rounded-full h-3 w-3 border-2 border-slate-950 ${
-                                  user.isLive ? "bg-emerald-500" : "bg-amber-500"
-                                }`}
-                              />
-                            </span>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-100 text-xs">
-                                {user.name || user.username}
-                              </span>
-                              <Badge
-                                variant="outline"
-                                className={`text-[9px] uppercase px-1.5 py-0 ${getRoleBadgeColor(user.role)}`}
-                              >
-                                {user.role}
-                              </Badge>
-                            </div>
-                            <div className="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
-                              <span>@{user.username}</span>
-                              {user.agencies && user.agencies.length > 0 && (
-                                <span className="text-slate-500 truncate max-w-[140px]" title={user.agencies.join(", ")}>
-                                  · {user.agencies.join(", ")}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+            <div className="divide-y divide-slate-100">
+              {filteredUsers.map(user => {
+                return (
+                  <div
+                    key={user.userId}
+                    className="p-3 sm:px-4 sm:py-3 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                      <div className="relative shrink-0 mt-0.5 sm:mt-0">
+                        <div className="h-8 w-8 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center font-bold text-[11px] text-blue-700 uppercase">
+                          {(user.name || user.username || "U").slice(0, 2)}
                         </div>
-                      </td>
+                        <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                          {user.isLive && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          )}
+                          <span
+                            className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-white ${
+                              user.isLive ? "bg-emerald-500" : "bg-slate-400"
+                            }`}
+                          />
+                        </span>
+                      </div>
 
-                      {/* 2. Care Center / Office */}
-                      <td className="py-3 px-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
-                            {user.cccCode}
-                          </span>
-                          <span className="font-semibold text-slate-200 text-xs truncate max-w-[140px]" title={user.cccName}>
-                            {user.cccName}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* 3. Current Activity & Module */}
-                      <td className="py-3 px-3.5">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-800 text-xs truncate">
+                            {user.name || user.username}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            @{user.username}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[8px] uppercase px-1 py-0 ${
+                              user.role === "superuser"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : user.role === "admin"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-slate-100 text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            {user.role}
+                          </Badge>
+                          <span className="font-mono font-bold text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                            {user.cccCode || "SYSTEM"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-600 flex-wrap">
                           {user.activeModule && (
                             <Badge
                               variant="outline"
-                              className={`text-[10px] font-mono uppercase px-1.5 py-0 ${getModuleBadgeColor(user.activeModule)}`}
+                              className="text-[9px] uppercase px-1 py-0 bg-blue-50 border-blue-200 text-blue-700"
                             >
                               {user.activeModule}
                             </Badge>
                           )}
-                          <span className="text-slate-300 text-xs font-medium">
-                            {user.lastAction || "Browsing system"}
+                          <span className="truncate max-w-[200px] text-slate-500">
+                            {user.lastAction || "Active in session"}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-slate-400 text-[10px]">
+                            {user.browserName || user.deviceType || "Web Browser"}
                           </span>
                         </div>
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* 4. Device & Client */}
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                          {user.deviceType === "Mobile" ? (
-                            <Smartphone className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                          ) : user.deviceType === "Tablet" ? (
-                            <Tablet className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-                          ) : (
-                            <Laptop className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                          )}
-                          <span className="truncate max-w-[120px]" title={user.browserName}>
-                            {user.browserName || "Desktop"}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* 5. Last Active */}
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex flex-col items-end">
-                          <div className="flex items-center gap-1 font-mono font-bold text-xs">
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${
-                                user.isLive ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
-                              }`}
-                            />
-                            <span className={user.isLive ? "text-emerald-300" : "text-amber-300"}>
-                              {formatRelativeSeconds(user.lastSeen, clientNow)}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 font-mono mt-0.5">
-                            {formatTimeOnly(user.lastSeen)}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                    <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:items-end gap-1 shrink-0 pl-10 sm:pl-0 border-t border-slate-50 sm:border-0 pt-1 sm:pt-0">
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] font-mono px-1.5 py-0 ${
+                          user.isLive
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold"
+                            : "bg-slate-100 text-slate-500 border-slate-200"
+                        }`}
+                      >
+                        {user.isLive ? "Online" : "Offline"}
+                      </Badge>
+                      <div className="flex items-center gap-1 font-mono text-[10px] text-slate-400">
+                        <span className="font-semibold text-slate-600">
+                          {formatRelativeSeconds(user.lastSeen, clientNow)}
+                        </span>
+                        <span>({formatTimeOnly(user.lastSeen)})</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

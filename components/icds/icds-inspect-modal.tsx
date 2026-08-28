@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import type { IcdsRecord, JurisdictionStatus } from "@/lib/icds-types"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,13 +31,24 @@ interface Props {
   onClose: () => void
   onSuccess: (updated: IcdsRecord) => void
   username: string
+  officeName?: string
 }
 
-export function IcdsInspectModal({ record, open, onClose, onSuccess, username }: Props) {
+export function IcdsInspectModal({ record, open, onClose, onSuccess, username, officeName }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [uploadingBefore, setUploadingBefore] = useState(false)
   const [uploadingDrawing, setUploadingDrawing] = useState(false)
   const [locating, setLocating] = useState(false)
+
+  const displayOfficeName =
+    officeName?.trim() ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("user_ccc_name") ||
+        sessionStorage.getItem("user_ccc_name") ||
+        localStorage.getItem("user_ccc_code") ||
+        sessionStorage.getItem("user_ccc_code")
+      : "") ||
+    "This Office"
 
   // Fields
   const [jurisdictionStatus, setJurisdictionStatus] = useState<JurisdictionStatus>("UNDER_OFFICE")
@@ -120,12 +132,27 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
     if (!record) return
     setUploadingBefore(true)
     try {
-      const watermark = `${record.awcCode} | INSPECTION | ${new Date().toLocaleString("en-IN")}`
-      const processed = await compressAndWatermarkImage(file, { watermarkLines: [watermark] })
+      const dateStr = new Date().toLocaleString("en-IN", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+      })
+      const gpsStr = inspectGeoCoordinates || "GPS: Not Available"
+      const watermarkLines = [
+        `ICDS: ${record.awcName} (${record.awcCode})`,
+        `INSPECTION PHOTO • ${dateStr}`,
+        `LOC: ${gpsStr} • ${record.blockName}, ${record.gpName}`,
+      ]
+
+      const processed = await compressAndWatermarkImage(file, {
+        maxDim: 900,
+        watermarkLines,
+        targetKb: 90, // Strict compression under 95KB
+      })
 
       const form = new FormData()
       form.append("file", processed)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", "before")
 
@@ -134,7 +161,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
       if (!res.ok || !data.url) throw new Error(data.error || "Upload failed")
 
       setBeforePhotoUrl(data.url)
-      toast.success("Inspection Photo uploaded successfully!")
+      toast.success("Inspection Photo with GPS stamp uploaded successfully!")
     } catch (e: any) {
       toast.error("Image upload failed: " + e.message)
     } finally {
@@ -149,6 +176,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
       const form = new FormData()
       form.append("file", file)
       form.append("moduleName", "icds-electrification")
+      form.append("consumerId", record.awcCode || record.id)
       form.append("recordId", record.id)
       form.append("photoType", "drawing")
 
@@ -352,7 +380,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
             </div>
           </div>
 
-          {/* 1. Office Jurisdiction: Kushida vs Others */}
+          {/* 1. Office Jurisdiction: Dynamic Office vs Others */}
           <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/50 space-y-2.5">
             <Label className="font-bold text-xs text-blue-950 block">
               Office Jurisdiction <span className="text-red-500">*</span>
@@ -369,7 +397,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
                 }`}
               >
                 {jurisdictionStatus === "UNDER_OFFICE" && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                Kushida
+                {displayOfficeName}
               </button>
 
               <button
@@ -407,7 +435,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
             <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 text-amber-900 space-y-1.5">
               <div className="flex items-center gap-2 font-bold text-xs">
                 <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                Outside Kushida CCC Jurisdiction
+                Outside {displayOfficeName} Jurisdiction
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed">
                 Technical feasibility, GPS, and site photo are not required for other CCC centers. Enter remarks below and submit.
@@ -797,7 +825,12 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username }:
                 {beforePhotoUrl ? (
                   <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                     <div className="h-16 w-24 rounded-lg border overflow-hidden bg-black/10 shrink-0">
-                      <img src={beforePhotoUrl} alt="Inspection site" className="h-full w-full object-cover" />
+                      <img
+                      src={getGoogleDriveDirectLink(beforePhotoUrl, 800)}
+                      onError={(e) => handleImageError(e, beforePhotoUrl)}
+                      alt="Inspection site"
+                      className="h-full w-full object-cover"
+                    />
                     </div>
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-emerald-700 flex items-center gap-1">

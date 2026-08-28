@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react"
 import type { SafetyTicket } from "@/lib/safety-service"
-import { Building2, ChevronDown, ChevronUp, LayoutDashboard } from "lucide-react"
+import { Building2, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -49,7 +49,6 @@ export function SafetyAgencyDrawer({ tickets }: SafetyAgencyDrawerProps) {
 
     const list: AgencySummary[] = []
     map.forEach((stats, key) => {
-      // Find original casing if possible
       const original = tickets.find(t => (t.agency || "Unassigned").trim().toUpperCase() === key)?.agency || key
       list.push({
         agencyName: original.trim() || key,
@@ -57,7 +56,6 @@ export function SafetyAgencyDrawer({ tickets }: SafetyAgencyDrawerProps) {
       })
     })
 
-    // Sort by agency name
     return list.sort((a, b) => a.agencyName.localeCompare(b.agencyName))
   }, [tickets])
 
@@ -74,33 +72,27 @@ export function SafetyAgencyDrawer({ tickets }: SafetyAgencyDrawerProps) {
   }, [agencySummaries])
 
   return (
-    <div className="bg-white border rounded-xl shadow-sm overflow-hidden text-xs">
+    <div className="bg-white border border-slate-200/90 rounded-xl shadow-xs overflow-hidden text-xs">
       <Button
         type="button"
         variant="ghost"
-        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 text-slate-800 font-bold border-b border-slate-100"
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 text-slate-800 font-bold h-auto"
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-            <Building2 className="h-4 w-4" />
+          <div className="p-1 bg-blue-50 text-blue-600 rounded-md">
+            <Building2 className="h-3.5 w-3.5" />
           </div>
-          <div className="text-left">
-            <span className="text-xs font-bold block text-slate-800">Agency Safety Summary Dashboard</span>
-            <span className="text-[10px] text-slate-500 font-normal">
-              {agencySummaries.length} Agencies ({totals.inspected} Total Inspected Hazards)
-            </span>
-          </div>
+          <span className="text-xs font-bold text-slate-800">Dashboard</span>
         </div>
-        <div className="flex items-center gap-1 text-blue-600 font-semibold text-[11px]">
-          <span>{isOpen ? "Hide Table" : "View Agency Table"}</span>
+        <div className="text-slate-500 hover:text-slate-800 p-0.5">
           {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
       </Button>
 
       {isOpen && (
-        <div className="p-2 sm:p-3 bg-slate-50/50">
-          <div className="border rounded-lg overflow-x-auto bg-white shadow-2xs">
+        <div className="p-2 sm:p-3 bg-slate-50/50 border-t border-slate-100 animate-in fade-in duration-150">
+          <div className="border border-slate-200 rounded-lg overflow-x-auto bg-white shadow-2xs">
             <Table>
               <TableHeader className="bg-slate-100/80">
                 <TableRow className="text-[11px]">

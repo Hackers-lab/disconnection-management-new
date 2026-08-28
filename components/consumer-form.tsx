@@ -21,6 +21,7 @@ import type { ConsumerData } from "@/lib/google-sheets"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
 import { getPaymentDuesBreakdown } from "@/lib/date-utils"
+import { triggerHaptic } from "@/lib/utils"
 
 import { Lock } from "lucide-react"
 
@@ -33,7 +34,7 @@ interface ConsumerFormProps {
   permissions?: Record<string, string[]>
 }
 
-export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAgencies, permissions }: ConsumerFormProps) {
+export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", availableAgencies, permissions }: ConsumerFormProps) {
   const isReadOnly = permissions
     ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
     : (userRole === "viewer" || userRole === "reader")
@@ -218,7 +219,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
 
   const capturePhoto = () => {
     if (isReadOnly) return
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     const video = videoRef.current
     if (!video) return
 
@@ -239,7 +240,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
   }
 
   const stopCamera = () => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     const stream = mediaStreamRef.current || (videoRef.current && (videoRef.current.srcObject as MediaStream))
     if (stream) {
       const tracks = stream.getTracks()
@@ -253,7 +254,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
 
   const handleStatusUpdate = (status: string) => {
     if (isReadOnly) return
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     const now = new Date();
     const formattedDate = now.toLocaleDateString("en-GB").replace(/\//g, "-");
     setFormData((prev) => ({ 
@@ -290,36 +291,42 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
     e.preventDefault();
 
     if (userRole !== "admin") {
       if (formData.disconStatus === "agency paid" || formData.disconStatus === "paid") {
         if (!formData.paidAmount || !formData.paidAmount.trim() || isNaN(Number(formData.paidAmount)) || Number(formData.paidAmount) <= 0) {
+          triggerHaptic("error")
           alert("Paid Amount (₹) is mandatory when status is Paid.")
           return
         }
       } else {
         if (!formData.imageUrl) {
+          triggerHaptic("error")
           alert("Please upload the image first.")
           return
         }
         if ((formData.disconStatus === "disconnected" || formData.disconStatus === "bill dispute") && !formData.reading) {
+          triggerHaptic("error")
           alert("Meter reading is required.")
           return
         }
         if ((formData.disconStatus === "bill dispute" || formData.disconStatus === "office team") && !formData.notes) {
+          triggerHaptic("error")
           alert("Remarks are required for Bill Dispute or Office Team status.")
           return
         }
       }
     } else {
       if ((formData.disconStatus === "agency paid" || formData.disconStatus === "paid") && (!formData.paidAmount || !formData.paidAmount.trim())) {
+        triggerHaptic("error")
         alert("Please enter the Paid Amount (₹).")
         return
       }
     }
 
+    triggerHaptic("success")
     const { image: _unusedImageFile, ...cleanData } = formData;
     const updatedConsumer: ConsumerData = {
       ...consumer,
@@ -337,7 +344,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
         <Button variant="ghost" size="icon" onClick={() => {
-          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
           onCancel()
         }} className="rounded-full hover:bg-slate-100 h-9 w-9">
           <ArrowLeft className="h-5 w-5 text-slate-700" />
@@ -689,7 +696,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
                             variant="outline"
                             className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
                             onClick={() => {
-                                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                                 fileInputRef.current?.click()
                             }}
                             disabled={uploading}
@@ -833,7 +840,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
               variant="outline"
               className="w-full h-12 border-gray-300 text-gray-700 font-bold text-base"
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 onCancel()
               }}
             >
@@ -845,7 +852,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole, availableAg
                 variant="outline"
                 className="flex-1 h-12 border-gray-300 text-gray-700"
                 onClick={() => {
-                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10)
+                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   onCancel()
                 }}
               >

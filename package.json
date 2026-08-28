@@ -59,6 +59,7 @@
     "next-themes": "latest",
     "papaparse": "^5.5.3",
     "path": "latest",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^6.2.108",
     "react": "^19",
@@ -71,6 +72,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5",
     "zod": "^3.24.1"
   },
@@ -79,6 +81,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
     "google-auth-library": "^10.9.0",
     "postcss": "^8.5",

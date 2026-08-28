@@ -16,10 +16,21 @@ interface Props {
   onClose: () => void
   onSuccess: (newRecord: IcdsRecord) => void
   agencies?: string[]
+  officeName?: string
 }
 
-export function IcdsAddModal({ open, onClose, onSuccess, agencies = [] }: Props) {
+export function IcdsAddModal({ open, onClose, onSuccess, agencies = [], officeName }: Props) {
   const [submitting, setSubmitting] = useState(false)
+
+  const displayOfficeName =
+    officeName?.trim() ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("user_ccc_name") ||
+        sessionStorage.getItem("user_ccc_name") ||
+        localStorage.getItem("user_ccc_code") ||
+        sessionStorage.getItem("user_ccc_code")
+      : "") ||
+    "This Office"
 
   const [awcCode, setAwcCode] = useState("")
   const [awcName, setAwcName] = useState("")
@@ -199,7 +210,7 @@ export function IcdsAddModal({ open, onClose, onSuccess, agencies = [] }: Props)
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  <SelectItem value="UNDER_OFFICE">Under This Office (Our CCC Jurisdiction)</SelectItem>
+                  <SelectItem value="UNDER_OFFICE">Under This Office ({displayOfficeName})</SelectItem>
                   <SelectItem value="OTHER_OFFICE">Falls Under Another CCC / Office</SelectItem>
                 </SelectContent>
               </Select>

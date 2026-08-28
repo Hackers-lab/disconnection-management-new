@@ -1,0 +1,449 @@
+{
+  "consumerId": "300894595",
+  "queryTimestamp": "2026-08-25T10:05:29.030Z",
+  "master": {
+    "ZCENPAY": "",
+    "ZCONN_DT": "01/07/2014",
+    "ZMOVE_IN_DT": "01/07/2014",
+    "ZMETERED": "YES",
+    "ZOFF_NAME": "KUSHIDA CUSTOMER CARE CENTRE",
+    "ZMET2": "",
+    "ZMET3": "",
+    "ZRURAL_URBAN": "R",
+    "ZDISCON_DT": "",
+    "ZCLASS_DESC": "DOMESTIC",
+    "MINIMUM_RECHARGE": "0.00",
+    "ZTOT_OSD": "3527.00",
+    "ZDTR_LOC": "SITALPUR STW(SARAWAL)",
+    "ZPREMISE_TYPE": "OTHERS",
+    "ZMOB_NO": "8348426442",
+    "ZDTR_CODE": "7G11O",
+    "ZMET_CON_STAT": "POSTPAID METER",
+    "ZMET1": "TA255636",
+    "ZCLASS": "D",
+    "ZFEEDER_NM": "ANGARMONI 11 KV",
+    "ZMRU": "K4E61QMR",
+    "ZEMANIL_ID": "",
+    "ZSPOT_BL": "YES",
+    "ZGOVT_FLAG": "NO",
+    "WALLET_BALANCE": "0.00",
+    "ZINST_NO": "0012169040",
+    "ZBP_NO": "0010324225",
+    "ZFEEDER_CODE": "3041",
+    "ZCONN_LOAD": "0.2300000",
+    "ZBILING_CLS": "Low and Medium Voltage",
+    "ZCOLL_BL_AC": "NO",
+    "ZCON_ID": "000300894595",
+    "ZECS": "NO",
+    "ZCONN_STAT": "LIVE",
+    "ZADDRESS": "MADAN MOHAN ROY MALLIKPARA  MALLIKPARA,CHANCHAL  , 732123",
+    "HES": "NA",
+    "ZOFF_CODE": "6612107",
+    "ZRATE_CATG": "Domestic Rural-normal",
+    "ZTARIFF": "A(DM-R)",
+    "ZNAME": "RATAN ROY"
+  },
+  "osd": {
+    "T4": [
+      {
+        "AMT": "3527.06",
+        "INV_NO": "",
+        "FLAG": "T4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T5": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T5",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T6": [
+      {
+        "AMT": "3527.06",
+        "INV_NO": "",
+        "FLAG": "T6",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "L2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L3": [
+      {
+        "AMT": "3527.06",
+        "INV_NO": "",
+        "FLAG": "L3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "L4": [
+      {
+        "AMT": "2215.28",
+        "INV_NO": "",
+        "FLAG": "L4",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "A1": [],
+    "A2": [],
+    "A3": [],
+    "T1": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T1",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T2": [
+      {
+        "AMT": "0.00",
+        "INV_NO": "",
+        "FLAG": "T2",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ],
+    "T3": [
+      {
+        "AMT": "3527.06",
+        "INV_NO": "",
+        "FLAG": "T3",
+        "DUE_FROM": "",
+        "DUE_TO": ""
+      }
+    ]
+  },
+  "billing": {
+    "code": "400",
+    "message": "Meter Number does not exist"
+  },
+  "payments": [
+    {
+      "PAYMENT_GATEWAY": "CASHDESK P",
+      "PAY_AMOUNT": "100",
+      "CLEAR_DOC_NO": "700056823900",
+      "PAY_DATE": "28.07.2026",
+      "REC_NO": "700056823900",
+      "MODE_OF_PAYMENT": "DCRC PAYMNT"
+    },
+    {
+      "PAYMENT_GATEWAY": "CASHDESK P",
+      "PAY_AMOUNT": "3060",
+      "CLEAR_DOC_NO": "125003698332",
+      "PAY_DATE": "02.07.2022",
+      "REC_NO": "BBPSPP012183A088GRQM65F1",
+      "MODE_OF_PAYMENT": "NORMAL BILL PAYMNT"
+    }
+  ],
+  "readings": [
+    {
+      "Curr_Reading": "1046",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "1046",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "10.05. 2026",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2026",
+      "Reading_Days": "76",
+      "Curr_Reading_Dt": "25.07. 2026"
+    },
+    {
+      "Curr_Reading": "1046",
+      "TOT_UNIT": "46",
+      "Consum_Unit": "46",
+      "TIME": "N",
+      "Prev_Reading": "1000",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "05.02. 2026",
+      "Reading_Stat": "3RD DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2026",
+      "Reading_Days": "94",
+      "Curr_Reading_Dt": "10.05. 2026"
+    },
+    {
+      "Curr_Reading": "1000",
+      "TOT_UNIT": "43",
+      "Consum_Unit": "43",
+      "TIME": "N",
+      "Prev_Reading": "957",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "07.11. 2025",
+      "Reading_Stat": "3RD DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2026",
+      "Reading_Days": "90",
+      "Curr_Reading_Dt": "05.02. 2026"
+    },
+    {
+      "Curr_Reading": "957",
+      "TOT_UNIT": "43",
+      "Consum_Unit": "43",
+      "TIME": "N",
+      "Prev_Reading": "914",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "09.08. 2025",
+      "Reading_Stat": "3RD DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2025",
+      "Reading_Days": "90",
+      "Curr_Reading_Dt": "07.11. 2025"
+    },
+    {
+      "Curr_Reading": "914",
+      "TOT_UNIT": "45",
+      "Consum_Unit": "45",
+      "TIME": "N",
+      "Prev_Reading": "869",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "08.05. 2025",
+      "Reading_Stat": "2ND DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2025",
+      "Reading_Days": "93",
+      "Curr_Reading_Dt": "09.08. 2025"
+    },
+    {
+      "Curr_Reading": "869",
+      "TOT_UNIT": "47",
+      "Consum_Unit": "47",
+      "TIME": "N",
+      "Prev_Reading": "822",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "01.02. 2025",
+      "Reading_Stat": "1ST DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2025",
+      "Reading_Days": "96",
+      "Curr_Reading_Dt": "08.05. 2025"
+    },
+    {
+      "Curr_Reading": "822",
+      "TOT_UNIT": "41",
+      "Consum_Unit": "41",
+      "TIME": "N",
+      "Prev_Reading": "781",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "08.11. 2024",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2025",
+      "Reading_Days": "85",
+      "Curr_Reading_Dt": "01.02. 2025"
+    },
+    {
+      "Curr_Reading": "781",
+      "TOT_UNIT": "43",
+      "Consum_Unit": "43",
+      "TIME": "N",
+      "Prev_Reading": "738",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "09.08. 2024",
+      "Reading_Stat": "3RD DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2024",
+      "Reading_Days": "91",
+      "Curr_Reading_Dt": "08.11. 2024"
+    },
+    {
+      "Curr_Reading": "738",
+      "TOT_UNIT": "45",
+      "Consum_Unit": "45",
+      "TIME": "N",
+      "Prev_Reading": "693",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "08.05. 2024",
+      "Reading_Stat": "2ND DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2024",
+      "Reading_Days": "93",
+      "Curr_Reading_Dt": "09.08. 2024"
+    },
+    {
+      "Curr_Reading": "693",
+      "TOT_UNIT": "50",
+      "Consum_Unit": "50",
+      "TIME": "N",
+      "Prev_Reading": "643",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "26.01. 2024",
+      "Reading_Stat": "1ST DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2024",
+      "Reading_Days": "103",
+      "Curr_Reading_Dt": "08.05. 2024"
+    },
+    {
+      "Curr_Reading": "643",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "643",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "04.11. 2023",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "03.2024",
+      "Reading_Days": "83",
+      "Curr_Reading_Dt": "26.01. 2024"
+    },
+    {
+      "Curr_Reading": "643",
+      "TOT_UNIT": "38",
+      "Consum_Unit": "38",
+      "TIME": "N",
+      "Prev_Reading": "605",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "16.08. 2023",
+      "Reading_Stat": "1ST DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2023",
+      "Reading_Days": "80",
+      "Curr_Reading_Dt": "04.11. 2023"
+    },
+    {
+      "Curr_Reading": "605",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "605",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "05.05. 2023",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2023",
+      "Reading_Days": "103",
+      "Curr_Reading_Dt": "16.08. 2023"
+    },
+    {
+      "Curr_Reading": "605",
+      "TOT_UNIT": "42",
+      "Consum_Unit": "42",
+      "TIME": "N",
+      "Prev_Reading": "563",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "07.02. 2023",
+      "Reading_Stat": "1ST DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2023",
+      "Reading_Days": "87",
+      "Curr_Reading_Dt": "05.05. 2023"
+    },
+    {
+      "Curr_Reading": "563",
+      "TOT_UNIT": "0",
+      "Consum_Unit": "0",
+      "TIME": "N",
+      "Prev_Reading": "563",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "23.10. 2022",
+      "Reading_Stat": "BY OFF.RDI",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "02.2023",
+      "Reading_Days": "107",
+      "Curr_Reading_Dt": "07.02. 2023"
+    },
+    {
+      "Curr_Reading": "563",
+      "TOT_UNIT": "34",
+      "Consum_Unit": "34",
+      "TIME": "N",
+      "Prev_Reading": "529",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "13.08. 2022",
+      "Reading_Stat": "2ND DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "11.2022",
+      "Reading_Days": "71",
+      "Curr_Reading_Dt": "23.10. 2022"
+    },
+    {
+      "Curr_Reading": "529",
+      "TOT_UNIT": "44",
+      "Consum_Unit": "44",
+      "TIME": "N",
+      "Prev_Reading": "485",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "12.05. 2022",
+      "Reading_Stat": "1ST DRLCK(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "08.2022",
+      "Reading_Days": "93",
+      "Curr_Reading_Dt": "13.08. 2022"
+    },
+    {
+      "Curr_Reading": "485",
+      "TOT_UNIT": "29",
+      "Consum_Unit": "29",
+      "TIME": "N",
+      "Prev_Reading": "456",
+      "Estimated_Unit": "0",
+      "Meter_No": "TA255636",
+      "Prev_Reading_Dt": "17.10. 2017",
+      "Reading_Stat": "DEFECTIVE(",
+      "Adj_Unit": "0",
+      "Acc_Bill_Month": "05.2022",
+      "Reading_Days": "1668",
+      "Curr_Reading_Dt": "12.05. 2022"
+    }
+  ],
+  "meter": [
+    {
+      "ZMETER_NO": "TA255636",
+      "ZMUL_FACTOR": "1.00000",
+      "ZMET_INST_MOVE_IN_DT": "01/07/2014",
+      "ZMET_TYPE": "STATIC",
+      "ZPRSNT_READING_DT": "25/07/2026",
+      "ZPRESENT_READING": "1046",
+      "ZREG_GRP": "RGWL0601",
+      "ZPHASE": "1-PHASE",
+      "ZMETER_STATUS": "OK",
+      "ZTOD_FLG": "NO"
+    }
+  ]
+}
