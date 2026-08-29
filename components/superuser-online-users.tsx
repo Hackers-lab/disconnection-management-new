@@ -139,9 +139,23 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   useEffect(() => {
     if (!autoRefresh) return
     const interval = setInterval(() => {
-      fetchData(false)
-    }, 30000)
-    return () => clearInterval(interval)
+      // Only poll when browser tab is active/visible
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchData(false)
+      }
+    }, 60000)
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchData(false)
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
   }, [autoRefresh, fetchData])
 
   const activeOfficesList: OfficeOnlineSummary[] = useMemo(() => {

@@ -51,6 +51,11 @@ export interface OnlineUsersReport {
 // In-Memory Fast Cache for instantaneous UI reads
 const inMemoryPresence = new Map<string, ActiveUserInfo>()
 const PRESENCE_TIMEOUT_MS = 180_000 // 3 minutes
+const userLastTursoSync = new Map<string, { lastSync: number; action: string }>()
+
+// Server memory micro-cache for aggregate report
+let cachedOnlineReport: { report: OnlineUsersReport; timestamp: number } | null = null
+const REPORT_CACHE_TTL_MS = 15_000 // 15 seconds
 
 let tursoClient: Client | null = null
 let presenceTableInitialized = false
@@ -96,10 +101,7 @@ async function ensurePresenceTable(client: Client) {
         is_online INTEGER DEFAULT 1
       );
     `)
-    // Ensure newly added columns exist in existing tables
-    await client.execute(`ALTER TABLE user_presence ADD COLUMN last_login INTEGER;`).catch(() => {})
-    await client.execute(`ALTER TABLE user_presence ADD COLUMN is_online INTEGER DEFAULT 1;`).catch(() => {})
-
+    client.execute(`CREATE INDEX IF NOT EXISTS idx_user_presence_seen ON user_presence (last_seen, is_online);`).catch(() => {})
     presenceTableInitialized = true
   } catch (err) {
     console.warn("[presence-service] Error creating user_presence table:", err)
@@ -128,7 +130,7 @@ export function parseDeviceFromUserAgent(ua = ""): {
 }
 
 /**
- * Track user login / active access (upserts exactly 1 persistent row per user in Turso)
+ * Track user login / active access (upserts exactly 1 persistent row per user in Turso, throttled to 45s)
  */
 export async function trackUserPresence(
   user: Omit<ActiveUserInfo, "isLive">
@@ -146,6 +148,15 @@ export async function trackUserPresence(
   }
 
   inMemoryPresence.set(user.userId, record)
+
+  // Throttle Turso SQL writes to at most once every 45s per user unless action changed
+  const lastSync = userLastTursoSync.get(user.userId)
+  const currentAction = record.lastAction || "Active"
+  if (lastSync && now - lastSync.lastSync < 45_000 && lastSync.action === currentAction) {
+    return
+  }
+
+  userLastTursoSync.set(user.userId, { lastSync: now, action: currentAction })
 
   const turso = getTursoClient()
   if (turso) {
@@ -180,7 +191,7 @@ export async function trackUserPresence(
           record.cccCode,
           agenciesJson,
           record.activeModule || "",
-          record.lastAction || "Active",
+          currentAction,
           record.deviceType || "Desktop",
           record.browserName || "Browser",
           record.ip || "",
@@ -199,6 +210,8 @@ export async function trackUserPresence(
  */
 export async function removeUserPresence(userId: string): Promise<void> {
   inMemoryPresence.delete(userId)
+  userLastTursoSync.delete(userId)
+  cachedOnlineReport = null
   const turso = getTursoClient()
   if (turso) {
     try {
@@ -225,6 +238,13 @@ export async function updateUserAction(
     existing.isLive = true
     inMemoryPresence.set(userId, existing)
   }
+
+  // Throttle action updates if written within last 20s
+  const lastSync = userLastTursoSync.get(userId)
+  if (lastSync && now - lastSync.lastSync < 20_000 && lastSync.action === action) {
+    return
+  }
+  userLastTursoSync.set(userId, { lastSync: now, action })
   
   const turso = getTursoClient()
   if (turso) {
@@ -237,8 +257,17 @@ export async function updateUserAction(
   }
 }
 
-export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
+export async function getOnlineUsersReport(forceRefresh = false): Promise<OnlineUsersReport> {
   const now = Date.now()
+
+  // 0. Check in-memory micro-cache (15s TTL)
+  if (!forceRefresh && cachedOnlineReport && now - cachedOnlineReport.timestamp < REPORT_CACHE_TTL_MS) {
+    return {
+      ...cachedOnlineReport.report,
+      serverTime: now,
+    }
+  }
+
   const activeUsersMap = new Map<string, ActiveUserInfo>()
 
   // 1. Read in-memory fast map
@@ -253,13 +282,13 @@ export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
     }
   }
 
-  // 2. Read dedicated user_presence table for multi-instance sync and historical trail
+  // 2. Read dedicated user_presence table with limit to prevent runaway row scans
   const turso = getTursoClient()
   if (turso) {
     try {
       await ensurePresenceTable(turso)
       const res = await turso.execute({
-        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC",
+        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC LIMIT 150",
       })
 
       for (const row of res.rows) {
@@ -318,41 +347,39 @@ export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
     else idleCount++
 
     // Role Stats
-    const r = user.role || "unknown"
-    roleStats[r] = (roleStats[r] || 0) + 1
+    const rKey = user.role || "unknown"
+    roleStats[rKey] = (roleStats[rKey] || 0) + 1
 
     // Module Stats
-    const m = user.activeModule || "Home"
-    moduleStats[m] = (moduleStats[m] || 0) + 1
+    const mKey = user.activeModule || "home"
+    moduleStats[mKey] = (moduleStats[mKey] || 0) + 1
 
     // Office Stats
-    const cCode = user.cccCode || "HQ"
-    const cName = user.cccName || cCode
-
-    if (!officeStats[cCode]) {
-      officeStats[cCode] = {
-        cccCode: cCode,
-        cccName: cName,
-        onlineCount: 0,
-        users: [],
+    if (user.cccCode) {
+      if (!officeStats[user.cccCode]) {
+        officeStats[user.cccCode] = {
+          cccCode: user.cccCode,
+          cccName: user.cccName || user.cccCode,
+          onlineCount: 0,
+          users: [],
+        }
       }
+      officeStats[user.cccCode].onlineCount++
+      officeStats[user.cccCode].users.push({
+        userId: user.userId,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        agencies: user.agencies,
+        activeModule: user.activeModule,
+        lastAction: user.lastAction,
+        lastSeen: user.lastSeen,
+        isLive: user.isLive,
+      })
     }
-
-    officeStats[cCode].onlineCount++
-    officeStats[cCode].users.push({
-      userId: user.userId,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-      agencies: user.agencies,
-      activeModule: user.activeModule,
-      lastAction: user.lastAction,
-      lastSeen: user.lastSeen,
-      isLive: user.isLive,
-    })
   })
 
-  return {
+  const reportResult: OnlineUsersReport = {
     onlineUsers,
     totalOnline: onlineUsers.length,
     activeNowCount,
@@ -363,4 +390,9 @@ export async function getOnlineUsersReport(): Promise<OnlineUsersReport> {
     moduleStats,
     serverTime: now,
   }
+
+  // Cache report
+  cachedOnlineReport = { report: reportResult, timestamp: now }
+
+  return reportResult
 }

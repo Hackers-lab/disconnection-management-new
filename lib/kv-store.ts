@@ -53,16 +53,8 @@ async function ensureTursoTable(client: Client) {
     await withTimeout(p, 1000, null)
     tursoTableInitialized = true
 
-    // Opportunistically purge all legacy presence keys and expired records from system_kv_store
-    withTimeout(
-      client.execute(`
-        DELETE FROM system_kv_store 
-        WHERE key LIKE 'presence:%' 
-           OR (expires_at IS NOT NULL AND expires_at < unixepoch() * 1000);
-      `),
-      1500,
-      null
-    ).catch(() => {})
+    // Create index on expires_at if not exists for lightning-fast queries
+    client.execute(`CREATE INDEX IF NOT EXISTS idx_kv_expires ON system_kv_store (expires_at);`).catch(() => {})
   } catch (err) {
     console.warn("[kv-store] Error creating system_kv_store table in Turso:", err)
   }
@@ -114,12 +106,25 @@ export function getTenantKey(tenantId: string, suffix: string): string {
 
 export async function getKV<T>(key: string): Promise<T | null> {
   try {
+    // 1. Fast in-memory cache check (< 0.1ms, 0 DB reads)
+    const entry = memoryStore.get(key)
+    if (entry) {
+      if (entry.expiresAt && Date.now() > entry.expiresAt) {
+        memoryStore.delete(key)
+      } else {
+        return entry.value as T
+      }
+    }
+
     if (hasExternalKV()) {
       const result = await withTimeout(kvRestCall("get", key), 1200, null)
       if (result !== null && result !== undefined) {
         try {
-          return typeof result === "string" ? JSON.parse(result) : (result as T)
+          const parsed = typeof result === "string" ? JSON.parse(result) : (result as T)
+          memoryStore.set(key, { value: parsed, expiresAt: Date.now() + 10_000 })
+          return parsed
         } catch {
+          memoryStore.set(key, { value: result, expiresAt: Date.now() + 10_000 })
           return result as T
         }
       }
@@ -144,23 +149,19 @@ export async function getKV<T>(key: string): Promise<T | null> {
           return null
         }
         const valStr = String(row.value)
+        let parsed: T
         try {
-          return JSON.parse(valStr) as T
+          parsed = JSON.parse(valStr) as T
         } catch {
-          return valStr as unknown as T
+          parsed = valStr as unknown as T
         }
+        // Cache in memory for 10 seconds or remaining TTL to prevent repeat reads
+        const memTtl = expiresAt ? Math.min(expiresAt, Date.now() + 10_000) : Date.now() + 10_000
+        memoryStore.set(key, { value: parsed, expiresAt: memTtl })
+        return parsed
       }
     }
 
-    // Fallback to in-memory store
-    const entry = memoryStore.get(key)
-    if (entry) {
-      if (entry.expiresAt && Date.now() > entry.expiresAt) {
-        memoryStore.delete(key)
-        return null
-      }
-      return entry.value as T
-    }
     return null
   } catch (err) {
     console.warn(`[kv-store] Error reading key "${key}":`, err)
