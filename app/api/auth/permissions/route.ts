@@ -17,7 +17,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
 
     let permissions
     try {
-      const raw = await roleStorage.getPermissionsForRole(session.role)
+      const raw = await roleStorage.getPermissionsForRole(session.role, session.cccCode || "")
       permissions = expandRolePermissions(session.role, raw)
     } catch (e: any) {
       console.warn("Failed to retrieve custom role permissions (likely sheet not linked yet):", e.message || e)
