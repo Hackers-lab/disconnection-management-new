@@ -66,17 +66,10 @@ async function ensureTab() {
   } catch (e) {}
 }
 
-export async function getAgencies() {
-  const context = getTenantContext()
-  const cccCode = context?.cccCode || "SYSTEM"
-  const now = Date.now()
+export async function getAgencyById(id: string) {
+  const cleanId = String(id || "").trim()
+  if (!cleanId) return null
 
-  // Serve from cache if not expired
-  if (agenciesCache[cccCode] && (now - (agenciesCacheTimestamp[cccCode] || 0) < CACHE_TTL_MS)) {
-    return agenciesCache[cccCode]
-  }
-
-  // 1. Try querying Turso agencies table first
   try {
     const res = await db.execute({
       sql: `SELECT a.id, a.vendor_code as vendorCode, a.name, a.description, 
@@ -84,9 +77,59 @@ export async function getAgencies() {
                    a.is_active as isActive, c.ccc_code as cccCode
             FROM agencies a
             LEFT JOIN ccc_registry c ON a.ccc_id = c.id
-            WHERE c.ccc_code = ? OR ? = 'SYSTEM'
-            ORDER BY a.name ASC`,
-      args: [cccCode, cccCode]
+            WHERE a.id = ?
+            LIMIT 1`,
+      args: [cleanId]
+    })
+    if (res.rows && res.rows.length > 0) {
+      const r: any = res.rows[0]
+      return {
+        id: String(r.id),
+        name: String(r.name || "").trim(),
+        description: String(r.description || "").trim(),
+        vendorCode: String(r.vendorCode || "").trim(),
+        mobileNumber: String(r.mobileNumber || "").trim(),
+        isActive: Boolean(r.isActive),
+        cccCode: String(r.cccCode || ""),
+      }
+    }
+  } catch (err) {
+    console.warn("Turso getAgencyById notice:", err)
+  }
+
+  const agencies = await getAgencies()
+  return agencies.find(a => String(a.id) === cleanId) || null
+}
+
+export async function getAgencies() {
+  const context = getTenantContext()
+  const cccCode = context?.cccCode || "SYSTEM"
+  const isSystem = !cccCode || cccCode === "SYSTEM"
+  const now = Date.now()
+
+  // Serve from cache if not expired
+  if (agenciesCache[cccCode] && (now - (agenciesCacheTimestamp[cccCode] || 0) < CACHE_TTL_MS)) {
+    return agenciesCache[cccCode]
+  }
+
+  // 1. Try querying Turso agencies table first with indexed tenant scoping
+  try {
+    const res = await db.execute({
+      sql: isSystem
+        ? `SELECT a.id, a.vendor_code as vendorCode, a.name, a.description, 
+                  a.contact_person as contactPerson, a.mobile_number as mobileNumber,
+                  a.is_active as isActive, c.ccc_code as cccCode
+           FROM agencies a
+           LEFT JOIN ccc_registry c ON a.ccc_id = c.id
+           ORDER BY a.name ASC`
+        : `SELECT a.id, a.vendor_code as vendorCode, a.name, a.description, 
+                  a.contact_person as contactPerson, a.mobile_number as mobileNumber,
+                  a.is_active as isActive, c.ccc_code as cccCode
+           FROM agencies a
+           JOIN ccc_registry c ON a.ccc_id = c.id
+           WHERE c.ccc_code = ? COLLATE NOCASE
+           ORDER BY a.name ASC`,
+      args: isSystem ? [] : [cccCode]
     })
     if (res.rows && res.rows.length > 0) {
       const agencies = res.rows.map((r: any) => ({

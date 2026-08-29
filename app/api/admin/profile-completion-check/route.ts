@@ -19,10 +19,15 @@ export const GET = async function GET(req: NextRequest) {
     let allUserRows: any[] = []
     try {
       const usersRes = await db.execute({
-        sql: `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
-              FROM users u
-              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE LOWER(u.role) NOT IN ('superuser', 'agency') AND (${isGlobalAdmin ? '1=1' : 'c.ccc_code = ?'})`,
+        sql: isGlobalAdmin
+          ? `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
+             FROM users u
+             LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+             WHERE LOWER(u.role) NOT IN ('superuser', 'agency')`
+          : `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
+             FROM users u
+             JOIN ccc_registry c ON u.ccc_id = c.id
+             WHERE LOWER(u.role) NOT IN ('superuser', 'agency') AND c.ccc_code = ? COLLATE NOCASE`,
         args: isGlobalAdmin ? [] : [cccCode]
       })
       allUserRows = usersRes.rows || []
@@ -52,10 +57,15 @@ export const GET = async function GET(req: NextRequest) {
     let agencyRows: any[] = []
     try {
       const agencyRes = await db.execute({
-        sql: `SELECT a.id, a.name, a.vendor_code, a.contact_person, a.mobile_number, a.email, a.is_active, c.ccc_code
-              FROM agencies a
-              INNER JOIN ccc_registry c ON a.ccc_id = c.id
-              WHERE ${isGlobalAdmin ? '1=1' : 'c.ccc_code = ?'} AND a.is_active = 1`,
+        sql: isGlobalAdmin
+          ? `SELECT a.id, a.name, a.vendor_code, a.contact_person, a.mobile_number, a.email, a.is_active, c.ccc_code
+             FROM agencies a
+             LEFT JOIN ccc_registry c ON a.ccc_id = c.id
+             WHERE a.is_active = 1`
+          : `SELECT a.id, a.name, a.vendor_code, a.contact_person, a.mobile_number, a.email, a.is_active, c.ccc_code
+             FROM agencies a
+             INNER JOIN ccc_registry c ON a.ccc_id = c.id
+             WHERE c.ccc_code = ? COLLATE NOCASE AND a.is_active = 1`,
         args: isGlobalAdmin ? [] : [cccCode]
       })
       agencyRows = agencyRes.rows || []

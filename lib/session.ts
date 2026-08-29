@@ -100,8 +100,7 @@ export async function verifySession() {
   let subscriptionStatus = ""
 
   try {
-    const users = await userStorage.getUsers()
-    const user = users.find(u => u.id === session.userId)
+    const user = await userStorage.getUserById(session.userId)
     if (user) {
       name = user.name || ""
       bypassSubscription = user.bypassSubscription || false
@@ -133,7 +132,7 @@ export async function verifySession() {
 
         // Inheritance Fallback: Check if the Admin of this subdivision (cccCode) has an active trial/subscription
         if (!isSubscribed && user.cccCode) {
-          const adminUser = users.find(u => u.cccCode?.toUpperCase() === user.cccCode.toUpperCase() && u.role.toLowerCase() === "admin")
+          const adminUser = await userStorage.getAdminUserByCccCode(user.cccCode)
           if (adminUser && adminUser.subscriptionStatus === "active" && adminUser.subscriptionExpiresAt) {
             const adminExpiry = new Date(adminUser.subscriptionExpiresAt)
             adminExpiry.setHours(23, 59, 59, 999)

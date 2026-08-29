@@ -60,8 +60,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
 
   // 2. Check Users (excluding main admin)
   try {
-    const allUsers = await userStorage.getUsers()
-    const tenantUsers = allUsers.filter(u => u.cccCode === cccCode)
+    const tenantUsers = await userStorage.getUsersByCcc(cccCode)
     const operationalUsers = tenantUsers.filter(
       u => u.role !== "admin" && u.role !== "superadmin" && u.role !== "superuser" && u.username !== "admin"
     )
