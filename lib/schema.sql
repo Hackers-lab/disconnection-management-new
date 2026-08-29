@@ -1,18 +1,20 @@
--- Turso / libSQL Full DDL Database Schema (v4)
-
--- 1. CCC Registry Table (Includes Drive Refresh Token)
+-- 1. CCC Registry Table (Includes Drive Refresh Token & Contact Mobile)
 CREATE TABLE IF NOT EXISTS ccc_registry (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ccc_code TEXT UNIQUE NOT NULL,
     ccc_name TEXT NOT NULL,
-    spreadsheet_id TEXT NOT NULL,
+    spreadsheet_id TEXT,
     drive_folder_id TEXT,
     drive_refresh_token TEXT,                 -- Extracted from Index 4 in CCC_Registry tab
+    contact_person TEXT,
+    mobile_number TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_ccc_code ON ccc_registry (ccc_code);
 CREATE INDEX IF NOT EXISTS idx_ccc_code_nocase ON ccc_registry (ccc_code COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_ccc_mobile ON ccc_registry (mobile_number);
+CREATE INDEX IF NOT EXISTS idx_users_mobile ON users (mobile_number);
 
 -- 2. System Default Roles & Permissions (Master Base Catalog)
 CREATE TABLE IF NOT EXISTS system_default_roles (

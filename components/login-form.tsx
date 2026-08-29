@@ -10,6 +10,8 @@ import { Eye, EyeOff, User, Lock, X, Phone, ArrowDown, Smartphone, ShieldCheck, 
 import { login } from "@/app/actions/auth"
 import { LoginFeedbackCarousel } from "@/components/login-feedback-carousel"
 import { VisitorLiveCounter } from "@/components/visitor-live-counter"
+import { RegisterCccDialog } from "@/components/register-ccc-dialog"
+import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 
 import type { FeedbackItem } from "@/lib/feedback-service"
 
@@ -21,6 +23,8 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false)
+  const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false)
   const [deviceId, setDeviceId] = useState("")
   const [isStandalone, setIsStandalone] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -130,7 +134,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             }}
             className="space-y-4"
           >
-            {/* Username Field with Increased Height */}
+            {/* Username / CCC Code / Mobile Field */}
             <div className="relative">
               <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 pointer-events-none" />
               <Input
@@ -138,7 +142,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
                 name="username"
                 type="text"
                 required
-                placeholder="Username"
+                placeholder="Username / CCC Code / Mobile"
                 className="pl-12 h-16 sm:h-18 rounded-2xl border-gray-200 focus:border-slate-900 focus:ring-2 focus:ring-slate-400 text-base sm:text-lg font-medium placeholder:text-gray-400"
               />
             </div>
@@ -180,6 +184,24 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             >
               {loading ? "Signing in..." : "Sign In"}
             </Button>
+
+            {/* Quick Action Links: Forgot Password & Register CCC */}
+            <div className="flex items-center justify-between pt-2 px-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowForgotPasswordDialog(true)}
+                className="text-slate-500 hover:text-slate-900 font-medium transition-colors cursor-pointer"
+              >
+                Forgot Password?
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRegisterDialog(true)}
+                className="text-amber-600 hover:text-amber-700 font-bold transition-colors cursor-pointer"
+              >
+                Register New CCC →
+              </button>
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -261,6 +283,18 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
 
       {/* Total Visits Count (No live user polling) */}
       <VisitorLiveCounter className="text-slate-500/80 text-[11px]" showUi={true} showLiveUsers={false} />
+
+      {/* Self-Registration Dialog */}
+      <RegisterCccDialog 
+        open={showRegisterDialog} 
+        onOpenChange={setShowRegisterDialog} 
+      />
+
+      {/* Forgot Password Recovery Dialog */}
+      <ForgotPasswordDialog 
+        open={showForgotPasswordDialog} 
+        onOpenChange={setShowForgotPasswordDialog} 
+      />
 
       {/* 🔥 Loading Overlay */}
       {loading && (
