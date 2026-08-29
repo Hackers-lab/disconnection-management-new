@@ -3257,17 +3257,17 @@ function DashboardCard({
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
         onClick()
       }}
-      className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-95 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.20] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] md:min-h-[110px] select-none"
+      className="group relative cursor-pointer transition-all duration-300 hover:-translate-y-1 active:scale-95 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.22] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] p-3.5 md:p-6 flex flex-col justify-between md:justify-center md:items-center md:text-center min-h-[96px] md:min-h-[175px] select-none overflow-hidden"
     >
-      {/* Top Row: Icon Container */}
-      <div className="flex items-start justify-between">
-        <div className={`w-10 h-10 md:w-11 md:h-11 rounded-[10px] md:rounded-xl ${bgColor} border border-black/[0.04] flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-300 group-hover:scale-105 group-hover:rotate-2`}>
+      {/* Icon Container */}
+      <div className="flex items-start md:items-center justify-between md:justify-center w-full">
+        <div className={`w-10 h-10 md:w-16 md:h-16 rounded-[10px] md:rounded-2xl ${bgColor} border border-black/[0.04] flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 [&_svg]:h-5 [&_svg]:w-5 md:[&_svg]:h-8 md:[&_svg]:w-8`}>
           {icon}
         </div>
       </div>
 
-      {/* Bottom Row: Title */}
-      <h3 className="text-xs sm:text-sm md:text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug mt-2 tracking-tight line-clamp-2">
+      {/* Title */}
+      <h3 className="text-xs sm:text-sm md:text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug mt-2 md:mt-4 tracking-tight line-clamp-2">
         {title}
       </h3>
     </div>
