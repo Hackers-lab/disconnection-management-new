@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { getTenantRegistry, invalidateTenantCache } from "@/lib/tenant-resolver"
+import { db } from "@/lib/db"
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 
@@ -23,10 +24,65 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const tenants = await getTenantRegistry()
+    const tenantsMap = await getTenantRegistry().catch(() => ({}))
     const masterSheetId = process.env.MASTER_CONFIG_SHEET || ""
+
+    // Fetch registered CCCs from Turso DB with rich registration info (contact person, mobile, registration timestamp)
+    let dbTenants: any[] = []
+    try {
+      const res = await db.execute({
+        sql: `SELECT c.id, c.ccc_code as cccCode, c.ccc_name as cccName, c.spreadsheet_id as spreadsheetId, 
+                     c.drive_folder_id as driveFolderId, c.contact_person as contactPerson, 
+                     c.mobile_number as mobileNumber, c.created_at as createdAt, c.updated_at as updatedAt,
+                     u.username as adminUsername, u.full_name as adminFullName, u.mobile_number as adminMobile
+              FROM ccc_registry c
+              LEFT JOIN users u ON (u.ccc_id = c.id AND LOWER(u.role) = 'admin') OR (u.username = c.ccc_code AND LOWER(u.role) = 'admin')
+              ORDER BY c.created_at DESC`,
+        args: []
+      })
+      dbTenants = res.rows || []
+    } catch (dbErr) {
+      console.warn("Turso ccc_registry fetch notice in superuser:", dbErr)
+    }
+
+    // Merge DB tenants and Sheet tenants
+    const mergedMap: Record<string, any> = {}
+
+    // First populate from Sheet
+    Object.values(tenantsMap).forEach((t: any) => {
+      mergedMap[t.cccCode] = {
+        ...t,
+        contactPerson: "",
+        mobileNumber: "",
+        createdAt: "",
+        adminUsername: "",
+        isSelfRegistered: false
+      }
+    })
+
+    // Overlay / add DB rows (DB has richer registration timestamps & contacts)
+    dbTenants.forEach((r: any) => {
+      const code = String(r.cccCode || "").trim().toUpperCase()
+      if (!code) return
+      const existing = mergedMap[code] || {}
+      mergedMap[code] = {
+        id: r.id,
+        cccCode: code,
+        cccName: String(r.cccName || existing.cccName || "").trim(),
+        spreadsheetId: String(r.spreadsheetId || existing.spreadsheetId || "").trim(),
+        driveFolderId: String(r.driveFolderId || existing.driveFolderId || "").trim(),
+        googleDriveRefreshToken: Boolean(existing.googleDriveRefreshToken),
+        contactPerson: String(r.contactPerson || r.adminFullName || existing.contactPerson || "").trim(),
+        mobileNumber: String(r.mobileNumber || r.adminMobile || existing.mobileNumber || "").trim(),
+        createdAt: String(r.createdAt || ""),
+        updatedAt: String(r.updatedAt || ""),
+        adminUsername: String(r.adminUsername || ""),
+        isSelfRegistered: Boolean(r.createdAt || r.mobileNumber || r.contactPerson)
+      }
+    })
+
     return NextResponse.json({
-      tenants: Object.values(tenants),
+      tenants: Object.values(mergedMap),
       masterSheetId,
     })
   } catch (e: any) {
@@ -40,24 +96,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const { cccCode, cccName, spreadsheetId } = await request.json()
+    const { cccCode, cccName, spreadsheetId, contactPerson, mobileNumber } = await request.json()
     if (!cccCode || !cccName) {
       return NextResponse.json({ error: "CCC Code and Name are required" }, { status: 400 })
     }
 
-    const masterSheetId = process.env.MASTER_CONFIG_SHEET!
-    const registryTab = "CCC_Registry"
-    const sheets = getSheetsClient()
+    const cleanCccCode = String(cccCode).trim().toUpperCase()
+    const cleanCccName = String(cccName).trim()
+    const cleanSpreadsheetId = String(spreadsheetId || "").trim()
+    const cleanContact = String(contactPerson || "").trim() || "Station In-Charge"
+    const cleanMobile = mobileNumber ? String(mobileNumber).replace(/\D/g, "").slice(-10) : ""
 
-    // Append to CCC_Registry tab
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: masterSheetId,
-      range: `${registryTab}!A:E`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[cccCode.trim().toUpperCase(), cccName.trim(), spreadsheetId?.trim() || "", "", ""]],
-      },
-    })
+    // 1. Insert/Update into Turso DB
+    try {
+      await db.execute({
+        sql: `INSERT INTO ccc_registry (ccc_code, ccc_name, spreadsheet_id, contact_person, mobile_number)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(ccc_code) DO UPDATE SET 
+                ccc_name = excluded.ccc_name,
+                spreadsheet_id = CASE WHEN excluded.spreadsheet_id != '' THEN excluded.spreadsheet_id ELSE ccc_registry.spreadsheet_id END,
+                contact_person = CASE WHEN excluded.contact_person != '' THEN excluded.contact_person ELSE ccc_registry.contact_person END,
+                mobile_number = CASE WHEN excluded.mobile_number != '' THEN excluded.mobile_number ELSE ccc_registry.mobile_number END,
+                updated_at = CURRENT_TIMESTAMP`,
+        args: [cleanCccCode, cleanCccName, cleanSpreadsheetId, cleanContact, cleanMobile]
+      })
+    } catch (dbErr) {
+      console.warn("Turso ccc_registry insert notice:", dbErr)
+    }
+
+    // 2. Append to Master Google Sheet tab
+    try {
+      const masterSheetId = process.env.MASTER_CONFIG_SHEET!
+      const registryTab = "CCC_Registry"
+      const sheets = getSheetsClient()
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: masterSheetId,
+        range: `${registryTab}!A:G`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[cleanCccCode, cleanCccName, cleanSpreadsheetId, "", "", cleanMobile, cleanContact]],
+        },
+      })
+    } catch (sheetErr) {
+      console.warn("Sheet append notice:", sheetErr)
+    }
 
     invalidateTenantCache()
     return NextResponse.json({ success: true })
