@@ -880,6 +880,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         userRole === "admin" ||
         userRole === "superuser" ||
         module.id === "home" ||
+        module.id === "gis-camera" ||
         (permissions &&
           ((permissions[module.id] && permissions[module.id].length > 0) ||
             (permissions[permKey] && permissions[permKey].length > 0) ||
