@@ -1,5 +1,6 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { getSpreadsheetId } from "./google-sheets-api"
+import { db } from "./db"
 
 const SHEET_ID = process.env.USERS_SHEET!
 const SHEET_NAME = "AppRoles"
@@ -297,6 +298,79 @@ export class RoleStorage {
     if (this._cache[spreadsheetId] && (now - (this._cacheTimestamp[spreadsheetId] || 0) < this.CACHE_TTL_MS)) {
       return this._cache[spreadsheetId]
     }
+
+    // 1. Query 2-table inheritance from Turso (system_default_roles + ccc_role_overrides)
+    try {
+      // Find CCC ID from spreadsheetId if available
+      let cccId: number | null = null
+      if (spreadsheetId) {
+        const cccRes = await db.execute({
+          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? LIMIT 1",
+          args: [spreadsheetId]
+        })
+        cccId = (cccRes.rows[0]?.id as number) || null
+      }
+
+      // Query default roles joined with tenant overrides
+      const query = cccId
+        ? `SELECT 
+            d.role,
+            COALESCE(NULLIF(o.disconnection, ''), d.disconnection) as disconnection,
+            COALESCE(NULLIF(o.reconnection, ''), d.reconnection) as reconnection,
+            COALESCE(NULLIF(o.deemed, ''), d.deemed) as deemed,
+            COALESCE(NULLIF(o.dtr, ''), d.dtr) as dtr,
+            COALESCE(NULLIF(o.meter, ''), d.meter) as meter,
+            COALESCE(NULLIF(o.nsc, ''), d.nsc) as nsc,
+            COALESCE(NULLIF(o.consumer_master, ''), d.consumer_master) as consumer_master,
+            COALESCE(NULLIF(o.admin, ''), d.admin) as admin,
+            COALESCE(NULLIF(o.meter_replacement, ''), d.meter_replacement) as meter_replacement,
+            COALESCE(NULLIF(o.dtr_painting, ''), d.dtr_painting) as dtr_painting,
+            COALESCE(NULLIF(o.material, ''), d.material) as material,
+            COALESCE(NULLIF(o.osd, ''), d.osd) as osd,
+            COALESCE(NULLIF(o.safety, ''), d.safety) as safety,
+            COALESCE(NULLIF(o.misc_inspection, ''), d.misc_inspection) as misc_inspection,
+            COALESCE(NULLIF(o.icds, ''), d.icds) as icds
+          FROM system_default_roles d
+          LEFT JOIN ccc_role_overrides o ON o.role = d.role AND o.ccc_id = ?
+          UNION
+          SELECT 
+            o.role,
+            o.disconnection, o.reconnection, o.deemed, o.dtr, o.meter, o.nsc,
+            o.consumer_master, o.admin, o.meter_replacement, o.dtr_painting,
+            o.material, o.osd, o.safety, o.misc_inspection, o.icds
+          FROM ccc_role_overrides o
+          WHERE o.ccc_id = ? AND o.role NOT IN (SELECT role FROM system_default_roles)`
+        : `SELECT 
+            role, disconnection, reconnection, deemed, dtr, meter, nsc,
+            consumer_master, admin, meter_replacement, dtr_painting,
+            material, osd, safety, misc_inspection, icds
+          FROM system_default_roles`
+
+      const res = await db.execute({
+        sql: query,
+        args: cccId ? [cccId, cccId] : []
+      })
+
+      if (res.rows && res.rows.length > 0) {
+        const roles: RolePermissions[] = res.rows.map((row: any) => {
+          const role = String(row.role || "").trim()
+          const permObj: any = { role }
+          MODULES.forEach(mod => {
+            const val = row[mod] ? String(row[mod]).trim() : ""
+            permObj[mod] = val ? val.split(",").map((s: string) => s.trim()).filter(Boolean) : []
+          })
+          return permObj as RolePermissions
+        })
+
+        this._cache[spreadsheetId] = roles
+        this._cacheTimestamp[spreadsheetId] = now
+        return roles
+      }
+    } catch (err) {
+      console.warn("Turso 2-table role query failed, falling back to Sheets:", err)
+    }
+
+    // Fallback: Google Sheets
     const sheets = await getSheetsClient()
     await this._ensureTab(sheets, spreadsheetId)
 
@@ -344,81 +418,194 @@ export class RoleStorage {
   }
 
   async addOrUpdateRole(role: RolePermissions, spreadsheetId: string = getSpreadsheetId()) {
-    const sheets = await getSheetsClient()
-    await this._ensureTab(sheets, spreadsheetId)
-    const roles = await this.getRoles(spreadsheetId)
+    // 1. Save to Turso (system_default_roles or ccc_role_overrides)
+    try {
+      let cccId: number | null = null
+      if (spreadsheetId) {
+        const cccRes = await db.execute({
+          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? LIMIT 1",
+          args: [spreadsheetId]
+        })
+        cccId = (cccRes.rows[0]?.id as number) || null
+      }
 
-    const idx = roles.findIndex(
-      (x) => x.role.toLowerCase() === role.role.toLowerCase()
-    )
-    const rowValues = [role.role, ...MODULES.map((mod) => (role[mod] || []).join(","))]
+      const roleName = role.role.toLowerCase().trim()
+      const modValues: Record<string, string> = {}
+      MODULES.forEach(mod => {
+        modValues[mod] = (role[mod] || []).join(",")
+      })
 
-    if (idx === -1) {
-      // Append
-      await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: `${SHEET_NAME}!A:Z`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [rowValues],
-        },
-      })
-    } else {
-      // Update
-      const rowNum = idx + 2 // A2 starts at index 0, so row is index + 2
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `${SHEET_NAME}!A${rowNum}:Z${rowNum}`,
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [rowValues],
-        },
-      })
+      if (cccId) {
+        // Save as tenant override in ccc_role_overrides
+        await db.execute({
+          sql: `INSERT INTO ccc_role_overrides (
+                  ccc_id, role, disconnection, reconnection, deemed, dtr, meter, nsc,
+                  consumer_master, admin, meter_replacement, dtr_painting, material,
+                  osd, safety, misc_inspection, icds
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(ccc_id, role) DO UPDATE SET
+                  disconnection = excluded.disconnection,
+                  reconnection = excluded.reconnection,
+                  deemed = excluded.deemed,
+                  dtr = excluded.dtr,
+                  meter = excluded.meter,
+                  nsc = excluded.nsc,
+                  consumer_master = excluded.consumer_master,
+                  admin = excluded.admin,
+                  meter_replacement = excluded.meter_replacement,
+                  dtr_painting = excluded.dtr_painting,
+                  material = excluded.material,
+                  osd = excluded.osd,
+                  safety = excluded.safety,
+                  misc_inspection = excluded.misc_inspection,
+                  icds = excluded.icds,
+                  updated_at = CURRENT_TIMESTAMP`,
+          args: [
+            cccId, roleName,
+            modValues.disconnection || '', modValues.reconnection || '', modValues.deemed || '',
+            modValues.dtr || '', modValues.meter || '', modValues.nsc || '',
+            modValues.consumer_master || '', modValues.admin || '', modValues.meter_replacement || '',
+            modValues.dtr_painting || '', modValues.material || '', modValues.osd || '',
+            modValues.safety || '', modValues.misc_inspection || '', modValues.icds || ''
+          ]
+        })
+      } else {
+        // Save into system_default_roles
+        await db.execute({
+          sql: `INSERT INTO system_default_roles (
+                  role, disconnection, reconnection, deemed, dtr, meter, nsc,
+                  consumer_master, admin, meter_replacement, dtr_painting, material,
+                  osd, safety, misc_inspection, icds
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(role) DO UPDATE SET
+                  disconnection = excluded.disconnection,
+                  reconnection = excluded.reconnection,
+                  deemed = excluded.deemed,
+                  dtr = excluded.dtr,
+                  meter = excluded.meter,
+                  nsc = excluded.nsc,
+                  consumer_master = excluded.consumer_master,
+                  admin = excluded.admin,
+                  meter_replacement = excluded.meter_replacement,
+                  dtr_painting = excluded.dtr_painting,
+                  material = excluded.material,
+                  osd = excluded.osd,
+                  safety = excluded.safety,
+                  misc_inspection = excluded.misc_inspection,
+                  icds = excluded.icds,
+                  updated_at = CURRENT_TIMESTAMP`,
+          args: [
+            roleName,
+            modValues.disconnection || '', modValues.reconnection || '', modValues.deemed || '',
+            modValues.dtr || '', modValues.meter || '', modValues.nsc || '',
+            modValues.consumer_master || '', modValues.admin || '', modValues.meter_replacement || '',
+            modValues.dtr_painting || '', modValues.material || '', modValues.osd || '',
+            modValues.safety || '', modValues.misc_inspection || '', modValues.icds || ''
+          ]
+        })
+      }
+    } catch (err) {
+      console.warn("Turso role save notice:", err)
     }
+
+    // Google Sheets dual-write
+    try {
+      const sheets = await getSheetsClient()
+      await this._ensureTab(sheets, spreadsheetId)
+      const roles = await this.getRoles(spreadsheetId)
+
+      const idx = roles.findIndex(
+        (x) => x.role.toLowerCase() === role.role.toLowerCase()
+      )
+      const rowValues = [role.role, ...MODULES.map((mod) => (role[mod] || []).join(","))]
+
+      if (idx === -1) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: `${SHEET_NAME}!A:Z`,
+          valueInputOption: "RAW",
+          requestBody: { values: [rowValues] },
+        })
+      } else {
+        const rowNum = idx + 2
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${SHEET_NAME}!A${rowNum}:Z${rowNum}`,
+          valueInputOption: "RAW",
+          requestBody: { values: [rowValues] },
+        })
+      }
+    } catch (e) {
+      console.warn("Sheets dual-write notice:", e)
+    }
+
     this.invalidateCache(spreadsheetId)
     return role
   }
 
   async deleteRole(roleName: string, spreadsheetId: string = getSpreadsheetId()) {
-    const sheets = await getSheetsClient()
-    await this._ensureTab(sheets, spreadsheetId)
-    const roles = await this.getRoles(spreadsheetId)
-    const idx = roles.findIndex(
-      (x) => x.role.toLowerCase() === roleName.toLowerCase()
-    )
-    if (idx === -1) return null
+    try {
+      let cccId: number | null = null
+      if (spreadsheetId) {
+        const cccRes = await db.execute({
+          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? LIMIT 1",
+          args: [spreadsheetId]
+        })
+        cccId = (cccRes.rows[0]?.id as number) || null
+      }
 
-    // Get spreadsheet tab property sheetId for deletion batch update
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId })
-    const sheet = spreadsheet.data.sheets?.find(
-      (s: any) => s.properties?.title === SHEET_NAME
-    )
-    const targetSheetId = sheet?.properties?.sheetId
-
-    if (targetSheetId === undefined || targetSheetId === null) {
-      throw new Error(`Sheet tab "${SHEET_NAME}" not found`)
+      if (cccId) {
+        await db.execute({
+          sql: "DELETE FROM ccc_role_overrides WHERE ccc_id = ? AND role = ?",
+          args: [cccId, roleName.toLowerCase().trim()]
+        })
+      }
+    } catch (err) {
+      console.warn("Turso delete role notice:", err)
     }
 
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: targetSheetId,
-                dimension: "ROWS",
-                startIndex: idx + 1, // 0-based: Row 2 (A2) is index 1
-                endIndex: idx + 2,
-              },
+    // Google Sheets dual-delete
+    try {
+      const sheets = await getSheetsClient()
+      await this._ensureTab(sheets, spreadsheetId)
+      const roles = await this.getRoles(spreadsheetId)
+      const idx = roles.findIndex(
+        (x) => x.role.toLowerCase() === roleName.toLowerCase()
+      )
+      if (idx !== -1) {
+        const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId })
+        const sheet = spreadsheet.data.sheets?.find(
+          (s: any) => s.properties?.title === SHEET_NAME
+        )
+        const targetSheetId = sheet?.properties?.sheetId
+        if (targetSheetId !== undefined && targetSheetId !== null) {
+          await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              requests: [
+                {
+                  deleteDimension: {
+                    range: {
+                      sheetId: targetSheetId,
+                      dimension: "ROWS",
+                      startIndex: idx + 1,
+                      endIndex: idx + 2,
+                    },
+                  },
+                },
+              ],
             },
-          },
-        ],
-      },
-    })
+          })
+        }
+      }
+    } catch (e) {
+      console.warn("Sheets dual-delete notice:", e)
+    }
+
     this.invalidateCache(spreadsheetId)
-    return roles[idx]
+    return { role: roleName }
   }
 }
 
 export const roleStorage = RoleStorage.getInstance()
+
