@@ -1,4 +1,4 @@
-﻿export function extractDriveFileId(url: string | undefined): string | null {
+export function extractDriveFileId(url: string | undefined): string | null {
   if (!url || typeof url !== "string") return null
   const clean = url.trim()
 
@@ -23,20 +23,13 @@ export function getGoogleDriveDirectLink(url: string | undefined, size = 800): s
 
   const fileId = extractDriveFileId(targetUrl)
   if (fileId) {
-    const cdnUrl = `https://lh3.googleusercontent.com/d/${fileId}=s${size}`
-    if (typeof window !== "undefined") {
-      console.log(`[Image Delivery] ⚡ Serving directly from Google CDN (0 Vercel Bandwidth): ${cdnUrl}`)
-    }
-    return cdnUrl
+    return `https://lh3.googleusercontent.com/d/${fileId}=s${size}`
   }
 
   const fullUrl = targetUrl.startsWith("http://") || targetUrl.startsWith("https://")
     ? targetUrl
     : `https://${targetUrl}`
 
-  if (typeof window !== "undefined") {
-    console.log(`[Image Delivery] 🌐 Direct external image URL: ${fullUrl}`)
-  }
   return fullUrl
 }
 
@@ -48,7 +41,6 @@ export function handleImageError(
   if (!img) return
 
   if (img.dataset.hasRetried) {
-    console.warn(`[Image Delivery] ❌ Image failed permanently:`, originalUrl || img.src)
     return
   }
   img.dataset.hasRetried = "true"
@@ -56,7 +48,6 @@ export function handleImageError(
   const target = originalUrl || img.src
   if (target && !target.includes("/api/image-proxy")) {
     const fallbackProxy = `/api/image-proxy?url=${encodeURIComponent(target)}`
-    console.warn(`[Image Delivery] 🔄 Google CDN load failed, falling back to /api/image-proxy:`, fallbackProxy)
     img.src = fallbackProxy
   }
 }
