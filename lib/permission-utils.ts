@@ -140,8 +140,8 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     expanded[mod] = Array.from(actSet)
   }
 
-  // Ensure nsc default fallback if not explicitly defined in perms
-  if (!expanded.nsc || expanded.nsc.length === 0) {
+  // Ensure nsc default fallback only if not defined at all in perms catalog
+  if (perms.nsc === undefined) {
     if (isAgency) {
       expanded.nsc = ["read", "inspect", "agency_complete", "update"]
     } else if (isAdminOrExec) {
@@ -151,8 +151,8 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     }
   }
 
-  // Ensure misc_inspection default fallback if not explicitly defined in perms
-  if (!expanded.misc_inspection || expanded.misc_inspection.length === 0) {
+  // Ensure misc_inspection default fallback only if not defined at all in perms catalog
+  if (perms.misc_inspection === undefined && perms.misc === undefined && perms.misc_inspections === undefined) {
     if (isAgency) {
       expanded.misc_inspection = ["read", "inspect", "update"]
     } else if (isAdminOrExec) {
@@ -162,8 +162,8 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     }
   }
 
-  // Ensure meter_replacement default fallback if not explicitly defined in perms
-  if (!expanded.meter_replacement || expanded.meter_replacement.length === 0) {
+  // Ensure meter_replacement default fallback only if not defined at all in perms catalog
+  if (perms.meter_replacement === undefined && perms.meter === undefined) {
     if (isAgency) {
       expanded.meter_replacement = []
     } else if (isAdminOrExec) {
@@ -173,7 +173,7 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
     }
   }
 
-  // Ensure icds default fallback only if not explicitly defined in perms
+  // Ensure icds default fallback only if not defined at all in perms catalog
   if (perms.icds === undefined && perms.icds_electrification === undefined) {
     if (isAgency) {
       expanded.icds = ["read", "inspect", "execute", "install", "certify"]

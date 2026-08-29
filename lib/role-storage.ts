@@ -301,35 +301,36 @@ export class RoleStorage {
 
     // 1. Query 2-table inheritance from Turso (system_default_roles + ccc_role_overrides)
     try {
-      // Find CCC ID from spreadsheetId if available
+      // Find CCC ID from spreadsheetId or cccCode if available
       let cccId: number | null = null
       if (spreadsheetId) {
         const cccRes = await db.execute({
-          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? LIMIT 1",
-          args: [spreadsheetId]
+          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? OR ccc_code = ? OR LOWER(ccc_code) = LOWER(?) LIMIT 1",
+          args: [spreadsheetId, spreadsheetId, spreadsheetId]
         })
         cccId = (cccRes.rows[0]?.id as number) || null
       }
 
-      // Query default roles joined with tenant overrides
+      // Query default roles joined with tenant overrides:
+      // When a tenant override row exists (o.id IS NOT NULL), take the tenant's exact permissions (even if empty string "")
       const query = cccId
         ? `SELECT 
             d.role,
-            COALESCE(NULLIF(o.disconnection, ''), d.disconnection) as disconnection,
-            COALESCE(NULLIF(o.reconnection, ''), d.reconnection) as reconnection,
-            COALESCE(NULLIF(o.deemed, ''), d.deemed) as deemed,
-            COALESCE(NULLIF(o.dtr, ''), d.dtr) as dtr,
-            COALESCE(NULLIF(o.meter, ''), d.meter) as meter,
-            COALESCE(NULLIF(o.nsc, ''), d.nsc) as nsc,
-            COALESCE(NULLIF(o.consumer_master, ''), d.consumer_master) as consumer_master,
-            COALESCE(NULLIF(o.admin, ''), d.admin) as admin,
-            COALESCE(NULLIF(o.meter_replacement, ''), d.meter_replacement) as meter_replacement,
-            COALESCE(NULLIF(o.dtr_painting, ''), d.dtr_painting) as dtr_painting,
-            COALESCE(NULLIF(o.material, ''), d.material) as material,
-            COALESCE(NULLIF(o.osd, ''), d.osd) as osd,
-            COALESCE(NULLIF(o.safety, ''), d.safety) as safety,
-            COALESCE(NULLIF(o.misc_inspection, ''), d.misc_inspection) as misc_inspection,
-            COALESCE(NULLIF(o.icds, ''), d.icds) as icds
+            CASE WHEN o.id IS NOT NULL THEN o.disconnection ELSE d.disconnection END as disconnection,
+            CASE WHEN o.id IS NOT NULL THEN o.reconnection ELSE d.reconnection END as reconnection,
+            CASE WHEN o.id IS NOT NULL THEN o.deemed ELSE d.deemed END as deemed,
+            CASE WHEN o.id IS NOT NULL THEN o.dtr ELSE d.dtr END as dtr,
+            CASE WHEN o.id IS NOT NULL THEN o.meter ELSE d.meter END as meter,
+            CASE WHEN o.id IS NOT NULL THEN o.nsc ELSE d.nsc END as nsc,
+            CASE WHEN o.id IS NOT NULL THEN o.consumer_master ELSE d.consumer_master END as consumer_master,
+            CASE WHEN o.id IS NOT NULL THEN o.admin ELSE d.admin END as admin,
+            CASE WHEN o.id IS NOT NULL THEN o.meter_replacement ELSE d.meter_replacement END as meter_replacement,
+            CASE WHEN o.id IS NOT NULL THEN o.dtr_painting ELSE d.dtr_painting END as dtr_painting,
+            CASE WHEN o.id IS NOT NULL THEN o.material ELSE d.material END as material,
+            CASE WHEN o.id IS NOT NULL THEN o.osd ELSE d.osd END as osd,
+            CASE WHEN o.id IS NOT NULL THEN o.safety ELSE d.safety END as safety,
+            CASE WHEN o.id IS NOT NULL THEN o.misc_inspection ELSE d.misc_inspection END as misc_inspection,
+            CASE WHEN o.id IS NOT NULL THEN o.icds ELSE d.icds END as icds
           FROM system_default_roles d
           LEFT JOIN ccc_role_overrides o ON o.role = d.role AND o.ccc_id = ?
           UNION

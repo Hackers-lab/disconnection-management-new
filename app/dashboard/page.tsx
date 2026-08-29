@@ -15,7 +15,7 @@ export default async function DashboardPage() {
 
   let permissions: Record<string, string[]> = {}
   try {
-    const raw = await roleStorage.getPermissionsForRole(session.role)
+    const raw = await roleStorage.getPermissionsForRole(session.role, session.cccCode || "")
     permissions = expandRolePermissions(session.role, raw) || {}
   } catch (e) {
     // fallback
