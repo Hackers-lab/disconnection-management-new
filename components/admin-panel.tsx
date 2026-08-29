@@ -544,6 +544,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
   const [newAgency, setNewAgency] = useState({
     name: "",
     description: "",
+    vendorCode: "",
+    mobileNumber: "",
     isActive: true,
   })
 
@@ -1088,7 +1090,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       })
 
       if (response.ok) {
-        setNewAgency({ name: "", description: "", isActive: true })
+        setNewAgency({ name: "", description: "", vendorCode: "", mobileNumber: "", isActive: true })
         setShowAddAgency(false)
         const agenciesResponse = await fetch("/api/admin/agencies")
         setAgencies(await agenciesResponse.json())
@@ -1842,21 +1844,44 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="agencyName">Agency Name</Label>
+                    <Label htmlFor="agencyName">Agency Name <span className="text-rose-500">*</span></Label>
                     <Input
                       id="agencyName"
                       value={newAgency.name}
                       onChange={(e) => setNewAgency({ ...newAgency, name: e.target.value })}
-                      placeholder="Enter agency name"
+                      placeholder="e.g. ALOKE, M/S RAM KUMAR SINHAL"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="agencyDescription">Description</Label>
+                    <Label htmlFor="agencyVendorCode">SAP Vendor Code <span className="text-rose-500">*</span></Label>
+                    <Input
+                      id="agencyVendorCode"
+                      value={newAgency.vendorCode}
+                      onChange={(e) => setNewAgency({ ...newAgency, vendorCode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                      placeholder="6-digit SAP Vendor Code (e.g. 500287)"
+                      maxLength={6}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="agencyMobile">10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
+                    <Input
+                      id="agencyMobile"
+                      value={newAgency.mobileNumber}
+                      onChange={(e) => setNewAgency({ ...newAgency, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      placeholder="10-digit contractor phone for OTP/Login"
+                      maxLength={10}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="agencyDescription">Description / Notes</Label>
                     <Input
                       id="agencyDescription"
                       value={newAgency.description}
                       onChange={(e) => setNewAgency({ ...newAgency, description: e.target.value })}
-                      placeholder="Enter description"
+                      placeholder="Contact Person / Assigned Feeder / Zone"
                     />
                   </div>
                 </div>
@@ -1875,7 +1900,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 </div>
 
                 <div className="flex space-x-2">
-                  <Button onClick={addAgency} disabled={!newAgency.name}>
+                  <Button 
+                    onClick={addAgency} 
+                    disabled={!newAgency.name || !newAgency.vendorCode || newAgency.vendorCode.length < 6 || !newAgency.mobileNumber || newAgency.mobileNumber.length < 10}
+                  >
                     <Save className="h-4 w-4 mr-2" />
                     Add Agency
                   </Button>
@@ -1889,13 +1917,13 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
           {/* Agencies List */}
           <div className="space-y-2">
-            {agencies.map((agency) => (
-              <Card key={agency.id} className="p-2">
+            {agencies.map((agency: any) => (
+              <Card key={agency.id} className="p-3">
                 {editingAgency?.id === agency.id ? (
                   <div className="space-y-4 p-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Agency Name</Label>
+                        <Label>Agency Name <span className="text-rose-500">*</span></Label>
                         <Input
                           value={editingAgency.name}
                           onChange={(e) =>
@@ -1904,12 +1932,38 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Description</Label>
+                        <Label>SAP Vendor Code <span className="text-rose-500">*</span></Label>
+                        <Input
+                          value={editingAgency.vendorCode || ""}
+                          onChange={(e) =>
+                            setEditingAgency({ ...editingAgency, vendorCode: e.target.value.replace(/\D/g, '').slice(0, 6) })
+                          }
+                          placeholder="6-digit SAP Vendor Code"
+                          maxLength={6}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
+                        <Input
+                          value={editingAgency.mobileNumber || ""}
+                          onChange={(e) =>
+                            setEditingAgency({ ...editingAgency, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })
+                          }
+                          placeholder="10-digit contractor phone"
+                          maxLength={10}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description / Notes</Label>
                         <Input
                           value={editingAgency.description || ""}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, description: e.target.value })
                           }
+                          placeholder="Contact person / feeder scope"
                         />
                       </div>
                     </div>
@@ -1942,13 +1996,33 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 ) : (
                   <div className="flex justify-between items-center">
                     <div>
-                      <div className="font-bold">{agency.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-base">{agency.name}</span>
+                        {agency.vendorCode ? (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-mono text-xs">
+                            Vendor: {agency.vendorCode}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Missing Vendor Code
+                          </Badge>
+                        )}
+                        {agency.mobileNumber ? (
+                          <span className="text-xs text-slate-600 font-mono flex items-center gap-1">
+                            📞 {agency.mobileNumber}
+                          </span>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Missing Phone
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant={agency.isActive ? "default" : "secondary"}>
                           {agency.isActive ? "Active" : "Inactive"}
                         </Badge>
                         {agency.description && (
-                          <span className="text-sm text-gray-600">{agency.description}</span>
+                          <span className="text-xs text-slate-500">{agency.description}</span>
                         )}
                       </div>
                     </div>

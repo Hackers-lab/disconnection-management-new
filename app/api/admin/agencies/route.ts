@@ -26,7 +26,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   try {
-    const { name, description, isActive } = await request.json()
+    const { name, description, isActive, vendorCode, mobileNumber } = await request.json()
     if (!name) {
       return NextResponse.json({ error: "Agency name is required" }, { status: 400 })
     }
@@ -34,7 +34,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     if (agencies.find((a) => a.name.toUpperCase() === name.toUpperCase())) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
-    await addAgency({ name: name.toUpperCase(), description: description || "", isActive: isActive !== false })
+    await addAgency({ 
+      name: name.toUpperCase(), 
+      description: description || "", 
+      isActive: isActive !== false,
+      vendorCode: vendorCode || undefined,
+      mobileNumber: mobileNumber || undefined
+    })
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency added successfully" })
@@ -50,7 +56,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   try {
-    const { id, name, description, isActive } = await request.json()
+    const { id, name, description, isActive, vendorCode, mobileNumber } = await request.json()
     const agencies = await getAgencies()
     const agencyIndex = agencies.findIndex((a) => a.id === id)
     if (agencyIndex === -1) {
@@ -59,7 +65,14 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
     if (agencies.find((a) => a.name.toUpperCase() === name.toUpperCase() && a.id !== id)) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
-    await updateAgency({ id, name: name.toUpperCase(), description: description || "", isActive: isActive !== false })
+    await updateAgency({ 
+      id, 
+      name: name.toUpperCase(), 
+      description: description || "", 
+      isActive: isActive !== false,
+      vendorCode: vendorCode || undefined,
+      mobileNumber: mobileNumber || undefined
+    })
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency updated successfully" })
