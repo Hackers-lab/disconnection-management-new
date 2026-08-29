@@ -29,13 +29,21 @@ const DEFAULT_FEEDBACKS: FeedbackItem[] = [
   },
 ]
 
-export function LoginFeedbackCarousel() {
-  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(DEFAULT_FEEDBACKS)
+interface LoginFeedbackCarouselProps {
+  initialFeedbacks?: FeedbackItem[]
+}
+
+export function LoginFeedbackCarousel({ initialFeedbacks }: LoginFeedbackCarouselProps) {
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(
+    initialFeedbacks && initialFeedbacks.length > 0 ? initialFeedbacks : DEFAULT_FEEDBACKS
+  )
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFading, setIsFading] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
 
   useEffect(() => {
+    if (initialFeedbacks && initialFeedbacks.length > 0) return
+
     let isMounted = true
     fetch("/api/feedback/public")
       .then((res) => (res.ok ? res.json() : []))
@@ -49,7 +57,7 @@ export function LoginFeedbackCarousel() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [initialFeedbacks])
 
   useEffect(() => {
     if (isPaused || feedbacks.length <= 1) return

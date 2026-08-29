@@ -11,7 +11,13 @@ import { login } from "@/app/actions/auth"
 import { LoginFeedbackCarousel } from "@/components/login-feedback-carousel"
 import { VisitorLiveCounter } from "@/components/visitor-live-counter"
 
-export function LoginForm() {
+import type { FeedbackItem } from "@/lib/feedback-service"
+
+interface LoginFormProps {
+  initialFeedbacks?: FeedbackItem[]
+}
+
+export function LoginForm({ initialFeedbacks }: LoginFormProps) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -180,7 +186,7 @@ export function LoginForm() {
 
       {/* Real User Feedback Ticker Card ABOVE small icon buttons */}
       <div className="pt-2">
-        <LoginFeedbackCarousel />
+        <LoginFeedbackCarousel initialFeedbacks={initialFeedbacks} />
       </div>
 
       {/* Small Iconed Buttons Row */}
