@@ -79,24 +79,28 @@ export class UserStorage {
     try {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.subscription_status as subStatus, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id`,
         args: []
       })
       if (res.rows && res.rows.length > 0) {
-        const users: MasterUser[] = res.rows.map((r: any) => ({
-          id: String(r.id || ""),
-          username: String(r.username || ""),
-          password: String(r.password || ""),
-          role: String(r.role || ""),
-          cccCode: String(r.cccCode || ""),
-          name: String(r.name || ""),
-          agencies: [],
-          subscriptionStatus: String(r.subStatus || "active"),
-          subscriptionExpiresAt: String(r.subExpiresAt || ""),
-          bypassSubscription: Boolean(r.bypassSub),
-        }))
+        const users: MasterUser[] = res.rows.map((r: any) => {
+          const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+          const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+          return {
+            id: String(r.id || ""),
+            username: String(r.username || ""),
+            password: String(r.password || ""),
+            role: String(r.role || ""),
+            cccCode: String(r.cccCode || ""),
+            name: String(r.name || ""),
+            agencies: fallbackAgencies,
+            subscriptionStatus: String(r.subStatus || "active"),
+            subscriptionExpiresAt: String(r.subExpiresAt || ""),
+            bypassSubscription: Boolean(r.bypassSub),
+          }
+        })
         this._cache = users
         this._cacheTimestamp = now
         return users
@@ -140,7 +144,7 @@ export class UserStorage {
       const qStart = performance.now()
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.subscription_status as subStatus, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
@@ -161,7 +165,9 @@ export class UserStorage {
           const r: any = matchingRow
           const dbPassword = String(r.password || "").trim()
           const totalMs = (performance.now() - t0).toFixed(1)
-          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' (Account: ${r.username}, CCC: ${r.cccCode || "N/A"}) authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
+          const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+          const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' (Account: ${r.username}, CCC: ${r.cccCode || "N/A"}, Agencies: ${fallbackAgencies.join(", ") || "None"}) authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
           return {
             id: String(r.id || ""),
             username: String(r.username || cleanUsername),
@@ -169,7 +175,7 @@ export class UserStorage {
             role: String(r.role || "viewer"),
             cccCode: String(r.cccCode || ""),
             name: String(r.name || cleanUsername),
-            agencies: [],
+            agencies: fallbackAgencies,
             subscriptionStatus: String(r.subStatus || "active"),
             subscriptionExpiresAt: String(r.subExpiresAt || ""),
             bypassSubscription: Boolean(r.bypassSub),

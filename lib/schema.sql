@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS users (
     full_name TEXT NOT NULL,
     role TEXT NOT NULL,
     ccc_id INTEGER REFERENCES ccc_registry(id),
+    agencies TEXT DEFAULT '',
     status TEXT DEFAULT 'ACTIVE',
     subscription_status TEXT DEFAULT 'active',
     subscription_expires_at TEXT,
