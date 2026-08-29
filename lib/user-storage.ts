@@ -148,8 +148,15 @@ export class UserStorage {
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE LOWER(u.username) = LOWER(?) OR (LOWER(c.ccc_code) = LOWER(?) AND u.role = 'admin')`,
-        args: [cleanUsername, cleanUsername]
+              WHERE u.username = ? COLLATE NOCASE
+              UNION ALL
+              SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u 
+              JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin' AND u.username != ? COLLATE NOCASE`,
+        args: [cleanUsername, cleanUsername, cleanUsername]
       })
       const qDuration = (performance.now() - qStart).toFixed(1)
 
