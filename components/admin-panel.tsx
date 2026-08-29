@@ -1347,42 +1347,50 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       {view === "menu" && (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <DashboardCard
-            icon={<Users className="h-12 w-12 text-blue-500" />}
+            icon={<Users className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />}
+            bgColor="bg-blue-50"
             title="Manage Users"
             onClick={() => setView("users")}
           />
           <DashboardCard
-            icon={<Building2 className="h-12 w-12 text-green-500" />}
+            icon={<Building2 className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />}
+            bgColor="bg-emerald-50"
             title="Manage Agencies"
             onClick={() => setView("agencies")}
           />
           <DashboardCard
-            icon={<Upload className="h-12 w-12 text-purple-500" />}
+            icon={<Upload className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />}
+            bgColor="bg-purple-50"
             title="Upload Payment Data"
             onClick={() => setView("payments")} 
           />
           <DashboardCard
-            icon={<List className="h-12 w-12 text-orange-500" />}
+            icon={<List className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />}
+            bgColor="bg-amber-50"
             title="Upload DC List"
             onClick={() => setView("dcList")}
           />
           <DashboardCard
-            icon={<Building2 className="h-12 w-12 text-teal-500" />}
+            icon={<Building2 className="h-5 w-5 md:h-6 md:w-6 text-teal-600" />}
+            bgColor="bg-teal-50"
             title="Agency Zone Map"
             onClick={() => setView("zoneMap")}
           />
           <DashboardCard
-            icon={<ShieldCheck className="h-12 w-12 text-rose-500" />}
+            icon={<ShieldCheck className="h-5 w-5 md:h-6 md:w-6 text-rose-600" />}
+            bgColor="bg-rose-50"
             title="Manage Roles"
             onClick={() => setView("roles")}
           />
           <DashboardCard
-            icon={<Bell className="h-12 w-12 text-emerald-500" />}
+            icon={<Bell className="h-5 w-5 md:h-6 md:w-6 text-cyan-600" />}
+            bgColor="bg-cyan-50"
             title="Broadcast Alert"
             onClick={() => setShowPushModal(true)}
           />
           <DashboardCard
-            icon={<KeyRound className="h-12 w-12 text-blue-600" />}
+            icon={<KeyRound className="h-5 w-5 md:h-6 md:w-6 text-indigo-600" />}
+            bgColor="bg-indigo-50"
             title="Google Integration"
             onClick={() => setView("google-onboarding")}
           />
@@ -3230,26 +3238,34 @@ function ZoneAgencyGrouped({
 
 function DashboardCard({
   icon,
+  bgColor = "bg-slate-50",
   title,
   onClick,
 }: {
   icon: React.ReactNode
+  bgColor?: string
   title: string
   onClick: () => void
 }) {
   return (
-    <Card
-      className="cursor-pointer hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200 p-3 sm:p-5 flex flex-col items-center justify-center text-center h-full border border-slate-200/80 bg-white/90 shadow-sm"
-      onClick={onClick}
+    <div
+      onClick={() => {
+        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+        onClick()
+      }}
+      className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 active:scale-95 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.20] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] md:min-h-[110px] select-none"
     >
-      <div className="flex flex-col items-center justify-center w-full">
-        <div className="p-2.5 sm:p-3.5 rounded-xl bg-slate-50 flex items-center justify-center [&_svg]:h-7 [&_svg]:w-7 sm:[&_svg]:h-10 sm:[&_svg]:w-10 lg:[&_svg]:h-12 lg:[&_svg]:w-12">
+      {/* Top Row: Icon Container */}
+      <div className="flex items-start justify-between">
+        <div className={`w-10 h-10 md:w-11 md:h-11 rounded-[10px] md:rounded-xl ${bgColor} border border-black/[0.04] flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-300 group-hover:scale-105 group-hover:rotate-2`}>
           {icon}
         </div>
-        <CardTitle className="mt-2.5 sm:mt-3.5 text-xs sm:text-base font-semibold leading-tight line-clamp-2 text-slate-800">
-          {title}
-        </CardTitle>
       </div>
-    </Card>
+
+      {/* Bottom Row: Title */}
+      <h3 className="text-xs sm:text-sm md:text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug mt-2 tracking-tight line-clamp-2">
+        {title}
+      </h3>
+    </div>
   )
 }
