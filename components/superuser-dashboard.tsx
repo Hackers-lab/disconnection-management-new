@@ -97,17 +97,20 @@ interface TenantStats {
 function formatRegistrationDate(dateStr?: string): { formatted: string; relative: string } {
   if (!dateStr) return { formatted: "N/A", relative: "Legacy / Sheet" }
   try {
-    const d = new Date(dateStr)
+    const iso = dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T") + "Z"
+    const d = new Date(iso)
     if (isNaN(d.getTime())) return { formatted: dateStr, relative: "" }
     
     const formatted = d.toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
       day: "2-digit",
       month: "short",
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      second: "2-digit",
       hour12: true
-    })
+    }) + " IST"
 
     const diffMs = Date.now() - d.getTime()
     const diffSec = Math.floor(diffMs / 1000)
@@ -559,17 +562,32 @@ export function SuperuserDashboard() {
 
   const isAllExpanded = filteredTenantRows.length > 0 && filteredTenantRows.every(code => !!expandedCccs[code])
 
-  const filteredRegistrations = tenants.filter(t => {
-    if (!registrationsSearchTerm.trim()) return true
-    const q = registrationsSearchTerm.toLowerCase().trim()
-    return (
-      t.cccCode.toLowerCase().includes(q) ||
-      t.cccName.toLowerCase().includes(q) ||
-      (t.contactPerson || "").toLowerCase().includes(q) ||
-      (t.mobileNumber || "").toLowerCase().includes(q) ||
-      (t.adminUsername || "").toLowerCase().includes(q)
-    )
-  })
+  const filteredRegistrations = [...tenants]
+    .filter(t => {
+      if (!registrationsSearchTerm.trim()) return true
+      const q = registrationsSearchTerm.toLowerCase().trim()
+      return (
+        t.cccCode.toLowerCase().includes(q) ||
+        t.cccName.toLowerCase().includes(q) ||
+        (t.contactPerson || "").toLowerCase().includes(q) ||
+        (t.mobileNumber || "").toLowerCase().includes(q) ||
+        (t.adminUsername || "").toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => {
+      const parseTime = (dateStr?: string) => {
+        if (!dateStr) return 0
+        const iso = dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T") + "Z"
+        const t = new Date(iso).getTime()
+        return isNaN(t) ? 0 : t
+      }
+      const timeA = parseTime(a.createdAt)
+      const timeB = parseTime(b.createdAt)
+      if (timeA !== timeB) return timeB - timeA
+      const idA = Number(a.id) || 0
+      const idB = Number(b.id) || 0
+      return idB - idA
+    })
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 relative overflow-x-hidden">

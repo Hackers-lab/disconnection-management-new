@@ -81,8 +81,23 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    const sortedTenants = Object.values(mergedMap).sort((a: any, b: any) => {
+      const parseTime = (dateStr?: string) => {
+        if (!dateStr) return 0
+        const iso = dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("T") ? dateStr : dateStr.replace(" ", "T") + "Z"
+        const t = new Date(iso).getTime()
+        return isNaN(t) ? 0 : t
+      }
+      const timeA = parseTime(a.createdAt)
+      const timeB = parseTime(b.createdAt)
+      if (timeA !== timeB) return timeB - timeA
+      const idA = Number(a.id) || 0
+      const idB = Number(b.id) || 0
+      return idB - idA
+    })
+
     return NextResponse.json({
-      tenants: Object.values(mergedMap),
+      tenants: sortedTenants,
       masterSheetId,
     })
   } catch (e: any) {
