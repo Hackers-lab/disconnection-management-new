@@ -63,10 +63,19 @@ export async function login(formData: FormData) {
   console.log(`├── 3. Presence Tracking:  ${presenceTime}ms`)
   console.log(`└── 🚀 Total Server Login Time: ${totalLoginTime}ms (Role: ${user.role}, CCC: ${user.cccCode || "N/A"})\n`)
 
-  if (user.role === "superuser") {
-    redirect("/superuser")
-  } else {
-    redirect("/dashboard")
+  const redirectTo = user.role === "superuser" ? "/superuser" : "/dashboard"
+  return {
+    success: true,
+    redirectTo,
+    benchmark: {
+      dbSource: "Turso DB",
+      lookupTimeMs: Number(lookupTime),
+      sessionTimeMs: Number(sessionTime),
+      totalServerTimeMs: Number(totalLoginTime),
+      username,
+      role: user.role,
+      cccCode: user.cccCode || "",
+    }
   }
 }
 

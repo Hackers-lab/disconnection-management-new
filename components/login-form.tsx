@@ -88,13 +88,20 @@ export function LoginForm() {
       sessionStorage.clear()
     } catch {}
 
-    const result = await login(formData)
+    const result: any = await login(formData)
 
     if (result?.error) {
       setError(result.error)
       setLoading(false)
     } else {
-      router.push("/dashboard")
+      if (result?.benchmark) {
+        console.log(
+          `%c⚡ [AUTH BENCHMARK] %cDatabase: ${result.benchmark.dbSource} | DB Lookup: ${result.benchmark.lookupTimeMs}ms | Total Server: ${result.benchmark.totalServerTimeMs}ms | User: ${result.benchmark.username} (${result.benchmark.role})`,
+          "background: #059669; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold;",
+          "color: #0284c7; font-weight: 600;"
+        )
+      }
+      router.push(result?.redirectTo || "/dashboard")
     }
   }
 
