@@ -10,6 +10,38 @@ import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, 
 import { firebaseAuth } from "@/lib/firebase-client"
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
 
+function formatFriendlyError(err: any): string {
+  const code = String(err?.code || "").toLowerCase()
+  const msg = String(err?.message || "").toLowerCase()
+
+  if (code.includes("invalid-verification-code") || code.includes("invalid-otp") || msg.includes("invalid-verification-code")) {
+    return "Invalid OTP code. Please check the 6-digit code and try again."
+  }
+  if (code.includes("code-expired") || msg.includes("code-expired")) {
+    return "OTP code has expired. Please request a new OTP."
+  }
+  if (code.includes("too-many-requests") || msg.includes("too-many-requests")) {
+    return "Too many attempts from this device. Please wait a few minutes and try again."
+  }
+  if (code.includes("invalid-phone-number") || msg.includes("invalid-phone-number")) {
+    return "Please enter a valid 10-digit mobile number."
+  }
+  if (code.includes("quota-exceeded") || msg.includes("quota-exceeded")) {
+    return "SMS quota exceeded for today. Please try again later."
+  }
+  if (code.includes("captcha-check-failed") || msg.includes("captcha-check-failed")) {
+    return "Security verification check failed. Please refresh the page and try again."
+  }
+  if (code.includes("network-request-failed") || msg.includes("network-request-failed")) {
+    return "Network connection issue. Please check your internet connection."
+  }
+
+  // Strip any raw library error prefixes
+  const raw = String(err?.message || "")
+  const sanitized = raw.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/i, "").trim()
+  return sanitized || "Verification failed. Please check the code and try again."
+}
+
 interface ForgotPasswordDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -123,7 +155,8 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
         setStep(2)
       }, 600)
     } catch (err: any) {
-      setError(err.message)
+      console.error("Auth request OTP error:", err)
+      setError(formatFriendlyError(err))
     } finally {
       setLoading(false)
     }
@@ -172,7 +205,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
           body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
         })
         const verifyData = await verifyRes.json()
-        if (!verifyRes.ok) throw new Error(verifyData.error || "OTP verification failed.")
+        if (!verifyRes.ok) throw new Error(verifyData.error || "Invalid OTP code.")
         verificationToken = verifyData.verificationToken
       }
 
@@ -196,7 +229,8 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
         onOpenChange(false)
       }, 1500)
     } catch (err: any) {
-      setError(err.message)
+      console.error("Auth reset password error:", err)
+      setError(formatFriendlyError(err))
     } finally {
       setLoading(false)
     }

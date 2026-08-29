@@ -11,6 +11,38 @@ import { Building2, Smartphone, CheckCircle2, AlertCircle, Loader2, ShieldCheck,
 import { firebaseAuth } from "@/lib/firebase-client"
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
 
+function formatFriendlyError(err: any): string {
+  const code = String(err?.code || "").toLowerCase()
+  const msg = String(err?.message || "").toLowerCase()
+
+  if (code.includes("invalid-verification-code") || code.includes("invalid-otp") || msg.includes("invalid-verification-code")) {
+    return "Invalid OTP code. Please check the 6-digit code and try again."
+  }
+  if (code.includes("code-expired") || msg.includes("code-expired")) {
+    return "OTP code has expired. Please request a new OTP."
+  }
+  if (code.includes("too-many-requests") || msg.includes("too-many-requests")) {
+    return "Too many attempts from this device. Please wait a few minutes and try again."
+  }
+  if (code.includes("invalid-phone-number") || msg.includes("invalid-phone-number")) {
+    return "Please enter a valid 10-digit mobile number."
+  }
+  if (code.includes("quota-exceeded") || msg.includes("quota-exceeded")) {
+    return "SMS quota exceeded for today. Please try again later."
+  }
+  if (code.includes("captcha-check-failed") || msg.includes("captcha-check-failed")) {
+    return "Security verification check failed. Please refresh the page and try again."
+  }
+  if (code.includes("network-request-failed") || msg.includes("network-request-failed")) {
+    return "Network connection issue. Please check your internet connection."
+  }
+
+  // Strip any raw library error prefixes
+  const raw = String(err?.message || "")
+  const sanitized = raw.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/i, "").trim()
+  return sanitized || "Verification failed. Please check the code and try again."
+}
+
 interface RegisterCccDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -108,16 +140,8 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
       setCountdown(45)
       setSuccessMsg(`OTP sent to +91 ${cleanMob}.`)
     } catch (err: any) {
-      console.error("Firebase Phone Auth error:", err)
-      const errorMsg = err.code === "auth/invalid-phone-number"
-        ? "Invalid phone number format."
-        : err.code === "auth/too-many-requests"
-        ? "Too many OTP requests from this device. Please try again later."
-        : err.code === "auth/quota-exceeded"
-        ? "SMS quota exceeded for today."
-        : err.code === "auth/captcha-check-failed"
-        ? "reCAPTCHA verification failed. Please reload and try again."
-        : err.message || "Failed to send SMS OTP. Please check your connection."
+      console.error("Auth send OTP error:", err)
+      const errorMsg = formatFriendlyError(err)
       setError(errorMsg)
     } finally {
       setLoading(false)
@@ -158,7 +182,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
           body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || "OTP verification failed.")
+        if (!res.ok) throw new Error(data.error || "Invalid OTP code.")
         setVerificationToken(data.verificationToken)
       }
 
@@ -168,7 +192,8 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         setStep(2)
       }, 700)
     } catch (err: any) {
-      setError(err.message || "Invalid OTP code. Please check and try again.")
+      console.error("Auth verify error:", err)
+      setError(formatFriendlyError(err))
     } finally {
       setLoading(false)
     }
