@@ -4,12 +4,33 @@
 
 html {
   overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
   font-family: var(--font-dm-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
   max-width: 100vw;
+}
+
+/* Prevent Google reCAPTCHA from causing horizontal scrollbars */
+.grecaptcha-badge {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+#register-recaptcha-container,
+#forgot-recaptcha-container {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  clip: rect(0, 0, 0, 0) !important;
 }
 
 @layer utilities {
