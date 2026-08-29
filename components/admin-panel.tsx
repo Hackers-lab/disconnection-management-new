@@ -1349,49 +1349,41 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
           <DashboardCard
             icon={<Users className="h-12 w-12 text-blue-500" />}
             title="Manage Users"
-            description="Add, edit, and remove users"
             onClick={() => setView("users")}
           />
           <DashboardCard
             icon={<Building2 className="h-12 w-12 text-green-500" />}
             title="Manage Agencies"
-            description="Add, edit, and remove agencies"
             onClick={() => setView("agencies")}
           />
           <DashboardCard
             icon={<Upload className="h-12 w-12 text-purple-500" />}
             title="Upload Payment Data"
-            description="Update payment information"
             onClick={() => setView("payments")} 
           />
           <DashboardCard
             icon={<List className="h-12 w-12 text-orange-500" />}
             title="Upload DC List"
-            description="Upload & sync disconnection list"
             onClick={() => setView("dcList")}
           />
           <DashboardCard
             icon={<Building2 className="h-12 w-12 text-teal-500" />}
             title="Agency Zone Map"
-            description="Map zones to agencies for auto-assign"
             onClick={() => setView("zoneMap")}
           />
           <DashboardCard
             icon={<ShieldCheck className="h-12 w-12 text-rose-500" />}
             title="Manage Roles"
-            description="Edit role permissions dynamically"
             onClick={() => setView("roles")}
           />
           <DashboardCard
             icon={<Bell className="h-12 w-12 text-emerald-500" />}
             title="Broadcast Alert"
-            description="Send mobile push notification to team"
             onClick={() => setShowPushModal(true)}
           />
           <DashboardCard
             icon={<KeyRound className="h-12 w-12 text-blue-600" />}
             title="Google Integration"
-            description="Link Google drive and sheets"
             onClick={() => setView("google-onboarding")}
           />
         </div>
@@ -3239,12 +3231,10 @@ function ZoneAgencyGrouped({
 function DashboardCard({
   icon,
   title,
-  description,
   onClick,
 }: {
   icon: React.ReactNode
   title: string
-  description: string
   onClick: () => void
 }) {
   return (
@@ -3253,15 +3243,12 @@ function DashboardCard({
       onClick={onClick}
     >
       <div className="flex flex-col items-center justify-center w-full">
-        <div className="p-2 sm:p-3 rounded-xl bg-slate-50 flex items-center justify-center [&_svg]:h-7 [&_svg]:w-7 sm:[&_svg]:h-10 sm:[&_svg]:w-10 lg:[&_svg]:h-12 lg:[&_svg]:w-12">
+        <div className="p-2.5 sm:p-3.5 rounded-xl bg-slate-50 flex items-center justify-center [&_svg]:h-7 [&_svg]:w-7 sm:[&_svg]:h-10 sm:[&_svg]:w-10 lg:[&_svg]:h-12 lg:[&_svg]:w-12">
           {icon}
         </div>
-        <CardTitle className="mt-2 sm:mt-3 text-xs sm:text-base font-semibold leading-tight line-clamp-1 sm:line-clamp-2 text-slate-800">
+        <CardTitle className="mt-2.5 sm:mt-3.5 text-xs sm:text-base font-semibold leading-tight line-clamp-2 text-slate-800">
           {title}
         </CardTitle>
-        <CardContent className="p-0 mt-1 text-center text-[11px] sm:text-sm text-gray-500 line-clamp-2 leading-tight">
-          {description}
-        </CardContent>
       </div>
     </Card>
   )
