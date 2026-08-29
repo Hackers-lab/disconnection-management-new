@@ -876,6 +876,9 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const accessibleModulesWithCounts = modules
     .filter((module) => {
       const permKey = module.id.replace(/-/g, "_")
+      if (module.id === "meter-replacement") {
+        return userRole === "admin" || userRole === "executive" || userRole === "superuser"
+      }
       return (
         userRole === "admin" ||
         userRole === "superuser" ||
