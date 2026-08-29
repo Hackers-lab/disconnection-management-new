@@ -15,9 +15,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   const context = getTenantContext()
   const cccCode = context?.cccCode || ""
 
-  const allUsers = await userStorage.getUsers()
-  // Filter users by current tenant cccCode
-  const tenantUsers = allUsers.filter((u) => u.cccCode === cccCode)
+  const tenantUsers = await userStorage.getUsersByCcc(cccCode)
   
   return NextResponse.json(tenantUsers, {
     headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
@@ -46,10 +44,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
     }
 
-    const allUsers = await userStorage.getUsers()
-
     // Check if username already exists globally
-    if (allUsers.find((u) => u.username === username)) {
+    const existingUser = await userStorage.getUserByUsername(username)
+    if (existingUser) {
       return NextResponse.json({ error: "Username already exists" }, { status: 400 })
     }
 
@@ -90,16 +87,18 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
   try {
     const { id, username, password, role, agencies } = await request.json()
 
-    const allUsers = await userStorage.getUsers()
-    const existingUser = allUsers.find((u) => u.id === id && u.cccCode === cccCode)
+    const existingUser = await userStorage.getUserById(id)
 
-    if (!existingUser) {
+    if (!existingUser || existingUser.cccCode !== cccCode) {
       return NextResponse.json({ error: "User not found in this tenant" }, { status: 404 })
     }
 
     // Check if new username conflicts with existing users
-    if (allUsers.find((u) => u.username === username && u.id !== id)) {
-      return NextResponse.json({ error: "Username already exists" }, { status: 400 })
+    if (username && username.toLowerCase() !== existingUser.username.toLowerCase()) {
+      const conflictUser = await userStorage.getUserByUsername(username)
+      if (conflictUser && conflictUser.id !== id) {
+        return NextResponse.json({ error: "Username already exists" }, { status: 400 })
+      }
     }
 
     const updatedUser = await userStorage.updateUser(id, {
@@ -144,10 +143,9 @@ export const DELETE = withTenant(async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    const allUsers = await userStorage.getUsers()
-    const userToDelete = allUsers.find((u) => u.id === id && u.cccCode === cccCode)
+    const userToDelete = await userStorage.getUserById(id)
 
-    if (!userToDelete) {
+    if (!userToDelete || userToDelete.cccCode !== cccCode) {
       return NextResponse.json({ error: "User not found in this tenant" }, { status: 404 })
     }
 

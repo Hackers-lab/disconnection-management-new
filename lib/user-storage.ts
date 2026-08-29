@@ -69,6 +69,166 @@ export class UserStorage {
     this._cacheTimestamp = 0
   }
 
+  async getUserById(id: string): Promise<MasterUser | null> {
+    const cleanId = String(id || "").trim()
+    if (!cleanId) return null
+
+    try {
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE u.id = ?
+              LIMIT 1`,
+        args: [cleanId]
+      })
+      if (res.rows && res.rows.length > 0) {
+        const r: any = res.rows[0]
+        const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+        const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+        return {
+          id: String(r.id || ""),
+          username: String(r.username || ""),
+          password: String(r.password || ""),
+          role: String(r.role || ""),
+          cccCode: String(r.cccCode || ""),
+          name: String(r.name || ""),
+          agencies: fallbackAgencies,
+          subscriptionStatus: String(r.subStatus || "active"),
+          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          bypassSubscription: Boolean(r.bypassSub),
+        }
+      }
+    } catch (err) {
+      console.warn("Turso getUserById notice, falling back to cache/sheets:", err)
+    }
+
+    const users = await this.getUsers()
+    return users.find(u => String(u.id) === cleanId) || null
+  }
+
+  async getUserByUsername(username: string): Promise<MasterUser | null> {
+    const cleanUser = String(username || "").trim()
+    if (!cleanUser) return null
+
+    try {
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE u.username = ? COLLATE NOCASE
+              LIMIT 1`,
+        args: [cleanUser]
+      })
+      if (res.rows && res.rows.length > 0) {
+        const r: any = res.rows[0]
+        const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+        const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+        return {
+          id: String(r.id || ""),
+          username: String(r.username || ""),
+          password: String(r.password || ""),
+          role: String(r.role || ""),
+          cccCode: String(r.cccCode || ""),
+          name: String(r.name || ""),
+          agencies: fallbackAgencies,
+          subscriptionStatus: String(r.subStatus || "active"),
+          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          bypassSubscription: Boolean(r.bypassSub),
+        }
+      }
+    } catch (err) {
+      console.warn("Turso getUserByUsername notice, falling back to cache/sheets:", err)
+    }
+
+    const users = await this.getUsers()
+    return users.find(u => u.username.toLowerCase() === cleanUser.toLowerCase()) || null
+  }
+
+  async getUsersByCcc(cccCode: string): Promise<MasterUser[]> {
+    const cleanCcc = String(cccCode || "").trim()
+    if (!cleanCcc || cleanCcc === "SYSTEM") {
+      return this.getUsers()
+    }
+
+    try {
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u 
+              JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE c.ccc_code = ? COLLATE NOCASE`,
+        args: [cleanCcc]
+      })
+      if (res.rows && res.rows.length > 0) {
+        return res.rows.map((r: any) => {
+          const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+          const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+          return {
+            id: String(r.id || ""),
+            username: String(r.username || ""),
+            password: String(r.password || ""),
+            role: String(r.role || ""),
+            cccCode: String(r.cccCode || cleanCcc),
+            name: String(r.name || ""),
+            agencies: fallbackAgencies,
+            subscriptionStatus: String(r.subStatus || "active"),
+            subscriptionExpiresAt: String(r.subExpiresAt || ""),
+            bypassSubscription: Boolean(r.bypassSub),
+          }
+        })
+      }
+    } catch (err) {
+      console.warn("Turso getUsersByCcc notice, falling back to cache/sheets:", err)
+    }
+
+    const users = await this.getUsers()
+    return users.filter(u => u.cccCode?.toUpperCase() === cleanCcc.toUpperCase())
+  }
+
+  async getAdminUserByCccCode(cccCode: string): Promise<MasterUser | null> {
+    const cleanCcc = String(cccCode || "").trim()
+    if (!cleanCcc) return null
+
+    try {
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u 
+              JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE c.ccc_code = ? COLLATE NOCASE AND LOWER(u.role) = 'admin'
+              LIMIT 1`,
+        args: [cleanCcc]
+      })
+      if (res.rows && res.rows.length > 0) {
+        const r: any = res.rows[0]
+        const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+        const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+        return {
+          id: String(r.id || ""),
+          username: String(r.username || ""),
+          password: String(r.password || ""),
+          role: String(r.role || ""),
+          cccCode: String(r.cccCode || ""),
+          name: String(r.name || ""),
+          agencies: fallbackAgencies,
+          subscriptionStatus: String(r.subStatus || "active"),
+          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          bypassSubscription: Boolean(r.bypassSub),
+        }
+      }
+    } catch (err) {
+      console.warn("Turso getAdminUserByCccCode notice:", err)
+    }
+
+    const users = await this.getUsers()
+    return users.find(u => u.cccCode?.toUpperCase() === cleanCcc.toUpperCase() && u.role.toLowerCase() === "admin") || null
+  }
+
   async getUsers(): Promise<MasterUser[]> {
     const now = Date.now()
     if (this._cache && (now - this._cacheTimestamp < this.CACHE_TTL_MS)) {

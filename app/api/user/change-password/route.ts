@@ -21,8 +21,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "New password must be at least 4 characters" }, { status: 400 })
     }
 
-    const users = await userStorage.getUsers()
-    const user = users.find((u) => u.id === session.userId)
+    const user = await userStorage.getUserById(session.userId)
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
