@@ -86,39 +86,40 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
     try {
       setLoading(true)
 
-      // Initialize invisible reCAPTCHA if not already created
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
+      // Ensure fresh reCAPTCHA verifier instance
+      if (typeof window !== "undefined") {
+        if ((window as any).registerRecaptchaVerifier) {
+          try { (window as any).registerRecaptchaVerifier.clear() } catch {}
+        }
+        (window as any).registerRecaptchaVerifier = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
           size: "invisible",
           callback: () => {},
+          "expired-callback": () => {
+            setError("reCAPTCHA expired. Please try sending OTP again.")
+          }
         })
       }
 
       const formattedPhone = `+91${cleanMob}`
-      const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, recaptchaVerifierRef.current)
+      const appVerifier = (window as any).registerRecaptchaVerifier
+      const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier)
       setConfirmationResult(confirmation)
 
       setOtpSent(true)
       setCountdown(45)
       setSuccessMsg(`OTP sent to +91 ${cleanMob}.`)
     } catch (err: any) {
-      console.warn("Firebase Phone Auth notice, attempting server fallback:", err)
-      // Fallback to Server OTP if Firebase fails or domain is being verified
-      try {
-        const res = await fetch("/api/auth/otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "send", mobileNumber: cleanMob })
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || "Failed to send OTP.")
-
-        setOtpSent(true)
-        setCountdown(45)
-        setSuccessMsg(data.message || `OTP sent to +91 ${cleanMob}.`)
-      } catch (fallbackErr: any) {
-        setError(fallbackErr.message || err.message || "Failed to dispatch SMS OTP. Please check mobile number.")
-      }
+      console.error("Firebase Phone Auth error:", err)
+      const errorMsg = err.code === "auth/invalid-phone-number"
+        ? "Invalid phone number format."
+        : err.code === "auth/too-many-requests"
+        ? "Too many OTP requests from this device. Please try again later."
+        : err.code === "auth/quota-exceeded"
+        ? "SMS quota exceeded for today."
+        : err.code === "auth/captcha-check-failed"
+        ? "reCAPTCHA verification failed. Please reload and try again."
+        : err.message || "Failed to send SMS OTP. Please check your connection."
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }
