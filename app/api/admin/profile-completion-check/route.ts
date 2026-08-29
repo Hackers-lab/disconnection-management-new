@@ -79,9 +79,7 @@ export const GET = async function GET(req: NextRequest) {
         const vc = String(r.vendor_code || "").trim()
         const mob = String(r.mobile_number || "").trim()
         if (!vc || !/^\d{6}$/.test(vc)) missing.push("vendor_code")
-        if (!r.contact_person) missing.push("contact_person")
         if (!mob || !/^\d{10}$/.test(mob)) missing.push("mobile_number")
-        if (!r.email) missing.push("email")
         return {
           id: String(r.id),
           name: String(r.name || ""),

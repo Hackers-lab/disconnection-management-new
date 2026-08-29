@@ -96,19 +96,27 @@ export function AdminSetupGuideBanner() {
   // Filtered lists
   const filteredAgencies = useMemo(() => {
     if (!setupData) return []
-    return setupData.incompleteAgencies.filter(a =>
-      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (agenciesForm[a.id]?.vendorCode || "").includes(searchQuery)
-    )
-  }, [setupData, searchQuery, agenciesForm])
+    return setupData.incompleteAgencies.filter(a => {
+      if (savedSuccessIds.has(a.id)) return false
+      const matchesSearch =
+        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (agenciesForm[a.id]?.vendorCode || "").includes(searchQuery) ||
+        (agenciesForm[a.id]?.mobileNumber || "").includes(searchQuery)
+      return matchesSearch
+    })
+  }, [setupData, searchQuery, agenciesForm, savedSuccessIds])
 
   const filteredUsers = useMemo(() => {
     if (!setupData) return []
-    return setupData.incompleteUsers.filter(u =>
-      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (usersForm[u.id]?.fullName || "").toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  }, [setupData, searchQuery, usersForm])
+    return setupData.incompleteUsers.filter(u => {
+      if (savedSuccessIds.has(u.id)) return false
+      const matchesSearch =
+        u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (usersForm[u.id]?.fullName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (usersForm[u.id]?.mobileNumber || "").includes(searchQuery)
+      return matchesSearch
+    })
+  }, [setupData, searchQuery, usersForm, savedSuccessIds])
 
   if (loading || !setupData || !setupData.hasIncompleteDetails || dismissed) {
     return null

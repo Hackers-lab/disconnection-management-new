@@ -549,6 +549,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     isActive: true,
   })
 
+  const [agencyFilter, setAgencyFilter] = useState<"all" | "missing" | "completed">("all")
+
   // --- PAYMENT UPLOAD STATE (items 3 + 13) ---
   type PaymentParsed = { consumerId: string; paidAmount: number; paidDate: string }
   const [paymentSource, setPaymentSource] = useState<"Cash Desk" | "Portal">("Cash Desk")
@@ -1915,9 +1917,61 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </Card>
           )}
 
+          {/* Filter Pills & Summary */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setAgencyFilter("all")}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                  agencyFilter === "all"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+              >
+                All Agencies ({agencies.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgencyFilter("missing")}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                  agencyFilter === "missing"
+                    ? "bg-amber-500 text-white shadow-2xs font-semibold"
+                    : "text-amber-700 dark:text-amber-400 hover:bg-amber-50"
+                }`}
+              >
+                <span>Missing Code / Phone</span>
+                <span className="bg-amber-600/20 text-current text-[10px] px-1.5 py-0.2 rounded-full">
+                  {agencies.filter(a => !a.vendorCode || a.vendorCode.length < 6 || !a.mobileNumber || a.mobileNumber.length < 10).length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAgencyFilter("completed")}
+                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                  agencyFilter === "completed"
+                    ? "bg-emerald-600 text-white shadow-2xs font-semibold"
+                    : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50"
+                }`}
+              >
+                <span>Completed</span>
+                <span className="bg-emerald-600/20 text-current text-[10px] px-1.5 py-0.2 rounded-full">
+                  {agencies.filter(a => a.vendorCode && a.vendorCode.length >= 6 && a.mobileNumber && a.mobileNumber.length >= 10).length}
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Agencies List */}
           <div className="space-y-2">
-            {agencies.map((agency: any) => (
+            {agencies
+              .filter(a => {
+                const isComplete = Boolean(a.vendorCode && a.vendorCode.length >= 6 && a.mobileNumber && a.mobileNumber.length >= 10)
+                if (agencyFilter === "missing") return !isComplete
+                if (agencyFilter === "completed") return isComplete
+                return true
+              })
+              .map((agency: any) => (
               <Card key={agency.id} className="p-3">
                 {editingAgency?.id === agency.id ? (
                   <div className="space-y-4 p-2">
