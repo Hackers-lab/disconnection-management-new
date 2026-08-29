@@ -227,16 +227,19 @@ export function AdminSetupGuideBanner() {
               <ShieldAlert className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h4 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Tenant Profile Setup ({setupData.completionPercentage}% Complete)
+                  Mobile Number & Agency SAP Vendor Code Setup ({setupData.completionPercentage}% Complete)
                 </h4>
+                <span className="inline-flex items-center rounded-full bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/60 px-2 py-0.5 text-xs font-bold text-rose-700 dark:text-rose-300">
+                  ⏳ Deadline: 01-09-2026
+                </span>
                 <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
                   {setupData.incompleteItemsCount} Item{setupData.incompleteItemsCount > 1 ? "s" : ""} Need Attention
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-                Please enter 6-digit vendor codes and 10-digit mobile numbers for contractor agencies and officers. You can save items individually at any time.
+                To prepare for mobile login and automated list assignments, please enter <strong>6-digit SAP vendor codes for contractor agencies</strong> and <strong>10-digit mobile numbers for officers & staff</strong>.
               </p>
             </div>
           </div>
