@@ -110,7 +110,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
       }
 
       setCountdown(45)
-      setSuccessMsg(`OTP sent to linked phone (+91 ${data.mobileMasked}).`)
+      setSuccessMsg(`OTP sent to +91 ${data.mobileMasked}.`)
       setTimeout(() => {
         setSuccessMsg(null)
         setStep(2)

@@ -100,7 +100,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
       setOtpSent(true)
       setCountdown(45)
-      setSuccessMsg(`SMS OTP sent via Firebase to +91 ${cleanMob}.`)
+      setSuccessMsg(`OTP sent to +91 ${cleanMob}.`)
     } catch (err: any) {
       console.warn("Firebase Phone Auth notice, attempting server fallback:", err)
       // Fallback to Server OTP if Firebase fails or domain is being verified
