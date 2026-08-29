@@ -113,12 +113,13 @@ export async function getTenantRegistry(bypassCache = false): Promise<Record<str
       }
     }
 
+    const existing = tenants[cccCode]
     tenants[cccCode] = {
       cccCode,
-      cccName,
-      spreadsheetId,
-      driveFolderId,
-      googleDriveRefreshToken,
+      cccName: cccName || existing?.cccName || "",
+      spreadsheetId: spreadsheetId || existing?.spreadsheetId || "",
+      driveFolderId: driveFolderId || existing?.driveFolderId || "",
+      googleDriveRefreshToken: googleDriveRefreshToken || existing?.googleDriveRefreshToken || "",
     }
   }
 
