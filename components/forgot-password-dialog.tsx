@@ -156,15 +156,14 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
       if (confirmationResult) {
         // Verify with Firebase
-        const credential = await confirmationResult.confirm(cleanOtp)
-        const idToken = await credential.user.getIdToken()
+        await confirmationResult.confirm(cleanOtp)
         const verifyRes = await fetch("/api/auth/otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
+          body: JSON.stringify({ action: "firebase-verified", mobileNumber })
         })
         const verifyData = await verifyRes.json()
-        verificationToken = verifyData.verificationToken || idToken
+        verificationToken = verifyData.verificationToken
       } else {
         // Verify with Server OTP
         const verifyRes = await fetch("/api/auth/otp", {

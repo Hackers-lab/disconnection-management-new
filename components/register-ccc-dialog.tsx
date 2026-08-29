@@ -140,17 +140,16 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
       if (confirmationResult) {
         // Verify via Firebase confirmation result
-        const credential = await confirmationResult.confirm(cleanOtp)
-        const idToken = await credential.user.getIdToken()
+        await confirmationResult.confirm(cleanOtp)
         
-        // Exchange with server for verification token
+        // Exchange with server for signed verification token
         const res = await fetch("/api/auth/otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
+          body: JSON.stringify({ action: "firebase-verified", mobileNumber: cleanMob })
         })
         const data = await res.json()
-        setVerificationToken(data.verificationToken || idToken)
+        setVerificationToken(data.verificationToken)
       } else {
         // Verify directly via server OTP endpoint
         const res = await fetch("/api/auth/otp", {

@@ -26,7 +26,18 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // 2. Verify OTP
+    // 2. Direct verification from client Firebase Phone Auth confirmation
+    if (action === "firebase-verified") {
+      const { createVerificationToken } = await import("@/lib/otp-service")
+      const verificationToken = createVerificationToken(cleanMobile)
+      return NextResponse.json({
+        success: true,
+        message: "Mobile number verified via Firebase.",
+        verificationToken,
+      })
+    }
+
+    // 3. Verify Server OTP
     if (action === "verify") {
       if (!otp || !/^\d{6}$/.test(String(otp).trim())) {
         return NextResponse.json({ error: "Please enter a valid 6-digit OTP code." }, { status: 400 })
@@ -44,7 +55,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    return NextResponse.json({ error: "Invalid action. Must be 'send' or 'verify'." }, { status: 400 })
+    return NextResponse.json({ error: "Invalid action." }, { status: 400 })
   } catch (error: any) {
     console.error("OTP API Error:", error)
     return NextResponse.json({ error: error.message || "Failed to process OTP request." }, { status: 500 })
