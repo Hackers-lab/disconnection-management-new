@@ -61,6 +61,7 @@ interface DashboardClientProps {
   role: string
   agencies: string[]
   initialPermissions?: Record<string, string[]>
+  initialHasFeedback?: boolean
   initialProfile?: {
     name?: string
     username?: string
@@ -72,7 +73,7 @@ interface DashboardClientProps {
   }
 }
 
-export default function DashboardClient({ role, agencies, initialPermissions, initialProfile }: DashboardClientProps) {
+export default function DashboardClient({ role, agencies, initialPermissions, initialHasFeedback, initialProfile }: DashboardClientProps) {
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [activeView, setActiveViewInternal] = useState<ViewType | "home">("home")
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
@@ -1887,8 +1888,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         {/* New System Features / Update Announcement Popup */}
         <NewYearPopup />
 
-        {/* Floating 5-Star Rating Pill Overlay */}
-        <FloatingRatingPill />
+        {/* Floating Rating Pill (Only renders if user has not yet submitted feedback) */}
+        <FloatingRatingPill initialHasFeedback={initialHasFeedback} />
 
       </DashboardShell>
     </DashboardProvider>

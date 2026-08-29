@@ -4,12 +4,21 @@ import { useState, useEffect } from "react"
 import { Star, X } from "lucide-react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 
-export function FloatingRatingPill() {
-  const [isVisible, setIsVisible] = useState(true)
+interface FloatingRatingPillProps {
+  initialHasFeedback?: boolean
+}
+
+export function FloatingRatingPill({ initialHasFeedback = false }: FloatingRatingPillProps) {
+  const [isVisible, setIsVisible] = useState(!initialHasFeedback)
   const [selectedStar, setSelectedStar] = useState<number | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
+    if (initialHasFeedback) {
+      setIsVisible(false)
+      return
+    }
+
     let isMounted = true
     try {
       const dismissed = sessionStorage.getItem("feedback_pill_dismissed")
@@ -21,11 +30,11 @@ export function FloatingRatingPill() {
       // ignore
     }
 
-    // Check if user has already submitted feedback
+    // Check if user has already submitted feedback via Turso DB (<1ms)
     fetch("/api/feedback")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (isMounted && data?.feedback && data.feedback.comment !== "") {
+        if (isMounted && data?.hasSubmitted) {
           setIsVisible(false)
         }
       })
