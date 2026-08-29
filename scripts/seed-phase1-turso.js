@@ -93,29 +93,30 @@ async function runPhase1Seed() {
       console.log(`✅ Seeded ${regRes.data.values.length} Customer Care Center tenants.`);
     }
 
-    // ── 3.2 Seed Users & Sessions (users) ──
+    // ── 3.2 Seed Users (users from Master_Credentials) ──
     console.log('\n👥 [1.3] Seeding Users into users table...');
     const usersRes = await sheetsClient.spreadsheets.values.get({
       spreadsheetId: masterSheetId,
-      range: 'Users!A2:J100',
-    }).catch(e => { console.warn('Could not read Users tab:', e.message); return null; });
+      range: 'Master_Credentials!A2:J500',
+    }).catch(e => { console.warn('Could not read Master_Credentials tab:', e.message); return null; });
 
     if (usersRes?.data?.values) {
       for (const row of usersRes.data.values) {
-        if (!row || !row[0]) continue;
-        const username = String(row[0] || '').trim();
-        const passwordHash = String(row[1] || 'hashed_default').trim();
-        const fullName = String(row[2] || username).trim();
+        if (!row || !row[1]) continue;
+        const id = String(row[0] || '').trim();
+        const username = String(row[1] || '').trim();
+        const password = String(row[2] || 'password').trim();
         const role = String(row[3] || 'viewer').trim();
-        const mobile = String(row[4] || '').trim();
-        const email = String(row[5] || '').trim();
-        const cccCode = String(row[6] || '').trim();
-        const status = String(row[7] || 'ACTIVE').trim();
+        const cccCode = String(row[4] || '').trim();
+        const fullName = String(row[5] || username).trim();
+        const subStatus = String(row[7] || 'active').trim();
+        const subExpiry = String(row[8] || '').trim();
+        const bypassSub = String(row[9] || 'false').toLowerCase() === 'true' ? 1 : 0;
 
         // Get ccc_id from registry
         let cccId = null;
         const targetCode = cccCode || (/^\d+$/.test(username) ? username : null);
-        if (targetCode) {
+        if (targetCode && targetCode !== 'SYSTEM') {
           const cccRes = await db.execute({
             sql: `SELECT id FROM ccc_registry WHERE ccc_code = ?`,
             args: [targetCode],
@@ -123,29 +124,101 @@ async function runPhase1Seed() {
           cccId = cccRes.rows[0]?.id || null;
         }
 
-        const userId = `usr_${username.toLowerCase()}`;
+        const userId = id ? `usr_${id}_${username.toLowerCase()}` : `usr_${username.toLowerCase()}`;
         await db.execute({
-          sql: `INSERT INTO users (id, username, password_hash, full_name, role, mobile_number, email, ccc_id, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sql: `INSERT INTO users (id, username, password_hash, full_name, role, ccc_id, status, subscription_status, subscription_expires_at, bypass_subscription)
+                VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)
                 ON CONFLICT(username) DO UPDATE SET
                   password_hash = excluded.password_hash,
                   full_name = excluded.full_name,
                   role = excluded.role,
-                  mobile_number = excluded.mobile_number,
-                  email = excluded.email,
                   ccc_id = excluded.ccc_id,
-                  status = excluded.status,
+                  subscription_status = excluded.subscription_status,
+                  subscription_expires_at = excluded.subscription_expires_at,
+                  bypass_subscription = excluded.bypass_subscription,
                   updated_at = CURRENT_TIMESTAMP`,
-          args: [userId, username, passwordHash, fullName, role, mobile || null, email || null, cccId, status],
+          args: [userId, username, password, fullName, role, cccId, subStatus, subExpiry, bypassSub],
         });
       }
       // Auto-match any admin accounts whose username is a CCC code
       await db.execute(`UPDATE users SET ccc_id = (SELECT id FROM ccc_registry WHERE ccc_registry.ccc_code = users.username) WHERE role = 'admin' AND ccc_id IS NULL AND username IN (SELECT ccc_code FROM ccc_registry)`);
-      console.log(`✅ Seeded ${usersRes.data.values.length} user accounts and resolved CCC assignments.`);
+      console.log(`✅ Seeded ${usersRes.data.values.length} user accounts from Master_Credentials.`);
     }
 
-    // ── 3.3 Seed User Feedbacks (user_feedbacks) ──
-    console.log('\n💬 [1.5] Seeding User Feedbacks into user_feedbacks table...');
+    // ── 3.3 Seed Agencies (agencies) ──
+    console.log('\n🏢 [1.4] Seeding Agencies into agencies table...');
+    const agenciesRes = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: masterSheetId,
+      range: 'Agencies!A2:E500',
+    }).catch(e => { console.warn('Could not read Agencies tab:', e.message); return null; });
+
+    if (agenciesRes?.data?.values) {
+      let agencyCount = 0;
+      for (const row of agenciesRes.data.values) {
+        if (!row || !row[1]) continue;
+        const name = String(row[1] || '').trim();
+        const description = String(row[2] || name).trim();
+        const isActive = String(row[3] || 'true').toLowerCase() === 'true' ? 1 : 0;
+        const cccCode = String(row[4] || '').trim();
+
+        let cccId = null;
+        if (cccCode) {
+          const cccRes = await db.execute({
+            sql: `SELECT id FROM ccc_registry WHERE ccc_code = ?`,
+            args: [cccCode],
+          });
+          cccId = cccRes.rows[0]?.id || null;
+        }
+
+        if (cccId) {
+          await db.execute({
+            sql: `INSERT INTO agencies (name, description, is_active, ccc_id)
+                  VALUES (?, ?, ?, ?)`,
+            args: [name, description, isActive, cccId],
+          });
+          agencyCount++;
+        }
+      }
+      console.log(`✅ Seeded ${agencyCount} contractor agencies.`);
+    }
+
+    // ── 3.4 Seed App Roles & Permissions (app_roles) ──
+    console.log('\n🔐 [1.5] Seeding Global App Roles into app_roles table...');
+    const rolesRes = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: masterSheetId,
+      range: 'AppRoles!A2:L50',
+    }).catch(e => { console.warn('Could not read AppRoles tab:', e.message); return null; });
+
+    if (rolesRes?.data?.values) {
+      const moduleNames = [
+        'disconnection', 'reconnection', 'deemed', 'dtr', 'meter',
+        'nsc', 'consumer_master', 'admin', 'meter_replacement', 'dtr_painting', 'material'
+      ];
+      let rolesCount = 0;
+      for (const row of rolesRes.data.values) {
+        if (!row || !row[0]) continue;
+        const role = String(row[0]).trim().toLowerCase();
+        const perms = {};
+        moduleNames.forEach((mod, idx) => {
+          const val = row[idx + 1] ? String(row[idx + 1]).trim() : '';
+          perms[mod] = val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
+        });
+
+        await db.execute({
+          sql: `INSERT INTO app_roles (ccc_id, role, permissions_json)
+                VALUES (NULL, ?, ?)
+                ON CONFLICT(ccc_id, role) DO UPDATE SET
+                  permissions_json = excluded.permissions_json,
+                  updated_at = CURRENT_TIMESTAMP`,
+          args: [role, JSON.stringify(perms)],
+        });
+        rolesCount++;
+      }
+      console.log(`✅ Seeded ${rolesCount} global role configurations.`);
+    }
+
+    // ── 3.5 Seed User Feedbacks (user_feedbacks) ──
+    console.log('\n💬 [1.6] Seeding User Feedbacks into user_feedbacks table...');
     const feedbackRes = await sheetsClient.spreadsheets.values.get({
       spreadsheetId: masterSheetId,
       range: 'Feedbacks!A2:I500',

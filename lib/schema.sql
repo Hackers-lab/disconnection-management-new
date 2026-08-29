@@ -13,16 +13,55 @@ CREATE TABLE IF NOT EXISTS ccc_registry (
 );
 CREATE INDEX IF NOT EXISTS idx_ccc_code ON ccc_registry (ccc_code);
 
--- 2. App Roles & Permissions Table (Includes per-CCC ccc_id)
-CREATE TABLE IF NOT EXISTS app_roles (
+-- 2. System Default Roles & Permissions (Master Base Catalog)
+CREATE TABLE IF NOT EXISTS system_default_roles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ccc_id INTEGER REFERENCES ccc_registry(id) ON DELETE CASCADE, -- NULL for global default role
+    role TEXT UNIQUE NOT NULL,
+    disconnection TEXT DEFAULT '',
+    reconnection TEXT DEFAULT '',
+    deemed TEXT DEFAULT '',
+    dtr TEXT DEFAULT '',
+    meter TEXT DEFAULT '',
+    nsc TEXT DEFAULT '',
+    consumer_master TEXT DEFAULT '',
+    admin TEXT DEFAULT '',
+    meter_replacement TEXT DEFAULT '',
+    dtr_painting TEXT DEFAULT '',
+    material TEXT DEFAULT '',
+    osd TEXT DEFAULT '',
+    safety TEXT DEFAULT '',
+    misc_inspection TEXT DEFAULT '',
+    icds TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2.1 CCC Role Overrides (Only stored when a specific CCC customizes/differs from default)
+CREATE TABLE IF NOT EXISTS ccc_role_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ccc_id INTEGER NOT NULL REFERENCES ccc_registry(id) ON DELETE CASCADE,
     role TEXT NOT NULL,
-    permissions_json TEXT NOT NULL,
+    disconnection TEXT DEFAULT '',
+    reconnection TEXT DEFAULT '',
+    deemed TEXT DEFAULT '',
+    dtr TEXT DEFAULT '',
+    meter TEXT DEFAULT '',
+    nsc TEXT DEFAULT '',
+    consumer_master TEXT DEFAULT '',
+    admin TEXT DEFAULT '',
+    meter_replacement TEXT DEFAULT '',
+    dtr_painting TEXT DEFAULT '',
+    material TEXT DEFAULT '',
+    osd TEXT DEFAULT '',
+    safety TEXT DEFAULT '',
+    misc_inspection TEXT DEFAULT '',
+    icds TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(ccc_id, role)
 );
+CREATE INDEX IF NOT EXISTS idx_role_overrides_ccc ON ccc_role_overrides (ccc_id, role);
+
 
 -- 3. Agencies Table
 CREATE TABLE IF NOT EXISTS agencies (
