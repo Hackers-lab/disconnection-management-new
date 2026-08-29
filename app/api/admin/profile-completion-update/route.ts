@@ -68,4 +68,4 @@ export const POST = async function POST(req: NextRequest) {
     console.error("Profile completion update error:", e)
     return NextResponse.json({ error: e.message || "Failed to update profile completion" }, { status: 500 })
   }
-})
+}
