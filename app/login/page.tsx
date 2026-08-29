@@ -1,8 +1,9 @@
 import { LoginForm } from "@/components/login-form"
-import { LoginFeedbackCarousel } from "@/components/login-feedback-carousel"
-import { VisitorLiveCounter } from "@/components/visitor-live-counter"
+import { fetchApprovedFeedbacks } from "@/lib/feedback-service"
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const initialFeedbacks = await fetchApprovedFeedbacks().catch(() => [])
+
   return (
     <div className="fixed inset-0 h-screen w-screen overflow-hidden overscroll-none touch-none flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full my-auto space-y-4">
@@ -18,7 +19,7 @@ export default function LoginPage() {
           </h1>
         </div>
 
-        <LoginForm />
+        <LoginForm initialFeedbacks={initialFeedbacks} />
       </div>
     </div>
   )

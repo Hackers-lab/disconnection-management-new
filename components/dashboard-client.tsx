@@ -60,9 +60,19 @@ type TableCell = string | { content: string; colSpan?: number; styles?: any };
 interface DashboardClientProps {
   role: string
   agencies: string[]
+  initialPermissions?: Record<string, string[]>
+  initialProfile?: {
+    name?: string
+    username?: string
+    cccCode?: string
+    cccName?: string
+    isSubscribed?: boolean
+    subscriptionExpiresAt?: string
+    bypassSubscription?: boolean
+  }
 }
 
-export default function DashboardClient({ role, agencies }: DashboardClientProps) {
+export default function DashboardClient({ role, agencies, initialPermissions, initialProfile }: DashboardClientProps) {
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [activeView, setActiveViewInternal] = useState<ViewType | "home">("home")
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
@@ -70,12 +80,12 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
   const [adminInitialView, setAdminInitialView] = useState<any>(undefined)
 
   const [showSuccessModal, setShowSuccessModal] = useState(false)
-  const [isSubscribed, setIsSubscribed] = useState(true)
-  const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState("")
-  const [profileName, setProfileName] = useState("")
-  const [bypassSubscription, setBypassSubscription] = useState(false)
-  const [profileCccCode, setProfileCccCode] = useState("")
-  const [profileCccName, setProfileCccName] = useState("")
+  const [isSubscribed, setIsSubscribed] = useState(initialProfile?.isSubscribed ?? true)
+  const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState(initialProfile?.subscriptionExpiresAt || "")
+  const [profileName, setProfileName] = useState(initialProfile?.name || "")
+  const [bypassSubscription, setBypassSubscription] = useState(!!initialProfile?.bypassSubscription)
+  const [profileCccCode, setProfileCccCode] = useState(initialProfile?.cccCode || "")
+  const [profileCccName, setProfileCccName] = useState(initialProfile?.cccName || "")
 
   // Check if tenant is linked to Google Drive/Sheets on mount
   useEffect(() => {
@@ -228,8 +238,8 @@ export default function DashboardClient({ role, agencies }: DashboardClientProps
     }
   }, [activeView])
 
-  const [permissions, setPermissions] = useState<Record<string, string[]>>({})
-  const [permsLoaded, setPermsLoaded] = useState(false)
+  const [permissions, setPermissions] = useState<Record<string, string[]>>(initialPermissions || {})
+  const [permsLoaded, setPermsLoaded] = useState(!!(initialPermissions && Object.keys(initialPermissions).length > 0))
   const [loadingText, setLoadingText] = useState("Securing connection...")
 
   // Cycle loading text messages dynamically
