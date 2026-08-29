@@ -27,6 +27,7 @@ import {
   Camera
 } from "lucide-react"
 import { GlobalConsumerSearch } from "@/components/global-consumer-search"
+import { AdminMappingBanner } from "@/components/admin-mapping-banner"
 import { ViewType } from "@/components/app-sidebar"
 import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
@@ -931,6 +932,11 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       {/* ========================================================================= */}
       <div className="block md:hidden relative p-2 sm:p-4 max-w-xl mx-auto flex flex-col justify-between min-h-[calc(100vh-100px)]">
         <div className="flex-grow space-y-4">
+          {/* Admin Mobile & Agency Mapping Notice Banner */}
+          {(userRole === "admin" || userRole === "superuser") && (
+            <AdminMappingBanner onOpenAdmin={() => onSelect("admin" as ViewType)} />
+          )}
+
           {/* Global Fast IndexedDB Consumer Search */}
           <GlobalConsumerSearch
             onSelectModule={onSelect}
@@ -1048,6 +1054,13 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         <div className="absolute top-1/2 left-10 w-60 h-60 bg-purple-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
 
         <div className="flex-grow">
+          {/* Admin Mobile & Agency Mapping Notice Banner */}
+          {(userRole === "admin" || userRole === "superuser") && (
+            <div className="max-w-4xl mx-auto mb-5">
+              <AdminMappingBanner onOpenAdmin={() => onSelect("admin" as ViewType)} />
+            </div>
+          )}
+
           {/* Global Fast IndexedDB Consumer Search */}
           <div className="max-w-xl mx-auto mb-6">
             <GlobalConsumerSearch
