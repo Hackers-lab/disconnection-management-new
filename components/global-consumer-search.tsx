@@ -62,6 +62,7 @@ export function GlobalConsumerSearch({ onSelectModule, userRole, permissions }: 
   // Check if user has permission to view a given module
   const hasModuleAccess = (moduleId: string): boolean => {
     if (moduleId === "consumer-master" || moduleId === "home") return true
+    if (moduleId === "meter-replacement") return userRole === "admin" || userRole === "executive" || userRole === "superuser"
     if (userRole === "admin" || userRole === "superuser" || userRole === "executive" || userRole === "viewer") return true
     const permKey = moduleId.replace(/-/g, "_")
     if (!permissions) return false
