@@ -96,17 +96,25 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
       // Send SMS OTP via Firebase
       try {
-        if (!recaptchaVerifierRef.current) {
-          recaptchaVerifierRef.current = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
+        if (typeof window !== "undefined") {
+          if ((window as any).forgotRecaptchaVerifier) {
+            try { (window as any).forgotRecaptchaVerifier.clear() } catch {}
+          }
+          (window as any).forgotRecaptchaVerifier = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
             size: "invisible",
             callback: () => {},
+            "expired-callback": () => {
+              setError("reCAPTCHA expired. Please try sending OTP again.")
+            }
           })
         }
         const formattedPhone = `+91${data.mobileNumber}`
-        const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, recaptchaVerifierRef.current)
+        const appVerifier = (window as any).forgotRecaptchaVerifier
+        const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier)
         setConfirmationResult(confirmation)
-      } catch (fbErr) {
-        console.warn("Firebase Phone Auth notice, using server OTP:", fbErr)
+      } catch (fbErr: any) {
+        console.error("Firebase Phone Auth error:", fbErr)
+        throw new Error(fbErr.message || "Failed to send SMS OTP to linked phone number.")
       }
 
       setCountdown(45)
