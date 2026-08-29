@@ -103,4 +103,4 @@ export const GET = async function GET(req: NextRequest) {
     console.error("Profile completion check error:", e)
     return NextResponse.json({ error: e.message || "Failed to check profile completion" }, { status: 500 })
   }
-})
+}
