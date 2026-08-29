@@ -186,20 +186,21 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             </Button>
 
             {/* Quick Action Links: Forgot Password & Register CCC */}
-            <div className="flex items-center justify-between pt-2 px-1 text-xs">
+            <div className="flex items-center justify-between pt-3 px-0.5 text-xs border-t border-slate-100 mt-2">
               <button
                 type="button"
                 onClick={() => setShowForgotPasswordDialog(true)}
-                className="text-slate-500 hover:text-slate-900 font-medium transition-colors cursor-pointer"
+                className="text-slate-500 hover:text-blue-600 font-semibold transition-colors cursor-pointer py-1"
               >
                 Forgot Password?
               </button>
               <button
                 type="button"
                 onClick={() => setShowRegisterDialog(true)}
-                className="text-amber-600 hover:text-amber-700 font-bold transition-colors cursor-pointer"
+                className="text-amber-700 hover:text-amber-800 font-bold transition-all hover:scale-[1.02] cursor-pointer flex items-center gap-1 py-1 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100/70 border border-amber-200/70"
               >
-                Register New CCC →
+                <span>Register CCC</span>
+                <span className="text-amber-600 font-black">→</span>
               </button>
             </div>
           </form>
