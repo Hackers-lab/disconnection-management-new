@@ -5,15 +5,14 @@ import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
-export const GET = withTenant(async function GET(req: NextRequest) {
+export const GET = async function GET(req: NextRequest) {
   try {
     const session = await verifySession()
     if (!session || !session.username) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const context = getTenantContext()
-    const cccCode = context?.cccCode || session.cccCode || "SYSTEM"
+    const cccCode = session.cccCode || "SYSTEM"
     const isGlobalAdmin = session.role === "superuser" || !cccCode || cccCode === "SYSTEM"
 
     // 1. Fetch all users/officers in this CCC

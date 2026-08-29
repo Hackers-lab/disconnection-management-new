@@ -7,7 +7,7 @@ import { UserStorage } from "@/lib/user-storage"
 
 export const dynamic = "force-dynamic"
 
-export const POST = withTenant(async function POST(req: NextRequest) {
+export const POST = async function POST(req: NextRequest) {
   try {
     const session = await verifySession()
     if (!session || !session.username) {
@@ -16,9 +16,7 @@ export const POST = withTenant(async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { userUpdates, agencyUpdates } = body
-
-    const context = getTenantContext()
-    const cccCode = context?.cccCode || session.cccCode || "SYSTEM"
+    const cccCode = session.cccCode || "SYSTEM"
 
     // 1. Update user profile fields if provided
     const usersToUpdate = Array.isArray(userUpdates) ? userUpdates : (userUpdates ? [userUpdates] : [])
