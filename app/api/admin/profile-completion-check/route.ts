@@ -15,14 +15,14 @@ export const GET = async function GET(req: NextRequest) {
     const cccCode = session.cccCode || "SYSTEM"
     const isGlobalAdmin = session.role === "superuser" || !cccCode || cccCode === "SYSTEM"
 
-    // 1. Fetch all users/officers in this CCC
+    // 1. Fetch all CCC Officers & Staff (strictly non-agency, non-superuser)
     let allUserRows: any[] = []
     try {
       const usersRes = await db.execute({
         sql: `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
               FROM users u
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE LOWER(u.role) != 'superuser' AND (${isGlobalAdmin ? '1=1' : 'c.ccc_code = ?'})`,
+              WHERE LOWER(u.role) NOT IN ('superuser', 'agency') AND (${isGlobalAdmin ? '1=1' : 'c.ccc_code = ?'})`,
         args: isGlobalAdmin ? [] : [cccCode]
       })
       allUserRows = usersRes.rows || []
@@ -33,9 +33,8 @@ export const GET = async function GET(req: NextRequest) {
     const incompleteUsers = allUserRows
       .map((r: any) => {
         const missing: string[] = []
-        if (!r.full_name || r.full_name === r.username) missing.push("full_name")
-        if (!r.mobile_number || !/^\d{10}$/.test(String(r.mobile_number).trim())) missing.push("mobile_number")
-        if (!r.email) missing.push("email")
+        const mob = String(r.mobile_number || "").trim()
+        if (!mob || !/^\d{10}$/.test(mob)) missing.push("mobile_number")
         return {
           id: String(r.id),
           username: String(r.username || ""),
