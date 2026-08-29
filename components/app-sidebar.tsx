@@ -329,6 +329,9 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const MenuList = () => (
     <div className="flex flex-col space-y-2 py-4">
       {menuItems.map((item) => {
+        if (item.id === "meter-replacement" && !(userRole === "admin" || userRole === "executive" || userRole === "superuser")) {
+          return null
+        }
         const permKey = item.id.replace(/-/g, "_")
         const hasAccess = userRole === "admin" || userRole === "superuser" || item.id === "home" || item.id === "osd" || item.id === "gis-camera" || (permissions && (
           (permissions[item.id] && permissions[item.id].length > 0) || 
