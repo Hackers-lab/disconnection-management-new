@@ -144,19 +144,24 @@ export class UserStorage {
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE LOWER(u.username) = LOWER(?) OR (LOWER(c.ccc_code) = LOWER(?) AND u.role = 'admin')
-              LIMIT 1`,
+              WHERE LOWER(u.username) = LOWER(?) OR (LOWER(c.ccc_code) = LOWER(?) AND u.role = 'admin')`,
         args: [cleanUsername, cleanUsername]
       })
       const qDuration = (performance.now() - qStart).toFixed(1)
 
       if (res.rows && res.rows.length > 0) {
-        const r: any = res.rows[0]
-        const dbPassword = String(r.password || "").trim()
+        // Find matching row by password, preferring exact username match if multiple exist
+        const matchingRow = res.rows.find((r: any) => 
+          String(r.password || "").trim() === cleanPassword && String(r.username || "").trim() === cleanUsername
+        ) || res.rows.find((r: any) => 
+          String(r.password || "").trim() === cleanPassword
+        )
 
-        if (dbPassword === cleanPassword) {
+        if (matchingRow) {
+          const r: any = matchingRow
+          const dbPassword = String(r.password || "").trim()
           const totalMs = (performance.now() - t0).toFixed(1)
-          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' (Account: ${r.username}) authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
+          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' (Account: ${r.username}, CCC: ${r.cccCode || "N/A"}) authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
           return {
             id: String(r.id || ""),
             username: String(r.username || cleanUsername),
@@ -169,9 +174,6 @@ export class UserStorage {
             subscriptionExpiresAt: String(r.subExpiresAt || ""),
             bypassSubscription: Boolean(r.bypassSub),
           }
-        } else {
-          console.log(`❌ [AUTH REJECTED - Turso DB] User '${cleanUsername}' password mismatch (Query: ${qDuration}ms).`)
-          return null
         }
       }
     } catch (err: any) {
