@@ -77,12 +77,28 @@ import { NoteSheetDialog } from "@/components/note-sheet-dialog"
 
 export function MeterReplacementList({ userRole, userAgencies, username, agencies, permissions }: Props) {
   const { toast } = useToast()
+  const canRead = userRole === "admin" || userRole === "executive" || userRole === "superuser" || (permissions && (permissions.meter_replacement?.includes("read") || permissions["meter-replacement"]?.includes("read")))
+
   const [records, setRecords] = useState<MeterReplacement[]>([])
   const [syncState, setSyncState] = useState<SyncState>("loading")
   const [tab, setTab] = useState<Tab>("all")
   const [search, setSearch] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useHashState<"list" | "create">("meter-replacement", "list")
+
+  if (!canRead) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 space-y-4">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+          <AlertCircle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Access Restricted</h2>
+        <p className="text-sm text-slate-500 max-w-md">
+          You do not have permission to view or manage the Meter Replacement List. Please contact your administrator if you need access.
+        </p>
+      </div>
+    )
+  }
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false)
   const [selectedForClose, setSelectedForClose] = useState<MeterReplacement | null>(null)
