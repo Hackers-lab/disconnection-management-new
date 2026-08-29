@@ -1345,7 +1345,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       )}
 
       {view === "menu" && (
-        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           <DashboardCard
             icon={<Users className="h-12 w-12 text-blue-500" />}
             title="Manage Users"
@@ -3249,17 +3249,17 @@ function DashboardCard({
 }) {
   return (
     <Card
-      className="cursor-pointer hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200 p-2 sm:p-5 flex flex-col items-center justify-center text-center h-full border border-slate-200/80 bg-white/90 shadow-sm"
+      className="cursor-pointer hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all duration-200 p-3 sm:p-5 flex flex-col items-center justify-center text-center h-full border border-slate-200/80 bg-white/90 shadow-sm"
       onClick={onClick}
     >
       <div className="flex flex-col items-center justify-center w-full">
-        <div className="p-1.5 sm:p-3 rounded-xl bg-slate-50 flex items-center justify-center [&_svg]:h-6 [&_svg]:w-6 sm:[&_svg]:h-10 sm:[&_svg]:w-10 lg:[&_svg]:h-12 lg:[&_svg]:w-12">
+        <div className="p-2 sm:p-3 rounded-xl bg-slate-50 flex items-center justify-center [&_svg]:h-7 [&_svg]:w-7 sm:[&_svg]:h-10 sm:[&_svg]:w-10 lg:[&_svg]:h-12 lg:[&_svg]:w-12">
           {icon}
         </div>
-        <CardTitle className="mt-1.5 sm:mt-3 text-[11px] sm:text-base font-semibold leading-tight line-clamp-2 text-slate-800">
+        <CardTitle className="mt-2 sm:mt-3 text-xs sm:text-base font-semibold leading-tight line-clamp-1 sm:line-clamp-2 text-slate-800">
           {title}
         </CardTitle>
-        <CardContent className="p-0 mt-1 hidden sm:block text-center text-xs sm:text-sm text-gray-500 line-clamp-2">
+        <CardContent className="p-0 mt-1 text-center text-[11px] sm:text-sm text-gray-500 line-clamp-2 leading-tight">
           {description}
         </CardContent>
       </div>
