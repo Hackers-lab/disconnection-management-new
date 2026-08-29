@@ -1,13 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Building2, Smartphone, KeyRound, CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldCheck, RefreshCw, Eye, EyeOff } from "lucide-react"
+import { Building2, Smartphone, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import { firebaseAuth } from "@/lib/firebase-client"
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
 
 interface RegisterCccDialogProps {
   open: boolean
@@ -28,7 +30,8 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
   const [otpSent, setOtpSent] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const [verificationToken, setVerificationToken] = useState("")
-  const [devOtp, setDevOtp] = useState<string | null>(null)
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
 
   // Step 2: CCC station details
   const [cccCode, setCccCode] = useState("")
@@ -38,7 +41,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
-  // Reset on close
+  // Reset state on close
   useEffect(() => {
     if (!open) {
       setTimeout(() => {
@@ -49,12 +52,16 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         setOtp("")
         setOtpSent(false)
         setVerificationToken("")
+        setConfirmationResult(null)
         setCccCode("")
         setCccName("")
         setContactPerson("")
         setPassword("")
         setConfirmPassword("")
-        setDevOtp(null)
+        if (recaptchaVerifierRef.current) {
+          try { recaptchaVerifierRef.current.clear() } catch {}
+          recaptchaVerifierRef.current = null
+        }
       }, 300)
     }
   }, [open])
@@ -67,7 +74,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
     }
   }, [countdown])
 
-  // 1. Send OTP
+  // 1. Send SMS OTP via Firebase Phone Auth (with Server fallback)
   const handleSendOtp = async () => {
     setError(null)
     const cleanMob = mobileNumber.replace(/\D/g, "").slice(-10)
@@ -78,26 +85,46 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
     try {
       setLoading(true)
-      const res = await fetch("/api/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", mobileNumber: cleanMob })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to send OTP.")
+
+      // Initialize invisible reCAPTCHA if not already created
+      if (!recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
+          size: "invisible",
+          callback: () => {},
+        })
+      }
+
+      const formattedPhone = `+91${cleanMob}`
+      const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, recaptchaVerifierRef.current)
+      setConfirmationResult(confirmation)
 
       setOtpSent(true)
       setCountdown(45)
-      if (data.devOtp) setDevOtp(data.devOtp)
-      setSuccessMsg(`OTP sent to +91 ${cleanMob}.`)
+      setSuccessMsg(`SMS OTP sent via Firebase to +91 ${cleanMob}.`)
     } catch (err: any) {
-      setError(err.message)
+      console.warn("Firebase Phone Auth notice, attempting server fallback:", err)
+      // Fallback to Server OTP if Firebase fails or domain is being verified
+      try {
+        const res = await fetch("/api/auth/otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "send", mobileNumber: cleanMob })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "Failed to send OTP.")
+
+        setOtpSent(true)
+        setCountdown(45)
+        setSuccessMsg(data.message || `OTP sent to +91 ${cleanMob}.`)
+      } catch (fallbackErr: any) {
+        setError(fallbackErr.message || err.message || "Failed to dispatch SMS OTP. Please check mobile number.")
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  // 2. Verify OTP
+  // 2. Verify OTP code
   const handleVerifyOtp = async () => {
     setError(null)
     const cleanMob = mobileNumber.replace(/\D/g, "").slice(-10)
@@ -110,22 +137,39 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
     try {
       setLoading(true)
-      const res = await fetch("/api/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "OTP verification failed.")
 
-      setVerificationToken(data.verificationToken)
+      if (confirmationResult) {
+        // Verify via Firebase confirmation result
+        const credential = await confirmationResult.confirm(cleanOtp)
+        const idToken = await credential.user.getIdToken()
+        
+        // Exchange with server for verification token
+        const res = await fetch("/api/auth/otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
+        })
+        const data = await res.json()
+        setVerificationToken(data.verificationToken || idToken)
+      } else {
+        // Verify directly via server OTP endpoint
+        const res = await fetch("/api/auth/otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "OTP verification failed.")
+        setVerificationToken(data.verificationToken)
+      }
+
       setSuccessMsg("Mobile number verified successfully!")
       setTimeout(() => {
         setSuccessMsg(null)
         setStep(2)
       }, 700)
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || "Invalid OTP code. Please check and try again.")
     } finally {
       setLoading(false)
     }
@@ -194,6 +238,9 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+        {/* Invisible container for Firebase reCAPTCHA */}
+        <div id="register-recaptcha-container"></div>
+
         <DialogHeader className="space-y-2">
           <div className="mx-auto w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600">
             <Building2 className="w-6 h-6" />
@@ -203,7 +250,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
           </DialogTitle>
           <DialogDescription className="text-center text-xs text-slate-500">
             {step === 1
-              ? "Verify your 10-digit mobile number to create your station admin account."
+              ? "Verify your 10-digit mobile number via SMS OTP to create your station admin account."
               : "Enter station details to complete CCC registration."}
           </DialogDescription>
         </DialogHeader>
@@ -257,19 +304,12 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                 className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-                Send 6-Digit OTP
+                Send 6-Digit OTP via SMS
               </Button>
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
-                    {devOtp && (
-                      <span className="text-[10px] font-mono font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        Dev OTP: {devOtp}
-                      </span>
-                    )}
-                  </div>
+                  <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
                   <Input
                     type="text"
                     maxLength={6}
