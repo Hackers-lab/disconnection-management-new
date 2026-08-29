@@ -8,14 +8,11 @@ export function getModulePermKeys(module: string): string[] {
   const norm = module.toLowerCase().trim().replace(/-/g, "_")
   const keys = [norm]
 
-  if (norm === "meter_replacement" || norm === "meter") {
-    keys.push("meter_replacement", "meter")
+  if (norm === "meter_replacement" || norm === "meter_replacements") {
+    keys.push("meter_replacement", "meter_replacements")
   }
-  if (norm === "dtr_painting" || norm === "dtr") {
-    keys.push("dtr_painting", "dtr")
-  }
-  if (norm === "disconnection" || norm === "consumer_master") {
-    keys.push("disconnection", "consumer_master")
+  if (norm === "dtr_painting" || norm === "dtr_paintings") {
+    keys.push("dtr_painting", "dtr_paintings")
   }
   if (norm === "misc_inspection" || norm === "misc" || norm === "misc_inspections") {
     keys.push("misc_inspection", "misc", "misc_inspections")

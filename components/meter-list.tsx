@@ -828,37 +828,39 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       {view === "menu" && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
           {/* Replacements Card */}
-          <Card
-            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-amber-300 overflow-hidden"
-            onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${
-              (isAdmin
-                ? (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length)
-                : (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length)
-              ) > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
-            }`}>
-              {isAdmin
-                ? `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length}`
-                : `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}`
-              }
-            </div>
-            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-              <RotateCcw className="h-16 w-16 md:h-24 md:w-24 text-amber-600 transition-transform duration-500 group-hover:scale-110" />
-            </div>
-            <CardHeader className="relative pb-2 p-3 md:p-6">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-amber-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
-                <RotateCcw className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
+          {(isAdmin || (permissions && (permissions.meter_replacement?.includes("read") || permissions["meter-replacement"]?.includes("read")))) && (
+            <Card
+              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-amber-300 overflow-hidden"
+              onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
+              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${
+                (isAdmin
+                  ? (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length)
+                  : (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length)
+                ) > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
+              }`}>
+                {isAdmin
+                  ? `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length}`
+                  : `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}`
+                }
               </div>
-              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                Meter Replacements
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
-              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
-                Defective & burnt meter proposals, issuance, WOs & Note Sheets
-              </p>
-            </CardContent>
-          </Card>
+              <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                <RotateCcw className="h-16 w-16 md:h-24 md:w-24 text-amber-600 transition-transform duration-500 group-hover:scale-110" />
+              </div>
+              <CardHeader className="relative pb-2 p-3 md:p-6">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-amber-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                  <RotateCcw className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
+                </div>
+                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
+                  Meter Replacements
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+                <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                  Defective & burnt meter proposals, issuance, WOs & Note Sheets
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* NSC Meters Card */}
           <Card

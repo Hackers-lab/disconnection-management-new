@@ -42,9 +42,7 @@ export async function checkApiPermission(module: string, action: string | string
       // Fallback if tenant resolution or env var missing
     }
 
-    const rawPermissions = spreadsheetId
-      ? await roleStorage.getPermissionsForRole(session.role, spreadsheetId).catch(() => null)
-      : null
+    const rawPermissions = await roleStorage.getPermissionsForRole(session.role, session.cccCode || spreadsheetId).catch(() => null)
 
     const permissions = expandRolePermissions(session.role, rawPermissions)
 
@@ -65,11 +63,6 @@ export async function checkApiPermission(module: string, action: string | string
 
     return { authorized: true, session }
   } catch (e: any) {
-    const isAgency = userRoleLower.includes("agency")
-    const isAdminOrExec = userRoleLower === "admin" || userRoleLower === "superuser" || userRoleLower === "executive"
-    if (isAgency || isAdminOrExec) {
-      return { authorized: true, session }
-    }
     return { authorized: false, error: `Permission check error: ${e.message}`, status: 403, session }
   }
 }
