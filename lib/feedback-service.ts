@@ -2,6 +2,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { auth } from "./google-drive"
 import { getSpreadsheetId } from "./google-sheets-api"
 import { getTenantRegistry } from "./tenant-resolver"
+import { db } from "./db"
 
 export interface FeedbackItem {
   id: string
@@ -36,6 +37,30 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
   const now = Date.now()
   if (memoryFeedbacksCache && now - lastFetchTime < CACHE_TTL_MS) {
     return memoryFeedbacksCache
+  }
+
+  // 1. Try querying Turso user_feedbacks table first
+  try {
+    const res = await db.execute("SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code FROM user_feedbacks f LEFT JOIN ccc_registry c ON f.ccc_id = c.id WHERE LOWER(f.status) = 'approved'")
+    if (res.rows && res.rows.length > 0) {
+      const parsedItems: FeedbackItem[] = res.rows.map((row: any) => ({
+        id: String(row.feedback_id || ""),
+        username: String(row.username || ""),
+        name: String(row.full_name || row.username || "Officer"),
+        supplyOffice: String(row.supply_office || ""),
+        cccCode: String(row.ccc_code || ""),
+        rating: Number(row.rating || 5),
+        comment: String(row.comment || ""),
+        createdAt: String(row.created_at || ""),
+        status: "approved",
+      }))
+      memoryFeedbacksCache = parsedItems
+      lastFetchTime = now
+      console.log(`⚡ [Turso SQL] Loaded ${parsedItems.length} approved feedbacks from user_feedbacks table`)
+      return parsedItems
+    }
+  } catch (err) {
+    console.warn("Turso user_feedbacks query failed, falling back to Sheets:", err)
   }
 
   try {
@@ -125,13 +150,45 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
   }
 }
 
-export async function getUserFeedback(username: string): Promise<FeedbackItem | null> {
+export async function getUserFeedback(username: string, cccCode?: string): Promise<FeedbackItem | null> {
+  const cleanUser = (username || "").trim().toLowerCase()
+  const cleanCcc = (cccCode || username || "").trim().toLowerCase()
+
+  // 1. Direct Turso DB Point Query (Sub-millisecond)
+  try {
+    const res = await db.execute({
+      sql: `SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code
+            FROM user_feedbacks f
+            LEFT JOIN ccc_registry c ON f.ccc_id = c.id
+            WHERE LOWER(f.username) = LOWER(?) OR (c.ccc_code IS NOT NULL AND LOWER(c.ccc_code) = LOWER(?))
+            LIMIT 1`,
+      args: [cleanUser, cleanCcc]
+    })
+    if (res.rows && res.rows.length > 0) {
+      const row: any = res.rows[0]
+      return {
+        id: String(row.feedback_id || ""),
+        username: String(row.username || username),
+        name: String(row.full_name || username || "Officer"),
+        supplyOffice: String(row.supply_office || ""),
+        cccCode: String(row.ccc_code || cccCode || ""),
+        rating: Number(row.rating || 5),
+        comment: String(row.comment || ""),
+        createdAt: String(row.created_at || ""),
+        status: (row.status as any) || "approved",
+      }
+    }
+  } catch (err) {
+    console.warn("Turso getUserFeedback query failed, falling back to cache:", err)
+  }
+
+  // 2. Memory cache fallback
   const all = await fetchApprovedFeedbacks()
   return (
     all.find(
       (f) =>
-        f.username.toLowerCase() === username.toLowerCase() ||
-        f.cccCode.toLowerCase() === username.toLowerCase()
+        f.username.toLowerCase() === cleanUser ||
+        (cleanCcc && f.cccCode.toLowerCase() === cleanCcc)
     ) || null
   )
 }
@@ -152,46 +209,51 @@ export async function addFeedback(
     supplyOffice = officialCccName || (feedback.cccCode ? `${feedback.cccCode} CCC` : "CCC Office")
   }
 
-  const existingList = await fetchApprovedFeedbacks()
-  const existingIdx = existingList.findIndex(
-    (f) =>
-      f.username.toLowerCase() === feedback.username.toLowerCase() ||
-      (feedback.cccCode && f.cccCode.toUpperCase() === feedback.cccCode.toUpperCase())
-  )
+  const existingItem = await getUserFeedback(feedback.username, feedback.cccCode)
+  const feedbackId = existingItem?.id || `fb_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+  const now = new Date().toISOString()
 
   const newItem: FeedbackItem = {
     ...feedback,
+    id: feedbackId,
     supplyOffice,
-    id: existingIdx >= 0 ? existingList[existingIdx].id : `fb-${Date.now()}`,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     status: "approved",
   }
 
-  // Update memory cache immediately
-  if (existingIdx >= 0) {
-    existingList[existingIdx] = newItem
-    memoryFeedbacksCache = [...existingList]
-  } else {
-    memoryFeedbacksCache = [newItem, ...(memoryFeedbacksCache || [])]
-  }
-  lastFetchTime = Date.now()
-
-  // Sync to Master Config Google Sheet
+  // 1. Save directly to Turso DB (Sub-millisecond)
   try {
-    // Ensure 'Feedbacks' tab exists
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: targetSheetId,
-      requestBody: {
-        requests: [
-          {
-            addSheet: {
-              properties: { title: "Feedbacks" },
-            },
-          },
-        ],
-      },
-    }).catch(() => {})
+    let cccId: number | null = null
+    if (feedback.cccCode) {
+      const cccRes = await db.execute({
+        sql: "SELECT id FROM ccc_registry WHERE ccc_code = ? LIMIT 1",
+        args: [feedback.cccCode]
+      })
+      cccId = (cccRes.rows[0]?.id as number) || null
+    }
 
+    await db.execute({
+      sql: `INSERT INTO user_feedbacks (feedback_id, username, full_name, supply_office, ccc_id, rating, comment, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'approved')
+            ON CONFLICT(feedback_id) DO UPDATE SET
+              rating = excluded.rating,
+              comment = excluded.comment,
+              supply_office = excluded.supply_office,
+              status = 'approved',
+              updated_at = CURRENT_TIMESTAMP`,
+      args: [newItem.id, newItem.username, newItem.name, newItem.supplyOffice, cccId, newItem.rating, newItem.comment]
+    })
+    console.log(`⚡ [Turso SQL] Saved user feedback for '${newItem.username}' to user_feedbacks table`)
+  } catch (dbErr) {
+    console.warn("Turso feedback save warning:", dbErr)
+  }
+
+  // Invalidate memory cache
+  memoryFeedbacksCache = null
+  lastFetchTime = 0
+
+  // 2. Dual-write to Google Sheets in background
+  try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: targetSheetId,
       range: "'Feedbacks'!A1:Z500",
@@ -237,22 +299,18 @@ export async function addFeedback(
         spreadsheetId: targetSheetId,
         range: `'Feedbacks'!A${foundRowIndex}:I${foundRowIndex}`,
         valueInputOption: "USER_ENTERED",
-        requestBody: {
-          values: [rowValues],
-        },
+        requestBody: { values: [rowValues] },
       })
     } else {
       await sheets.spreadsheets.values.append({
         spreadsheetId: targetSheetId,
         range: "'Feedbacks'!A1",
         valueInputOption: "USER_ENTERED",
-        requestBody: {
-          values: [rowValues],
-        },
+        requestBody: { values: [rowValues] },
       })
     }
   } catch (e: any) {
-    console.warn("Feedback saved to memory cache, Master Sheet sync warning:", e?.message || e)
+    console.warn("Feedback Master Sheet dual-sync warning:", e?.message || e)
   }
 
   return newItem
