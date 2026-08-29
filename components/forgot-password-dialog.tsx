@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react"
+import { firebaseAuth } from "@/lib/firebase-client"
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
 
 interface ForgotPasswordDialogProps {
   open: boolean
@@ -25,7 +27,8 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
   const [mobileMasked, setMobileMasked] = useState("")
   const [username, setUsername] = useState("")
   const [countdown, setCountdown] = useState(0)
-  const [devOtp, setDevOtp] = useState<string | null>(null)
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
 
   // Step 2: OTP & New Password
   const [otp, setOtp] = useState("")
@@ -47,7 +50,11 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
         setOtp("")
         setNewPassword("")
         setConfirmPassword("")
-        setDevOtp(null)
+        setConfirmationResult(null)
+        if (recaptchaVerifierRef.current) {
+          try { recaptchaVerifierRef.current.clear() } catch {}
+          recaptchaVerifierRef.current = null
+        }
       }, 300)
     }
   }, [open])
@@ -60,7 +67,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
     }
   }, [countdown])
 
-  // 1. Request Reset OTP
+  // 1. Request Reset OTP (Look up linked phone and send SMS via Firebase)
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -73,6 +80,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
     try {
       setLoading(true)
+      // Look up linked account on server
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -85,9 +93,24 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
       setMobileNumber(data.mobileNumber)
       setMobileMasked(data.mobileMasked)
       setUsername(data.username)
-      if (data.devOtp) setDevOtp(data.devOtp)
+
+      // Send SMS OTP via Firebase
+      try {
+        if (!recaptchaVerifierRef.current) {
+          recaptchaVerifierRef.current = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
+            size: "invisible",
+            callback: () => {},
+          })
+        }
+        const formattedPhone = `+91${data.mobileNumber}`
+        const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, recaptchaVerifierRef.current)
+        setConfirmationResult(confirmation)
+      } catch (fbErr) {
+        console.warn("Firebase Phone Auth notice, using server OTP:", fbErr)
+      }
+
       setCountdown(45)
-      setSuccessMsg(data.message || `OTP sent to linked phone.`)
+      setSuccessMsg(`OTP sent to linked phone (+91 ${data.mobileMasked}).`)
       setTimeout(() => {
         setSuccessMsg(null)
         setStep(2)
@@ -122,23 +145,39 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
     try {
       setLoading(true)
-      // Verify OTP first
-      const verifyRes = await fetch("/api/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
-      })
-      const verifyData = await verifyRes.json()
-      if (!verifyRes.ok) throw new Error(verifyData.error || "OTP verification failed.")
+      let verificationToken = ""
 
-      // Now reset password
+      if (confirmationResult) {
+        // Verify with Firebase
+        const credential = await confirmationResult.confirm(cleanOtp)
+        const idToken = await credential.user.getIdToken()
+        const verifyRes = await fetch("/api/auth/otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
+        })
+        const verifyData = await verifyRes.json()
+        verificationToken = verifyData.verificationToken || idToken
+      } else {
+        // Verify with Server OTP
+        const verifyRes = await fetch("/api/auth/otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
+        })
+        const verifyData = await verifyRes.json()
+        if (!verifyRes.ok) throw new Error(verifyData.error || "OTP verification failed.")
+        verificationToken = verifyData.verificationToken
+      }
+
+      // Execute Password Reset
       const resetRes = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "reset",
           mobileNumber,
-          verificationToken: verifyData.verificationToken,
+          verificationToken,
           newPassword,
         })
       })
@@ -160,6 +199,9 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+        {/* Invisible container for Firebase reCAPTCHA */}
+        <div id="forgot-recaptcha-container"></div>
+
         <DialogHeader className="space-y-2">
           <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-600">
             <KeyRound className="w-6 h-6" />
@@ -169,8 +211,8 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
           </DialogTitle>
           <DialogDescription className="text-center text-xs text-slate-500">
             {step === 1
-              ? "Enter your mobile number, username, or CCC code to receive a reset OTP."
-              : `Enter the OTP sent to +91 ${mobileMasked} and set your new password.`}
+              ? "Enter your mobile number, username, or CCC code to receive an SMS OTP."
+              : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and create your new password.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -217,7 +259,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
               className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl cursor-pointer shadow-md"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-              Send Password Reset OTP
+              Send Password Reset OTP via SMS
             </Button>
           </form>
         )}
@@ -233,14 +275,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
-                {devOtp && (
-                  <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                    Dev OTP: {devOtp}
-                  </span>
-                )}
-              </div>
+              <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
               <Input
                 required
                 maxLength={6}
