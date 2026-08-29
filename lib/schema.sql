@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS ccc_registry (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_ccc_code ON ccc_registry (ccc_code);
+CREATE INDEX IF NOT EXISTS idx_ccc_code_nocase ON ccc_registry (ccc_code COLLATE NOCASE);
 
 -- 2. System Default Roles & Permissions (Master Base Catalog)
 CREATE TABLE IF NOT EXISTS system_default_roles (
@@ -111,6 +112,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS idx_users_ccc_id ON users (ccc_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
+CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users (username COLLATE NOCASE);
 
 -- 6. User Sessions Table (Refresh Tokens)
 CREATE TABLE IF NOT EXISTS user_sessions (
@@ -445,6 +447,7 @@ CREATE TABLE IF NOT EXISTS user_feedbacks (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON user_feedbacks (status);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_user_ccc ON user_feedbacks (username COLLATE NOCASE, ccc_id);
 
 -- 21. Miscellaneous Inspections Table
 CREATE TABLE IF NOT EXISTS misc_inspections (

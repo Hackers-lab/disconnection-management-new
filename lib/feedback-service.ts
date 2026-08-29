@@ -160,7 +160,7 @@ export async function getUserFeedback(username: string, cccCode?: string): Promi
       sql: `SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code
             FROM user_feedbacks f
             LEFT JOIN ccc_registry c ON f.ccc_id = c.id
-            WHERE LOWER(f.username) = LOWER(?) OR (c.ccc_code IS NOT NULL AND LOWER(c.ccc_code) = LOWER(?))
+            WHERE f.username = ? COLLATE NOCASE OR (c.ccc_code IS NOT NULL AND c.ccc_code = ? COLLATE NOCASE)
             LIMIT 1`,
       args: [cleanUser, cleanCcc]
     })
