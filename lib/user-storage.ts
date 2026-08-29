@@ -139,7 +139,7 @@ export class UserStorage {
     const cleanUsername = username.trim()
     const cleanPassword = password.trim()
 
-    // 1. Direct fast indexed point-query on Turso DB (supports username OR CCC code)
+    // 1. Direct fast indexed point-query on Turso DB (supports username, CCC code, OR mobile number)
     try {
       const qStart = performance.now()
       const res = await db.execute({
@@ -149,14 +149,17 @@ export class UserStorage {
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
               WHERE u.username = ? COLLATE NOCASE
+                 OR u.mobile_number = ?
               UNION ALL
               SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin' AND u.username != ? COLLATE NOCASE`,
-        args: [cleanUsername, cleanUsername, cleanUsername]
+              WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ?)
+                AND u.role = 'admin'
+                AND u.username != ? COLLATE NOCASE`,
+        args: [cleanUsername, cleanUsername, cleanUsername, cleanUsername, cleanUsername]
       })
       const qDuration = (performance.now() - qStart).toFixed(1)
 
@@ -196,7 +199,10 @@ export class UserStorage {
     // 2. Fallback: Check memory cache or Google Sheets
     const s0 = performance.now()
     const users = await this.getUsers()
-    let user = users.find(u => (u.username.toLowerCase() === cleanUsername.toLowerCase() || (u.cccCode.toLowerCase() === cleanUsername.toLowerCase() && u.role === 'admin')) && u.password === cleanPassword) || null
+    let user = users.find(u => (
+      u.username.toLowerCase() === cleanUsername.toLowerCase() || 
+      (u.cccCode.toLowerCase() === cleanUsername.toLowerCase() && u.role === 'admin')
+    ) && u.password === cleanPassword) || null
 
     if (!user) {
       this.invalidateCache()
