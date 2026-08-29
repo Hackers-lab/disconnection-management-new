@@ -10,6 +10,7 @@ export async function getUserByCredentials(username: string, password: string) {
 }
 
 export async function login(formData: FormData) {
+  const overallStart = performance.now()
   const username = ((formData.get("username") as string) || "").trim()
   const password = ((formData.get("password") as string) || "").trim()
   const deviceId = (formData.get("deviceId") as string) || undefined
@@ -18,20 +19,26 @@ export async function login(formData: FormData) {
     return { error: "Username and password are required" }
   }
 
-  console.log("🔍 Login attempt for:", username)
+  console.log(`\n🔑 ─── [LOGIN ATTEMPT STARTED] ───`)
+  console.log(`👤 Username: '${username}'`)
 
+  const lookupStart = performance.now()
   const user = await getUserByCredentials(username, password)
+  const lookupTime = (performance.now() - lookupStart).toFixed(1)
 
   if (!user) {
-    console.log("❌ Login failed for:", username)
+    console.log(`❌ [LOGIN FAILED] Invalid credentials for '${username}' (${lookupTime}ms)\n`)
     return { error: "Invalid username or password" }
   }
 
-  console.log("✅ Login successful for:", username, "Role:", user.role)
+  const sessionStart = performance.now()
   await createSession(user.id, username, user.role, user.agencies, user.cccCode)
+  const sessionTime = (performance.now() - sessionStart).toFixed(1)
 
   // Explicitly record user in dedicated user_presence table on login
+  let presenceTime = "0.0"
   try {
+    const pStart = performance.now()
     const { trackUserPresence } = await import("@/lib/presence-service")
     await trackUserPresence({
       userId: user.id,
@@ -44,9 +51,17 @@ export async function login(formData: FormData) {
       lastAction: "Logged In",
       lastSeen: Date.now(),
     })
+    presenceTime = (performance.now() - pStart).toFixed(1)
   } catch (presenceErr) {
     console.warn("Could not log user presence:", presenceErr)
   }
+
+  const totalLoginTime = (performance.now() - overallStart).toFixed(1)
+  console.log(`⏱️ ─── [LOGIN BENCHMARK BREAKDOWN] ───`)
+  console.log(`├── 1. User DB Lookup:     ${lookupTime}ms`)
+  console.log(`├── 2. JWT Cookie Session: ${sessionTime}ms`)
+  console.log(`├── 3. Presence Tracking:  ${presenceTime}ms`)
+  console.log(`└── 🚀 Total Server Login Time: ${totalLoginTime}ms (Role: ${user.role}, CCC: ${user.cccCode || "N/A"})\n`)
 
   if (user.role === "superuser") {
     redirect("/superuser")

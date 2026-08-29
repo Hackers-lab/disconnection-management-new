@@ -1,5 +1,6 @@
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
+import { db } from "./db"
 
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const SHEET_NAME = "Master_Credentials"
@@ -18,7 +19,7 @@ async function getSheetsClient() {
     },
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   })
-  return googleSheets({ version: "v4", auth })
+  return googleSheets({ version: "v4", auth: auth as any })
 }
 
 export interface MasterUser {
@@ -69,13 +70,43 @@ export class UserStorage {
   }
 
   async getUsers(): Promise<MasterUser[]> {
-    if (!SHEET_ID) {
-      throw new Error("MASTER_CONFIG_SHEET environment variable is not defined")
-    }
-    
     const now = Date.now()
     if (this._cache && (now - this._cacheTimestamp < this.CACHE_TTL_MS)) {
       return this._cache
+    }
+
+    // Try Turso SQL Database primary read
+    try {
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id`,
+        args: []
+      })
+      if (res.rows && res.rows.length > 0) {
+        const users: MasterUser[] = res.rows.map((r: any) => ({
+          id: String(r.id || ""),
+          username: String(r.username || ""),
+          password: String(r.password || ""),
+          role: String(r.role || ""),
+          cccCode: String(r.cccCode || ""),
+          name: String(r.name || ""),
+          agencies: [],
+          subscriptionStatus: String(r.subStatus || "active"),
+          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          bypassSubscription: Boolean(r.bypassSub),
+        }))
+        this._cache = users
+        this._cacheTimestamp = now
+        return users
+      }
+    } catch (err) {
+      console.error("Turso users fetch error, falling back to Google Sheets:", err)
+    }
+
+    if (!SHEET_ID) {
+      throw new Error("MASTER_CONFIG_SHEET environment variable is not defined")
     }
 
     try {
@@ -100,31 +131,86 @@ export class UserStorage {
   }
 
   async findUserByCredentials(username: string, password: string): Promise<MasterUser | null> {
-    const users = await this.getUsers()
-    let user = users.find(u => u.username === username && u.password === password) || null
+    const t0 = performance.now()
+    const cleanUsername = username.trim()
+    const cleanPassword = password.trim()
 
-    // If not found in cache, invalidate cache and fetch fresh users once
+    // 1. Direct fast indexed point-query on Turso DB (supports username OR CCC code)
+    try {
+      const qStart = performance.now()
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+              FROM users u 
+              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE LOWER(u.username) = LOWER(?) OR (LOWER(c.ccc_code) = LOWER(?) AND u.role = 'admin')
+              LIMIT 1`,
+        args: [cleanUsername, cleanUsername]
+      })
+      const qDuration = (performance.now() - qStart).toFixed(1)
+
+      if (res.rows && res.rows.length > 0) {
+        const r: any = res.rows[0]
+        const dbPassword = String(r.password || "").trim()
+
+        if (dbPassword === cleanPassword) {
+          const totalMs = (performance.now() - t0).toFixed(1)
+          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' (Account: ${r.username}) authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
+          return {
+            id: String(r.id || ""),
+            username: String(r.username || cleanUsername),
+            password: dbPassword,
+            role: String(r.role || "viewer"),
+            cccCode: String(r.cccCode || ""),
+            name: String(r.name || cleanUsername),
+            agencies: [],
+            subscriptionStatus: String(r.subStatus || "active"),
+            subscriptionExpiresAt: String(r.subExpiresAt || ""),
+            bypassSubscription: Boolean(r.bypassSub),
+          }
+        } else {
+          console.log(`❌ [AUTH REJECTED - Turso DB] User '${cleanUsername}' password mismatch (Query: ${qDuration}ms).`)
+          return null
+        }
+      }
+    } catch (err: any) {
+      console.warn(`⚠️ [AUTH NOTICE] Direct Turso point query failed, checking fallbacks: ${err.message}`)
+    }
+
+    // 2. Fallback: Check memory cache or Google Sheets
+    const s0 = performance.now()
+    const users = await this.getUsers()
+    let user = users.find(u => (u.username.toLowerCase() === cleanUsername.toLowerCase() || (u.cccCode.toLowerCase() === cleanUsername.toLowerCase() && u.role === 'admin')) && u.password === cleanPassword) || null
+
     if (!user) {
       this.invalidateCache()
       const freshUsers = await this.getUsers()
-      user = freshUsers.find(u => u.username === username && u.password === password) || null
+      user = freshUsers.find(u => (u.username.toLowerCase() === cleanUsername.toLowerCase() || (u.cccCode.toLowerCase() === cleanUsername.toLowerCase() && u.role === 'admin')) && u.password === cleanPassword) || null
     }
+    const sDuration = (performance.now() - s0).toFixed(1)
 
     // Dynamic fallback for divisional credentials (e.g., 6612000 / 6612000 or 6634000 / 6634000)
-    if (!user && /^\d{4}000$/.test(username) && password === username) {
-      const divPrefix = username.slice(0, 4)
+    if (!user && /^\d{4}000$/.test(cleanUsername) && cleanPassword === cleanUsername) {
+      const divPrefix = cleanUsername.slice(0, 4)
       user = {
-        id: `div-${username}`,
-        username,
-        password,
+        id: `div-${cleanUsername}`,
+        username: cleanUsername,
+        password: cleanPassword,
         role: "division_viewer",
-        cccCode: username,
+        cccCode: cleanUsername,
         name: `Division ${divPrefix} View Account`,
         agencies: [],
         subscriptionStatus: "active",
         subscriptionExpiresAt: "",
         bypassSubscription: true,
       }
+    }
+
+    if (user) {
+      console.log(`📄 [AUTH SUCCESS - Google Sheets Fallback] User '${cleanUsername}' authenticated in ${sDuration}ms via Sheets fallback.`)
+    } else {
+      console.log(`❌ [AUTH FAILED] User '${cleanUsername}' not found in any database (Duration: ${sDuration}ms).`)
     }
 
     return user
