@@ -90,16 +90,45 @@ export async function GET(request: NextRequest) {
     })
 
     const rows = listRes.data.values || []
-    const rowIndex = rows.findIndex(row => String(row[0]).trim().toUpperCase() === session.cccCode.toUpperCase())
+    let rowIndex = rows.findIndex(row => String(row[0] || "").trim().toUpperCase() === session.cccCode.toUpperCase())
+    let cccName = session.cccCode
+    let existingSheetId = ""
 
     if (rowIndex === -1) {
-      return NextResponse.json({ error: `CCC Code '${session.cccCode}' is not registered in the Master Config Registry.` }, { status: 404 })
+      // If not present in Sheet yet, fetch CCC name from Turso DB or default
+      try {
+        const { db } = await import("@/lib/db")
+        const cccDb = await db.execute({
+          sql: `SELECT ccc_name, spreadsheet_id FROM ccc_registry WHERE upper(ccc_code) = ? LIMIT 1`,
+          args: [session.cccCode.toUpperCase()]
+        })
+        if (cccDb.rows && cccDb.rows[0]) {
+          cccName = String(cccDb.rows[0].ccc_name || session.cccCode)
+          existingSheetId = String(cccDb.rows[0].spreadsheet_id || "")
+        }
+      } catch {}
+
+      // Append row to Google Sheet
+      const appendRes = await masterSheetsClient.spreadsheets.values.append({
+        spreadsheetId: masterSheetId,
+        range: `${registryTab}!A:E`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [[session.cccCode.toUpperCase(), cccName, existingSheetId, "", ""]],
+        },
+      })
+      
+      // Determine rowNum
+      const updatedRange = appendRes.data.updates?.updatedRange || ""
+      const match = updatedRange.match(/!A(\d+)/)
+      rowIndex = match ? parseInt(match[1], 10) - 1 : rows.length
+    } else {
+      const rowData = rows[rowIndex]
+      cccName = String(rowData[1] || session.cccCode).trim()
+      existingSheetId = String(rowData[2] || "").trim()
     }
 
     const rowNum = rowIndex + 1
-    const rowData = rows[rowIndex]
-    const cccName = String(rowData[1] || "").trim()
-    const existingSheetId = String(rowData[2] || "").trim()
 
     // 3. Duplicate spreadsheet template if not already present
     let sheetId = existingSheetId
@@ -144,7 +173,7 @@ export async function GET(request: NextRequest) {
     // 4. Encrypt Refresh Token
     const encryptedToken = encrypt(refreshToken)
 
-    // 5. Save Sheet ID, Folder ID, and Encrypted Refresh Token to Master Registry
+    // 5. Save Sheet ID, Folder ID, and Encrypted Refresh Token to Master Google Sheet Registry
     await masterSheetsClient.spreadsheets.values.update({
       spreadsheetId: masterSheetId,
       range: `${registryTab}!C${rowNum}:E${rowNum}`,
@@ -153,6 +182,23 @@ export async function GET(request: NextRequest) {
         values: [[sheetId, folderId, encryptedToken]],
       },
     })
+
+    // 6. Dual-Write tokens to Turso DB ccc_registry
+    try {
+      const { db } = await import("@/lib/db")
+      await db.execute({
+        sql: `INSERT INTO ccc_registry (ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token)
+              VALUES (?, ?, ?, ?, ?)
+              ON CONFLICT(ccc_code) DO UPDATE SET
+                spreadsheet_id = excluded.spreadsheet_id,
+                drive_folder_id = excluded.drive_folder_id,
+                drive_refresh_token = excluded.drive_refresh_token,
+                updated_at = CURRENT_TIMESTAMP`,
+        args: [session.cccCode.toUpperCase(), cccName, sheetId, folderId, encryptedToken]
+      })
+    } catch (dbErr) {
+      console.warn("Turso DB ccc_registry dual-write notice in oauth callback:", dbErr)
+    }
 
     // Invalidate the cache to apply the changes immediately
     invalidateTenantCache()

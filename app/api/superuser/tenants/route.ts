@@ -124,19 +124,58 @@ export async function POST(request: NextRequest) {
       console.warn("Turso ccc_registry insert notice:", dbErr)
     }
 
-    // 2. Append to Master Google Sheet tab
+    // 2. Dual-Write to Master Google Sheet tab
     try {
       const masterSheetId = process.env.MASTER_CONFIG_SHEET!
       const registryTab = "CCC_Registry"
       const sheets = getSheetsClient()
-      await sheets.spreadsheets.values.append({
+      
+      const existingRes = await sheets.spreadsheets.values.get({
         spreadsheetId: masterSheetId,
-        range: `${registryTab}!A:G`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: {
-          values: [[cleanCccCode, cleanCccName, cleanSpreadsheetId, "", "", cleanMobile, cleanContact]],
-        },
-      })
+        range: `${registryTab}!A:A`,
+      }).catch(() => null)
+
+      const existingCodes = (existingRes?.data?.values || []).map(r => String(r[0] || "").trim().toUpperCase())
+      const existingIdx = existingCodes.findIndex(c => c === cleanCccCode)
+
+      if (existingIdx >= 0) {
+        const rowNum = existingIdx + 1
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: masterSheetId,
+          range: `${registryTab}!A${rowNum}:B${rowNum}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [[cleanCccCode, cleanCccName]],
+          },
+        })
+        if (cleanSpreadsheetId) {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: masterSheetId,
+            range: `${registryTab}!C${rowNum}`,
+            valueInputOption: "USER_ENTERED",
+            requestBody: {
+              values: [[cleanSpreadsheetId]],
+            },
+          })
+        }
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: masterSheetId,
+          range: `${registryTab}!F${rowNum}:G${rowNum}`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [[cleanContact, cleanMobile]],
+          },
+        })
+      } else {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: masterSheetId,
+          range: `${registryTab}!A:G`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [[cleanCccCode, cleanCccName, cleanSpreadsheetId, "", "", cleanContact, cleanMobile]],
+          },
+        })
+      }
     } catch (sheetErr) {
       console.warn("Sheet append notice:", sheetErr)
     }

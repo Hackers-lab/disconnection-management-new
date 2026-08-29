@@ -102,25 +102,76 @@ export async function POST(req: NextRequest) {
       (async () => {
         try {
           const sheets = await getSheetsClient()
-          // Append to CCC_Registry tab
-          await sheets.spreadsheets.values.append({
+          
+          // Check existing rows in CCC_Registry to prevent duplicate entries
+          const existingRes = await sheets.spreadsheets.values.get({
             spreadsheetId: SHEET_ID,
-            range: "'CCC_Registry'!A:G",
-            valueInputOption: "USER_ENTERED",
-            requestBody: {
-              values: [[cleanCccCode, cleanCccName, "", "", "", cleanContactPerson, cleanMobile]],
-            },
-          }).catch(() => {})
+            range: "'CCC_Registry'!A:A",
+          }).catch(() => null)
 
-          // Append to Master_Credentials tab
-          await sheets.spreadsheets.values.append({
+          const existingCodes = (existingRes?.data?.values || []).map(r => String(r[0] || "").trim().toUpperCase())
+          const existingIdx = existingCodes.findIndex(c => c === cleanCccCode)
+
+          if (existingIdx >= 0) {
+            // Update existing row at existingIdx + 1 (keep column C, D, E intact if they have sheets/tokens)
+            const rowNum = existingIdx + 1
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SHEET_ID,
+              range: `'CCC_Registry'!A${rowNum}:B${rowNum}`,
+              valueInputOption: "USER_ENTERED",
+              requestBody: {
+                values: [[cleanCccCode, cleanCccName]],
+              },
+            }).catch(() => {})
+            
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SHEET_ID,
+              range: `'CCC_Registry'!F${rowNum}:G${rowNum}`,
+              valueInputOption: "USER_ENTERED",
+              requestBody: {
+                values: [[cleanContactPerson, cleanMobile]],
+              },
+            }).catch(() => {})
+          } else {
+            // Append new row if not present
+            await sheets.spreadsheets.values.append({
+              spreadsheetId: SHEET_ID,
+              range: "'CCC_Registry'!A:G",
+              valueInputOption: "USER_ENTERED",
+              requestBody: {
+                values: [[cleanCccCode, cleanCccName, "", "", "", cleanContactPerson, cleanMobile]],
+              },
+            }).catch(() => {})
+          }
+
+          // Check and append/update Master_Credentials tab
+          const credRes = await sheets.spreadsheets.values.get({
             spreadsheetId: SHEET_ID,
-            range: "'Master_Credentials'!A:J",
-            valueInputOption: "USER_ENTERED",
-            requestBody: {
-              values: [[userId, cleanCccCode, cleanPassword, "admin", cleanCccCode, cleanContactPerson || cleanCccName, "", "active", "", "TRUE"]],
-            },
-          }).catch(() => {})
+            range: "'Master_Credentials'!B:B",
+          }).catch(() => null)
+          const credUsers = (credRes?.data?.values || []).map(r => String(r[0] || "").trim().toLowerCase())
+          const credIdx = credUsers.findIndex(u => u === cleanCccCode.toLowerCase())
+
+          if (credIdx >= 0) {
+            const credRowNum = credIdx + 1
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SHEET_ID,
+              range: `'Master_Credentials'!A${credRowNum}:J${credRowNum}`,
+              valueInputOption: "USER_ENTERED",
+              requestBody: {
+                values: [[userId, cleanCccCode, cleanPassword, "admin", cleanCccCode, cleanContactPerson || cleanCccName, "", "active", "", "TRUE"]],
+              },
+            }).catch(() => {})
+          } else {
+            await sheets.spreadsheets.values.append({
+              spreadsheetId: SHEET_ID,
+              range: "'Master_Credentials'!A:J",
+              valueInputOption: "USER_ENTERED",
+              requestBody: {
+                values: [[userId, cleanCccCode, cleanPassword, "admin", cleanCccCode, cleanContactPerson || cleanCccName, "", "active", "", "TRUE"]],
+              },
+            }).catch(() => {})
+          }
         } catch (e) {
           console.warn("Dual write to master sheet notice:", e)
         }
