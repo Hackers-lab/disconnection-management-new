@@ -11,7 +11,7 @@ export default function PrivacyPolicyPage() {
       <div className="max-w-4xl mx-auto bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-slate-200">
         <div className="border-b border-slate-100 pb-6 mb-8">
           <h1 className="text-3xl font-extrabold text-slate-900">Privacy Policy</h1>
-          <p className="text-sm text-slate-500 mt-2">Last Updated: July 23, 2026</p>
+          <p className="text-sm text-slate-500 mt-2">Last Updated: August 30, 2026</p>
         </div>
 
         <div className="space-y-6 text-slate-700 leading-relaxed text-sm md:text-base">
@@ -24,11 +24,11 @@ export default function PrivacyPolicyPage() {
 
           <section>
             <h2 className="text-lg font-bold text-slate-900 mb-2">2. Information We Collect</h2>
-            <p>We collect information necessary to operate electrical supply disconnection, reconnection, DTR, and material management tracking:</p>
+            <p>We collect minimal information necessary to operate electrical supply disconnection, reconnection, DTR, and material management tracking:</p>
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li><strong>Account Information:</strong> Name, username, role, and Customer Care Center (CCC) code.</li>
               <li><strong>Google Account Data:</strong> When linking Google Drive/Sheets, we access basic profile info (email address) and user-authorized Google Drive folders/spreadsheets.</li>
-              <li><strong>Operational Data:</strong> Consumer records, meter replacement details, and field inspection images uploaded by authorized personnel.</li>
+              <li><strong>Operational Data:</strong> We <strong>do not store</strong> any operational data, consumer records, or field inspection images on our own servers. This information is saved directly and securely into your own authorized Google Drive and Google Sheets.</li>
             </ul>
           </section>
 
@@ -38,18 +38,18 @@ export default function PrivacyPolicyPage() {
               Our application requests access to Google Drive and Google Sheets APIs strictly to enable:
             </p>
             <ul className="list-disc pl-6 mt-2 space-y-1">
-              <li>Storing and reading administrative tracking data from authorized Google Spreadsheets.</li>
+              <li>Storing and reading administrative tracking data from your authorized Google Spreadsheets.</li>
               <li>Uploading field proof photos and receipt images directly into your designated Google Drive folders.</li>
             </ul>
             <p className="mt-2">
-              We <strong>do not</strong> sell, share, or transfer your Google user data to third parties, advertising networks, or data brokers.
+              We <strong>do not</strong> sell, share, or transfer your Google user data to third parties, advertising networks, or data brokers. All data remains fully under your ownership and control within your Google account.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-slate-900 mb-2">4. Data Security & Storage</h2>
             <p>
-              OAuth refresh tokens are stored using AES-256-GCM encryption. All user communications with Google APIs occur securely via encrypted HTTPS endpoints.
+              <strong>We do not host or store any of your operational files or images.</strong> All data managed through this application is saved securely to your own Google Drive. OAuth refresh tokens used to facilitate this connection are stored using AES-256-GCM encryption. All user communications with Google APIs occur securely via encrypted HTTPS endpoints.
             </p>
           </section>
 
