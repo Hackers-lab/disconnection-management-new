@@ -282,13 +282,15 @@ export async function getOnlineUsersReport(forceRefresh = false): Promise<Online
     }
   }
 
-  // 2. Read dedicated user_presence table with limit to prevent runaway row scans
+  // 2. Read dedicated user_presence table with cutoff filter to prevent runaway row scans
   const turso = getTursoClient()
   if (turso) {
     try {
       await ensurePresenceTable(turso)
+      const cutoff = now - PRESENCE_TIMEOUT_MS // last 3 minutes only
       const res = await turso.execute({
-        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC LIMIT 150",
+        sql: "SELECT * FROM user_presence WHERE last_seen >= ? ORDER BY last_seen DESC LIMIT 50",
+        args: [cutoff]
       })
 
       for (const row of res.rows) {

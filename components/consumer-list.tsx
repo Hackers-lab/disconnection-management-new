@@ -67,6 +67,7 @@ import {
   PlusCircle,
   Navigation,
   Zap,
+  Upload,
 } from "lucide-react"
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -96,6 +97,7 @@ interface ConsumerListProps {
   onDownloadExcel?: () => void
   onDownloadDefaulters: () => void
   onGoToReconnection?: () => void
+  onNavigateToUploadDcList?: () => void
   permissions?: Record<string, string[]>
 }
 interface ConsumerListRef {  // <-- Add this interface
@@ -140,7 +142,7 @@ const SYNC_COOLDOWN_MS = 10000 // 10 seconds cooldown
 
 const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   (props, ref) => {
-  const { userRole, userAgencies, onAdminClick, showAdminPanel, onCloseAdminPanel, onGoToReconnection, permissions } = props
+  const { userRole, userAgencies, onAdminClick, showAdminPanel, onCloseAdminPanel, onGoToReconnection, onNavigateToUploadDcList, permissions } = props
   const { toast } = useToast()
   const [consumers, setConsumers] = useState<ConsumerData[]>([])
   const [agencies, setAgencies] = useState<string[]>([])
@@ -1858,10 +1860,39 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         </div>
       )}
 
-      {consumers.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No consumer data available.</p>
-        </div>
+      {consumers.length === 0 && !loading && (
+        userRole === "admin" ? (
+          <div className="text-center py-16 px-4 bg-white rounded-2xl border-2 border-dashed border-blue-200/80 shadow-sm max-w-md mx-auto my-8 space-y-4">
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <Upload className="h-8 w-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-gray-900">No Disconnection List Uploaded</h3>
+              <p className="text-sm text-gray-500 max-w-xs mx-auto">
+                There are no consumers in the disconnection module. Upload a DC list to populate the list.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Button
+                onClick={() => {
+                  if (onNavigateToUploadDcList) {
+                    onNavigateToUploadDcList()
+                  } else {
+                    onAdminClick()
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 shadow-sm rounded-xl"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Disconnection List
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No consumer data available.</p>
+          </div>
+        )
       )}
 
       {/* Mobile PIP View Dialog */}

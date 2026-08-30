@@ -224,7 +224,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
                 const payload: any = {
                     rows: chunkRows,
-                    newCycle: newCycleUpload,
+                    appendMode: isAppendMode,
                     overrides: conflictOverrides,
                     isChunk: true,
                     isLastChunk,
@@ -273,7 +273,9 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             setDcUploadResult(finalSummary);
             setMessage({
                 type: "success",
-                text: `Upload complete: ${inserted} new, ${updated} updated, ${autoAssigned} auto-assigned agency, ${deletedNotInUpload} removed.`,
+                text: isAppendMode
+                  ? `Upload complete: ${inserted} new consumers added, ${updated} existing updated, ${autoAssigned} auto-assigned agency.`
+                  : `Upload complete: ${inserted} new, ${updated} updated, ${autoAssigned} auto-assigned agency, ${deletedNotInUpload} removed.`,
             });
         } catch (error) {
             console.error("Upload error:", error);
@@ -363,7 +365,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
     const [fileName, setFileName] = useState<string>("");
     const [dcUploadResult, setDcUploadResult] = useState<{ total: number; inserted: number; updated: number; protectedStatusSkipped: number; autoAssigned: number; deletedNotInUpload: number } | null>(null);
-    const [newCycleUpload, setNewCycleUpload] = useState(false);
+    const [isAppendMode, setIsAppendMode] = useState(true);
+    const [showDuplicatesList, setShowDuplicatesList] = useState(false);
     const [backupDownloading, setBackupDownloading] = useState(false);
     const [latLongRefreshing, setLatLongRefreshing] = useState(false);
     const [latLongResult, setLatLongResult] = useState<{ matched: number; updated: number; alreadyHad: number; noMaster: number } | null>(null);
@@ -1218,6 +1221,48 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     }
     return out
   }, [passingRows, cachedConsumers, mapping])
+
+  // Existing duplicates: passing consumers that already exist in the disconnection list
+  const existingDuplicates = useMemo(() => {
+    const idIdx = mapping["Consumer Id"]
+    const nameIdx = mapping["Name"]
+    if (idIdx == null || idIdx < 0 || cachedConsumers.length === 0) return [] as { consumerId: string; name: string; status: string }[]
+    const existingById = new Map(cachedConsumers.map(c => [String(c.consumerId).trim(), c]))
+    const seen = new Set<string>()
+    const dupes: { consumerId: string; name: string; status: string }[] = []
+    for (const r of passingRows) {
+      const id = String(r[idIdx] ?? "").trim()
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      const ex = existingById.get(id)
+      if (ex) {
+        dupes.push({
+          consumerId: id,
+          name: ex.name || (nameIdx != null && nameIdx >= 0 ? String(r[nameIdx] ?? "") : ""),
+          status: ex.disconStatus || "connected",
+        })
+      }
+    }
+    return dupes
+  }, [passingRows, cachedConsumers, mapping])
+
+  // Duplicates within the uploaded file itself
+  const fileDuplicates = useMemo(() => {
+    const idIdx = mapping["Consumer Id"]
+    if (idIdx == null || idIdx < 0) return [] as string[]
+    const seen = new Set<string>()
+    const dupes = new Set<string>()
+    for (const r of passingRows) {
+      const id = String(r[idIdx] ?? "").trim()
+      if (!id) continue
+      if (seen.has(id)) {
+        dupes.add(id)
+      } else {
+        seen.add(id)
+      }
+    }
+    return Array.from(dupes)
+  }, [passingRows, mapping])
 
   // Group conflicts by existing status for the status-level controls.
   const conflictsByStatus = useMemo(() => {
@@ -2317,22 +2362,24 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </div>
           </div>
 
-          {/* New cycle toggle */}
-          <Card className="border-amber-200 bg-amber-50">
+          <Card className="border-blue-200 bg-blue-50/50">
             <CardContent className="pt-4 pb-4 space-y-2">
               <div className="flex items-start gap-3">
-                <input type="checkbox" id="newCycle" checked={newCycleUpload}
-                  onChange={(e) => setNewCycleUpload(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded" />
+                <input
+                  type="checkbox"
+                  id="appendMode"
+                  checked={isAppendMode}
+                  onChange={(e) => setIsAppendMode(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                />
                 <div>
-                  <label htmlFor="newCycle" className="font-semibold text-sm text-amber-900 cursor-pointer">
-                    New Disconnection Cycle
+                  <label htmlFor="appendMode" className="font-semibold text-sm text-blue-950 cursor-pointer">
+                    Add Disconnection List (Append Mode)
                   </label>
-                  <p className="text-xs text-amber-700 mt-0.5">
-                    Check this when uploading a <strong>fresh billing cycle</strong> (e.g. a new quarter's DC list).
-                    With this ON, consumers with OSD-changed will have their status reset to <code>connected</code>
-                    (treated as a new case). Consumers with <code>bill dispute</code> or <code>office team</code>
-                    status are always preserved regardless. Without this, all existing statuses are fully protected.
+                  <p className="text-xs text-blue-800/80 mt-0.5">
+                    Check this to <strong>append and merge</strong> this list into the existing disconnection database without deleting existing consumers.
+                    Consumers already present in the list will have their billing info updated while preserving protected field statuses.
+                    Uncheck only if you wish to perform a full sync/replacement (which archives unlisted consumers).
                   </p>
                 </div>
               </div>
@@ -2548,7 +2595,73 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   {/* Live count */}
                   <div className="rounded-md bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
                     <strong>{finalUploadRows.length}</strong> of {rawRows.length} rows will be uploaded.
+                    {isAppendMode ? (
+                      <span className="ml-1 text-blue-600 font-medium">(Append Mode: Existing consumers retained)</span>
+                    ) : (
+                      <span className="ml-1 text-amber-700 font-medium">(Replace Mode: Consumers not in this file will be archived/removed)</span>
+                    )}
                   </div>
+
+                  {/* Duplicate Consumer Warnings */}
+                  {existingDuplicates.length > 0 && (
+                    <Alert className="border-amber-300 bg-amber-50/90 text-amber-900">
+                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5" />
+                      <AlertDescription>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between flex-wrap gap-1">
+                            <span className="font-semibold text-xs sm:text-sm text-amber-950">
+                              ⚠️ Warning: {existingDuplicates.length} Consumer ID{existingDuplicates.length > 1 ? "s" : ""} already exist in the disconnection list
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowDuplicatesList(!showDuplicatesList)}
+                              className="h-6 text-xs text-amber-800 hover:text-amber-950 underline px-1.5"
+                            >
+                              {showDuplicatesList ? "Hide duplicate IDs" : "View duplicate IDs"}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-amber-800 leading-relaxed">
+                            {isAppendMode ? (
+                              <>
+                                In <strong>Append Mode</strong>, existing consumers will have their latest billing details (outstanding amount, contact info, etc.) updated while preserving their current disconnection/reconnection status.
+                              </>
+                            ) : (
+                              <>
+                                In <strong>Replace Mode</strong>, matching consumers will be updated while non-matching consumers will be removed.
+                              </>
+                            )}
+                          </p>
+                          {showDuplicatesList && (
+                            <div className="mt-2 max-h-40 overflow-y-auto border border-amber-200 rounded-md bg-white p-2 text-xs divide-y">
+                              {existingDuplicates.slice(0, 100).map((d) => (
+                                <div key={d.consumerId} className="flex justify-between items-center py-1 gap-2">
+                                  <span className="font-mono font-medium text-gray-800">{d.consumerId}</span>
+                                  <span className="truncate flex-1 text-gray-600">{d.name}</span>
+                                  <Badge variant="outline" className="text-[10px] uppercase font-normal">{d.status}</Badge>
+                                </div>
+                              ))}
+                              {existingDuplicates.length > 100 && (
+                                <p className="text-[10px] text-gray-400 italic pt-1">...and {existingDuplicates.length - 100} more</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {fileDuplicates.length > 0 && (
+                    <Alert className="border-orange-300 bg-orange-50 text-orange-900">
+                      <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5" />
+                      <AlertDescription>
+                        <p className="text-xs text-orange-800">
+                          ⚠️ <strong>Duplicate rows in file:</strong> {fileDuplicates.length} Consumer ID{fileDuplicates.length > 1 ? "s" : ""} appeared multiple times in this uploaded file.
+                        </p>
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   {/* Conflict resolution */}
                   {conflicts.length > 0 && (
@@ -2633,9 +2746,13 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   )}
 
                   <Button className="w-full sm:w-auto" onClick={uploadToGoogleSheet} disabled={isUploading || finalUploadRows.length === 0}>
-                    {isUploading
-                      ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading…</>
-                      : <><Upload className="h-4 w-4 mr-2" /> Sync {finalUploadRows.length} rows to Sheet</>}
+                    {isUploading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading…</>
+                    ) : isAppendMode ? (
+                      <><Upload className="h-4 w-4 mr-2" /> Add &amp; Append {finalUploadRows.length} rows to DC List</>
+                    ) : (
+                      <><Upload className="h-4 w-4 mr-2" /> Sync {finalUploadRows.length} rows to Sheet</>
+                    )}
                   </Button>
                 </div>
               )}

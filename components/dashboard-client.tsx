@@ -1453,6 +1453,13 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
             onDownloadExcel={downloadExcel}
             onDownloadDefaulters={() => openDownloadDialog("defaulters")}
             onGoToReconnection={() => setActiveView("reconnection")}
+            onNavigateToUploadDcList={() => {
+              setAdminInitialView("dcList")
+              setActiveViewInternal("admin")
+              if (typeof window !== "undefined") {
+                window.history.pushState(null, "", "#admin/dcList")
+              }
+            }}
             permissions={permissions}
           />
         )}

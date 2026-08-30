@@ -77,10 +77,9 @@ const today = () => {
 type UpsertRequest = {
   sheetName?: string
   rows: string[][]
-  newCycle?: boolean
+  appendMode?: boolean
   // Per-consumer conflict decisions chosen by the user in the UI.
   // "replace" → overwrite existing (incl. status reset); "keep" → protect existing.
-  // Unset consumers fall back to the default newCycle/protection logic.
   overrides?: Record<string, "keep" | "replace">
   isChunk?: boolean
   isLastChunk?: boolean
@@ -97,7 +96,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   try { body = await request.json() }
   catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }) }
 
-  const newCycle = !!body.newCycle
+  const appendMode = !!body.appendMode
   const overrides = body.overrides && typeof body.overrides === "object" ? body.overrides : {}
   const uploadRows = Array.isArray(body.rows) ? body.rows : []
   const isChunk = !!body.isChunk
@@ -255,13 +254,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         const forceReplace = decision === "replace"
         const forceKeep = decision === "keep"
 
-        // Status reset happens on a new cycle (visited/not found/osd-changed) OR
-        // when the user explicitly chose to replace this consumer.
-        const shouldReset = forceReplace || (
-          !isAdminHold && newCycle && isFieldWork && (
-            existing.status === "visited" || existing.status === "not found" || osdChanged
-          )
-        )
+        // Status reset happens when the user explicitly chose to replace this consumer.
+        const shouldReset = forceReplace
 
         // Take the protected (base-only) path when:
         //  - user forced keep, OR
@@ -319,9 +313,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     }
 
     // 5. Consumers NOT in new upload → save to history then DELETE the row entirely.
+    // When in appendMode, skip deleting existing consumers.
     const rowsToDelete: number[] = []
     let deletedCount = 0
-    if (!isChunk || isLastChunk) {
+    if (!appendMode && (!isChunk || isLastChunk)) {
       const checkSet = allUploadIds || uploadIdSet
       existingMap.forEach((existing, consumerId) => {
         if (checkSet.has(consumerId)) return
