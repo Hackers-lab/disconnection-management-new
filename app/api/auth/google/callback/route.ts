@@ -133,23 +133,12 @@ export async function GET(request: NextRequest) {
     // 4. Encrypt Refresh Token
     const encryptedToken = encrypt(refreshToken)
 
-<<<<<<< HEAD
-    // 5. Save Sheet ID, Folder ID, and Encrypted Refresh Token to Master Google Sheet Registry
-    await masterSheetsClient.spreadsheets.values.update({
-      spreadsheetId: masterSheetId,
-      range: `${registryTab}!C${rowNum}:E${rowNum}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[sheetId, folderId, encryptedToken]],
-      },
-=======
     // 5. Update Turso ccc_registry database table (Primary Single Source of Truth)
     await db.execute({
       sql: `UPDATE ccc_registry 
             SET spreadsheet_id = ?, drive_folder_id = ?, drive_refresh_token = ?, updated_at = CURRENT_TIMESTAMP 
             WHERE ccc_code = ?`,
       args: [sheetId, folderId, encryptedToken, session.cccCode],
->>>>>>> d05a4e5 (fix(tenant): decouple onboarding and auth from master config sheet, sync directly with Turso DB)
     })
     console.log(`⚡ [Turso DB] Updated ccc_registry for tenant '${session.cccCode}'`)
 
@@ -179,23 +168,6 @@ export async function GET(request: NextRequest) {
       } catch (sheetSyncErr: any) {
         console.warn("Optional Master Sheet legacy sync ignored:", sheetSyncErr?.message)
       }
-    }
-
-    // 6. Dual-Write tokens to Turso DB ccc_registry
-    try {
-      const { db } = await import("@/lib/db")
-      await db.execute({
-        sql: `INSERT INTO ccc_registry (ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token)
-              VALUES (?, ?, ?, ?, ?)
-              ON CONFLICT(ccc_code) DO UPDATE SET
-                spreadsheet_id = excluded.spreadsheet_id,
-                drive_folder_id = excluded.drive_folder_id,
-                drive_refresh_token = excluded.drive_refresh_token,
-                updated_at = CURRENT_TIMESTAMP`,
-        args: [session.cccCode.toUpperCase(), cccName, sheetId, folderId, encryptedToken]
-      })
-    } catch (dbErr) {
-      console.warn("Turso DB ccc_registry dual-write notice in oauth callback:", dbErr)
     }
 
     // Invalidate the cache to apply the changes immediately

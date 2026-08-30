@@ -315,27 +315,10 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
         const upperAgencies = (userAgencies || []).map((a) => a.trim().toUpperCase()).filter(Boolean)
 
-        // Fallback auto-fetch for ICDS Electrification if local cache is empty
-        if (!icdsCached || !Array.isArray(icdsCached) || icdsCached.length === 0) {
-          try {
-            setLoadingModules((prev) => ({ ...prev, icds: true }))
-            const res = await fetch("/api/icds")
-            if (res.ok) {
-              const freshData = await res.json()
-              if (Array.isArray(freshData)) {
-                icdsCached = freshData
-                await saveToCache("icds_data_cache", freshData)
-                notifyCacheUpdate("icds_data_cache")
-              }
-            }
-          } catch (err) {
-            console.error("Auto-fetch ICDS failed", err)
-          } finally {
-            setLoadingModules((prev) => ({ ...prev, icds: false }))
-          }
-        } else {
-          setLoadingModules((prev) => ({ ...prev, icds: false }))
-        }
+        // Do NOT fallback to API fetch for ICDS if cache is empty.
+        // The count will populate when the user visits the ICDS module.
+        // This prevents redundant serverless function invocations on dashboard load.
+        setLoadingModules((prev) => ({ ...prev, icds: false }))
 
         if (icdsCached && Array.isArray(icdsCached)) {
           const isAgency = userRole === "agency"

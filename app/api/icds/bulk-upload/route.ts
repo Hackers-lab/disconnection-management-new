@@ -6,7 +6,6 @@ import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { appendDeltaPatch } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 0
 
 export const POST = withTenant(async function POST(req: NextRequest) {
   const authRes = await checkApiPermission("icds", ["create", "update"])

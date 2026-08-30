@@ -5,7 +5,6 @@ import { db } from "@/lib/db"
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 
-import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 

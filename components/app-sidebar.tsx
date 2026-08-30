@@ -62,19 +62,12 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
 
   const loadIcdsFromCache = async () => {
     try {
-      let cached = await getFromCache<any[]>("icds_data_cache")
-      if (!cached || !Array.isArray(cached) || cached.length === 0) {
-        const res = await fetch("/api/icds")
-        if (res.ok) {
-          const freshData = await res.json()
-          if (Array.isArray(freshData)) {
-            cached = freshData
-            await saveToCache("icds_data_cache", freshData)
-          }
-        }
-      }
+      const cached = await getFromCache<any[]>("icds_data_cache")
 
-      if (cached && Array.isArray(cached)) {
+      // Only read from IndexedDB — do NOT fallback to API fetch.
+      // The count will populate when the user visits the ICDS module.
+      // This prevents redundant serverless function invocations on dashboard load.
+      if (cached && Array.isArray(cached) && cached.length > 0) {
         const isAgency = userRole === "agency"
         const count = cached.filter((r) => {
           if (isAgency && r.assignedAgency) {

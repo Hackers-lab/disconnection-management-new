@@ -10,7 +10,6 @@ import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 0
 
 export const GET = withTenant(async function GET(req: NextRequest) {
   const authRes = await checkApiPermission("icds", "read")
