@@ -179,7 +179,17 @@ export async function POST(req: NextRequest) {
     }
 
     // 8. Create authenticated session & return redirect
-    await createSession(userId, cleanCccCode, "admin", [], cleanCccCode)
+    await createSession(
+      userId,
+      cleanCccCode,
+      "admin",
+      [],
+      cleanCccCode,
+      cleanContactPerson || cleanCccName,
+      "active",
+      "",
+      true
+    )
 
     return NextResponse.json({
       success: true,

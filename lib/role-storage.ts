@@ -305,8 +305,8 @@ export class RoleStorage {
       let cccId: number | null = null
       if (spreadsheetId) {
         const cccRes = await db.execute({
-          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? OR ccc_code = ? OR LOWER(ccc_code) = LOWER(?) LIMIT 1",
-          args: [spreadsheetId, spreadsheetId, spreadsheetId]
+          sql: "SELECT id FROM ccc_registry WHERE spreadsheet_id = ? OR ccc_code = ? COLLATE NOCASE LIMIT 1",
+          args: [spreadsheetId, spreadsheetId]
         })
         cccId = (cccRes.rows[0]?.id as number) || null
       }

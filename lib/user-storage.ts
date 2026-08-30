@@ -1,26 +1,5 @@
-import { sheets as googleSheets } from "@googleapis/sheets"
-import { GoogleAuth } from "google-auth-library"
 import { db } from "./db"
-
-const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
-const SHEET_NAME = "Master_Credentials"
-
-function getPrivateKey() {
-  const key = process.env.GOOGLE_SHEETS_PRIVATE_KEY
-  if (!key) return undefined
-  return key.replace(/^["']|["']$/g, "").replace(/\\n/g, "\n").replace(/\r/g, "").trim()
-}
-
-async function getSheetsClient() {
-  const auth = new GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
-      private_key: getPrivateKey(),
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  })
-  return googleSheets({ version: "v4", auth: auth as any })
-}
+import { randomUUID } from "crypto"
 
 export interface MasterUser {
   id: string
@@ -101,11 +80,10 @@ export class UserStorage {
         }
       }
     } catch (err) {
-      console.warn("Turso getUserById notice, falling back to cache/sheets:", err)
+      console.warn("Turso getUserById error:", err)
     }
 
-    const users = await this.getUsers()
-    return users.find(u => String(u.id) === cleanId) || null
+    return null
   }
 
   async getUserByUsername(username: string): Promise<MasterUser | null> {
@@ -140,11 +118,10 @@ export class UserStorage {
         }
       }
     } catch (err) {
-      console.warn("Turso getUserByUsername notice, falling back to cache/sheets:", err)
+      console.warn("Turso getUserByUsername error:", err)
     }
 
-    const users = await this.getUsers()
-    return users.find(u => u.username.toLowerCase() === cleanUser.toLowerCase()) || null
+    return null
   }
 
   async getUsersByCcc(cccCode: string): Promise<MasterUser[]> {
@@ -182,11 +159,10 @@ export class UserStorage {
         })
       }
     } catch (err) {
-      console.warn("Turso getUsersByCcc notice, falling back to cache/sheets:", err)
+      console.warn("Turso getUsersByCcc error:", err)
     }
 
-    const users = await this.getUsers()
-    return users.filter(u => u.cccCode?.toUpperCase() === cleanCcc.toUpperCase())
+    return []
   }
 
   async getAdminUserByCccCode(cccCode: string): Promise<MasterUser | null> {
@@ -200,7 +176,7 @@ export class UserStorage {
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE c.ccc_code = ? COLLATE NOCASE AND LOWER(u.role) = 'admin'
+              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin' COLLATE NOCASE
               LIMIT 1`,
         args: [cleanCcc]
       })
@@ -222,11 +198,10 @@ export class UserStorage {
         }
       }
     } catch (err) {
-      console.warn("Turso getAdminUserByCccCode notice:", err)
+      console.warn("Turso getAdminUserByCccCode error:", err)
     }
 
-    const users = await this.getUsers()
-    return users.find(u => u.cccCode?.toUpperCase() === cleanCcc.toUpperCase() && u.role.toLowerCase() === "admin") || null
+    return null
   }
 
   async getUsers(): Promise<MasterUser[]> {
@@ -235,7 +210,6 @@ export class UserStorage {
       return this._cache
     }
 
-    // Try Turso SQL Database primary read
     try {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
@@ -265,27 +239,9 @@ export class UserStorage {
         this._cacheTimestamp = now
         return users
       }
+      return []
     } catch (err) {
-      console.error("Turso users fetch error, falling back to Google Sheets:", err)
-    }
-
-    if (!SHEET_ID) {
-      return this._cache || []
-    }
-
-    try {
-      const sheets = await getSheetsClient()
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: SHEET_ID,
-        range: `${SHEET_NAME}!A2:J`,
-      })
-      const rows = res.data.values || []
-      const users = this._parseRows(rows)
-      this._cache = users
-      this._cacheTimestamp = now
-      return users
-    } catch (error) {
-      console.warn("Notice: Optional Master_Credentials sheet fetch skipped:", error)
+      console.error("Turso users fetch error:", err)
       return this._cache || []
     }
   }
@@ -294,8 +250,8 @@ export class UserStorage {
     const t0 = performance.now()
     const cleanUsername = username.trim()
     const cleanPassword = password.trim()
+    let user: MasterUser | null = null
 
-    // 1. Direct fast indexed point-query on Turso DB (supports username, CCC code, OR mobile number)
     try {
       const qStart = performance.now()
       const res = await db.execute({
@@ -320,7 +276,6 @@ export class UserStorage {
       const qDuration = (performance.now() - qStart).toFixed(1)
 
       if (res.rows && res.rows.length > 0) {
-        // Find matching row by password, preferring exact username match if multiple exist
         const matchingRow = res.rows.find((r: any) => 
           String(r.password || "").trim() === cleanPassword && String(r.username || "").trim() === cleanUsername
         ) || res.rows.find((r: any) => 
@@ -333,8 +288,8 @@ export class UserStorage {
           const totalMs = (performance.now() - t0).toFixed(1)
           const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
           const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
-          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' (Account: ${r.username}, CCC: ${r.cccCode || "N/A"}, Agencies: ${fallbackAgencies.join(", ") || "None"}) authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
-          return {
+          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
+          user = {
             id: String(r.id || ""),
             username: String(r.username || cleanUsername),
             password: dbPassword,
@@ -349,25 +304,9 @@ export class UserStorage {
         }
       }
     } catch (err: any) {
-      console.warn(`⚠️ [AUTH NOTICE] Direct Turso point query failed, checking fallbacks: ${err.message}`)
+      console.warn(`⚠️ [AUTH NOTICE] Direct Turso point query failed: ${err.message}`)
     }
 
-    // 2. Fallback: Check memory cache or Google Sheets
-    const s0 = performance.now()
-    const users = await this.getUsers()
-    let user = users.find(u => (
-      u.username.toLowerCase() === cleanUsername.toLowerCase() || 
-      (u.cccCode.toLowerCase() === cleanUsername.toLowerCase() && u.role === 'admin')
-    ) && u.password === cleanPassword) || null
-
-    if (!user) {
-      this.invalidateCache()
-      const freshUsers = await this.getUsers()
-      user = freshUsers.find(u => (u.username.toLowerCase() === cleanUsername.toLowerCase() || (u.cccCode.toLowerCase() === cleanUsername.toLowerCase() && u.role === 'admin')) && u.password === cleanPassword) || null
-    }
-    const sDuration = (performance.now() - s0).toFixed(1)
-
-    // Dynamic fallback for divisional credentials (e.g., 6612000 / 6612000 or 6634000 / 6634000)
     if (!user && /^\d{4}000$/.test(cleanUsername) && cleanPassword === cleanUsername) {
       const divPrefix = cleanUsername.slice(0, 4)
       user = {
@@ -384,105 +323,74 @@ export class UserStorage {
       }
     }
 
-    if (user) {
-      console.log(`📄 [AUTH SUCCESS - Google Sheets Fallback] User '${cleanUsername}' authenticated in ${sDuration}ms via Sheets fallback.`)
-    } else {
-      console.log(`❌ [AUTH FAILED] User '${cleanUsername}' not found in any database (Duration: ${sDuration}ms).`)
+    if (!user) {
+      const totalMs = (performance.now() - t0).toFixed(1)
+      console.log(`❌ [AUTH FAILED] User '${cleanUsername}' not found in DB (Total: ${totalMs}ms).`)
     }
 
     return user
   }
 
   async addUser(user: Omit<MasterUser, "id">): Promise<MasterUser> {
-    const users = await this.getUsers()
-    const newId = (Math.max(0, ...users.map(u => Number(u.id) || 0)) + 1).toString()
-    const sheets = await getSheetsClient()
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A:J`,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[
-          newId,
-          user.username,
-          user.password,
-          user.role,
-          user.cccCode,
-          user.name,
-          user.agencies.join(","),
-          user.subscriptionStatus || "active",
-          user.subscriptionExpiresAt || "",
-          user.bypassSubscription ? "TRUE" : "FALSE"
-        ]],
-      },
+    const newId = randomUUID()
+    
+    await db.execute({
+      sql: `INSERT INTO users (id, username, password_hash, full_name, role, ccc_id, agencies, subscription_status, subscription_expires_at, bypass_subscription)
+            VALUES (?, ?, ?, ?, ?, (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1), ?, ?, ?, ?)`,
+      args: [
+        newId,
+        user.username,
+        user.password,
+        user.name,
+        user.role,
+        user.cccCode,
+        user.agencies.join(","),
+        user.subscriptionStatus || "active",
+        user.subscriptionExpiresAt || "",
+        user.bypassSubscription ? 1 : 0
+      ]
     })
+    
     this.invalidateCache()
     return { id: newId, ...user }
   }
 
   async updateUser(id: string, updates: Partial<Omit<MasterUser, "id">>): Promise<MasterUser | null> {
-    const sheets = await getSheetsClient()
-    const users = await this.getUsers()
-    const idx = users.findIndex(u => u.id === id)
-    if (idx === -1) return null
-    const updated = { ...users[idx], ...updates }
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A${idx + 2}:J${idx + 2}`,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[
-          updated.id,
-          updated.username,
-          updated.password,
-          updated.role,
-          updated.cccCode,
-          updated.name,
-          updated.agencies.join(","),
-          updated.subscriptionStatus || "active",
-          updated.subscriptionExpiresAt || "",
-          updated.bypassSubscription ? "TRUE" : "FALSE"
-        ]],
-      },
+    const currentUser = await this.getUserById(id)
+    if (!currentUser) return null
+    
+    const updated = { ...currentUser, ...updates }
+    
+    await db.execute({
+      sql: `UPDATE users SET username=?, password_hash=?, full_name=?, role=?, agencies=?, subscription_status=?, subscription_expires_at=?, bypass_subscription=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+      args: [
+        updated.username,
+        updated.password,
+        updated.name,
+        updated.role,
+        updated.agencies.join(","),
+        updated.subscriptionStatus || "active",
+        updated.subscriptionExpiresAt || "",
+        updated.bypassSubscription ? 1 : 0,
+        id
+      ]
     })
+    
     this.invalidateCache()
     return updated
   }
 
   async deleteUser(id: string): Promise<MasterUser | null> {
-    const sheets = await getSheetsClient()
-    const users = await this.getUsers()
-    const idx = users.findIndex(u => u.id === id)
-    if (idx === -1) return null
+    const currentUser = await this.getUserById(id)
+    if (!currentUser) return null
 
-    const spreadsheet = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
-    })
-    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === SHEET_NAME)
-    const targetSheetId = sheet?.properties?.sheetId
-
-    if (targetSheetId === undefined || targetSheetId === null) {
-      throw new Error(`Sheet tab "${SHEET_NAME}" not found`)
-    }
-
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: {
-        requests: [{
-          deleteDimension: {
-            range: {
-              sheetId: targetSheetId,
-              dimension: "ROWS",
-              startIndex: idx + 1,
-              endIndex: idx + 2
-            }
-          }
-        }]
-      }
+    await db.execute({
+      sql: `DELETE FROM users WHERE id = ?`,
+      args: [id]
     })
 
     this.invalidateCache()
-    return users[idx]
+    return currentUser
   }
 }
 

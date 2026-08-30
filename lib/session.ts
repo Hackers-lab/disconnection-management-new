@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
-import { userStorage } from "./user-storage"
 
 const secretKey = process.env.SESSION_SECRET || "pramod"
 const encodedKey = new TextEncoder().encode(secretKey)
@@ -12,6 +11,10 @@ export interface SessionPayload {
   cccCode: string
   agencies: string[]
   expiresAt: Date
+  name: string
+  subscriptionStatus: string
+  subscriptionExpiresAt: string
+  bypassSubscription: boolean
   [key: string]: any
 }
 
@@ -35,9 +38,30 @@ export async function decrypt(session: string | undefined = "") {
   }
 }
 
-export async function createSession(userId: string, username: string, role: string, agencies: string[], cccCode: string) {
+export async function createSession(
+  userId: string,
+  username: string,
+  role: string,
+  agencies: string[],
+  cccCode: string,
+  name: string,
+  subscriptionStatus: string,
+  subscriptionExpiresAt: string,
+  bypassSubscription: boolean
+) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  const session = await encrypt({ userId, username, role, agencies, cccCode, expiresAt })
+  const session = await encrypt({ 
+    userId, 
+    username, 
+    role, 
+    agencies, 
+    cccCode, 
+    expiresAt,
+    name,
+    subscriptionStatus,
+    subscriptionExpiresAt,
+    bypassSubscription
+  })
   const cookieStore = await cookies()
   const isProduction = process.env.NODE_ENV === "production"
 
@@ -49,7 +73,6 @@ export async function createSession(userId: string, username: string, role: stri
     path: "/",
   })
 
-  // Set cccCode cookie (non-httpOnly) so client-side code can read it for caching scoping
   cookieStore.set("cccCode", cccCode, {
     httpOnly: false,
     secure: isProduction,
@@ -58,7 +81,6 @@ export async function createSession(userId: string, username: string, role: stri
     path: "/",
   })
 
-  // Set username and userRole cookies (non-httpOnly) for client-side IndexedDB cache scoping
   cookieStore.set("username", username.toLowerCase(), {
     httpOnly: false,
     secure: isProduction,
@@ -94,71 +116,28 @@ export async function verifySession() {
   }
 
   let isSubscribed = true
-  let subscriptionExpiresAt = ""
-  let name = ""
-  let bypassSubscription = false
-  let subscriptionStatus = ""
+  const roleLower = (session.role || "").toLowerCase()
+  const billingStartDate = new Date("2026-09-01T00:00:00")
+  
+  const isExempt =
+    roleLower === "admin" ||
+    roleLower === "superuser" ||
+    roleLower === "monitor" ||
+    session.bypassSubscription ||
+    Date.now() < billingStartDate.getTime()
 
-  try {
-    const user = await userStorage.getUserById(session.userId)
-    if (user) {
-      name = user.name || ""
-      bypassSubscription = user.bypassSubscription || false
-      subscriptionStatus = user.subscriptionStatus || "active"
-      subscriptionExpiresAt = user.subscriptionExpiresAt || ""
-      const roleLower = user.role.toLowerCase()
-      
-      const billingStartDate = new Date("2026-09-01T00:00:00")
-      const isExempt =
-        roleLower === "admin" ||
-        roleLower === "superuser" ||
-        roleLower === "monitor" ||
-        user.bypassSubscription ||
-        Date.now() < billingStartDate.getTime()
-
-      if (!isExempt) {
-        if (user.subscriptionStatus === "active") {
-          if (user.subscriptionExpiresAt) {
-            const expiry = new Date(user.subscriptionExpiresAt)
-            expiry.setHours(23, 59, 59, 999)
-            if (Date.now() > expiry.getTime()) {
-              isSubscribed = false
-            }
-          }
-          // If no expiry is set, they remain active (isSubscribed is initialized to true)
-        } else {
+  if (!isExempt) {
+    if (session.subscriptionStatus === "active") {
+      if (session.subscriptionExpiresAt) {
+        const expiry = new Date(session.subscriptionExpiresAt)
+        expiry.setHours(23, 59, 59, 999)
+        if (Date.now() > expiry.getTime()) {
           isSubscribed = false
-        }
-
-        // Inheritance Fallback: Check if the Admin of this subdivision (cccCode) has an active trial/subscription
-        if (!isSubscribed && user.cccCode) {
-          const adminUser = await userStorage.getAdminUserByCccCode(user.cccCode)
-          if (adminUser && adminUser.subscriptionStatus === "active" && adminUser.subscriptionExpiresAt) {
-            const adminExpiry = new Date(adminUser.subscriptionExpiresAt)
-            adminExpiry.setHours(23, 59, 59, 999)
-            if (Date.now() <= adminExpiry.getTime()) {
-              isSubscribed = true
-              subscriptionExpiresAt = `Derived from Admin Trial (Expires: ${adminUser.subscriptionExpiresAt})`
-            }
-          }
         }
       }
     } else {
-      // User not found in storage, check role from session payload as fallback
-      const roleLower = (session.role || "").toLowerCase()
-      const billingStartDate = new Date("2026-09-01T00:00:00")
-      const isExempt =
-        roleLower === "admin" ||
-        roleLower === "superuser" ||
-        roleLower === "monitor" ||
-        Date.now() < billingStartDate.getTime()
-
-      if (!isExempt) {
-        isSubscribed = false
-      }
+      isSubscribed = false
     }
-  } catch (err) {
-    console.error("Subscription validation error in verifySession:", err)
   }
 
   return {
@@ -168,9 +147,9 @@ export async function verifySession() {
     cccCode: session.cccCode,
     agencies: session.agencies,
     isSubscribed,
-    subscriptionExpiresAt,
-    name,
-    bypassSubscription,
-    subscriptionStatus,
+    subscriptionExpiresAt: session.subscriptionExpiresAt || "",
+    name: session.name || "",
+    bypassSubscription: session.bypassSubscription || false,
+    subscriptionStatus: session.subscriptionStatus || "active",
   }
 }

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS ccc_registry (
 CREATE INDEX IF NOT EXISTS idx_ccc_code ON ccc_registry (ccc_code);
 CREATE INDEX IF NOT EXISTS idx_ccc_code_nocase ON ccc_registry (ccc_code COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_ccc_mobile ON ccc_registry (mobile_number);
+CREATE INDEX IF NOT EXISTS idx_ccc_spreadsheet ON ccc_registry (spreadsheet_id);
 CREATE INDEX IF NOT EXISTS idx_users_mobile ON users (mobile_number);
 
 -- 2. System Default Roles & Permissions (Master Base Catalog)

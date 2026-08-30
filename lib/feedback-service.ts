@@ -20,7 +20,7 @@ const sheets = googleSheets({ version: "v4", auth })
 
 let memoryFeedbacksCache: FeedbackItem[] | null = null
 let lastFetchTime = 0
-const CACHE_TTL_MS = 60_000 // 1 minute memory cache
+const CACHE_TTL_MS = 300_000 // 5 minutes memory cache
 
 export function getFeedbackMasterSheetId(): string {
   return process.env.MASTER_CONFIG_SHEET?.trim() || getSpreadsheetId()
@@ -41,7 +41,7 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
 
   // 1. Try querying Turso user_feedbacks table first
   try {
-    const res = await db.execute("SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code FROM user_feedbacks f LEFT JOIN ccc_registry c ON f.ccc_id = c.id WHERE LOWER(f.status) = 'approved'")
+    const res = await db.execute("SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code FROM user_feedbacks f LEFT JOIN ccc_registry c ON f.ccc_id = c.id WHERE f.status = 'approved' COLLATE NOCASE")
     if (res.rows && res.rows.length > 0) {
       const parsedItems: FeedbackItem[] = res.rows.map((row: any) => ({
         id: String(row.feedback_id || ""),

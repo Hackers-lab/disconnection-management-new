@@ -32,7 +32,13 @@ export async function login(formData: FormData) {
   }
 
   const sessionStart = performance.now()
-  await createSession(user.id, username, user.role, user.agencies, user.cccCode)
+  await createSession(
+    user.id, username, user.role, user.agencies, user.cccCode,
+    user.name || username,
+    user.subscriptionStatus || "active",
+    user.subscriptionExpiresAt || "",
+    user.bypassSubscription || false
+  )
   const sessionTime = (performance.now() - sessionStart).toFixed(1)
 
   // Explicitly record user in dedicated user_presence table on login
