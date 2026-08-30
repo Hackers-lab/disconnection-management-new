@@ -90,6 +90,40 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
     }
   }, [open])
 
+  // Pre-warm reCAPTCHA verifier as soon as dialog is opened
+  useEffect(() => {
+    if (!open) return
+    let isMounted = true
+    const initVerifier = async () => {
+      if (typeof window === "undefined") return
+      await new Promise((res) => setTimeout(res, 50))
+      if (!isMounted) return
+      const container = document.getElementById("forgot-recaptcha-container")
+      if (container && !(window as any).forgotRecaptchaVerifier) {
+        try {
+          const verifier = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
+            size: "invisible",
+            callback: () => {},
+            "expired-callback": () => {
+              try { (window as any).forgotRecaptchaVerifier?.clear() } catch {}
+              (window as any).forgotRecaptchaVerifier = null
+            },
+          })
+          await verifier.render()
+          if (isMounted) {
+            (window as any).forgotRecaptchaVerifier = verifier
+          }
+        } catch (err) {
+          console.warn("Failed to pre-warm forgot-password reCAPTCHA:", err)
+        }
+      }
+    }
+    initVerifier()
+    return () => {
+      isMounted = false
+    }
+  }, [open])
+
   // Countdown timer for Resend OTP
   useEffect(() => {
     if (countdown > 0) {
@@ -127,20 +161,22 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
       // Send SMS OTP via Firebase
       try {
-        if (typeof window !== "undefined") {
-          if ((window as any).forgotRecaptchaVerifier) {
-            try { (window as any).forgotRecaptchaVerifier.clear() } catch {}
-          }
-          (window as any).forgotRecaptchaVerifier = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
+        let appVerifier = typeof window !== "undefined" ? (window as any).forgotRecaptchaVerifier : null
+        if (!appVerifier && typeof window !== "undefined") {
+          appVerifier = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
             size: "invisible",
             callback: () => {},
             "expired-callback": () => {
+              try { (window as any).forgotRecaptchaVerifier?.clear() } catch {}
+              (window as any).forgotRecaptchaVerifier = null
               setError("reCAPTCHA expired. Please try sending OTP again.")
-            }
+            },
           })
+          await appVerifier.render()
+          ;(window as any).forgotRecaptchaVerifier = appVerifier
         }
+
         const formattedPhone = `+91${data.mobileNumber}`
-        const appVerifier = (window as any).forgotRecaptchaVerifier
         const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier)
         setConfirmationResult(confirmation)
       } catch (fbErr: any) {

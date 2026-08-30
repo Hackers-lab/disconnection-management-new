@@ -97,6 +97,40 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
     }
   }, [open])
 
+  // Pre-warm reCAPTCHA verifier as soon as dialog is opened
+  useEffect(() => {
+    if (!open) return
+    let isMounted = true
+    const initVerifier = async () => {
+      if (typeof window === "undefined") return
+      await new Promise((res) => setTimeout(res, 50))
+      if (!isMounted) return
+      const container = document.getElementById("register-recaptcha-container")
+      if (container && !(window as any).registerRecaptchaVerifier) {
+        try {
+          const verifier = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
+            size: "invisible",
+            callback: () => {},
+            "expired-callback": () => {
+              try { (window as any).registerRecaptchaVerifier?.clear() } catch {}
+              (window as any).registerRecaptchaVerifier = null
+            },
+          })
+          await verifier.render()
+          if (isMounted) {
+            (window as any).registerRecaptchaVerifier = verifier
+          }
+        } catch (err) {
+          console.warn("Failed to pre-warm register reCAPTCHA:", err)
+        }
+      }
+    }
+    initVerifier()
+    return () => {
+      isMounted = false
+    }
+  }, [open])
+
   // Countdown timer for Resend OTP
   useEffect(() => {
     if (countdown > 0) {
@@ -117,22 +151,23 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
     try {
       setLoading(true)
 
-      // Ensure fresh reCAPTCHA verifier instance
-      if (typeof window !== "undefined") {
-        if ((window as any).registerRecaptchaVerifier) {
-          try { (window as any).registerRecaptchaVerifier.clear() } catch {}
-        }
-        (window as any).registerRecaptchaVerifier = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
+      // Use pre-warmed reCAPTCHA verifier instance or instantiate if needed
+      let appVerifier = typeof window !== "undefined" ? (window as any).registerRecaptchaVerifier : null
+      if (!appVerifier && typeof window !== "undefined") {
+        appVerifier = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
           size: "invisible",
           callback: () => {},
           "expired-callback": () => {
+            try { (window as any).registerRecaptchaVerifier?.clear() } catch {}
+            (window as any).registerRecaptchaVerifier = null
             setError("reCAPTCHA expired. Please try sending OTP again.")
-          }
+          },
         })
+        await appVerifier.render()
+        ;(window as any).registerRecaptchaVerifier = appVerifier
       }
 
       const formattedPhone = `+91${cleanMob}`
-      const appVerifier = (window as any).registerRecaptchaVerifier
       const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier)
       setConfirmationResult(confirmation)
 
