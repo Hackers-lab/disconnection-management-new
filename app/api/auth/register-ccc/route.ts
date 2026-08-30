@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { createSession } from "@/lib/session"
 import { validateVerificationToken } from "@/lib/otp-service"
 import { UserStorage } from "@/lib/user-storage"
-import { invalidateTenantRegistryCache } from "@/lib/tenant-resolver"
+import { invalidateTenantCache } from "@/lib/tenant-resolver"
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     console.log(`⚡ [NEW CCC REGISTERED] Station '${cleanCccName}' (${cleanCccCode}) registered successfully by +91 ${cleanMobile}`)
 
     // 6. Invalidate server memory caches
-    invalidateTenantRegistryCache()
+    invalidateTenantCache()
     UserStorage.getInstance().invalidateCache()
 
     // 7. Dual-Write to Master Google Sheet in Background (Non-blocking)

@@ -149,39 +149,48 @@ export async function getAgencies() {
     console.warn("Turso agencies query notice, falling back to Sheets:", err)
   }
 
-  // 2. Google Sheets Fallback
-  await ensureTab()
-  const sheets = await getSheetsClient()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: `${AGENCY_SHEET_NAME}!A2:G`,
-  })
-  const rows = res.data.values || []
-  
-  let realRow = 2
-  const processed = rows
-    .map(row => {
-      const agency = row[0]
-        ? {
-            id: row[0],
-            name: row[1],
-            description: row[2],
-            isActive: String(row[3]).toLowerCase() === "true" || row[3] === true,
-            cccCode: String(row[4] || "").trim(),
-            vendorCode: String(row[5] || "").trim(),
-            mobileNumber: String(row[6] || "").trim(),
-            _sheetRow: realRow,
-          }
-        : null
-      realRow++
-      return agency
-    })
-    .filter(Boolean)
+  // 2. Google Sheets Fallback (Optional Legacy)
+  if (!SHEET_ID) {
+    return []
+  }
 
-  const tenantAgencies = processed.filter(a => a && (a.cccCode === cccCode || cccCode === "SYSTEM"))
-  agenciesCache[cccCode] = tenantAgencies
-  agenciesCacheTimestamp[cccCode] = now
-  return tenantAgencies
+  try {
+    await ensureTab()
+    const sheets = await getSheetsClient()
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${AGENCY_SHEET_NAME}!A2:G`,
+    })
+    const rows = res.data.values || []
+    
+    let realRow = 2
+    const processed = rows
+      .map(row => {
+        const agency = row[0]
+          ? {
+              id: row[0],
+              name: row[1],
+              description: row[2],
+              isActive: String(row[3]).toLowerCase() === "true" || row[3] === true,
+              cccCode: String(row[4] || "").trim(),
+              vendorCode: String(row[5] || "").trim(),
+              mobileNumber: String(row[6] || "").trim(),
+              _sheetRow: realRow,
+            }
+          : null
+        realRow++
+        return agency
+      })
+      .filter(Boolean)
+
+    const tenantAgencies = processed.filter(a => a && (a.cccCode === cccCode || cccCode === "SYSTEM"))
+    agenciesCache[cccCode] = tenantAgencies
+    agenciesCacheTimestamp[cccCode] = now
+    return tenantAgencies
+  } catch (sheetErr) {
+    console.warn("Notice: Optional Master Agencies sheet fetch skipped:", sheetErr)
+    return []
+  }
 }
 
 export async function addAgency({ 

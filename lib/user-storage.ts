@@ -270,7 +270,7 @@ export class UserStorage {
     }
 
     if (!SHEET_ID) {
-      throw new Error("MASTER_CONFIG_SHEET environment variable is not defined")
+      return this._cache || []
     }
 
     try {
@@ -285,12 +285,8 @@ export class UserStorage {
       this._cacheTimestamp = now
       return users
     } catch (error) {
-      console.error("Error fetching users from Master_Credentials sheet:", error)
-      // Fallback to cache if available
-      if (this._cache) {
-        return this._cache
-      }
-      throw error
+      console.warn("Notice: Optional Master_Credentials sheet fetch skipped:", error)
+      return this._cache || []
     }
   }
 

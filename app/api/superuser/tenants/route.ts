@@ -5,6 +5,8 @@ import { db } from "@/lib/db"
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 
+import { db } from "@/lib/db"
+
 export const dynamic = "force-dynamic"
 
 const getSheetsClient = () => {
@@ -193,6 +195,21 @@ export async function POST(request: NextRequest) {
       }
     } catch (sheetErr) {
       console.warn("Sheet append notice:", sheetErr)
+    }
+
+    // Dual-write / upsert into Turso ccc_registry
+    try {
+      await db.execute({
+        sql: `INSERT INTO ccc_registry (ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token)
+              VALUES (?, ?, ?, '', '')
+              ON CONFLICT(ccc_code) DO UPDATE SET 
+                ccc_name = excluded.ccc_name,
+                spreadsheet_id = excluded.spreadsheet_id,
+                updated_at = CURRENT_TIMESTAMP`,
+        args: [cccCode.trim().toUpperCase(), cccName.trim(), spreadsheetId?.trim() || ""],
+      })
+    } catch (tursoErr) {
+      console.warn("Superuser tenants: Failed to write to Turso ccc_registry:", tursoErr)
     }
 
     invalidateTenantCache()

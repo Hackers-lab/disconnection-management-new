@@ -6,6 +6,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { encrypt } from "@/lib/encryption"
 import { invalidateTenantCache } from "@/lib/tenant-resolver"
 import { createAppFolder, duplicateSpreadsheetTemplate } from "@/lib/provisioning"
+import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
@@ -64,7 +65,26 @@ export async function GET(request: NextRequest) {
     // 1. Create App Storage Folder on admin's Drive
     const folderId = await createAppFolder(driveClient)
 
-    // 2. Fetch existing tenant sheet data from Master Registry using System credentials
+    // 2. Fetch existing tenant data from Turso DB
+    const cccRes = await db.execute({
+      sql: `SELECT id, ccc_code, ccc_name, spreadsheet_id FROM ccc_registry WHERE ccc_code = ? LIMIT 1`,
+      args: [session.cccCode],
+    })
+
+    if (!cccRes.rows || cccRes.rows.length === 0) {
+      return NextResponse.json({ error: `CCC Code '${session.cccCode}' is not registered in the system.` }, { status: 404 })
+    }
+
+    const cccRow = cccRes.rows[0]
+    const cccName = String(cccRow.ccc_name || session.cccCode).trim()
+    const existingSheetId = String(cccRow.spreadsheet_id || "").trim()
+
+    // 3. Duplicate spreadsheet template if not already present
+    let sheetId = existingSheetId
+    if (!sheetId) {
+      sheetId = await duplicateSpreadsheetTemplate(cccName, driveClient, folderId)
+    }
+
     const defaultAuth = new GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
@@ -75,66 +95,6 @@ export async function GET(request: NextRequest) {
         "https://www.googleapis.com/auth/drive",
       ],
     })
-
-    const masterSheetId = process.env.MASTER_CONFIG_SHEET
-    if (!masterSheetId) {
-      return NextResponse.json({ error: "MASTER_CONFIG_SHEET environment variable is not defined." }, { status: 500 })
-    }
-
-    const registryTab = "CCC_Registry"
-    const masterSheetsClient = googleSheets({ version: "v4", auth: defaultAuth })
-
-    const listRes = await masterSheetsClient.spreadsheets.values.get({
-      spreadsheetId: masterSheetId,
-      range: `${registryTab}!A:E`,
-    })
-
-    const rows = listRes.data.values || []
-    let rowIndex = rows.findIndex(row => String(row[0] || "").trim().toUpperCase() === session.cccCode.toUpperCase())
-    let cccName = session.cccCode
-    let existingSheetId = ""
-
-    if (rowIndex === -1) {
-      // If not present in Sheet yet, fetch CCC name from Turso DB or default
-      try {
-        const { db } = await import("@/lib/db")
-        const cccDb = await db.execute({
-          sql: `SELECT ccc_name, spreadsheet_id FROM ccc_registry WHERE upper(ccc_code) = ? LIMIT 1`,
-          args: [session.cccCode.toUpperCase()]
-        })
-        if (cccDb.rows && cccDb.rows[0]) {
-          cccName = String(cccDb.rows[0].ccc_name || session.cccCode)
-          existingSheetId = String(cccDb.rows[0].spreadsheet_id || "")
-        }
-      } catch {}
-
-      // Append row to Google Sheet
-      const appendRes = await masterSheetsClient.spreadsheets.values.append({
-        spreadsheetId: masterSheetId,
-        range: `${registryTab}!A:E`,
-        valueInputOption: "USER_ENTERED",
-        requestBody: {
-          values: [[session.cccCode.toUpperCase(), cccName, existingSheetId, "", ""]],
-        },
-      })
-      
-      // Determine rowNum
-      const updatedRange = appendRes.data.updates?.updatedRange || ""
-      const match = updatedRange.match(/!A(\d+)/)
-      rowIndex = match ? parseInt(match[1], 10) - 1 : rows.length
-    } else {
-      const rowData = rows[rowIndex]
-      cccName = String(rowData[1] || session.cccCode).trim()
-      existingSheetId = String(rowData[2] || "").trim()
-    }
-
-    const rowNum = rowIndex + 1
-
-    // 3. Duplicate spreadsheet template if not already present
-    let sheetId = existingSheetId
-    if (!sheetId) {
-      sheetId = await duplicateSpreadsheetTemplate(cccName, driveClient, folderId)
-    }
 
     // 3b. Auto-Share: Share pre-existing spreadsheet with the linking Admin's email
     try {
@@ -173,6 +133,7 @@ export async function GET(request: NextRequest) {
     // 4. Encrypt Refresh Token
     const encryptedToken = encrypt(refreshToken)
 
+<<<<<<< HEAD
     // 5. Save Sheet ID, Folder ID, and Encrypted Refresh Token to Master Google Sheet Registry
     await masterSheetsClient.spreadsheets.values.update({
       spreadsheetId: masterSheetId,
@@ -181,7 +142,44 @@ export async function GET(request: NextRequest) {
       requestBody: {
         values: [[sheetId, folderId, encryptedToken]],
       },
+=======
+    // 5. Update Turso ccc_registry database table (Primary Single Source of Truth)
+    await db.execute({
+      sql: `UPDATE ccc_registry 
+            SET spreadsheet_id = ?, drive_folder_id = ?, drive_refresh_token = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE ccc_code = ?`,
+      args: [sheetId, folderId, encryptedToken, session.cccCode],
+>>>>>>> d05a4e5 (fix(tenant): decouple onboarding and auth from master config sheet, sync directly with Turso DB)
     })
+    console.log(`⚡ [Turso DB] Updated ccc_registry for tenant '${session.cccCode}'`)
+
+    // 6. Optional legacy sync to Master Google Sheet if configured
+    const masterSheetId = process.env.MASTER_CONFIG_SHEET
+    if (masterSheetId) {
+      try {
+        const masterSheetsClient = googleSheets({ version: "v4", auth: defaultAuth })
+        const registryTab = "CCC_Registry"
+        const listRes = await masterSheetsClient.spreadsheets.values.get({
+          spreadsheetId: masterSheetId,
+          range: `${registryTab}!A:E`,
+        })
+        const rows = listRes.data.values || []
+        const rowIndex = rows.findIndex(row => String(row[0]).trim().toUpperCase() === session.cccCode.toUpperCase())
+        if (rowIndex !== -1) {
+          const rowNum = rowIndex + 1
+          await masterSheetsClient.spreadsheets.values.update({
+            spreadsheetId: masterSheetId,
+            range: `${registryTab}!C${rowNum}:E${rowNum}`,
+            valueInputOption: "USER_ENTERED",
+            requestBody: {
+              values: [[sheetId, folderId, encryptedToken]],
+            },
+          })
+        }
+      } catch (sheetSyncErr: any) {
+        console.warn("Optional Master Sheet legacy sync ignored:", sheetSyncErr?.message)
+      }
+    }
 
     // 6. Dual-Write tokens to Turso DB ccc_registry
     try {

@@ -84,47 +84,51 @@ export async function getTenantRegistry(bypassCache = false): Promise<Record<str
   }
 
   if (!MASTER_CONFIG_SHEET) {
-    throw new Error("MASTER_CONFIG_SHEET environment variable is not defined")
+    return {}
   }
 
-  const sheets = await getSheetsClient()
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: MASTER_CONFIG_SHEET,
-    range: `${REGISTRY_TAB}!A2:E`,
-  })
+  try {
+    const sheets = await getSheetsClient()
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: MASTER_CONFIG_SHEET,
+      range: `${REGISTRY_TAB}!A2:E`,
+    })
 
-  const rows = res.data.values || []
-  const tenants: Record<string, TenantConfig> = {}
+    const rows = res.data.values || []
+    const tenants: Record<string, TenantConfig> = {}
 
-  for (const row of rows) {
-    if (!row || !row[0]) continue
-    const cccCode = String(row[0]).trim()
-    const cccName = String(row[1] || "").trim()
-    const spreadsheetId = String(row[2] || "").trim()
-    const driveFolderId = String(row[3] || "").trim()
-    const encryptedToken = String(row[4] || "").trim()
+    for (const row of rows) {
+      if (!row || !row[0]) continue
+      const cccCode = String(row[0]).trim()
+      const cccName = String(row[1] || "").trim()
+      const spreadsheetId = String(row[2] || "").trim()
+      const driveFolderId = String(row[3] || "").trim()
+      const encryptedToken = String(row[4] || "").trim()
 
-    let googleDriveRefreshToken = ""
-    if (encryptedToken) {
-      try {
-        googleDriveRefreshToken = decrypt(encryptedToken)
-      } catch (err) {
-        console.error(`Failed to decrypt Google Drive OAuth token for CCC ${cccCode}:`, err)
+      let googleDriveRefreshToken = ""
+      if (encryptedToken) {
+        try {
+          googleDriveRefreshToken = decrypt(encryptedToken)
+        } catch (err) {
+          console.error(`Failed to decrypt Google Drive OAuth token for CCC ${cccCode}:`, err)
+        }
+      }
+
+      tenants[cccCode] = {
+        cccCode,
+        cccName,
+        spreadsheetId,
+        driveFolderId,
+        googleDriveRefreshToken,
       }
     }
 
-    const existing = tenants[cccCode]
-    tenants[cccCode] = {
-      cccCode,
-      cccName: cccName || existing?.cccName || "",
-      spreadsheetId: spreadsheetId || existing?.spreadsheetId || "",
-      driveFolderId: driveFolderId || existing?.driveFolderId || "",
-      googleDriveRefreshToken: googleDriveRefreshToken || existing?.googleDriveRefreshToken || "",
-    }
+    registryCache = { tenants, timestamp: Date.now() }
+    return tenants
+  } catch (err) {
+    console.warn("Master Sheet lookup failed or sheet is unavailable:", err)
+    return {}
   }
-
-  registryCache = { tenants, timestamp: Date.now() }
-  return tenants
 }
 
 export async function getTenantConfig(cccCode: string, bypassCache = false): Promise<TenantConfig> {
