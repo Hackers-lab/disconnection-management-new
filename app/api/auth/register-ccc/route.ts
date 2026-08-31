@@ -22,6 +22,57 @@ async function getSheetsClient() {
   return googleSheets({ version: "v4", auth: auth as any })
 }
 
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const rawMobile = searchParams.get("mobile") || ""
+    const cleanMobile = rawMobile.replace(/\D/g, "").slice(-10)
+
+    if (!cleanMobile || cleanMobile.length !== 10) {
+      return NextResponse.json({ error: "Invalid mobile number format." }, { status: 400 })
+    }
+
+    // Check if mobile already exists in ccc_registry or users
+    const cccRes = await db.execute({
+      sql: `SELECT id, ccc_code, ccc_name, contact_person FROM ccc_registry WHERE mobile_number = ? LIMIT 1`,
+      args: [cleanMobile]
+    })
+
+    if (cccRes.rows && cccRes.rows.length > 0) {
+      const cccRow: any = cccRes.rows[0]
+      return NextResponse.json({
+        exists: true,
+        error: `Mobile number +91 ${cleanMobile} is already registered for CCC station '${cccRow.ccc_name}' (${cccRow.ccc_code}). Please sign in or use 'Forgot Password' to recover your credentials.`,
+        cccCode: cccRow.ccc_code,
+        cccName: cccRow.ccc_name,
+      })
+    }
+
+    const userRes = await db.execute({
+      sql: `SELECT u.id, u.username, u.full_name, c.ccc_code, c.ccc_name 
+            FROM users u
+            LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+            WHERE u.mobile_number = ? OR u.username = ?
+            LIMIT 1`,
+      args: [cleanMobile, cleanMobile]
+    })
+
+    if (userRes.rows && userRes.rows.length > 0) {
+      const userRow: any = userRes.rows[0]
+      return NextResponse.json({
+        exists: true,
+        error: `Mobile number +91 ${cleanMobile} is already registered under account '${userRow.username}'${userRow.ccc_name ? ` (${userRow.ccc_name})` : ""}. Please sign in or use 'Forgot Password'.`,
+        username: userRow.username,
+      })
+    }
+
+    return NextResponse.json({ exists: false })
+  } catch (error: any) {
+    console.error("Check mobile registration error:", error)
+    return NextResponse.json({ error: "Failed to check mobile number registration." }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -55,15 +106,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Mobile verification expired or invalid. Please verify via OTP again." }, { status: 401 })
     }
 
-    // 3. Check for Collision in Turso DB
+    // 3. Check for Collision in Turso DB (CCC Code, Name, or Mobile Number)
     const existingCccRes = await db.execute({
-      sql: `SELECT id, ccc_code, ccc_name FROM ccc_registry WHERE ccc_code = ? OR ccc_name = ? LIMIT 1`,
-      args: [cleanCccCode, cleanCccName]
+      sql: `SELECT id, ccc_code, ccc_name, mobile_number FROM ccc_registry WHERE ccc_code = ? OR ccc_name = ? OR mobile_number = ? LIMIT 1`,
+      args: [cleanCccCode, cleanCccName, cleanMobile]
     })
 
     if (existingCccRes.rows && existingCccRes.rows.length > 0) {
+      const match: any = existingCccRes.rows[0]
+      if (match.mobile_number === cleanMobile) {
+        return NextResponse.json({
+          error: `Mobile number +91 ${cleanMobile} is already registered to station '${match.ccc_name}' (${match.ccc_code}). Please sign in or use 'Forgot Password'.`
+        }, { status: 409 })
+      }
       return NextResponse.json({
-        error: `CCC Code '${cleanCccCode}' is already registered in the system. If you are the Station Admin, please use 'Forgot Password' on the login screen to recover your account.`
+        error: `CCC Code '${cleanCccCode}' or name '${cleanCccName}' is already registered. If you are the Station Admin, please use 'Forgot Password' on the login screen.`
+      }, { status: 409 })
+    }
+
+    const existingUserRes = await db.execute({
+      sql: `SELECT id, username FROM users WHERE mobile_number = ? OR username = ? LIMIT 1`,
+      args: [cleanMobile, cleanCccCode]
+    })
+
+    if (existingUserRes.rows && existingUserRes.rows.length > 0) {
+      return NextResponse.json({
+        error: `An account with this mobile number or username already exists. Please sign in or use 'Forgot Password'.`
       }, { status: 409 })
     }
 

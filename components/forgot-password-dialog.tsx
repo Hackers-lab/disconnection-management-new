@@ -274,7 +274,10 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl">
+      <DialogContent 
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="sm:max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl"
+      >
         {/* Strictly hidden container for Firebase reCAPTCHA */}
         <div id="forgot-recaptcha-container" className="hidden absolute w-0 h-0 overflow-hidden pointer-events-none opacity-0" aria-hidden="true"></div>
 
@@ -324,7 +327,6 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="e.g. 9832123456 / 6612107 / Kushida"
                   className="pl-10 h-10 sm:h-11 rounded-xl text-xs sm:text-sm border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all"
-                  autoFocus
                 />
               </div>
             </div>

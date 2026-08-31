@@ -151,6 +151,18 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
     try {
       setLoading(true)
 
+      // Pre-check if mobile number is already registered
+      const checkRes = await fetch(`/api/auth/register-ccc?mobile=${encodeURIComponent(cleanMob)}`, {
+        cache: "no-store",
+      })
+      const checkData = await checkRes.json()
+
+      if (checkData.exists) {
+        setError(checkData.error || "This mobile number is already registered. Please sign in or use 'Forgot Password'.")
+        setLoading(false)
+        return
+      }
+
       // Use pre-warmed reCAPTCHA verifier instance or instantiate if needed
       let appVerifier = typeof window !== "undefined" ? (window as any).registerRecaptchaVerifier : null
       if (!appVerifier && typeof window !== "undefined") {
@@ -296,7 +308,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl">
+      <DialogContent 
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="sm:max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl"
+      >
         {/* Strictly hidden container for Firebase reCAPTCHA */}
         <div id="register-recaptcha-container" className="hidden absolute w-0 h-0 overflow-hidden pointer-events-none opacity-0" aria-hidden="true"></div>
 
@@ -338,7 +353,17 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         {/* STEP 1: MOBILE & OTP VERIFICATION */}
         {/* ===================================================================== */}
         {step === 1 && (
-          <div className="space-y-3.5 pt-1">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!otpSent) {
+                handleSendOtp()
+              } else {
+                handleVerifyOtp()
+              }
+            }}
+            className="space-y-3.5 pt-1"
+          >
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700">10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
               <div className="relative">
@@ -357,8 +382,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
             {!otpSent ? (
               <Button
-                type="button"
-                onClick={handleSendOtp}
+                type="submit"
                 disabled={loading || mobileNumber.length !== 10}
                 className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm cursor-pointer mt-1"
               >
@@ -376,7 +400,6 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="• • • • • •"
                     className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                    autoFocus
                   />
                 </div>
 
@@ -399,8 +422,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                 </div>
 
                 <Button
-                  type="button"
-                  onClick={handleVerifyOtp}
+                  type="submit"
                   disabled={loading || otp.length !== 6}
                   className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm cursor-pointer mt-1"
                 >
@@ -409,8 +431,9 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                 </Button>
               </div>
             )}
-          </div>
+          </form>
         )}
+
 
         {/* ===================================================================== */}
         {/* STEP 2: CCC DETAILS & PASSWORD CREATION */}
