@@ -156,14 +156,26 @@ export async function getUserFeedback(username: string, cccCode?: string): Promi
 
   // 1. Direct Turso DB Point Query (Sub-millisecond)
   try {
-    const res = await db.execute({
+    // Point lookup 1: by username (uses idx_feedbacks_user_ccc)
+    let res = await db.execute({
       sql: `SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code
             FROM user_feedbacks f
             LEFT JOIN ccc_registry c ON f.ccc_id = c.id
-            WHERE f.username = ? COLLATE NOCASE OR (c.ccc_code IS NOT NULL AND c.ccc_code = ? COLLATE NOCASE)
+            WHERE f.username = ? COLLATE NOCASE
             LIMIT 1`,
-      args: [cleanUser, cleanCcc]
+      args: [cleanUser]
     })
+    // Point lookup 2: by CCC code if not found (uses idx_ccc_code_nocase)
+    if ((!res.rows || res.rows.length === 0) && cleanCcc) {
+      res = await db.execute({
+        sql: `SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code
+              FROM user_feedbacks f
+              JOIN ccc_registry c ON f.ccc_id = c.id
+              WHERE c.ccc_code = ? COLLATE NOCASE
+              LIMIT 1`,
+        args: [cleanCcc]
+      })
+    }
     if (res.rows && res.rows.length > 0) {
       const row: any = res.rows[0]
       return {

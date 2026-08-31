@@ -28,8 +28,8 @@ export const POST = async function POST(req: NextRequest) {
                   mobile_number = COALESCE(?, mobile_number),
                   email = COALESCE(?, email),
                   updated_at = CURRENT_TIMESTAMP
-              WHERE id = ? OR LOWER(username) = LOWER(?)`,
-        args: [u.fullName || null, u.mobileNumber || null, u.email || null, u.id, u.username || ""]
+              WHERE id = ?`,
+        args: [u.fullName || null, u.mobileNumber || null, u.email || null, u.id]
       })
     }
     if (usersToUpdate.length > 0) {

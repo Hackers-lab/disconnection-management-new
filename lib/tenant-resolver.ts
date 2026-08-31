@@ -154,7 +154,7 @@ export async function getTenantConfig(cccCode: string, bypassCache = false): Pro
   if (cleanCode !== "SYSTEM") {
     try {
       const res = await db.execute({
-        sql: "SELECT ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token FROM ccc_registry WHERE upper(ccc_code) = ? LIMIT 1",
+        sql: "SELECT ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1",
         args: [cleanCode]
       })
       if (res.rows && res.rows.length > 0) {

@@ -21,6 +21,9 @@ export function getDb(): Client {
     `CREATE INDEX IF NOT EXISTS idx_agencies_ccc_active ON agencies (ccc_id, is_active);`,
     `CREATE INDEX IF NOT EXISTS idx_feedbacks_status_ccc ON user_feedbacks (status, ccc_id);`,
     `CREATE INDEX IF NOT EXISTS idx_feedbacks_ccc ON user_feedbacks (ccc_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_ccc_name ON ccc_registry (ccc_name COLLATE NOCASE);`,
+    `CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions (user_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_push_sub_target ON push_subscriptions (ccc_code, role);`,
   ]
   Promise.all(idxStatements.map(sql => clientInstance!.execute(sql))).catch(() => {})
 

@@ -91,7 +91,7 @@ export async function fetchGisCaptures(tenantId: string): Promise<GisPhotoRecord
     if (client) {
       await ensureGisCapturesTable()
       const res = await client.execute({
-        sql: `SELECT * FROM GIS_captures WHERE LOWER(tenant_id) = ? ORDER BY timestamp DESC`,
+        sql: `SELECT * FROM GIS_captures WHERE tenant_id = ? COLLATE NOCASE ORDER BY timestamp DESC`,
         args: [cleanTenant],
       })
 
@@ -269,7 +269,7 @@ export async function deleteGisCapture(
     if (client) {
       await ensureGisCapturesTable()
       const selRes = await client.execute({
-        sql: `SELECT drive_file_id FROM GIS_captures WHERE id = ? AND LOWER(tenant_id) = ?`,
+        sql: `SELECT drive_file_id FROM GIS_captures WHERE id = ? AND tenant_id = ? COLLATE NOCASE`,
         args: [photoId, cleanTenant],
       })
       if (selRes?.rows?.[0]) {
@@ -277,7 +277,7 @@ export async function deleteGisCapture(
       }
 
       await client.execute({
-        sql: `DELETE FROM GIS_captures WHERE id = ? AND LOWER(tenant_id) = ?`,
+        sql: `DELETE FROM GIS_captures WHERE id = ? AND tenant_id = ? COLLATE NOCASE`,
         args: [photoId, cleanTenant],
       })
     }

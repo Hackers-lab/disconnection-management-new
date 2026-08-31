@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
                      c.mobile_number as mobileNumber, c.created_at as createdAt, c.updated_at as updatedAt,
                      u.username as adminUsername, u.full_name as adminFullName, u.mobile_number as adminMobile
               FROM ccc_registry c
-              LEFT JOIN users u ON (u.ccc_id = c.id AND u.role = 'admin') OR (u.username = c.ccc_code AND u.role = 'admin')
+              LEFT JOIN users u ON u.ccc_id = c.id AND u.role = 'admin'
               ORDER BY c.created_at DESC`,
         args: []
       })
@@ -194,21 +194,6 @@ export async function POST(request: NextRequest) {
       }
     } catch (sheetErr) {
       console.warn("Sheet append notice:", sheetErr)
-    }
-
-    // Dual-write / upsert into Turso ccc_registry
-    try {
-      await db.execute({
-        sql: `INSERT INTO ccc_registry (ccc_code, ccc_name, spreadsheet_id, drive_folder_id, drive_refresh_token)
-              VALUES (?, ?, ?, '', '')
-              ON CONFLICT(ccc_code) DO UPDATE SET 
-                ccc_name = excluded.ccc_name,
-                spreadsheet_id = excluded.spreadsheet_id,
-                updated_at = CURRENT_TIMESTAMP`,
-        args: [cccCode.trim().toUpperCase(), cccName.trim(), spreadsheetId?.trim() || ""],
-      })
-    } catch (tursoErr) {
-      console.warn("Superuser tenants: Failed to write to Turso ccc_registry:", tursoErr)
     }
 
     invalidateTenantCache()
