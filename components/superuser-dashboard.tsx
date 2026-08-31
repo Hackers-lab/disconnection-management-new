@@ -21,6 +21,7 @@ import {
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
+import { AgencyProfileTracker } from "@/components/agency-profile-tracker"
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import { PushNotificationManager } from "@/components/push-notification-manager"
 import { 
@@ -130,7 +131,7 @@ function formatRegistrationDate(dateStr?: string): { formatted: string; relative
 }
 
 export function SuperuserDashboard() {
-  const [activeTab, setActiveTab] = useState<"overview" | "registrations" | "online_users" | "module_versions" | "vercel_usage">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage">("overview")
   const [hasLoadedData, setHasLoadedData] = useState(false)
   const [onlineUserCount, setOnlineUserCount] = useState<number | null>(null)
   const [vercelSpikeCount, setVercelSpikeCount] = useState<number | null>(null)
@@ -305,7 +306,7 @@ export function SuperuserDashboard() {
     ])
   }
 
-  const handleTabChange = (tab: "overview" | "registrations" | "online_users" | "module_versions" | "vercel_usage") => {
+  const handleTabChange = (tab: "overview" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage") => {
     setActiveTab(tab)
     if (!hasLoadedData && (tab === "overview" || tab === "registrations")) {
       loadDashboardData()
@@ -359,7 +360,7 @@ export function SuperuserDashboard() {
       const data = await res.json()
       if (res.ok && data.success) {
         setTenantMsg({ type: "success", text: "Customer Care Center registered successfully" })
-        setNewTenant({ cccCode: "", cccName: "", spreadsheetId: "" })
+        setNewTenant({ cccCode: "", cccName: "", spreadsheetId: "", contactPerson: "", mobileNumber: "" })
         setShowAddTenantModal(false)
         await fetchTenants()
         await fetchStats()
@@ -797,6 +798,29 @@ export function SuperuserDashboard() {
 
           <button
             type="button"
+            onClick={() => handleTabChange("agency_tracker")}
+            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+              activeTab === "agency_tracker"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+            }`}
+          >
+            <Building2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <span className="truncate">Agency Profiles</span>
+            <Badge
+              variant="outline"
+              className={`text-[9px] px-1 py-0 ${
+                activeTab === "agency_tracker"
+                  ? "bg-indigo-700 border-indigo-400 text-white"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-700 font-bold"
+              }`}
+            >
+              Track
+            </Badge>
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleTabChange("vercel_usage")}
             className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
               activeTab === "vercel_usage"
@@ -817,7 +841,9 @@ export function SuperuserDashboard() {
           </button>
         </div>
 
-        {activeTab === "online_users" ? (
+        {activeTab === "agency_tracker" ? (
+          <AgencyProfileTracker onBackToDashboard={() => setActiveTab("overview")} />
+        ) : activeTab === "online_users" ? (
           <SuperuserOnlineUsers onBackToDashboard={() => setActiveTab("overview")} />
         ) : activeTab === "module_versions" ? (
           <SupplyModuleVersionsReport onBackToDashboard={() => setActiveTab("overview")} />

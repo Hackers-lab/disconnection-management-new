@@ -125,6 +125,15 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [showProfileDialog, setShowProfileDialog] = useState(false)
   const [showOsdDialog, setShowOsdDialog] = useState(false)
   const [profileData, setProfileData] = useState<any>(null)
+  const [clientCccCode, setClientCccCode] = useState<string>("")
+  const [clientUsername, setClientUsername] = useState<string>("")
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setClientCccCode(localStorage.getItem("user_ccc_code") || "")
+      setClientUsername(localStorage.getItem("user_username") || "")
+    }
+  }, [])
   const homeLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isLongPressRef = useRef(false)
 
@@ -938,8 +947,8 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const displayAgencyName = (userAgencies && userAgencies.length > 0)
     ? (userAgencies.length === 1 ? userAgencies[0] : `${userAgencies[0]} (+${userAgencies.length - 1})`)
     : null;
-  const cccCode = profileData?.cccCode || (typeof window !== "undefined" ? localStorage.getItem("user_ccc_code") : "") || "";
-  const loginDisplayName = profileData?.name || profileData?.username || displayAgencyName || (typeof window !== "undefined" ? localStorage.getItem("user_username") : "") || userRole;
+  const cccCode = profileData?.cccCode || clientCccCode || "";
+  const loginDisplayName = profileData?.name || profileData?.username || displayAgencyName || clientUsername || userRole;
 
   return (
     <header className="bg-white shadow sticky top-0 z-50">

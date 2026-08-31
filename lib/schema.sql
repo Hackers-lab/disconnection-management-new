@@ -70,7 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_role_overrides_ccc ON ccc_role_overrides (ccc_id,
 -- 3. Agencies Table
 CREATE TABLE IF NOT EXISTS agencies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    vendor_code TEXT UNIQUE,
+    vendor_code TEXT,
     ccc_id INTEGER NOT NULL REFERENCES ccc_registry(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT,
