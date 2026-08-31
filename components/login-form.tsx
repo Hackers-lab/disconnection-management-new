@@ -46,7 +46,7 @@ interface LoginFormProps {
   initialTenantCount?: number
 }
 
-export function LoginForm({ initialFeedbacks, initialTenantCount = 10 }: LoginFormProps) {
+export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFormProps) {
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(
     initialFeedbacks && initialFeedbacks.length > 0 ? initialFeedbacks : DEFAULT_FEEDBACKS
   )
@@ -204,7 +204,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 10 }: LoginFo
 
   const handleShareClick = async () => {
     triggerHaptic("medium")
-    const originUrl = typeof window !== "undefined" ? window.location.origin : "https://disconnection-management.vercel.app"
+    const originUrl = typeof window !== "undefined" ? window.location.origin : "https://disconnection.vercel.app"
     const shareData = {
       title: "Disconnection & Utility Operations Platform",
       text: "Access the Disconnection & Utility Operations Platform:",

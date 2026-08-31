@@ -60,12 +60,24 @@ export function LoginDynamicHeader() {
 
   return (
     <div className="text-center space-y-2 select-none">
-      {/* Dynamic Animated Badge Icon */}
-      <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15 ring-4 ring-white/80 transition-all duration-300 hover:scale-105">
+      {/* Dynamic Synchronized Rotating Badge Box */}
+      <div
+        className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15 ring-4 ring-white/80 transition-all duration-500 hover:scale-105 ${
+          isFading ? "scale-90 shadow-sm" : "scale-100 shadow-lg"
+        }`}
+        style={{
+          transform: `rotate(${currentIndex * 90}deg)`,
+          transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
+      >
         <div
           className={`transition-all duration-300 transform ${
-            isFading ? "opacity-0 scale-75 rotate-12" : "opacity-100 scale-100 rotate-0"
+            isFading ? "opacity-0 scale-75" : "opacity-100 scale-100"
           }`}
+          style={{
+            transform: `rotate(-${currentIndex * 90}deg)`,
+            transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+          }}
         >
           <IconComponent className={`w-6 h-6 transition-colors ${current.iconClass}`} />
         </div>
