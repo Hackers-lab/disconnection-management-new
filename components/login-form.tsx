@@ -12,6 +12,7 @@ import { LoginFeedbackDialog } from "@/components/login-feedback-dialog"
 import { RegisterCccDialog } from "@/components/register-ccc-dialog"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 import { AnimatedCounter } from "@/components/animated-counter"
+import { triggerHaptic } from "@/lib/haptics"
 
 import type { FeedbackItem } from "@/lib/feedback-service"
 
@@ -201,6 +202,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
   const [copied, setCopied] = useState(false)
 
   const handleShareClick = async () => {
+    triggerHaptic("medium")
     const originUrl = typeof window !== "undefined" ? window.location.origin : "https://disconnection-management.vercel.app"
     const shareData = {
       title: "Disconnection & Utility Operations Platform",
@@ -226,6 +228,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
   }
 
   async function handleSubmit(formData: FormData) {
+    triggerHaptic("medium")
     setLoading(true)
     setError("")
 
@@ -236,9 +239,11 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
     const result: any = await login(formData)
 
     if (result?.error) {
+      triggerHaptic("error")
       setError(result.error)
       setLoading(false)
     } else {
+      triggerHaptic("success")
       if (result?.benchmark) {
         console.log(
           `%c⚡ [AUTH BENCHMARK] %cDatabase: ${result.benchmark.dbSource} | DB Lookup: ${result.benchmark.lookupTimeMs}ms | Total Server: ${result.benchmark.totalServerTimeMs}ms | User: ${result.benchmark.username} (${result.benchmark.role})`,
@@ -298,7 +303,10 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => {
+                  triggerHaptic("light")
+                  setShowPassword(!showPassword)
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
                 title={showPassword ? "Hide password" : "Show password"}
               >
@@ -328,14 +336,20 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             <div className="flex items-center justify-between pt-2 px-0.5 text-xs">
               <button
                 type="button"
-                onClick={() => setShowForgotPasswordDialog(true)}
+                onClick={() => {
+                  triggerHaptic("medium")
+                  setShowForgotPasswordDialog(true)
+                }}
                 className="text-slate-500 hover:text-slate-900 font-medium transition-colors cursor-pointer"
               >
                 Forgot Password?
               </button>
               <button
                 type="button"
-                onClick={() => setShowRegisterDialog(true)}
+                onClick={() => {
+                  triggerHaptic("medium")
+                  setShowRegisterDialog(true)
+                }}
                 className="text-slate-700 hover:text-slate-900 font-semibold transition-all hover:translate-x-0.5 cursor-pointer inline-flex items-center gap-1"
               >
                 <span>Register CCC</span>
@@ -358,7 +372,10 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
         {/* Clickable Feedback Rating (Monochrome Black Star) */}
         <button
           type="button"
-          onClick={() => setShowFeedbackModal(true)}
+          onClick={() => {
+            triggerHaptic("medium")
+            setShowFeedbackModal(true)
+          }}
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-slate-800 hover:text-black hover:bg-slate-200/60 active:scale-95 transition-all cursor-pointer font-semibold group"
           title="Click to view officer feedback and ratings"
         >
@@ -375,6 +392,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
         {/* Privacy Policy */}
         <a
           href="/privacy-policy"
+          onClick={() => triggerHaptic("medium")}
           className="hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-100/70"
           title="Privacy Policy"
           aria-label="Privacy Policy"
@@ -387,6 +405,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
         {/* Terms of Service */}
         <a
           href="/terms-of-service"
+          onClick={() => triggerHaptic("medium")}
           className="hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-100/70"
           title="Terms of Service"
           aria-label="Terms of Service"
@@ -399,6 +418,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
         {/* WhatsApp Group */}
         <a
           href="https://chat.whatsapp.com/LZKLg40n8FxCLdnAIO9HGE"
+          onClick={() => triggerHaptic("medium")}
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-emerald-600 transition-colors p-1 rounded-md hover:bg-slate-100/70 cursor-pointer"
@@ -433,7 +453,10 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             {/* Install PWA Button */}
             <button
               type="button"
-              onClick={handleInstallClick}
+              onClick={() => {
+                triggerHaptic("medium")
+                handleInstallClick()
+              }}
               className={`relative inline-flex items-center justify-center p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100/70 transition-all duration-300 active:scale-95 cursor-pointer ${
                 isInstallClicked ? "text-blue-600 scale-110" : ""
               }`}

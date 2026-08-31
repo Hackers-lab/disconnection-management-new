@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Zap, RefreshCw, Gauge, ClipboardCheck, ShieldCheck } from "lucide-react"
+import { triggerHaptic } from "@/lib/haptics"
 
 interface ModuleItem {
   title: string
@@ -47,6 +48,7 @@ export function LoginDynamicHeader() {
       setTimeout(() => {
         setCurrentIndex((prev) => (prev + 1) % MODULES.length)
         setIsFading(false)
+        triggerHaptic("tick")
       }, 260)
     }, 2200)
 

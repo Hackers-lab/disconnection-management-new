@@ -5,46 +5,48 @@ import { useState, useEffect } from "react"
 interface AnimatedCounterProps {
   value: number | null
   className?: string
+  intervalMs?: number
 }
 
 function RollingDigitColumn({
   targetDigit,
   indexFromRight,
+  cycleTick,
 }: {
   targetDigit: number
   indexFromRight: number
+  cycleTick: number
 }) {
   const [mounted, setMounted] = useState(false)
 
-  // 30 numbers total in reel strip (0-9 repeated 3 times)
-  // Higher cycle count for rightmost digits for longer spinning duration
-  const cycleCount = indexFromRight === 0 ? 2 : indexFromRight === 1 ? 2 : 1
-  const targetIndex = cycleCount * 10 + targetDigit
+  // 40 numbers in strip (0-9 repeated 4 times)
+  const baseCycle = (cycleTick % 3) + 1
+  const targetIndex = baseCycle * 10 + targetDigit
 
   useEffect(() => {
+    setMounted(false)
     const timer = setTimeout(() => {
       setMounted(true)
-    }, 50 + (2 - indexFromRight) * 70)
+    }, 40 + (2 - indexFromRight) * 60)
 
     return () => clearTimeout(timer)
-  }, [indexFromRight, targetDigit])
+  }, [indexFromRight, targetDigit, cycleTick])
 
   const currentIndex = mounted ? targetIndex : 0
-  // Deceleration duration: 3rd from right stops first, rightmost stops last
-  const duration = 1400 + (2 - indexFromRight) * 280
+  const duration = 1300 + (2 - indexFromRight) * 220
 
   return (
     <span className="inline-block h-[1.2em] overflow-hidden leading-[1.2em] relative align-bottom">
       <span
         className="inline-flex flex-col select-none"
         style={{
-          transform: `translateY(-${(currentIndex * 100) / 30}%)`,
+          transform: `translateY(-${(currentIndex * 100) / 40}%)`,
           transitionProperty: "transform",
           transitionDuration: `${duration}ms`,
           transitionTimingFunction: "cubic-bezier(0.12, 0.88, 0.22, 1)",
         }}
       >
-        {Array.from({ length: 30 }).map((_, i) => (
+        {Array.from({ length: 40 }).map((_, i) => (
           <span key={i} className="h-[1.2em] flex items-center justify-center">
             {i % 10}
           </span>
@@ -54,7 +56,19 @@ function RollingDigitColumn({
   )
 }
 
-export function AnimatedCounter({ value, className = "" }: AnimatedCounterProps) {
+export function AnimatedCounter({ value, className = "", intervalMs = 10000 }: AnimatedCounterProps) {
+  const [cycleTick, setCycleTick] = useState(0)
+
+  useEffect(() => {
+    if (value === null || typeof value !== "number") return
+
+    const interval = setInterval(() => {
+      setCycleTick((prev) => prev + 1)
+    }, intervalMs)
+
+    return () => clearInterval(interval)
+  }, [value, intervalMs])
+
   if (value === null || typeof value !== "number") {
     return <span className={className}>...</span>
   }
@@ -91,9 +105,10 @@ export function AnimatedCounter({ value, className = "" }: AnimatedCounterProps)
         if (indexFromRight < 3) {
           return (
             <RollingDigitColumn
-              key={idx}
+              key={`${idx}-${cycleTick}`}
               targetDigit={digitNum}
               indexFromRight={indexFromRight}
+              cycleTick={cycleTick}
             />
           )
         }
@@ -108,5 +123,6 @@ export function AnimatedCounter({ value, className = "" }: AnimatedCounterProps)
     </span>
   )
 }
+
 
 
