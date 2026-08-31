@@ -176,7 +176,7 @@ export class UserStorage {
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin' COLLATE NOCASE
+              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin'
               LIMIT 1`,
         args: [cleanCcc]
       })

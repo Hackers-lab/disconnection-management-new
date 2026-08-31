@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
                      c.mobile_number as mobileNumber, c.created_at as createdAt, c.updated_at as updatedAt,
                      u.username as adminUsername, u.full_name as adminFullName, u.mobile_number as adminMobile
               FROM ccc_registry c
-              LEFT JOIN users u ON (u.ccc_id = c.id AND LOWER(u.role) = 'admin') OR (u.username = c.ccc_code AND LOWER(u.role) = 'admin')
+              LEFT JOIN users u ON (u.ccc_id = c.id AND u.role = 'admin') OR (u.username = c.ccc_code AND u.role = 'admin')
               ORDER BY c.created_at DESC`,
         args: []
       })

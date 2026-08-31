@@ -41,7 +41,7 @@ export async function fetchApprovedFeedbacks(spreadsheetId?: string): Promise<Fe
 
   // 1. Try querying Turso user_feedbacks table first
   try {
-    const res = await db.execute("SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code FROM user_feedbacks f LEFT JOIN ccc_registry c ON f.ccc_id = c.id WHERE f.status = 'approved' COLLATE NOCASE")
+    const res = await db.execute("SELECT f.feedback_id, f.username, f.full_name, f.supply_office, f.rating, f.comment, f.status, f.created_at, c.ccc_code FROM user_feedbacks f LEFT JOIN ccc_registry c ON f.ccc_id = c.id WHERE f.status = 'approved'")
     if (res.rows && res.rows.length > 0) {
       const parsedItems: FeedbackItem[] = res.rows.map((row: any) => ({
         id: String(row.feedback_id || ""),

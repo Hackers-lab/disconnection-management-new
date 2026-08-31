@@ -23,11 +23,11 @@ export const GET = async function GET(req: NextRequest) {
           ? `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
              FROM users u
              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-             WHERE LOWER(u.role) NOT IN ('superuser', 'agency')`
+             WHERE u.role NOT IN ('superuser', 'agency')`
           : `SELECT u.id, u.username, u.full_name, u.email, u.mobile_number, u.role, c.ccc_code
              FROM users u
              JOIN ccc_registry c ON u.ccc_id = c.id
-             WHERE LOWER(u.role) NOT IN ('superuser', 'agency') AND c.ccc_code = ? COLLATE NOCASE`,
+             WHERE u.role NOT IN ('superuser', 'agency') AND c.ccc_code = ? COLLATE NOCASE`,
         args: isGlobalAdmin ? [] : [cccCode]
       })
       allUserRows = usersRes.rows || []

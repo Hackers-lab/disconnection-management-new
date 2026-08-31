@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS agencies (
 );
 CREATE INDEX IF NOT EXISTS idx_agencies_ccc_id ON agencies (ccc_id);
 CREATE INDEX IF NOT EXISTS idx_agencies_vendor ON agencies (vendor_code);
+CREATE INDEX IF NOT EXISTS idx_agencies_ccc_active ON agencies (ccc_id, is_active);
 
 -- 4. Agency Aliases Table
 CREATE TABLE IF NOT EXISTS agency_aliases (
@@ -116,6 +117,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_ccc_id ON users (ccc_id);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users (username COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
+CREATE INDEX IF NOT EXISTS idx_users_ccc_role ON users (ccc_id, role);
 
 -- 6. User Sessions Table (Refresh Tokens)
 CREATE TABLE IF NOT EXISTS user_sessions (
@@ -450,8 +453,9 @@ CREATE TABLE IF NOT EXISTS user_feedbacks (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON user_feedbacks (status);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_status_ccc ON user_feedbacks (status, ccc_id);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_ccc ON user_feedbacks (ccc_id);
 CREATE INDEX IF NOT EXISTS idx_feedbacks_user_ccc ON user_feedbacks (username COLLATE NOCASE, ccc_id);
-
 -- 21. Miscellaneous Inspections Table
 CREATE TABLE IF NOT EXISTS misc_inspections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
