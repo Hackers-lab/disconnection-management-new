@@ -1,6 +1,6 @@
 import { LoginForm } from "@/components/login-form"
 import { fetchApprovedFeedbacks } from "@/lib/feedback-service"
-import { Zap } from "lucide-react"
+import { LoginDynamicHeader } from "@/components/login-dynamic-header"
 
 export default async function LoginPage() {
   const initialFeedbacks = await fetchApprovedFeedbacks().catch(() => [])
@@ -13,21 +13,13 @@ export default async function LoginPage() {
       <div className="absolute -bottom-20 right-1/4 w-80 h-80 bg-sky-300/10 rounded-full blur-3xl pointer-events-none -z-10" />
 
       <div className="max-w-[420px] w-full my-auto space-y-4 relative z-10">
-        {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15 ring-4 ring-white/80 transition-transform duration-300 hover:scale-105">
-            <Zap className="w-6 h-6 text-amber-400 fill-amber-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-[26px] font-black tracking-tight animate-title-shimmer select-none drop-shadow-sm">
-              Disconnection Management
-            </h1>
-          </div>
-        </div>
+        {/* Dynamic Morphing Brand Header */}
+        <LoginDynamicHeader />
 
         <LoginForm initialFeedbacks={initialFeedbacks} />
       </div>
     </div>
   )
 }
+
 

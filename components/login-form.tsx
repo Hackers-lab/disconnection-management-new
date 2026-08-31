@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, User, Lock, ArrowDown, ShieldCheck, FileText, Star, Eye as VisitIcon } from "lucide-react"
+import { Eye, EyeOff, User, Lock, ArrowDown, ShieldCheck, FileText, Star, Share2, Check } from "lucide-react"
 import { login } from "@/app/actions/auth"
 import { LoginFeedbackDialog } from "@/components/login-feedback-dialog"
 import { RegisterCccDialog } from "@/components/register-ccc-dialog"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
+import { AnimatedCounter } from "@/components/animated-counter"
 
 import type { FeedbackItem } from "@/lib/feedback-service"
 
@@ -197,6 +198,33 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
     }
   }, [feedbacks])
 
+  const [copied, setCopied] = useState(false)
+
+  const handleShareClick = async () => {
+    const originUrl = typeof window !== "undefined" ? window.location.origin : "https://disconnection-management.vercel.app"
+    const shareData = {
+      title: "Disconnection & Utility Operations Platform",
+      text: "Access the Disconnection & Utility Operations Platform:",
+      url: originUrl,
+    }
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData)
+      } catch (err) {
+        // User dismissed share
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(originUrl)
+      } catch {}
+      const text = encodeURIComponent(`Disconnection & Utility Operations Platform:\n${originUrl}`)
+      window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank")
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   async function handleSubmit(formData: FormData) {
     setLoading(true)
     setError("")
@@ -322,7 +350,7 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
       {/* Integrated Compact Status Bar: 19266 | 4.9/5* */}
       <div className="flex items-center justify-center gap-2 pt-0.5 text-xs text-slate-500 font-medium select-none">
         <span className="text-slate-600 font-medium tracking-tight">
-          {visitCount !== null ? visitCount.toLocaleString() : "..."} visits
+          <AnimatedCounter value={visitCount} /> visits
         </span>
 
         <span className="text-slate-300">|</span>
@@ -381,6 +409,23 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
           </svg>
         </a>
+
+        <span className="text-slate-200 font-bold">•</span>
+
+        {/* Share App Link (WhatsApp / SMS / Native Share) */}
+        <button
+          type="button"
+          onClick={handleShareClick}
+          className="hover:text-slate-900 transition-colors p-1 rounded-md hover:bg-slate-100/70 cursor-pointer text-slate-400 active:scale-95 flex items-center justify-center"
+          title="Share Platform Link via WhatsApp or Message"
+          aria-label="Share Platform Link"
+        >
+          {copied ? (
+            <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] animate-in zoom-in-50 duration-200" />
+          ) : (
+            <Share2 className="w-4 h-4 stroke-[1.8]" />
+          )}
+        </button>
 
         {!isStandalone && (
           <>
