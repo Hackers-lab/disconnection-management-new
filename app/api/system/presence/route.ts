@@ -10,10 +10,10 @@ export const maxDuration = 10
 const localPresenceMap = new Map<string, number>()
 const PRESENCE_TIMEOUT_MS = 120_000 // 2 minutes window for live users
 
-const BASELINE_VISITORS = 19000
+const BASELINE_VISITORS = 19900
 let memoryVisitorCounter = BASELINE_VISITORS
 let lastSyncedTime = 0
-const SYNC_INTERVAL_MS = 5000 // Sync from central store every 5 seconds
+const SYNC_INTERVAL_MS = 10_000 // Sync from central store every 10 seconds
 
 function cleanClientId(id: string): string {
   return String(id || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64)
@@ -30,41 +30,31 @@ function pruneLocalPresence(now: number) {
 async function getSynchronizedVisitorCount(isNewVisit: boolean): Promise<number> {
   const now = Date.now()
 
-  if (isNewVisit) {
+  // 1. Periodically synchronize from KV store without overwriting backwards
+  if (now - lastSyncedTime > SYNC_INTERVAL_MS || memoryVisitorCounter < BASELINE_VISITORS) {
     try {
-      const current = await getKV<number>("system:total_visitors")
-      const base = typeof current === "number" && current >= BASELINE_VISITORS ? current : BASELINE_VISITORS
-      const next = base + 1
-      await setKV("system:total_visitors", next)
-      memoryVisitorCounter = next
+      const stored = await getKV<number>("system:total_visitors")
+      if (typeof stored === "number" && stored > memoryVisitorCounter) {
+        memoryVisitorCounter = stored
+      }
       lastSyncedTime = now
-      return next
     } catch {
-      memoryVisitorCounter += 1
-      return memoryVisitorCounter
+      // Keep highest in-memory counter
     }
   }
 
-  // If synced within the last 5 seconds, use memory cache for instant response
-  if (now - lastSyncedTime < SYNC_INTERVAL_MS && memoryVisitorCounter >= BASELINE_VISITORS) {
-    return memoryVisitorCounter
-  }
-
-  try {
-    const current = await getKV<number>("system:total_visitors")
-    if (typeof current === "number" && current >= BASELINE_VISITORS) {
-      memoryVisitorCounter = current
-    } else {
-      await setKV("system:total_visitors", BASELINE_VISITORS)
-      memoryVisitorCounter = BASELINE_VISITORS
-    }
+  // 2. Monotonically increment on new visits
+  if (isNewVisit) {
+    const nextCount = Math.max(memoryVisitorCounter, BASELINE_VISITORS) + 1
+    memoryVisitorCounter = nextCount
+    setKV("system:total_visitors", nextCount).catch(() => {})
     lastSyncedTime = now
-  } catch {
-    // Keep in-memory fallback
+    return nextCount
   }
 
-  return memoryVisitorCounter
+  return Math.max(memoryVisitorCounter, BASELINE_VISITORS)
 }
+
 
 export async function GET(req: NextRequest) {
   try {
