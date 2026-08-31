@@ -296,39 +296,39 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-100 bg-white/95 backdrop-blur-xl">
+      <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl">
         {/* Strictly hidden container for Firebase reCAPTCHA */}
         <div id="register-recaptcha-container" className="hidden absolute w-0 h-0 overflow-hidden pointer-events-none opacity-0" aria-hidden="true"></div>
 
-        <DialogHeader className="space-y-2 text-center">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/20 ring-4 ring-amber-50">
-            <Building2 className="w-6 h-6" />
+        <DialogHeader className="space-y-2 text-center pb-1">
+          <div className="mx-auto w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/15 ring-4 ring-slate-100">
+            <Building2 className="w-5 h-5" />
           </div>
-          <DialogTitle className="text-xl font-bold text-slate-900">
+          <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
             Register New CCC Office
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
             {step === 1
-              ? "Verify your 10-digit mobile number via SMS OTP to create your station admin account."
+              ? "Verify your 10-digit mobile number via OTP to create your station account."
               : "Enter your station details to complete registration."}
           </DialogDescription>
         </DialogHeader>
 
         {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-2 py-1">
-          <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 1 ? "w-8 bg-amber-500" : "w-2 bg-emerald-500"}`} />
-          <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 2 ? "w-8 bg-amber-500" : "w-2 bg-slate-200"}`} />
+        <div className="flex items-center justify-center gap-1.5 py-0.5">
+          <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 1 ? "w-6 bg-slate-900" : "w-2 bg-slate-400"}`} />
+          <div className={`h-1.5 rounded-full transition-all duration-300 ${step === 2 ? "w-6 bg-slate-900" : "w-2 bg-slate-200"}`} />
         </div>
 
         {error && (
-          <Alert variant="destructive" className="py-2.5 rounded-2xl border-rose-200 bg-rose-50 text-rose-800 text-xs">
+          <Alert variant="destructive" className="py-2 px-3 rounded-xl border-red-200 bg-red-50/80 text-red-700 text-xs">
             <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {successMsg && (
-          <Alert className="py-2.5 rounded-2xl border-emerald-200 bg-emerald-50 text-emerald-800 text-xs">
+          <Alert className="py-2 px-3 rounded-xl border-emerald-200 bg-emerald-50/80 text-emerald-800 text-xs">
             <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
             <AlertDescription>{successMsg}</AlertDescription>
           </Alert>
@@ -338,9 +338,9 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         {/* STEP 1: MOBILE & OTP VERIFICATION */}
         {/* ===================================================================== */}
         {step === 1 && (
-          <div className="space-y-4 pt-1">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700">10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
+          <div className="space-y-3.5 pt-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
               <div className="relative">
                 <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 <Input
@@ -350,7 +350,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                   value={mobileNumber}
                   onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="Enter 10-digit phone"
-                  className="pl-10 h-12 rounded-2xl font-mono text-sm border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+                  className="pl-10 h-10 sm:h-11 rounded-xl font-mono text-xs sm:text-sm border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all"
                 />
               </div>
             </div>
@@ -360,39 +360,39 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                 type="button"
                 onClick={handleSendOtp}
                 disabled={loading || mobileNumber.length !== 10}
-                className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl shadow-lg shadow-amber-600/20 transition-all cursor-pointer"
+                className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm cursor-pointer mt-1"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-                Send 6-Digit OTP via SMS
+                Send OTP
               </Button>
             ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
+              <div className="space-y-3.5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
                   <Input
                     type="text"
                     maxLength={6}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="• • • • • •"
-                    className="h-12 text-center font-mono text-xl tracking-widest rounded-2xl border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 bg-amber-50/30"
+                    className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                     autoFocus
                   />
                 </div>
 
-                <div className="flex items-center justify-between text-xs px-1">
+                <div className="flex items-center justify-between text-xs px-0.5">
                   <button
                     type="button"
                     disabled={countdown > 0 || loading}
                     onClick={handleSendOtp}
-                    className="text-amber-600 hover:text-amber-700 font-bold disabled:text-slate-400 cursor-pointer transition-colors"
+                    className="text-slate-800 hover:text-black font-semibold disabled:text-slate-400 cursor-pointer transition-colors"
                   >
                     {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setOtpSent(false); setOtp(""); }}
-                    className="text-slate-500 hover:text-slate-800 transition-colors"
+                    className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                   >
                     Change Number
                   </button>
@@ -402,10 +402,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                   type="button"
                   onClick={handleVerifyOtp}
                   disabled={loading || otp.length !== 6}
-                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
+                  className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm cursor-pointer mt-1"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                  Verify & Continue
+                  Verify OTP
                 </Button>
               </div>
             )}
@@ -416,51 +416,51 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         {/* STEP 2: CCC DETAILS & PASSWORD CREATION */}
         {/* ===================================================================== */}
         {step === 2 && (
-          <form onSubmit={handleRegisterCcc} className="space-y-4 pt-1">
-            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-900">
-              <span className="flex items-center gap-1.5 font-bold">
+          <form onSubmit={handleRegisterCcc} className="space-y-3.5 pt-1">
+            <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-800 font-medium">
+              <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                Verified Phone: +91 {mobileNumber}
+                Verified: +91 {mobileNumber}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">7-Digit CCC Code <span className="text-rose-500">*</span></Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">7-Digit CCC Code <span className="text-rose-500">*</span></Label>
                 <Input
                   required
                   maxLength={7}
                   value={cccCode}
                   onChange={(e) => setCccCode(e.target.value.replace(/\D/g, "").slice(0, 7))}
                   placeholder="e.g. 6612108"
-                  className="h-11 font-mono text-sm rounded-xl border-slate-200"
+                  className="h-10 font-mono text-xs sm:text-sm rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">Supply Name <span className="text-rose-500">*</span></Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Supply Name <span className="text-rose-500">*</span></Label>
                 <Input
                   required
                   value={cccName}
                   onChange={(e) => setCccName(e.target.value)}
                   placeholder="e.g. CHANCHAL CCC"
-                  className="h-11 uppercase text-xs rounded-xl border-slate-200"
+                  className="h-10 uppercase text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-700">Station In-Charge Name / Designation</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-slate-700">Station In-Charge Name / Designation</Label>
               <Input
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
                 placeholder="e.g. AE & Station Manager"
-                className="h-11 text-xs rounded-xl border-slate-200"
+                className="h-10 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">Admin Password <span className="text-rose-500">*</span></Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Admin Password <span className="text-rose-500">*</span></Label>
                 <div className="relative">
                   <Input
                     required
@@ -468,27 +468,27 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Create password"
-                    className="h-11 pr-9 text-xs rounded-xl border-slate-200"
+                    className="h-10 pr-8 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">Confirm Password <span className="text-rose-500">*</span></Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Confirm Password <span className="text-rose-500">*</span></Label>
                 <Input
                   required
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm password"
-                  className="h-11 text-xs rounded-xl border-slate-200"
+                  className="h-10 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                 />
               </div>
             </div>
@@ -496,10 +496,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
             <Button
               type="submit"
               disabled={loading || !cccCode || cccCode.length !== 7 || !cccName || !password}
-              className="w-full h-12 bg-slate-900 hover:bg-black text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl transition-all mt-2 cursor-pointer"
+              className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] mt-1 cursor-pointer text-xs sm:text-sm"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              Complete Registration & Sign In
+              Register CCC
             </Button>
           </form>
         )}

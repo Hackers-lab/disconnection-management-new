@@ -274,33 +274,33 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl p-5 sm:p-7 shadow-2xl border border-slate-100 bg-white/95 backdrop-blur-xl">
+      <DialogContent className="sm:max-w-md max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl">
         {/* Strictly hidden container for Firebase reCAPTCHA */}
         <div id="forgot-recaptcha-container" className="hidden absolute w-0 h-0 overflow-hidden pointer-events-none opacity-0" aria-hidden="true"></div>
 
-        <DialogHeader className="space-y-2 text-center">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-50">
-            <KeyRound className="w-6 h-6" />
+        <DialogHeader className="space-y-2 text-center pb-1">
+          <div className="mx-auto w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/15 ring-4 ring-slate-100">
+            <KeyRound className="w-5 h-5" />
           </div>
-          <DialogTitle className="text-xl font-bold text-slate-900">
+          <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
             Password Recovery
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
             {step === 1
-              ? "Enter your mobile number, username, or CCC code to receive an SMS OTP."
+              ? "Enter your mobile number, username, or CCC code to receive an OTP."
               : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and set your new password.`}
           </DialogDescription>
         </DialogHeader>
 
         {error && (
-          <Alert variant="destructive" className="py-2.5 rounded-2xl border-rose-200 bg-rose-50 text-rose-800 text-xs">
+          <Alert variant="destructive" className="py-2 px-3 rounded-xl border-red-200 bg-red-50/80 text-red-700 text-xs">
             <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         {successMsg && (
-          <Alert className="py-2.5 rounded-2xl border-emerald-200 bg-emerald-50 text-emerald-800 text-xs">
+          <Alert className="py-2 px-3 rounded-xl border-emerald-200 bg-emerald-50/80 text-emerald-800 text-xs">
             <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
             <AlertDescription>{successMsg}</AlertDescription>
           </Alert>
@@ -310,9 +310,9 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
         {/* STEP 1: FIND ACCOUNT BY USERNAME / CCC / MOBILE */}
         {/* ===================================================================== */}
         {step === 1 && (
-          <form onSubmit={handleRequestOtp} className="space-y-4 pt-1">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700">
+          <form onSubmit={handleRequestOtp} className="space-y-3.5 pt-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">
                 Mobile Number, Username, or CCC Code <span className="text-rose-500">*</span>
               </Label>
               <div className="relative">
@@ -323,7 +323,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="e.g. 9832123456 / 6612107 / Kushida"
-                  className="pl-10 h-12 rounded-2xl text-sm border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  className="pl-10 h-10 sm:h-11 rounded-xl text-xs sm:text-sm border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all"
                   autoFocus
                 />
               </div>
@@ -332,10 +332,10 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
             <Button
               type="submit"
               disabled={loading || !identifier.trim()}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl cursor-pointer shadow-lg shadow-blue-600/20 transition-all"
+              className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl cursor-pointer shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm mt-1"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-              Send Password Reset OTP via SMS
+              Send OTP
             </Button>
           </form>
         )}
@@ -344,28 +344,28 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
         {/* STEP 2: VERIFY OTP & SET NEW PASSWORD */}
         {/* ===================================================================== */}
         {step === 2 && (
-          <form onSubmit={handleResetPassword} className="space-y-4 pt-1">
-            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs text-blue-900">
-              <span className="font-bold">Account: <strong>{username}</strong></span>
-              <span>Linked: +91 {mobileMasked}</span>
+          <form onSubmit={handleResetPassword} className="space-y-3.5 pt-1">
+            <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-800 font-medium">
+              <span>Account: <strong>{username}</strong></span>
+              <span className="text-slate-500">+91 {mobileMasked}</span>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
               <Input
                 required
                 maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="• • • • • •"
-                className="h-12 text-center font-mono text-xl tracking-widest rounded-2xl border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-blue-50/30"
+                className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                 autoFocus
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">New Password <span className="text-rose-500">*</span></Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">New Password <span className="text-rose-500">*</span></Label>
                 <div className="relative">
                   <Input
                     required
@@ -373,44 +373,44 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="New password"
-                    className="h-11 pr-9 text-xs rounded-xl border-slate-200"
+                    className="h-10 pr-8 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-700">Confirm Password <span className="text-rose-500">*</span></Label>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-slate-700">Confirm Password <span className="text-rose-500">*</span></Label>
                 <Input
                   required
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm password"
-                  className="h-11 text-xs rounded-xl border-slate-200"
+                  className="h-10 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs px-1">
+            <div className="flex items-center justify-between text-xs px-0.5">
               <button
                 type="button"
                 disabled={countdown > 0 || loading}
                 onClick={handleRequestOtp}
-                className="text-blue-600 hover:text-blue-700 font-bold disabled:text-slate-400 cursor-pointer transition-colors"
+                className="text-slate-800 hover:text-black font-semibold disabled:text-slate-400 cursor-pointer transition-colors"
               >
                 {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
               </button>
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="text-slate-500 hover:text-slate-800 transition-colors"
+                className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
               >
                 Change Account
               </button>
@@ -419,10 +419,10 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
             <Button
               type="submit"
               disabled={loading || otp.length !== 6 || !newPassword || newPassword !== confirmPassword}
-              className="w-full h-12 bg-slate-900 hover:bg-black text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl transition-all mt-2 cursor-pointer"
+              className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all mt-1 cursor-pointer text-xs sm:text-sm"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              Update Password & Continue
+              Reset Password
             </Button>
           </form>
         )}

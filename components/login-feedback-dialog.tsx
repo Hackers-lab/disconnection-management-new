@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Star, ThumbsUp, Filter, MessageSquareQuote } from "lucide-react"
+import { useMemo } from "react"
+import { Star, ThumbsUp, MessageSquareQuote } from "lucide-react"
 import type { FeedbackItem } from "@/lib/feedback-service"
 import {
   Dialog,
@@ -17,8 +17,6 @@ interface LoginFeedbackDialogProps {
 }
 
 export function LoginFeedbackDialog({ open, onOpenChange, feedbacks }: LoginFeedbackDialogProps) {
-  const [selectedTag, setSelectedTag] = useState<string>("all")
-
   // Dynamic stars & statistics summary
   const { averageRating, totalCount, fiveStarCount } = useMemo(() => {
     if (!feedbacks || feedbacks.length === 0) {
@@ -33,22 +31,6 @@ export function LoginFeedbackDialog({ open, onOpenChange, feedbacks }: LoginFeed
       fiveStarCount: fiveStars,
     }
   }, [feedbacks])
-
-  // Extract unique tags/supply offices for filtering
-  const allTags = useMemo(() => {
-    const set = new Set<string>()
-    feedbacks.forEach((f) => {
-      if (f.supplyOffice && f.supplyOffice.trim()) {
-        set.add(f.supplyOffice.trim())
-      }
-    })
-    return Array.from(set)
-  }, [feedbacks])
-
-  const filteredFeedbacks = useMemo(() => {
-    if (selectedTag === "all") return feedbacks
-    return feedbacks.filter((f) => f.supplyOffice?.trim().toLowerCase() === selectedTag.toLowerCase())
-  }, [feedbacks, selectedTag])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,48 +85,14 @@ export function LoginFeedbackDialog({ open, onOpenChange, feedbacks }: LoginFeed
           </div>
         </DialogHeader>
 
-        {/* Filter by Office / Tag */}
-        {allTags.length > 1 && (
-          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
-            <span className="text-xs font-medium text-slate-500 flex items-center gap-1 shrink-0">
-              <Filter className="w-3 h-3" /> Filter:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedTag("all")}
-              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors shrink-0 ${
-                selectedTag === "all"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
-              }`}
-            >
-              All ({feedbacks.length})
-            </button>
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => setSelectedTag(tag)}
-                className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors shrink-0 ${
-                  selectedTag === tag
-                    ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Reviews List */}
-        <div className="p-4 sm:p-5 overflow-y-auto max-h-[50vh] space-y-2.5">
-          {filteredFeedbacks.length === 0 ? (
+        <div className="p-4 sm:p-5 overflow-y-auto max-h-[55vh] space-y-2.5">
+          {feedbacks.length === 0 ? (
             <div className="text-center py-8 text-slate-400 text-xs">
-              No reviews found for this filter.
+              No reviews available yet.
             </div>
           ) : (
-            filteredFeedbacks.map((item, idx) => (
+            feedbacks.map((item, idx) => (
               <div
                 key={item.id || idx}
                 className="bg-slate-50/60 border border-slate-200/80 rounded-xl p-3.5 shadow-sm text-left"
@@ -211,4 +159,5 @@ export function LoginFeedbackDialog({ open, onOpenChange, feedbacks }: LoginFeed
     </Dialog>
   )
 }
+
 
