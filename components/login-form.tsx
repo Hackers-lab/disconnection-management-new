@@ -41,6 +41,17 @@ const DEFAULT_FEEDBACKS: FeedbackItem[] = [
   },
 ]
 
+const TRUSTED_GRADIENTS = [
+  "from-blue-600 via-indigo-600 to-violet-600",
+  "from-violet-600 via-purple-600 to-fuchsia-600",
+  "from-fuchsia-600 via-pink-600 to-rose-600",
+  "from-rose-600 via-orange-500 to-amber-500",
+  "from-amber-600 via-emerald-600 to-teal-600",
+  "from-teal-600 via-cyan-600 to-blue-600",
+  "from-cyan-600 via-indigo-600 to-purple-600",
+  "from-purple-600 via-rose-600 to-red-500",
+]
+
 interface LoginFormProps {
   initialFeedbacks?: FeedbackItem[]
   initialTenantCount?: number
@@ -62,8 +73,17 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
   const [isStandalone, setIsStandalone] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallClicked, setIsInstallClicked] = useState(false)
+  const [gradientIndex, setGradientIndex] = useState(0)
   const cidRef = useRef<string>("")
   const router = useRouter()
+
+  // Cycle gradient effect every 1 second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGradientIndex((prev) => (prev + 1) % TRUSTED_GRADIENTS.length)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   // 1. Fetch public feedbacks if not supplied initially
   useEffect(() => {
@@ -474,10 +494,12 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
         )}
       </div>
 
-      {/* Light Elegant Samarata Trust Line */}
+      {/* Light Elegant Samarata Trust Line with 1s Cycling Gradient & Blinking Effect */}
       <div className="text-center pt-1 select-none">
-        <p className="text-[17px] sm:text-[19px] font-bold text-slate-700 font-[family-name:var(--font-samarata)] tracking-wide">
-          Trusted by {initialTenantCount}+ Offices.
+        <p className="text-[17px] sm:text-[19px] font-bold font-[family-name:var(--font-samarata)] tracking-wide animate-pulse">
+          <span className={`bg-gradient-to-r ${TRUSTED_GRADIENTS[gradientIndex]} bg-clip-text text-transparent drop-shadow-sm transition-all duration-500`}>
+            Trusted by {initialTenantCount}+ Offices.
+          </span>
         </p>
       </div>
 
