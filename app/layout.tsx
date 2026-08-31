@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans } from 'next/font/google'
+import localFont from 'next/font/local'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AuthInterceptor } from '@/components/auth-interceptor'
 import './globals.css'
@@ -8,6 +9,12 @@ const dmSans = DM_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700', '800'],
   variable: '--font-dm-sans',
+  display: 'swap',
+})
+
+const samarata = localFont({
+  src: '../public/Samarata.ttf',
+  variable: '--font-samarata',
   display: 'swap',
 })
 
@@ -31,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={dmSans.variable}>
+    <html lang="en" className={`${dmSans.variable} ${samarata.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="manifest" href="/manifest.json" />

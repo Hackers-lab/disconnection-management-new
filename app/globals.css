@@ -166,6 +166,39 @@ body {
     -webkit-text-fill-color: transparent;
     animation: textShimmer 7s ease-in-out infinite;
   }
+
+  @keyframes scrollVerticalUp {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    100% {
+      transform: translate3d(0, -50%, 0);
+    }
+  }
+
+  @keyframes scrollVerticalDown {
+    0% {
+      transform: translate3d(0, -50%, 0);
+    }
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  .animate-scroll-vertical-up-slow {
+    animation: scrollVerticalUp 44s linear infinite;
+    will-change: transform;
+  }
+
+  .animate-scroll-vertical-down-slow {
+    animation: scrollVerticalDown 50s linear infinite;
+    will-change: transform;
+  }
+
+  .animate-scroll-vertical-up-fast {
+    animation: scrollVerticalUp 38s linear infinite;
+    will-change: transform;
+  }
 }
 
 

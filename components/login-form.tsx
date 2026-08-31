@@ -43,9 +43,10 @@ const DEFAULT_FEEDBACKS: FeedbackItem[] = [
 
 interface LoginFormProps {
   initialFeedbacks?: FeedbackItem[]
+  initialTenantCount?: number
 }
 
-export function LoginForm({ initialFeedbacks }: LoginFormProps) {
+export function LoginForm({ initialFeedbacks, initialTenantCount = 10 }: LoginFormProps) {
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>(
     initialFeedbacks && initialFeedbacks.length > 0 ? initialFeedbacks : DEFAULT_FEEDBACKS
   )
@@ -471,6 +472,13 @@ export function LoginForm({ initialFeedbacks }: LoginFormProps) {
             </button>
           </>
         )}
+      </div>
+
+      {/* Light Elegant Samarata Trust Line */}
+      <div className="text-center pt-1 select-none">
+        <p className="text-[17px] sm:text-[19px] font-bold text-slate-700 font-[family-name:var(--font-samarata)] tracking-wide">
+          Trusted by {initialTenantCount}+ Offices.
+        </p>
       </div>
 
       {/* Comprehensive Feedback Reviews Modal Dialog */}

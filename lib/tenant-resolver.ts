@@ -39,8 +39,45 @@ type CachedRegistry = {
 let registryCache: CachedRegistry | null = null
 const CACHE_TTL_MS = 60 * 1000 // 60 seconds cache
 
+let cachedTenantCount: number | null = null
+let lastTenantCountFetch = 0
+const TENANT_COUNT_TTL = 3600_000 // 1 hour in-memory cache to prevent DB row read usage
+
 export function invalidateTenantCache() {
   registryCache = null
+  cachedTenantCount = null
+  lastTenantCountFetch = 0
+}
+
+export async function fetchCachedTenantCount(): Promise<number> {
+  const now = Date.now()
+  if (cachedTenantCount !== null && now - lastTenantCountFetch < TENANT_COUNT_TTL) {
+    return cachedTenantCount
+  }
+
+  try {
+    const res = await db.execute("SELECT count(*) as total FROM ccc_registry")
+    if (res.rows && res.rows[0]) {
+      const count = Number(res.rows[0].total || 0)
+      if (count > 0) {
+        cachedTenantCount = count
+        lastTenantCountFetch = now
+        return count
+      }
+    }
+  } catch (err) {
+    console.warn("Tenant count query warning:", err)
+  }
+
+  try {
+    const tenants = await getTenantRegistry()
+    const count = Object.keys(tenants).length || 8
+    cachedTenantCount = count
+    lastTenantCountFetch = now
+    return count
+  } catch {
+    return cachedTenantCount || 8
+  }
 }
 
 function parseTenantRow(row: any): TenantConfig | null {
