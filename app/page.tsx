@@ -9,5 +9,6 @@ export default async function Home() {
     redirect("/dashboard")
   }
 
+  {/* @ts-expect-error Server Component */}
   return <LoginPage />
 }

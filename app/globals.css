@@ -139,6 +139,33 @@ body {
   .animate-marquee:hover {
     animation-play-state: paused;
   }
+
+  @keyframes textShimmer {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .animate-title-shimmer {
+    background: linear-gradient(
+      115deg,
+      #020617 0%,
+      #0f172a 30%,
+      #475569 50%,
+      #0f172a 70%,
+      #020617 100%
+    );
+    background-size: 260% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: textShimmer 7s ease-in-out infinite;
+  }
 }
 
 
