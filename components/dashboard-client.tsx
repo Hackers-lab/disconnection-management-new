@@ -36,7 +36,7 @@ const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m =>
 const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
-import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft } from "lucide-react"
+import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2 } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
 
@@ -87,6 +87,91 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   const [bypassSubscription, setBypassSubscription] = useState(!!initialProfile?.bypassSubscription)
   const [profileCccCode, setProfileCccCode] = useState(initialProfile?.cccCode || "")
   const [profileCccName, setProfileCccName] = useState(initialProfile?.cccName || "")
+
+  // Full User Profile & Edit State
+  const [profileData, setProfileData] = useState<any>(null)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [profileEditMobile, setProfileEditMobile] = useState("")
+  const [profileEditVendor, setProfileEditVendor] = useState("")
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null)
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false)
+
+  const fetchFullUserProfile = async () => {
+    try {
+      const res = await fetch("/api/user/profile")
+      if (res.ok) {
+        const data = await res.json()
+        setProfileData(data)
+        if (data.name) setProfileName(data.name)
+        if (data.cccCode) setProfileCccCode(data.cccCode)
+        if (data.cccName) setProfileCccName(data.cccName)
+        if (data.subscriptionStatus) setIsSubscribed(data.subscriptionStatus === "active" || data.isSubscribed)
+        if (data.subscriptionExpiresAt) setSubscriptionExpiresAt(data.subscriptionExpiresAt)
+        return data
+      }
+    } catch (e) {
+      console.warn("Failed to fetch full user profile in dashboard client", e)
+    }
+  }
+
+  useEffect(() => {
+    fetchFullUserProfile()
+  }, [])
+
+  const startEditProfile = () => {
+    setProfileEditMobile(profileData?.mobileNumber || "")
+    setProfileEditVendor(profileData?.vendorCode || "")
+    setProfileSaveError(null)
+    setProfileSaveSuccess(false)
+    setIsEditingProfile(true)
+  }
+
+  const handleSaveProfileDetails = async () => {
+    const cleanMob = profileEditMobile.trim()
+    const cleanVen = profileEditVendor.trim()
+
+    if (cleanMob && !/^\d{10}$/.test(cleanMob)) {
+      setProfileSaveError("Mobile number must be exactly 10 digits")
+      return
+    }
+
+    if (cleanVen && !/^\d{6}$/.test(cleanVen)) {
+      setProfileSaveError("SAP Vendor code must be exactly 6 digits")
+      return
+    }
+
+    setProfileSaving(true)
+    setProfileSaveError(null)
+    setProfileSaveSuccess(false)
+
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mobileNumber: cleanMob || null,
+          vendorCode: cleanVen || null,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to update profile")
+      }
+
+      setProfileSaveSuccess(true)
+      await fetchFullUserProfile()
+      setTimeout(() => {
+        setIsEditingProfile(false)
+        setProfileSaveSuccess(false)
+      }, 1000)
+    } catch (err: any) {
+      setProfileSaveError(err.message || "Failed to save profile")
+    } finally {
+      setProfileSaving(false)
+    }
+  }
 
   // Check if tenant is linked to Google Drive/Sheets on mount
   useEffect(() => {
@@ -1637,32 +1722,188 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Profile Details Card */}
               <div className="md:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-5">
-                <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-500" />
-                  Account Details
-                </h2>
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <span className="text-slate-400 font-medium">Full Name:</span>
-                  <span className="col-span-2 font-semibold text-slate-800">{profileName || "N/A"}</span>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <User className="h-5 w-5 text-blue-600" />
+                    Account & Agency Details
+                  </h2>
+                  {!isEditingProfile && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={startEditProfile}
+                      className="h-8 px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                      Edit Details
+                    </Button>
+                  )}
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                  <span className="text-slate-400 font-medium">Agency ID:</span>
-                  <span className="col-span-2 font-mono font-semibold text-slate-700">{(agencies[0] || role)}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                  <span className="text-slate-400 font-medium">Subdivision:</span>
-                  <span className="col-span-2 font-mono font-semibold text-blue-600">{profileCccCode || "SYSTEM"}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                  <span className="text-slate-400 font-medium">Access Role:</span>
-                  <span className="col-span-2 capitalize font-semibold text-slate-700">{role}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                  <span className="text-slate-400 font-medium">Assigned Scope:</span>
-                  <span className="col-span-2 text-xs font-semibold text-slate-700">
-                    {agencies && agencies.length > 0 ? agencies.join(", ") : "None (All Access)"}
-                  </span>
-                </div>
+
+                {/* Edit Form or Read-only Details */}
+                {isEditingProfile ? (
+                  <div className="space-y-4 pt-1">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-purple-600" />
+                        Registered Mobile Number (10 digits)
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 select-none">
+                          +91
+                        </span>
+                        <Input
+                          value={profileEditMobile}
+                          onChange={(e) => setProfileEditMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                          placeholder="e.g. 9876543210"
+                          maxLength={10}
+                          className="font-mono text-sm bg-white border-slate-300 focus:border-blue-500"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500">Used for verification, SMS alerts, and supervisor communications.</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-blue-600" />
+                        SAP Vendor Code (6 digits)
+                      </Label>
+                      <Input
+                        value={profileEditVendor}
+                        onChange={(e) => setProfileEditVendor(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="e.g. 104523"
+                        maxLength={6}
+                        className="font-mono text-sm bg-white border-slate-300 focus:border-blue-500"
+                      />
+                      <p className="text-[11px] text-slate-500">6-digit SAP / ERP vendor identification number.</p>
+                    </div>
+
+                    {profileSaveError && (
+                      <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 p-2.5 rounded-lg font-medium">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>{profileSaveError}</span>
+                      </div>
+                    )}
+
+                    {profileSaveSuccess && (
+                      <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg font-medium">
+                        <Check className="h-4 w-4 shrink-0" />
+                        <span>Profile details updated successfully!</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsEditingProfile(false)}
+                        disabled={profileSaving}
+                        className="h-8 text-xs"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveProfileDetails}
+                        disabled={profileSaving}
+                        className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                      >
+                        {profileSaving ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5 mr-1.5" /> Save Changes
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span className="text-slate-500 font-medium">Full Name:</span>
+                      <span className="col-span-2 font-semibold text-slate-900">{profileData?.name || profileName || "N/A"}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
+                      <span className="text-slate-500 font-medium">Username:</span>
+                      <span className="col-span-2 font-mono font-semibold text-slate-700">{profileData?.username || "N/A"}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
+                      <span className="text-slate-500 font-medium">Subdivision:</span>
+                      <span className="col-span-2 font-mono font-semibold text-blue-600">
+                        {profileData?.cccCode || profileCccCode || "SYSTEM"} {profileData?.cccName && profileData.cccName !== (profileData?.cccCode || profileCccCode) ? `(${profileData.cccName})` : (profileCccName && profileCccName !== profileCccCode ? `(${profileCccName})` : "")}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
+                      <span className="text-slate-500 font-medium">Access Role:</span>
+                      <span className="col-span-2 capitalize font-semibold text-slate-800">{profileData?.role || role}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
+                      <span className="text-slate-500 font-medium">Assigned Scope:</span>
+                      <span className="col-span-2 text-xs font-semibold text-slate-700">
+                        {(profileData?.agencies && profileData.agencies.length > 0)
+                          ? profileData.agencies.join(", ")
+                          : (agencies && agencies.length > 0 ? agencies.join(", ") : "None (All Access)")}
+                      </span>
+                    </div>
+
+                    {/* Mobile Number Row */}
+                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
+                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-purple-600" />
+                        Mobile No:
+                      </span>
+                      <div className="col-span-2 flex items-center justify-between gap-2">
+                        {profileData?.mobileNumber && /^\d{10}$/.test(profileData.mobileNumber) ? (
+                          <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 text-xs">
+                            +91 {profileData.mobileNumber}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            <AlertTriangle className="h-3 w-3" /> Not Tagged
+                          </span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={startEditProfile}
+                          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
+                        >
+                          {profileData?.mobileNumber ? "Change" : "+ Add Mobile"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Vendor Code Row */}
+                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
+                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-blue-600" />
+                        Vendor Code:
+                      </span>
+                      <div className="col-span-2 flex items-center justify-between gap-2">
+                        {profileData?.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
+                          <span className="font-mono font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-xs">
+                            {profileData.vendorCode}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            <AlertTriangle className="h-3 w-3" /> Not Tagged
+                          </span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={startEditProfile}
+                          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
+                        >
+                          {profileData?.vendorCode ? "Change" : "+ Add Vendor Code"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Billing / Subscription Info Card */}

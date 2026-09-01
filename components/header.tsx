@@ -1086,7 +1086,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
             <div 
               onClick={() => {
                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                setShowProfileDialog(true)
+                setActiveView("profile")
               }}
               className="flex items-center gap-2 text-right hover:bg-slate-100/80 px-2 py-1 rounded-xl cursor-pointer transition-all select-none"
               title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}`}
