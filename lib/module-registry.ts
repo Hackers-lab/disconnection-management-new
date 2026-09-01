@@ -132,5 +132,15 @@ export const MODULE_REGISTRY: Record<string, PlatformModuleManifest> = {
     permissions: ["read", "create", "update", "inspect", "install", "certify"],
     badgeRule: { targetStatus: ["PENDING_INSPECTION", "INSPECTED", "APPLICATION_PENDING", "WO_ISSUED"], agencyScoped: true },
   },
+  "permanent-disconnection": {
+    id: "permanent-disconnection",
+    title: "Permanent Disconnection",
+    sheetTab: "Permanent_Disconnection",
+    primaryKey: "pdId",
+    idPrefix: "PD-",
+    cacheKey: "pd_data_cache",
+    permissions: ["read", "create", "issue", "install", "return", "finalize", "update"],
+    badgeRule: { targetStatus: ["issued"], agencyScoped: true },
+  },
 }
 

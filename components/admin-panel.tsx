@@ -59,6 +59,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     safety: ["read", "create", "update", "delete", "approve_notesheet", "issue_po", "finalize"],
     misc_inspection: ["read", "create", "update", "delete"],
     icds: ["read", "create", "update", "delete", "inspect", "process", "execute", "install", "certify"],
+    permanent_disconnection: ["read", "create", "update", "delete", "issue", "install", "return", "finalize"],
   },
   executive: {
     disconnection: ["read", "create", "update"],
@@ -75,6 +76,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     safety: ["read", "create", "update", "approve_notesheet", "issue_po", "finalize"],
     misc_inspection: ["read", "create", "update"],
     icds: ["read", "create", "update", "inspect", "process", "execute", "install", "certify"],
+    permanent_disconnection: ["read", "create", "update", "issue", "install", "return", "finalize"],
   },
   agency: {
     disconnection: ["read", "update"],
@@ -91,6 +93,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     safety: ["read", "create", "update"],
     misc_inspection: ["read", "create", "update"],
     icds: ["read", "inspect", "execute", "install", "certify"],
+    permanent_disconnection: ["read", "install", "update"],
   },
   store_keeper: {
     disconnection: ["read"],
@@ -106,6 +109,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     material: ["read", "create", "update", "receive", "issue", "stock"],
     misc_inspection: ["read"],
     icds: ["read", "process"],
+    permanent_disconnection: ["read", "return"],
   },
   reader: {
     disconnection: ["read"],
@@ -121,6 +125,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     material: ["read"],
     misc_inspection: ["read"],
     icds: ["read"],
+    permanent_disconnection: ["read", "create"],
   },
   viewer: {
     disconnection: ["read"],
@@ -136,6 +141,7 @@ const ROLE_TEMPLATES: Record<string, Record<string, string[]>> = {
     material: ["read"],
     misc_inspection: ["read"],
     icds: ["read"],
+    permanent_disconnection: ["read"],
   },
 }
 
@@ -3255,6 +3261,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     { id: "icds", name: "ICDS Electrification" },
                     { id: "meter", name: "Meter Management" },
                     { id: "meter_replacement", name: "Replacement List" },
+                    { id: "permanent_disconnection", name: "Permanent Disconnection" },
                     { id: "nsc", name: "NSC Management" },
                     { id: "consumer_master", name: "Consumer Master" },
                     { id: "material", name: "Material Management" },
@@ -3290,7 +3297,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {modulesList.filter(m => !["nsc", "meter_replacement", "icds"].includes(m.id)).map((mod) => {
+                          {modulesList.filter(m => !["nsc", "meter_replacement", "icds", "permanent_disconnection"].includes(m.id)).map((mod) => {
                             const curPerms = roleData[mod.id] || []
                             return (
                               <TableRow key={mod.id}>
@@ -3320,6 +3327,35 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <div className="pt-2 border-t space-y-4">
                         <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Workflow Specific Sub-Action Permissions</h4>
                         
+                        {/* Permanent Disconnection Granular */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                          <p className="text-xs font-bold text-rose-800">Permanent Disconnection (PD) Flow Sub-Actions</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            {[
+                              { id: "read", label: "Read (View Only)" },
+                              { id: "create", label: "Propose for PD" },
+                              { id: "issue", label: "Issue to Agency" },
+                              { id: "install", label: "Mark Disconnected (Site)" },
+                              { id: "return", label: "Return Meter to Store" },
+                              { id: "finalize", label: "Add / Edit Note Sheet" },
+                            ].map(sub => {
+                              const checked = (roleData["permanent_disconnection"] || []).includes(sub.id)
+                              return (
+                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-rose-50/50">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={selectedRole === "admin"}
+                                    onChange={() => togglePerm("permanent_disconnection", sub.id)}
+                                    className="h-3.5 w-3.5 rounded text-rose-600"
+                                  />
+                                  <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+
                         {/* ICDS Electrification Granular */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                           <p className="text-xs font-bold text-emerald-800">ICDS Electrification Flow Sub-Actions</p>

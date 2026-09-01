@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Search, X, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Loader2, Download, RefreshCw, Check, ArrowLeft, RotateCcw, Package,
-  MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet
+  MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet, AlertCircle
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"

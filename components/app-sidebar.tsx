@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Building2,
   Camera,
+  PowerOff,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -29,7 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { matchesAgency } from "@/lib/permission-utils"
 
 // Define the available views
-export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "spotai" | "safety" | "misc-inspection" | "icds" | "gis-camera"
+export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "spotai" | "safety" | "misc-inspection" | "icds" | "gis-camera" | "permanent-disconnection"
 
 interface AppSidebarProps {
   activeView: ViewType
@@ -48,6 +49,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
   const [safetyPendingCount, setSafetyPendingCount] = useState(0)
   const [miscPendingCount, setMiscPendingCount] = useState(0)
   const [icdsPendingCount, setIcdsPendingCount] = useState(0)
+  const [pdPendingCount, setPdPendingCount] = useState(0)
   const [loadingCounts, setLoadingCounts] = useState<Record<string, boolean>>({
     disconnection: true,
     deemed: true,
@@ -55,10 +57,39 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     safety: true,
     "misc-inspection": true,
     icds: true,
+    "permanent-disconnection": true,
   })
 
   // Helper calculators for module counts from IndexedDB
   const upperAgencies = (agencies || []).map((a) => a.trim()).filter(Boolean)
+
+  const loadPdFromCache = async () => {
+    try {
+      const cached = await getFromCache<any[]>("pd_data_cache")
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        const isAgency = userRole === "agency"
+        const count = cached.filter((r) => {
+          if (isAgency) {
+            if (r.status !== "issued") return false
+            const recAgency = String(r.agency || "").trim()
+            if (upperAgencies.length > 0 && !upperAgencies.some((ua) => matchesAgency(recAgency, ua))) {
+              return false
+            }
+            return true
+          }
+          return r.status === "proposed" || (r.status === "disconnected" && (!r.noteSheetNo || r.meterReturnStatus !== "returned"))
+        }).length
+        setPdPendingCount(count)
+        return true
+      }
+      return false
+    } catch (e) {
+      console.error("Error loading PD counts in sidebar:", e)
+      return false
+    } finally {
+      setLoadingCounts((prev) => ({ ...prev, "permanent-disconnection": false }))
+    }
+  }
 
   const loadIcdsFromCache = async () => {
     try {
@@ -183,6 +214,7 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
     async function initCounts() {
       try {
         await Promise.all([
+          loadPdFromCache(),
           loadIcdsFromCache(),
           loadSafetyFromCache(),
           loadMiscFromCache(),
@@ -203,7 +235,9 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       const key = (e as CustomEvent).detail?.key
       if (!key) return
 
-      if (key === "icds_data_cache") {
+      if (key === "pd_data_cache") {
+        loadPdFromCache()
+      } else if (key === "icds_data_cache") {
         loadIcdsFromCache()
       } else if (key === "safety_data_cache") {
         loadSafetyFromCache()
@@ -290,6 +324,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
       id: "meter-replacement",
       label: "Replacement List",
       icon: ClipboardCheck,
+    },
+    {
+      id: "permanent-disconnection",
+      label: "Permanent Disconnection",
+      icon: PowerOff,
     },
     {
       id: "material",
@@ -380,6 +419,11 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
             {item.id === "icds" && (
               <Badge variant={icdsPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
                 {icdsPendingCount}
+              </Badge>
+            )}
+            {item.id === "permanent-disconnection" && (
+              <Badge variant={pdPendingCount > 0 ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
+                {pdPendingCount}
               </Badge>
             )}
           </Button>

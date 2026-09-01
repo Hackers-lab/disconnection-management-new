@@ -30,6 +30,7 @@ const MaterialList = dynamic(() => import("@/components/material-list").then(m =
 const SafetyList = dynamic(() => import("@/components/safety-list").then(m => ({ default: m.SafetyList })), { ssr: false })
 const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-list").then(m => ({ default: m.MiscInspectionList })), { ssr: false })
 const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), { ssr: false })
+const PermanentDisconnectionList = dynamic(() => import("@/components/permanent-disconnection/permanent-disconnection-list").then(m => ({ default: m.PermanentDisconnectionList })), { ssr: false })
 const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
 const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
 const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m => ({ default: m.OsdPageView })), { ssr: false })
@@ -1666,6 +1667,16 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
             permissions={permissions}
             username={profileName || agencies[0] || role}
             officeName={profileCccName || profileCccCode}
+          />
+        )}
+
+        {activeView === "permanent-disconnection" && (
+          <PermanentDisconnectionList
+            userRole={role}
+            userAgencies={agencies}
+            username={profileName || agencies[0] || role}
+            agencies={agencies}
+            permissions={permissions}
           />
         )}
 

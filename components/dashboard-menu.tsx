@@ -24,7 +24,8 @@ import {
   ShieldAlert,
   Building2,
   Calendar,
-  Camera
+  Camera,
+  PowerOff
 } from "lucide-react"
 import { GlobalConsumerSearch } from "@/components/global-consumer-search"
 import { AdminSetupGuideBanner } from "@/components/admin-setup-guide"
@@ -55,6 +56,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [safetyPendingCount, setSafetyPendingCount] = useState<number>(0)
   const [miscPendingCount, setMiscPendingCount] = useState<number>(0)
   const [icdsPendingCount, setIcdsPendingCount] = useState<number>(0)
+  const [pdPendingCount, setPdPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({})
 
@@ -247,6 +249,17 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       status: "live"
     },
     {
+      id: "permanent-disconnection",
+      title: "Permanent Disconnection",
+      description: "Track permanent meter dismantling, Live OSD, GPS & Note Sheets",
+      icon: PowerOff,
+      color: "text-rose-600",
+      bgColor: "bg-rose-50",
+      borderColor: "hover:border-rose-400 hover:shadow-rose-500/10",
+      allowed: ["all"],
+      status: "live"
+    },
+    {
       id: "material",
       title: "Material Management",
       description: "Track office store materials inward and issuance",
@@ -307,13 +320,30 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
       // Read local IndexedDB caches first for instant 0ms counts
       try {
-        let [miscCached, safetyCached, icdsCached] = await Promise.all([
+        let [miscCached, safetyCached, icdsCached, pdCached] = await Promise.all([
           getFromCache<any[]>("misc_inspection_cache"),
           getFromCache<any[]>("safety_data_cache"),
           getFromCache<any[]>("icds_data_cache"),
+          getFromCache<any[]>("pd_data_cache"),
         ])
 
         const upperAgencies = (userAgencies || []).map((a) => a.trim().toUpperCase()).filter(Boolean)
+
+        if (pdCached && Array.isArray(pdCached)) {
+          const isAgency = userRole === "agency"
+          const count = pdCached.filter((r) => {
+            if (isAgency) {
+              if (r.status !== "issued") return false
+              const recAgency = String(r.agency || "").trim()
+              if (userAgencies.length > 0 && !userAgencies.some((ua) => matchesAgency(recAgency, ua))) {
+                return false
+              }
+              return true
+            }
+            return r.status === "proposed" || (r.status === "disconnected" && (!r.noteSheetNo || r.meterReturnStatus !== "returned"))
+          }).length
+          setPdPendingCount(count)
+        }
 
         // Do NOT fallback to API fetch for ICDS if cache is empty.
         // The count will populate when the user visits the ICDS module.
@@ -836,6 +866,23 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             }).length
             setDtrPaintingPendingCount(paintingPending)
           }
+        } else if (key === "pd_data_cache") {
+          const pdCached = await getFromCache<any[]>("pd_data_cache")
+          if (pdCached && Array.isArray(pdCached)) {
+            const isAgency = userRole === "agency"
+            const count = pdCached.filter((r) => {
+              if (isAgency) {
+                if (r.status !== "issued") return false
+                const recAgency = String(r.agency || "").trim()
+                if (userAgencies.length > 0 && !userAgencies.some((ua) => matchesAgency(recAgency, ua))) {
+                  return false
+                }
+                return true
+              }
+              return r.status === "proposed" || (r.status === "disconnected" && (!r.noteSheetNo || r.meterReturnStatus !== "returned"))
+            }).length
+            setPdPendingCount(count)
+          }
         }
         await refreshGlobalLatestDate()
       }
@@ -883,6 +930,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       if (module.id === "safety") count = safetyPendingCount
       else if (module.id === "misc-inspection") count = miscPendingCount
       else if (module.id === "icds") count = icdsPendingCount
+      else if (module.id === "permanent-disconnection") count = pdPendingCount
       else if (module.id === "disconnection") count = pendingCount
       else if (module.id === "deemed") count = ddPendingCount
       else if (module.id === "reconnection") count = reconnectionPendingCount

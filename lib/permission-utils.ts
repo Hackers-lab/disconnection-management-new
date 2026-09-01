@@ -20,6 +20,9 @@ export function getModulePermKeys(module: string): string[] {
   if (norm === "icds" || norm === "icds_electrification") {
     keys.push("icds", "icds_electrification")
   }
+  if (norm === "permanent_disconnection" || norm === "permanent-disconnection" || norm === "pd") {
+    keys.push("permanent_disconnection", "permanent-disconnection", "pd")
+  }
 
   return Array.from(new Set(keys))
 }
@@ -134,7 +137,41 @@ export function expandRolePermissions(roleName: string, perms: Record<string, st
       }
     }
 
+    // Permanent Disconnection Auto-Expansion
+    if (mod === "permanent_disconnection" || mod === "permanent-disconnection" || mod === "pd") {
+      if (actSet.size > 0) {
+        actSet.add("read")
+      }
+      if (actSet.has("update") || actSet.has("install") || actSet.has("disconnect")) {
+        actSet.add("install")
+        actSet.add("disconnect")
+        actSet.add("update")
+      }
+      if (isAdminOrExec) {
+        actSet.add("read")
+        actSet.add("create")
+        actSet.add("issue")
+        actSet.add("install")
+        actSet.add("disconnect")
+        actSet.add("return")
+        actSet.add("finalize")
+        actSet.add("delete")
+        actSet.add("update")
+      }
+    }
+
     expanded[mod] = Array.from(actSet)
+  }
+
+  // Ensure permanent_disconnection default fallback only if not defined at all in perms catalog
+  if (perms.permanent_disconnection === undefined && perms["permanent-disconnection"] === undefined && perms.pd === undefined) {
+    if (isAgency) {
+      expanded.permanent_disconnection = ["read", "install", "disconnect", "update"]
+    } else if (isAdminOrExec) {
+      expanded.permanent_disconnection = ["read", "create", "issue", "install", "disconnect", "return", "finalize", "delete", "update"]
+    } else if (roleLower === "viewer" || roleLower === "reader") {
+      expanded.permanent_disconnection = ["read"]
+    }
   }
 
   // Ensure nsc default fallback only if not defined at all in perms catalog

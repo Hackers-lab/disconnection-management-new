@@ -265,6 +265,14 @@ export const SYSTEM_MODULE_REGISTRY: SystemModuleMeta[] = [
     description: "Store materials inventory, field issues, and receiving records",
     category: "infrastructure",
   },
+  {
+    key: "permanent-disconnection",
+    label: "Permanent Disconnection (PD)",
+    shortLabel: "PD",
+    aliases: ["permanent-disconnection", "permanent_disconnection", "pd"],
+    description: "Permanent meter dismantling, live OSD tracking, store returns & note sheet finalization",
+    category: "operations",
+  },
 ]
 
 export interface SupplyModuleVersionDetail {
