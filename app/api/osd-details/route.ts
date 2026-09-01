@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const permCheck = await checkApiPermission("osd", "read")
+    const permCheck = await checkApiPermission(["osd", "permanent_disconnection", "consumer", "disconnection", "reconnection"], "read")
     if (!permCheck.authorized) {
       return NextResponse.json({ error: permCheck.error || "Forbidden" }, { status: permCheck.status || 403 })
     }

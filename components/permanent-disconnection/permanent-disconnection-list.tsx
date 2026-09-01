@@ -26,6 +26,8 @@ import {
   Clock,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Eye,
   MapPin,
   IndianRupee,
@@ -69,6 +71,8 @@ export function PermanentDisconnectionList({
   const { toast } = useToast()
   const [records, setRecords] = useState<PermanentDisconnection[]>([])
   const [loading, setLoading] = useState(true)
+  const [showKpis, setShowKpis] = useState(true)
+  const [showAgencySummary, setShowAgencySummary] = useState(false)
   const [activeTab, setActiveTab] = useState<PDTab>("all")
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -163,6 +167,14 @@ export function PermanentDisconnectionList({
     setLoading(true)
     try {
       if (bypassCache) {
+        const res = await fetch(`/api/permanent-disconnection?bypassCache=true`)
+        if (res.ok) {
+          const fresh: PermanentDisconnection[] = await res.json()
+          if (Array.isArray(fresh)) {
+            setRecords(fresh)
+            await saveToCache(CACHE_KEY, fresh)
+          }
+        }
         await checkVersion(true)
       } else {
         const cached = await getFromCache<PermanentDisconnection[]>(CACHE_KEY)
@@ -179,6 +191,17 @@ export function PermanentDisconnectionList({
       setLoading(false)
     }
   }, [checkVersion, toast])
+
+  const handleProposeSuccess = (newRec?: PermanentDisconnection) => {
+    if (newRec && typeof newRec === "object" && newRec.pdId) {
+      setRecords(prev => {
+        const next = [newRec, ...prev.filter(r => r.pdId !== newRec.pdId)]
+        saveToCache(CACHE_KEY, next)
+        return next
+      })
+    }
+    loadData(true)
+  }
 
   useEffect(() => {
     loadData()
@@ -466,28 +489,53 @@ export function PermanentDisconnectionList({
         </div>
       </div>
 
-      {/* KPI Counters Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-        {[
-          { key: "all", label: "All", count: counts.all, color: "text-slate-900", bg: "bg-slate-50 border-slate-200" },
-          { key: "proposed", label: "Proposed", count: counts.proposed, color: "text-amber-700", bg: "bg-amber-50/70 border-amber-200" },
-          { key: "issued", label: "Issued", count: counts.issued, color: "text-blue-700", bg: "bg-blue-50/70 border-blue-200" },
-          { key: "executed", label: "Executed", count: counts.executed, color: "text-rose-700", bg: "bg-rose-50/70 border-rose-200" },
-          { key: "return_pending", label: "Ret. Pending", count: counts.return_pending, color: "text-orange-700", bg: "bg-orange-50/70 border-orange-200" },
-          { key: "note_sheet_pending", label: "NS Pending", count: counts.note_sheet_pending, color: "text-purple-700", bg: "bg-purple-50/70 border-purple-200" },
-          { key: "completed", label: "Completed", count: counts.completed, color: "text-emerald-700", bg: "bg-emerald-50/70 border-emerald-200" }
-        ].map(item => (
+      {/* Collapsible KPI Counters Bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
           <button
-            key={item.key}
-            onClick={() => setActiveTab(item.key as PDTab)}
-            className={`p-2.5 rounded-lg border text-left transition-all ${item.bg} ${
-              activeTab === item.key ? "ring-2 ring-slate-800 font-bold shadow-sm" : "hover:opacity-90"
-            }`}
+            type="button"
+            onClick={() => setShowKpis(v => !v)}
+            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer select-none transition-colors"
           >
-            <div className="text-[11px] text-slate-500 font-medium truncate">{item.label}</div>
-            <div className={`text-lg font-black font-mono ${item.color}`}>{item.count}</div>
+            <PowerOff className="h-3.5 w-3.5 text-rose-600" />
+            <span>KPI Stage Overview</span>
+            {showKpis ? (
+              <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            )}
           </button>
-        ))}
+          {!showKpis && (
+            <span className="text-[11px] font-mono text-slate-500 font-semibold">
+              Total: <strong className="text-slate-900">{counts.all}</strong> | Pending: <strong className="text-rose-700">{counts.proposed + counts.issued + counts.return_pending + counts.note_sheet_pending}</strong>
+            </span>
+          )}
+        </div>
+
+        {showKpis && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            {[
+              { key: "all", label: "All", count: counts.all, color: "text-slate-900", bg: "bg-slate-50 border-slate-200" },
+              { key: "proposed", label: "Proposed", count: counts.proposed, color: "text-amber-700", bg: "bg-amber-50/70 border-amber-200" },
+              { key: "issued", label: "Issued", count: counts.issued, color: "text-blue-700", bg: "bg-blue-50/70 border-blue-200" },
+              { key: "executed", label: "Executed", count: counts.executed, color: "text-rose-700", bg: "bg-rose-50/70 border-rose-200" },
+              { key: "return_pending", label: "Ret. Pending", count: counts.return_pending, color: "text-orange-700", bg: "bg-orange-50/70 border-orange-200" },
+              { key: "note_sheet_pending", label: "NS Pending", count: counts.note_sheet_pending, color: "text-purple-700", bg: "bg-purple-50/70 border-purple-200" },
+              { key: "completed", label: "Completed", count: counts.completed, color: "text-emerald-700", bg: "bg-emerald-50/70 border-emerald-200" }
+            ].map(item => (
+              <button
+                key={item.key}
+                onClick={() => setActiveTab(item.key as PDTab)}
+                className={`p-2.5 rounded-lg border text-left transition-all ${item.bg} ${
+                  activeTab === item.key ? "ring-2 ring-slate-800 font-bold shadow-sm" : "hover:opacity-90"
+                }`}
+              >
+                <div className="text-[11px] text-slate-500 font-medium truncate">{item.label}</div>
+                <div className={`text-lg font-black font-mono ${item.color}`}>{item.count}</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Mobile-Optimized Compact Tabs */}
@@ -519,62 +567,62 @@ export function PermanentDisconnectionList({
       {/* Search and Filters Bar */}
       <div className="space-y-2 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex flex-col sm:flex-row items-center gap-2">
-          {/* Search Input with Clear Button */}
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search Consumer ID, Name, Mobile, Meter No, Note Sheet No..."
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter") {
-                  handleExecuteSearch()
-                }
-              }}
-              className="pl-8 pr-8 text-xs h-9"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput("")
-                  setSearchQuery("")
+          {/* Search Input Row with Filter Icon right beside */}
+          <div className="flex items-center gap-1.5 flex-1 w-full">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search Consumer ID, Name, Mobile, Meter No, Note Sheet No..."
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    handleExecuteSearch()
+                  }
                 }}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+                className="pl-8 pr-8 text-xs h-9"
+              />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput("")
+                    setSearchQuery("")
+                  }}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Icon Button placed directly alongside the Search Input */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsFilterDialogOpen(true)}
+              className={`h-9 w-9 shrink-0 relative ${
+                activeFiltersCount > 0
+                  ? "border-rose-300 bg-rose-50 text-rose-700"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`}
+              title="Open Advanced Filters"
+            >
+              <Filter className="h-4 w-4" />
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-600 border-2 border-white text-[9px] text-white flex items-center justify-center font-bold" />
+              )}
+            </Button>
           </div>
 
           {/* Dedicated Search Button */}
           <Button
             size="sm"
             onClick={handleExecuteSearch}
-            className="h-9 px-3 text-xs bg-slate-900 hover:bg-slate-800 text-white shrink-0 w-full sm:w-auto"
+            className="h-9 px-3.5 text-xs bg-slate-900 hover:bg-slate-800 text-white shrink-0 w-full sm:w-auto"
           >
             <Search className="h-3.5 w-3.5 mr-1" />
             Search
-          </Button>
-
-          {/* Dedicated Filters Button with Active Count Badge */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsFilterDialogOpen(true)}
-            className={`h-9 px-3 text-xs shrink-0 w-full sm:w-auto flex items-center justify-center gap-1.5 ${
-              activeFiltersCount > 0
-                ? "border-rose-300 bg-rose-50/60 text-rose-800 font-bold"
-                : "text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-600" />
-            <span>Filters</span>
-            {activeFiltersCount > 0 && (
-              <span className="h-4 min-w-[16px] px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center font-bold">
-                {activeFiltersCount}
-              </span>
-            )}
           </Button>
 
           {/* View Mode Toggle (Card vs List Table) */}
@@ -1096,38 +1144,51 @@ export function PermanentDisconnectionList({
       )}
 
       {/* Agency Performance Breakdown Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-          <Building2 className="h-4 w-4 text-slate-600" />
-          Agency Tracking & Progress Summary
-        </h3>
-
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="text-[11px]">
-                <TableHead className="font-bold">Agency Name</TableHead>
-                <TableHead className="text-center">Total Assigned</TableHead>
-                <TableHead className="text-center">Pending Field Execution</TableHead>
-                <TableHead className="text-center">Dismantled (Executed)</TableHead>
-                <TableHead className="text-center">Meter Returned</TableHead>
-                <TableHead className="text-center">Completed (Full)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {agencySummary.map(row => (
-                <TableRow key={row.agency} className="text-xs">
-                  <TableCell className="font-semibold text-slate-800">{row.agency}</TableCell>
-                  <TableCell className="text-center font-mono font-bold">{row.total}</TableCell>
-                  <TableCell className="text-center font-mono text-blue-700 font-bold">{row.issued}</TableCell>
-                  <TableCell className="text-center font-mono text-rose-700 font-bold">{row.executed}</TableCell>
-                  <TableCell className="text-center font-mono text-emerald-700 font-bold">{row.returnDone}</TableCell>
-                  <TableCell className="text-center font-mono text-purple-700 font-black">{row.completed}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowAgencySummary(v => !v)}
+            className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-950 transition-colors"
+          >
+            <Building2 className="h-4 w-4 text-slate-600" />
+            <span>Agency Tracking & Progress Summary</span>
+            {showAgencySummary ? (
+              <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            )}
+          </button>
         </div>
+
+        {showAgencySummary && (
+          <div className="overflow-x-auto pt-1">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-[11px]">
+                  <TableHead className="font-bold">Agency Name</TableHead>
+                  <TableHead className="text-center">Total Assigned</TableHead>
+                  <TableHead className="text-center">Pending Field Execution</TableHead>
+                  <TableHead className="text-center">Dismantled (Executed)</TableHead>
+                  <TableHead className="text-center">Meter Returned</TableHead>
+                  <TableHead className="text-center">Completed (Full)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agencySummary.map(row => (
+                  <TableRow key={row.agency} className="text-xs">
+                    <TableCell className="font-semibold text-slate-800">{row.agency}</TableCell>
+                    <TableCell className="text-center font-mono font-bold">{row.total}</TableCell>
+                    <TableCell className="text-center font-mono text-blue-700 font-bold">{row.issued}</TableCell>
+                    <TableCell className="text-center font-mono text-rose-700 font-bold">{row.executed}</TableCell>
+                    <TableCell className="text-center font-mono text-emerald-700 font-bold">{row.returnDone}</TableCell>
+                    <TableCell className="text-center font-mono text-purple-700 font-black">{row.completed}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       {/* Advanced Filters Dialog Modal */}
@@ -1277,7 +1338,7 @@ export function PermanentDisconnectionList({
       <PDProposeDialog
         isOpen={proposeOpen}
         onClose={() => setProposeOpen(false)}
-        onSuccess={() => loadData(true)}
+        onSuccess={handleProposeSuccess}
         agencies={agencies}
       />
 

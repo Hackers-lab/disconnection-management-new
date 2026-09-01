@@ -132,11 +132,16 @@ export async function _fetchPDRaw(spreadsheetId: string): Promise<PermanentDisco
     .map(r => parsePDRow(r.map(String)))
 }
 
-export const fetchPermanentDisconnections = unstable_cache(
+const _fetchPDCached = unstable_cache(
   async (spreadsheetId: string) => _fetchPDRaw(spreadsheetId),
   ["permanent-disconnections"],
   { revalidate: REVAL_S, tags: [PD_TAG] }
 )
+
+export async function fetchPermanentDisconnections(spreadsheetId?: string): Promise<PermanentDisconnection[]> {
+  const id = typeof spreadsheetId === "string" && spreadsheetId.length > 5 ? spreadsheetId : getSpreadsheetId()
+  return _fetchPDCached(id)
+}
 
 export async function nextPDId(id: string): Promise<string> {
   const all = await _fetchPDRaw(id)
@@ -164,12 +169,12 @@ export async function proposePD(req: {
   liveOsdAmount?: number
   agency?: string
   proposedBy?: string
-}): Promise<string> {
+}): Promise<{ pdId: string; record: PermanentDisconnection }> {
   const id = getSpreadsheetId()
   await ensurePDTab(id)
   const pdId = await nextPDId(id)
   const today = nowDate()
-  const initialStatus = req.agency && req.agency.trim() ? "issued" : "proposed"
+  const initialStatus: PermanentDisconnectionStatus = req.agency && req.agency.trim() ? "issued" : "proposed"
   const issuedDate = initialStatus === "issued" ? today : ""
   const issuedBy = initialStatus === "issued" ? (req.proposedBy || "") : ""
 
@@ -179,7 +184,7 @@ export async function proposePD(req: {
     req.consumerName,
     req.address,
     req.mobile || "",
-    String(req.liveOsdAmount || 0),
+    req.liveOsdAmount || 0,
     initialStatus,
     req.agency || "",
     today,
@@ -211,6 +216,36 @@ export async function proposePD(req: {
   })
   invalidatePDCache()
 
+  const record: PermanentDisconnection = {
+    pdId,
+    consumerId: req.consumerId,
+    consumerName: req.consumerName,
+    address: req.address,
+    mobile: req.mobile || "",
+    liveOsdAmount: req.liveOsdAmount || 0,
+    status: initialStatus,
+    agency: req.agency || "",
+    proposedDate: today,
+    proposedBy: req.proposedBy || "",
+    issuedDate,
+    issuedBy,
+    finalReading: "",
+    removedMeterNo: "",
+    meterCondition: undefined,
+    disconnectionDateTime: "",
+    latitude: "",
+    longitude: "",
+    evidencePhotos: "",
+    agencyRemarks: "",
+    meterReturnStatus: "pending",
+    meterReturnDate: "",
+    meterReturnCondition: undefined,
+    meterReturnRemarks: "",
+    noteSheetNo: "",
+    noteSheetDate: "",
+    closedRemarks: "",
+  }
+
   const tenant = getTenantContext()?.cccCode || "default"
   appendDeltaPatch(tenant, "permanent-disconnection", {
     action: "UPDATE",
@@ -218,7 +253,7 @@ export async function proposePD(req: {
     changes: { status: initialStatus, consumerId: req.consumerId, consumerName: req.consumerName, agency: req.agency || "" }
   }).catch(() => {})
 
-  return pdId
+  return { pdId, record }
 }
 
 export async function issuePDs(

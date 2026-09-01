@@ -61,7 +61,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Consumer ID, Name, and Address are required" }, { status: 400 })
     }
 
-    const pdId = await proposePD({
+    const result = await proposePD({
       consumerId,
       consumerName,
       address,
@@ -74,16 +74,16 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const tenantContext = getTenantContext()
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     await appendDeltaPatch(tenantId, "permanent-disconnection", {
-      action: "INSERT",
-      recordId: pdId,
-      changes: { pdId, consumerId, consumerName, status: agency ? "issued" : "proposed" }
+      action: "UPDATE",
+      recordId: result.pdId,
+      changes: { pdId: result.pdId, consumerId, consumerName, status: agency ? "issued" : "proposed" }
     }).catch(e => console.warn("Patch log error:", e))
 
     if (agency) {
       await updateBadgeCounts(tenantId, "permanent-disconnection", undefined, 1).catch(e => console.warn("Badge count error:", e))
     }
 
-    return NextResponse.json({ success: true, pdId })
+    return NextResponse.json({ success: true, pdId: result.pdId, record: result.record })
   } catch (e: any) {
     console.error("Propose PD error:", e)
     return NextResponse.json({ error: e.message || "Failed to propose PD" }, { status: 500 })

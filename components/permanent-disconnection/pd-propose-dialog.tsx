@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, PowerOff, AlertTriangle, CheckCircle2, IndianRupee, Search } from "lucide-react"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import type { PermanentDisconnection } from "@/lib/permanent-disconnection-types"
 
 interface Props {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (pdId?: string) => void
+  onSuccess: (newRecord?: any) => void
   agencies?: string[]
 }
 
@@ -40,51 +41,104 @@ export function PDProposeDialog({ isOpen, onClose, onSuccess, agencies = [] }: P
   const [checkingOsd, setCheckingOsd] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [masterMap, setMasterMap] = useState<Record<string, any>>({})
+  const [zoneMap, setZoneMap] = useState<{ zone: string; agency: string }[]>([])
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Load consumer master cache
+  // Load consumer master cache and zone mapping
   useEffect(() => {
-    async function loadMaster() {
+    async function loadMasterAndZoneMap() {
       try {
-        const cached = await getFromCache<any[]>("consumer_master_cache")
-        if (cached && Array.isArray(cached)) {
-          const map: Record<string, any> = {}
-          cached.forEach(c => {
+        const [cachedMaster, cachedConsumers, cachedZoneMap] = await Promise.all([
+          getFromCache<any[]>("consumer_master_cache"),
+          getFromCache<any[]>("consumers_data_cache"),
+          getFromCache<{ zone: string; agency: string }[]>("zone_map_cache"),
+        ])
+
+        const map: Record<string, any> = {}
+        if (cachedMaster && Array.isArray(cachedMaster)) {
+          cachedMaster.forEach(c => {
             if (c.consumerId) map[String(c.consumerId).trim()] = c
           })
-          setMasterMap(map)
+        }
+        if (cachedConsumers && Array.isArray(cachedConsumers)) {
+          cachedConsumers.forEach(c => {
+            const cid = String(c.consumerId || "").trim()
+            if (cid && !map[cid]) {
+              map[cid] = {
+                consumerId: cid,
+                name: c.consumerName || c.name || "",
+                address: c.address || "",
+                mobile: c.mobile || c.mobileNumber || "",
+                zone: c.mru || c.zone || "",
+                mru: c.mru || "",
+                agency: c.agency || "",
+                d2NetOS: parseFloat(c.d2NetOS || c.netOS || "0") || 0
+              }
+            }
+          })
+        }
+        setMasterMap(map)
+
+        if (cachedZoneMap && Array.isArray(cachedZoneMap) && cachedZoneMap.length > 0) {
+          setZoneMap(cachedZoneMap)
+        } else {
+          const res = await fetch("/api/zone-map")
+          if (res.ok) {
+            const fresh = await res.json()
+            if (Array.isArray(fresh)) {
+              setZoneMap(fresh)
+              await saveToCache("zone_map_cache", fresh)
+            }
+          }
         }
       } catch (e) {
-        console.warn("Failed to load consumer master cache", e)
+        console.warn("Failed to load consumer master or zone map cache", e)
       }
     }
     if (isOpen) {
-      loadMaster()
+      loadMasterAndZoneMap()
     }
   }, [isOpen])
 
-  // When 9-digit consumer ID is entered, autofill and trigger Live OSD fetch
+  // When 9-digit consumer ID is entered, autofill, map agency by zone, and trigger Live OSD fetch
   const handleConsumerIdChange = (val: string) => {
     const clean = val.replace(/\D/g, "").slice(0, 9)
     setConsumerId(clean)
 
     if (clean.length === 9) {
-      // 1. Check local master
+      // 1. Check local master / consumer list
       const match = masterMap[clean]
       if (match) {
         if (!consumerName) setConsumerName(match.name || match.consumerName || "")
         if (!address) setAddress(match.address || "")
-        if (!mobile) setMobile(match.mobile || "")
+        if (!mobile) setMobile(match.mobile || match.mobileNumber || "")
+
+        // Auto assign agency as per Zone / MRU
+        const zoneOrMru = (match.zone || match.mru || "").trim().toUpperCase()
+        if (zoneOrMru && zoneMap.length > 0) {
+          const zMatch = zoneMap.find(z => (z.zone || "").trim().toUpperCase() === zoneOrMru)
+          if (zMatch && zMatch.agency && !agency) {
+            setAgency(zMatch.agency)
+          }
+        } else if (match.agency && !agency) {
+          setAgency(match.agency)
+        }
+
+        // Local OSD fallback
+        const localDues = parseFloat(match.d2NetOS || match.netOS || "0") || 0
+        if (localDues > 0) {
+          setLiveOsdAmount(localDues)
+        }
       }
       // 2. Trigger Live OSD
-      fetchLiveOSD(clean)
+      fetchLiveOSD(clean, match)
     } else {
       setOsdData(null)
       setLiveOsdAmount(0)
     }
   }
 
-  const fetchLiveOSD = async (cid: string) => {
+  const fetchLiveOSD = async (cid: string, fallbackMatch?: any) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
@@ -92,7 +146,6 @@ export function PDProposeDialog({ isOpen, onClose, onSuccess, agencies = [] }: P
     abortControllerRef.current = controller
 
     setCheckingOsd(true)
-    setOsdData(null)
     try {
       const res = await fetch(`/api/osd-details?consumerId=${cid}`, {
         signal: controller.signal
@@ -136,6 +189,20 @@ export function PDProposeDialog({ isOpen, onClose, onSuccess, agencies = [] }: P
     } catch (e: any) {
       if (e.name !== "AbortError") {
         console.warn("Live OSD fetch error:", e)
+        // Check local master fallback
+        const localDues = fallbackMatch ? (parseFloat(fallbackMatch.d2NetOS || fallbackMatch.netOS || "0") || 0) : 0
+        if (localDues > 0) {
+          setLiveOsdAmount(localDues)
+          setOsdData({
+            consumerId: cid,
+            name: consumerName || fallbackMatch.name || "",
+            address: address || fallbackMatch.address || "",
+            osdAmount: localDues,
+            lpscAmount: 0,
+            totalDues: localDues,
+            docType: "OUTSTANDING (OFFLINE RECORD)"
+          })
+        }
       }
     } finally {
       setCheckingOsd(false)
@@ -181,7 +248,21 @@ export function PDProposeDialog({ isOpen, onClose, onSuccess, agencies = [] }: P
         title: "Permanent Disconnection Proposed",
         description: `Reference ID: ${data.pdId || "Created successfully"}`
       })
-      onSuccess(data.pdId)
+
+      const newRec: PermanentDisconnection = data.record || {
+        pdId: data.pdId,
+        consumerId,
+        consumerName: consumerName.trim(),
+        address: address.trim(),
+        mobile: mobile.trim(),
+        agency: agency.trim(),
+        liveOsdAmount: liveOsdAmount || 0,
+        status: agency.trim() ? "issued" : "proposed",
+        proposedDate: new Date().toISOString().split("T")[0],
+        meterReturnStatus: "pending"
+      }
+
+      onSuccess(newRec)
       handleClose()
     } catch (e: any) {
       toast({ title: e.message || "Failed to submit proposal", variant: "destructive" })
