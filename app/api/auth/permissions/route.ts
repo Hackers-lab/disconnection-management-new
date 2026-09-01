@@ -5,6 +5,7 @@ import { withTenant } from "@/lib/tenant-context"
 
 import { expandRolePermissions } from "@/lib/permissions"
 import { getTenantRegistry } from "@/lib/tenant-resolver"
+import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
@@ -54,6 +55,25 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         console.warn("Failed to lookup tenant cccName for session:", err)
       }
     }
+    let mobileNumber = ""
+    let vendorCode = ""
+    try {
+      const uRes = await db.execute({
+        sql: `SELECT u.mobile_number, u.role, u.username, u.agencies, a.vendor_code as agency_vendor_code, a.mobile_number as agency_mobile_number
+              FROM users u
+              LEFT JOIN agencies a ON (a.ccc_id = u.ccc_id AND (a.name = u.username OR a.name = u.agencies))
+              WHERE u.id = ? OR u.username = ? COLLATE NOCASE
+              LIMIT 1`,
+        args: [session.userId || "", session.username || ""]
+      })
+      if (uRes.rows && uRes.rows.length > 0) {
+        const uRow: any = uRes.rows[0]
+        mobileNumber = String(uRow.mobile_number || uRow.agency_mobile_number || "").trim()
+        vendorCode = String(uRow.agency_vendor_code || "").trim()
+      }
+    } catch (err) {
+      console.warn("User mobile/vendor lookup warning in permissions API:", err)
+    }
 
     if (!permissions) {
       // Default to empty permissions if role is not configured
@@ -81,6 +101,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         agencies: session.agencies,
         subscriptionStatus: session.subscriptionStatus,
         bypassSubscription: session.bypassSubscription,
+        mobileNumber,
+        vendorCode,
       })
     }
 
@@ -96,6 +118,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       agencies: session.agencies,
       subscriptionStatus: session.subscriptionStatus,
       bypassSubscription: session.bypassSubscription,
+      mobileNumber,
+      vendorCode,
     }, {
       headers: {
         "Cache-Control": "private, s-maxage=60, stale-while-revalidate=300",

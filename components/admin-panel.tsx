@@ -165,12 +165,20 @@ interface User {
   password: string
   role: string
   agencies: string[]
+  subscriptionStatus?: string
+  subscriptionExpiresAt?: string
+  bypassSubscription?: boolean
+  mobileNumber?: string
+  vendorCode?: string
 }
 
 interface Agency {
   id: string
   name: string
   description?: string
+  vendorCode?: string
+  mobileNumber?: string
+  email?: string
   isActive: boolean
 }
 
@@ -1695,7 +1703,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
           {/* Users List */}
           <div className="space-y-2">
             {users.map((user) => (
-              <Card key={user.id} className="p-2">
+              <Card key={user.id} className="p-3">
                 {editingUser?.id === user.id ? (
                   <div className="space-y-4 p-2">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1760,6 +1768,54 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       </div>
                     </div>
 
+                    {/* Subscription Settings for this user */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700">Subscription Status</Label>
+                        <Select
+                          value={editingUser.subscriptionStatus || "active"}
+                          onValueChange={(value) =>
+                            setEditingUser({ ...editingUser, subscriptionStatus: value })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs bg-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="inactive">Inactive / Expired</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700">Expiry Date (YYYY-MM-DD)</Label>
+                        <Input
+                          type="date"
+                          value={editingUser.subscriptionExpiresAt || ""}
+                          onChange={(e) =>
+                            setEditingUser({ ...editingUser, subscriptionExpiresAt: e.target.value })
+                          }
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2 pt-6">
+                        <input
+                          type="checkbox"
+                          id={`edit-bypass-${editingUser.id}`}
+                          checked={!!editingUser.bypassSubscription}
+                          onChange={(e) =>
+                            setEditingUser({ ...editingUser, bypassSubscription: e.target.checked })
+                          }
+                          className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                        />
+                        <label htmlFor={`edit-bypass-${editingUser.id}`} className="text-xs font-medium text-slate-700 cursor-pointer">
+                          Bypass Subscription (Free Pass)
+                        </label>
+                      </div>
+                    </div>
+
                     {editingUser.role !== "admin" && editingUser.role !== "viewer" && (
                       <div className="space-y-2">
                         <Label>Agencies</Label>
@@ -1799,20 +1855,68 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   </div>
                 ) : (
                   <div className="flex justify-between items-center">
-                    <div>
-                      <div className="font-normal">{user.username}</div>
-                      <div className="flex items-center gap-2 mt-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900">{user.username}</span>
                         <Badge variant={user.role === "admin" ? "default" : "secondary"}>
                           {user.role}
                         </Badge>
-                        {user.agencies?.length > 0 && (
-                          <div className="flex gap-1">
-                            {user.agencies.map((a) => (
-                              <Badge key={a} variant="outline">{a}</Badge>
-                            ))}
-                          </div>
-                        )}
+
+                        {/* Individual Subscription Status Badge */}
+                        {(() => {
+                          const isExempt = user.role === "admin" || user.bypassSubscription
+                          const billingStartDate = new Date("2026-09-01T00:00:00")
+                          const isTrial = Date.now() < billingStartDate.getTime()
+
+                          if (isExempt) {
+                            return (
+                              <Badge variant="outline" className="text-[10px] font-semibold bg-slate-100 text-slate-700 border-slate-300">
+                                Free Pass / Bypassed
+                              </Badge>
+                            )
+                          } else if (isTrial) {
+                            return (
+                              <Badge variant="outline" className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
+                                Trial Active
+                              </Badge>
+                            )
+                          } else if (user.subscriptionStatus === "active") {
+                            let isExpired = false
+                            if (user.subscriptionExpiresAt) {
+                              const expDate = new Date(user.subscriptionExpiresAt)
+                              expDate.setHours(23, 59, 59, 999)
+                              if (Date.now() > expDate.getTime()) isExpired = true
+                            }
+                            if (isExpired) {
+                              return (
+                                <Badge variant="outline" className="text-[10px] font-semibold bg-rose-50 text-rose-700 border-rose-200">
+                                  Expired ({user.subscriptionExpiresAt})
+                                </Badge>
+                              )
+                            }
+                            return (
+                              <Badge className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-100">
+                                Active {user.subscriptionExpiresAt ? `(Expires: ${user.subscriptionExpiresAt})` : ""}
+                              </Badge>
+                            )
+                          } else {
+                            return (
+                              <Badge variant="destructive" className="text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
+                                Expired / Inactive
+                              </Badge>
+                            )
+                          }
+                        })()}
                       </div>
+
+                      {user.agencies?.length > 0 && (
+                        <div className="flex gap-1 flex-wrap mt-0.5">
+                          {user.agencies.map((a) => (
+                            <Badge key={a} variant="outline" className="text-[10px] bg-slate-50 text-slate-600">{a}</Badge>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-xs text-gray-500 font-mono">
                           {visiblePasswordId === user.id ? user.password : "••••••••"}
@@ -1831,7 +1935,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         </Button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex gap-2 items-center">
                       <Button
                         variant="ghost"
                         size="sm"

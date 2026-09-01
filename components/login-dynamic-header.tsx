@@ -49,8 +49,8 @@ export function LoginDynamicHeader() {
         setCurrentIndex((prev) => (prev + 1) % MODULES.length)
         setIsFading(false)
         triggerHaptic("tick")
-      }, 260)
-    }, 2200)
+      }, 280)
+    }, 3800)
 
     return () => clearInterval(timer)
   }, [])
@@ -59,11 +59,11 @@ export function LoginDynamicHeader() {
   const IconComponent = current.icon
 
   return (
-    <div className="text-center space-y-2 select-none">
+    <div className="text-center space-y-2.5 select-none">
       {/* Dynamic Synchronized Rotating Badge Box */}
       <div
-        className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15 ring-4 ring-white/80 transition-all duration-500 hover:scale-105 ${
-          isFading ? "scale-90 shadow-sm" : "scale-100 shadow-lg"
+        className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white shadow-md shadow-slate-900/15 ring-4 ring-white/80 transition-all duration-500 hover:scale-105 ${
+          isFading ? "scale-95 shadow-sm" : "scale-100 shadow-md"
         }`}
         style={{
           transform: `rotate(${currentIndex * 90}deg)`,
@@ -71,23 +71,22 @@ export function LoginDynamicHeader() {
         }}
       >
         <div
-          className={`transition-all duration-300 transform ${
-            isFading ? "opacity-0 scale-75" : "opacity-100 scale-100"
+          className={`transition-opacity duration-250 ${
+            isFading ? "opacity-0" : "opacity-100"
           }`}
           style={{
             transform: `rotate(-${currentIndex * 90}deg)`,
-            transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
           }}
         >
           <IconComponent className={`w-6 h-6 transition-colors ${current.iconClass}`} />
         </div>
       </div>
 
-      {/* Dynamic Animated Title (Fixed height container to avoid layout shift) */}
+      {/* Dynamic Smooth Title (Fixed height container to prevent layout shift) */}
       <div className="h-8 flex items-center justify-center overflow-hidden">
         <h1
-          className={`text-2xl sm:text-[26px] font-black tracking-tight animate-title-shimmer select-none drop-shadow-sm transition-all duration-300 transform ${
-            isFading ? "opacity-0 -translate-y-2 scale-95" : "opacity-100 translate-y-0 scale-100"
+          className={`text-2xl sm:text-[26px] font-black tracking-tight text-slate-900 select-none drop-shadow-xs transition-opacity duration-300 ease-in-out ${
+            isFading ? "opacity-0" : "opacity-100"
           }`}
         >
           {current.title}

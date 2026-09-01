@@ -1,0 +1,169 @@
+import { NextRequest, NextResponse } from "next/server"
+import { verifySession } from "@/lib/session"
+import { db } from "@/lib/db"
+import { UserStorage } from "@/lib/user-storage"
+import { invalidateAgencyCache } from "@/lib/agency-storage"
+
+export const dynamic = "force-dynamic"
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await verifySession()
+    if (!session || !session.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const userId = session.userId
+    const cccCode = session.cccCode || "SYSTEM"
+
+    // Query user details from DB
+    const res = await db.execute({
+      sql: `SELECT u.id, u.username, u.full_name, u.mobile_number, u.email, u.role, 
+                   u.agencies, u.subscription_status, u.subscription_expires_at, u.bypass_subscription,
+                   c.ccc_code, c.ccc_name
+            FROM users u
+            LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+            WHERE u.id = ?
+            LIMIT 1`,
+      args: [userId]
+    })
+
+    if (!res.rows || res.rows.length === 0) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    const row: any = res.rows[0]
+    const userRole = String(row.role || session.role || "viewer").toLowerCase()
+    const username = String(row.username || session.username || "")
+    let userMobile = String(row.mobile_number || "").trim()
+    let vendorCode = ""
+
+    // Check if user is an agency or has assigned agencies to retrieve vendor_code and agency mobile if needed
+    const rawAgencies = row.agencies ? String(row.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+    const agencyNameToCheck = userRole === "agency" ? (rawAgencies[0] || username) : (rawAgencies[0] || "")
+
+    if (agencyNameToCheck || userRole === "agency") {
+      try {
+        const agencyRes = await db.execute({
+          sql: `SELECT a.vendor_code, a.mobile_number 
+                FROM agencies a
+                JOIN ccc_registry c ON a.ccc_id = c.id
+                WHERE c.ccc_code = ? COLLATE NOCASE 
+                  AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
+                LIMIT 1`,
+          args: [cccCode, agencyNameToCheck, username]
+        })
+        if (agencyRes.rows && agencyRes.rows.length > 0) {
+          const aRow: any = agencyRes.rows[0]
+          if (!vendorCode && aRow.vendor_code) {
+            vendorCode = String(aRow.vendor_code).trim()
+          }
+          if (!userMobile && aRow.mobile_number) {
+            userMobile = String(aRow.mobile_number).trim()
+          }
+        }
+      } catch (err) {
+        console.warn("Agency vendor code lookup error:", err)
+      }
+    }
+
+    return NextResponse.json({
+      id: String(row.id),
+      username,
+      name: String(row.full_name || username),
+      fullName: String(row.full_name || username),
+      email: String(row.email || ""),
+      role: userRole,
+      cccCode: String(row.ccc_code || cccCode),
+      cccName: String(row.ccc_name || cccCode),
+      agencies: rawAgencies.length > 0 ? rawAgencies : (userRole === "agency" ? [username] : []),
+      mobileNumber: userMobile,
+      vendorCode,
+      subscriptionStatus: String(row.subscription_status || session.subscriptionStatus || "active"),
+      subscriptionExpiresAt: String(row.subscription_expires_at || session.subscriptionExpiresAt || ""),
+      bypassSubscription: Boolean(row.bypass_subscription ?? session.bypassSubscription),
+      isSubscribed: session.isSubscribed
+    })
+  } catch (error: any) {
+    console.error("Error fetching user profile:", error)
+    return NextResponse.json({ error: error.message || "Failed to fetch profile" }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await verifySession()
+    if (!session || !session.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const userId = session.userId
+    const cccCode = session.cccCode || "SYSTEM"
+    const body = await req.json()
+    const { mobileNumber, vendorCode, fullName, email } = body
+
+    const cleanMobile = mobileNumber !== undefined ? String(mobileNumber).trim() : null
+    const cleanVendor = vendorCode !== undefined ? String(vendorCode).trim() : null
+    const cleanName = fullName !== undefined ? String(fullName).trim() : null
+    const cleanEmail = email !== undefined ? String(email).trim() : null
+
+    // Validation
+    if (cleanMobile && !/^\d{10}$/.test(cleanMobile)) {
+      return NextResponse.json({ error: "Mobile number must be exactly 10 digits" }, { status: 400 })
+    }
+
+    if (cleanVendor && !/^\d{6}$/.test(cleanVendor)) {
+      return NextResponse.json({ error: "SAP Vendor Code must be exactly 6 digits" }, { status: 400 })
+    }
+
+    // 1. Update users table
+    if (cleanMobile !== null || cleanName !== null || cleanEmail !== null) {
+      await db.execute({
+        sql: `UPDATE users 
+              SET mobile_number = COALESCE(?, mobile_number),
+                  full_name = COALESCE(?, full_name),
+                  email = COALESCE(?, email),
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?`,
+        args: [cleanMobile || null, cleanName || null, cleanEmail || null, userId]
+      })
+      UserStorage.getInstance().invalidateCache()
+    }
+
+    // 2. If vendor code or mobile is provided, also update agency table if applicable
+    const userRole = (session.role || "").toLowerCase()
+    const username = session.username
+    const agencies = session.agencies || []
+    const agencyName = userRole === "agency" ? (agencies[0] || username) : (agencies[0] || "")
+
+    if (agencyName || cleanVendor) {
+      try {
+        await db.execute({
+          sql: `UPDATE agencies
+                SET vendor_code = COALESCE(?, vendor_code),
+                    mobile_number = COALESCE(?, mobile_number),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
+                  AND (name = ? COLLATE NOCASE OR name = ? COLLATE NOCASE)`,
+          args: [cleanVendor || null, cleanMobile || null, cccCode, agencyName, username]
+        })
+        invalidateAgencyCache(cccCode)
+      } catch (err) {
+        console.warn("Agency profile update warning:", err)
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Profile updated successfully",
+      profile: {
+        mobileNumber: cleanMobile,
+        vendorCode: cleanVendor,
+        fullName: cleanName,
+      }
+    })
+  } catch (error: any) {
+    console.error("Error updating user profile:", error)
+    return NextResponse.json({ error: error.message || "Failed to update profile" }, { status: 500 })
+  }
+}

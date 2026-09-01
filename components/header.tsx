@@ -35,6 +35,12 @@ import {
   MessageSquarePlus,
   Share2,
   Bell,
+  Phone,
+  Hash,
+  Pencil,
+  Check,
+  AlertCircle,
+  AlertTriangle,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
@@ -128,6 +134,92 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [clientCccCode, setClientCccCode] = useState<string>("")
   const [clientUsername, setClientUsername] = useState<string>("")
 
+  // Profile Edit Modal / Inline State
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [profileEditMobile, setProfileEditMobile] = useState("")
+  const [profileEditVendor, setProfileEditVendor] = useState("")
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null)
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false)
+
+  const loadUserProfile = async () => {
+    try {
+      const res = await fetch("/api/user/profile")
+      if (res.ok) {
+        const data = await res.json()
+        setProfileData(data)
+        return data
+      }
+    } catch (e) {
+      console.warn("Failed to fetch user profile, falling back to permissions", e)
+    }
+
+    try {
+      const permRes = await fetch("/api/auth/permissions")
+      if (permRes.ok) {
+        const pData = await permRes.json()
+        setProfileData(pData)
+        return pData
+      }
+    } catch (err) {
+      console.error("Failed to load permissions fallback", err)
+    }
+  }
+
+  const startEditProfile = () => {
+    setProfileEditMobile(profileData?.mobileNumber || "")
+    setProfileEditVendor(profileData?.vendorCode || "")
+    setProfileSaveError(null)
+    setProfileSaveSuccess(false)
+    setIsEditingProfile(true)
+  }
+
+  const handleSaveProfileDetails = async () => {
+    const cleanMob = profileEditMobile.trim()
+    const cleanVen = profileEditVendor.trim()
+
+    if (cleanMob && !/^\d{10}$/.test(cleanMob)) {
+      setProfileSaveError("Mobile number must be exactly 10 digits")
+      return
+    }
+
+    if (cleanVen && !/^\d{6}$/.test(cleanVen)) {
+      setProfileSaveError("SAP Vendor code must be exactly 6 digits")
+      return
+    }
+
+    setProfileSaving(true)
+    setProfileSaveError(null)
+    setProfileSaveSuccess(false)
+
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mobileNumber: cleanMob || null,
+          vendorCode: cleanVen || null,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to update profile")
+      }
+
+      setProfileSaveSuccess(true)
+      await loadUserProfile()
+      setTimeout(() => {
+        setIsEditingProfile(false)
+        setProfileSaveSuccess(false)
+      }, 1000)
+    } catch (err: any) {
+      setProfileSaveError(err.message || "Failed to save profile")
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setClientCccCode(localStorage.getItem("user_ccc_code") || "")
@@ -169,12 +261,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   useEffect(() => {
     console.log("🚀 Disconnection Management Web App - version 1.1.0 loaded");
-    fetch("/api/auth/permissions")
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) setProfileData(data)
-      })
-      .catch(e => console.error("Failed to load profile", e))
+    loadUserProfile()
   }, [])
 
   useEffect(() => {
@@ -1759,33 +1846,58 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       </Dialog>
 
       {/* Profile & Subscription Status Dialog */}
-      <Dialog open={showProfileDialog} onOpenChange={setShowProfileDialog}>
+      <Dialog open={showProfileDialog} onOpenChange={(open) => {
+        setShowProfileDialog(open)
+        if (open) {
+          setIsEditingProfile(false)
+          setProfileSaveError(null)
+          setProfileSaveSuccess(false)
+          loadUserProfile()
+        }
+      }}>
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-800 text-slate-100 dark">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-indigo-400" />
-              My Profile & Workspace Status
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2 text-base font-bold">
+                <User className="h-5 w-5 text-indigo-400" />
+                My Profile & Workspace Status
+              </DialogTitle>
+              {!isEditingProfile && profileData && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={startEditProfile}
+                  className="h-7 px-2.5 text-xs bg-slate-800 border-slate-700 text-indigo-300 hover:bg-indigo-950/50 hover:text-indigo-200"
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  Edit Details
+                </Button>
+              )}
+            </div>
           </DialogHeader>
+
           {profileData ? (
-            <div className="space-y-4 py-3 text-sm text-slate-300">
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-3">
+            <div className="space-y-3.5 py-2 text-sm text-slate-300">
+              {/* Basic Details */}
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
                 <span className="text-slate-400 font-medium">Name:</span>
-                <span className="col-span-2 font-semibold text-slate-100">{profileData.name || "N/A"}</span>
+                <span className="col-span-2 font-semibold text-slate-100">{profileData.name || profileData.fullName || "N/A"}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-3">
-                <span className="text-slate-400 font-medium">Agency ID:</span>
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
+                <span className="text-slate-400 font-medium">Username:</span>
                 <span className="col-span-2 font-mono font-semibold text-slate-200">{profileData.username}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-3">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
                 <span className="text-slate-400 font-medium">Subdivision:</span>
-                <span className="col-span-2 font-mono font-semibold text-blue-400">{profileData.cccCode}</span>
+                <span className="col-span-2 font-mono font-semibold text-blue-400">
+                  {profileData.cccCode} {profileData.cccName && profileData.cccName !== profileData.cccCode ? `(${profileData.cccName})` : ""}
+                </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-3">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
                 <span className="text-slate-400 font-medium">Role:</span>
                 <span className="col-span-2 capitalize font-semibold text-slate-200">{profileData.role}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-3">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
                 <span className="text-slate-400 font-medium">Assigned:</span>
                 <span className="col-span-2 text-xs font-semibold text-slate-200">
                   {profileData.agencies && profileData.agencies.length > 0
@@ -1793,7 +1905,156 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                     : "None (All Access)"}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 pb-1">
+
+              {/* Mobile Number & Vendor Code Display or Edit Form */}
+              {!isEditingProfile ? (
+                <>
+                  {/* Mobile Number Row */}
+                  <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
+                    <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-purple-400" />
+                      Mobile No:
+                    </span>
+                    <div className="col-span-2 flex items-center justify-between gap-2">
+                      {profileData.mobileNumber && /^\d{10}$/.test(profileData.mobileNumber) ? (
+                        <span className="font-mono font-bold text-emerald-400 text-xs">
+                          +91 {profileData.mobileNumber}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          <AlertTriangle className="h-3 w-3" /> Not Tagged
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={startEditProfile}
+                        className="h-6 px-2 text-[11px] text-indigo-400 hover:text-indigo-300 hover:bg-slate-800"
+                      >
+                        {profileData.mobileNumber ? "Change" : "Add Mobile"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Vendor Code Row */}
+                  <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
+                    <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                      <Hash className="h-3.5 w-3.5 text-blue-400" />
+                      Vendor Code:
+                    </span>
+                    <div className="col-span-2 flex items-center justify-between gap-2">
+                      {profileData.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
+                        <span className="font-mono font-bold text-cyan-400 text-xs bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800">
+                          {profileData.vendorCode}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          <AlertTriangle className="h-3 w-3" /> Not Tagged
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={startEditProfile}
+                        className="h-6 px-2 text-[11px] text-indigo-400 hover:text-indigo-300 hover:bg-slate-800"
+                      >
+                        {profileData.vendorCode ? "Change" : "Add Vendor Code"}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Inline Edit Profile Section */
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Update Contact & Vendor Details
+                    </span>
+                  </div>
+
+                  {profileSaveError && (
+                    <div className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/80 rounded-lg p-2 flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>{profileSaveError}</span>
+                    </div>
+                  )}
+
+                  {profileSaveSuccess && (
+                    <div className="text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/80 rounded-lg p-2 flex items-center gap-1.5">
+                      <Check className="h-3.5 w-3.5 shrink-0" />
+                      <span>Details saved successfully!</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <Label htmlFor="profile-mobile" className="text-xs text-slate-300 flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-purple-400" />
+                      10-Digit Mobile Number
+                    </Label>
+                    <Input
+                      id="profile-mobile"
+                      type="tel"
+                      maxLength={10}
+                      placeholder="e.g. 9876543210"
+                      value={profileEditMobile}
+                      onChange={(e) => setProfileEditMobile(e.target.value.replace(/\D/g, ""))}
+                      className="h-8 text-xs bg-slate-900 border-slate-700 text-white font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500">Required for SMS notifications and contact tagging</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="profile-vendor" className="text-xs text-slate-300 flex items-center gap-1">
+                      <Hash className="h-3 w-3 text-blue-400" />
+                      6-Digit SAP Vendor Code
+                    </Label>
+                    <Input
+                      id="profile-vendor"
+                      type="text"
+                      maxLength={6}
+                      placeholder="e.g. 104523"
+                      value={profileEditVendor}
+                      onChange={(e) => setProfileEditVendor(e.target.value.replace(/\D/g, ""))}
+                      className="h-8 text-xs bg-slate-900 border-slate-700 text-white font-mono"
+                    />
+                    <p className="text-[10px] text-slate-500">Official 6-digit contractor SAP code</p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={profileSaving}
+                      onClick={() => setIsEditingProfile(false)}
+                      className="h-7 text-xs text-slate-400 hover:text-white"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={profileSaving}
+                      onClick={handleSaveProfileDetails}
+                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
+                    >
+                      {profileSaving ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3 w-3 mr-1" />
+                          Save Details
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Subscription Status Section */}
+              <div className="grid grid-cols-3 gap-2 pb-1 pt-1 border-t border-slate-800">
                 <span className="text-slate-400 font-medium">Subscription:</span>
                 <span className="col-span-2">
                   {(() => {
@@ -1821,7 +2082,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                             Active
                           </span>
                           {profileData.subscriptionExpiresAt && (
-                            <span className="text-[10px] text-slate-500 font-semibold">
+                            <span className="text-[10px] text-slate-400 font-semibold">
                               Expires: {profileData.subscriptionExpiresAt}
                             </span>
                           )}

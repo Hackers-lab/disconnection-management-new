@@ -1564,6 +1564,52 @@ export function SuperuserDashboard() {
                                             >
                                               {u.role}
                                             </Badge>
+
+                                            {/* Individual Subscription Status */}
+                                            {(() => {
+                                              const isExempt = u.role === "superuser" || u.role === "admin" || u.bypassSubscription
+                                              const billingStartDate = new Date("2026-09-01T00:00:00")
+                                              const isTrial = Date.now() < billingStartDate.getTime()
+
+                                              if (isExempt) {
+                                                return (
+                                                  <span className="text-[8px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-1 py-0.2 rounded">
+                                                    Free Pass
+                                                  </span>
+                                                )
+                                              } else if (isTrial) {
+                                                return (
+                                                  <span className="text-[8px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.2 rounded">
+                                                    Trial Active
+                                                  </span>
+                                                )
+                                              } else if (u.subscriptionStatus === "active") {
+                                                let isExpired = false
+                                                if (u.subscriptionExpiresAt) {
+                                                  const expDate = new Date(u.subscriptionExpiresAt)
+                                                  expDate.setHours(23, 59, 59, 999)
+                                                  if (Date.now() > expDate.getTime()) isExpired = true
+                                                }
+                                                if (isExpired) {
+                                                  return (
+                                                    <span className="text-[8px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1 py-0.2 rounded">
+                                                      Exp ({u.subscriptionExpiresAt})
+                                                    </span>
+                                                  )
+                                                }
+                                                return (
+                                                  <span className="text-[8px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.2 rounded">
+                                                    Active {u.subscriptionExpiresAt ? `(${u.subscriptionExpiresAt})` : ""}
+                                                  </span>
+                                                )
+                                              } else {
+                                                return (
+                                                  <span className="text-[8px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1 py-0.2 rounded">
+                                                    Expired
+                                                  </span>
+                                                )
+                                              }
+                                            })()}
                                           </div>
 
                                           <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500 flex-wrap">
@@ -1764,7 +1810,7 @@ export function SuperuserDashboard() {
                                         className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 flex items-center justify-between gap-2"
                                       >
                                         <div className="space-y-1">
-                                          <div className="flex items-center gap-1.5">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
                                             <span className="font-bold text-xs text-slate-800">{u.name || u.username}</span>
                                             <Badge
                                               className={`text-[9px] uppercase font-semibold h-4 px-1.5 ${
@@ -1778,6 +1824,52 @@ export function SuperuserDashboard() {
                                             >
                                               {u.role}
                                             </Badge>
+
+                                            {/* Individual Subscription Status */}
+                                            {(() => {
+                                              const isExempt = u.role === "superuser" || u.role === "admin" || u.bypassSubscription
+                                              const billingStartDate = new Date("2026-09-01T00:00:00")
+                                              const isTrial = Date.now() < billingStartDate.getTime()
+
+                                              if (isExempt) {
+                                                return (
+                                                  <span className="text-[9px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0 rounded">
+                                                    Free Pass
+                                                  </span>
+                                                )
+                                              } else if (isTrial) {
+                                                return (
+                                                  <span className="text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0 rounded">
+                                                    Trial Active
+                                                  </span>
+                                                )
+                                              } else if (u.subscriptionStatus === "active") {
+                                                let isExpired = false
+                                                if (u.subscriptionExpiresAt) {
+                                                  const expDate = new Date(u.subscriptionExpiresAt)
+                                                  expDate.setHours(23, 59, 59, 999)
+                                                  if (Date.now() > expDate.getTime()) isExpired = true
+                                                }
+                                                if (isExpired) {
+                                                  return (
+                                                    <span className="text-[9px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0 rounded">
+                                                      Exp ({u.subscriptionExpiresAt})
+                                                    </span>
+                                                  )
+                                                }
+                                                return (
+                                                  <span className="text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0 rounded">
+                                                    Active {u.subscriptionExpiresAt ? `(${u.subscriptionExpiresAt})` : ""}
+                                                  </span>
+                                                )
+                                              } else {
+                                                return (
+                                                  <span className="text-[9px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1.5 py-0 rounded">
+                                                    Expired
+                                                  </span>
+                                                )
+                                              }
+                                            })()}
                                           </div>
                                           <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500">
                                             <span>ID: <b className="text-slate-800">{u.username}</b></span>
@@ -2042,6 +2134,47 @@ export function SuperuserDashboard() {
                 className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9"
               />
             </div>
+
+            {/* Subscription Settings */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400 font-medium">Subscription Status</Label>
+                <Select
+                  value={newUser.subscriptionStatus || "active"}
+                  onValueChange={val => setNewUser({...newUser, subscriptionStatus: val})}
+                >
+                  <SelectTrigger className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-100 text-xs">
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive / Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400 font-medium">Expiry Date (YYYY-MM-DD)</Label>
+                <Input
+                  type="date"
+                  value={newUser.subscriptionExpiresAt}
+                  onChange={e => setNewUser({...newUser, subscriptionExpiresAt: e.target.value})}
+                  className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-8"
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="new-user-bypass"
+                  checked={newUser.bypassSubscription}
+                  onChange={e => setNewUser({...newUser, bypassSubscription: e.target.checked})}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 bg-slate-950 border-slate-700"
+                />
+                <label htmlFor="new-user-bypass" className="text-xs text-slate-300 cursor-pointer">
+                  Bypass Subscription (Free Pass / No Expiry Restriction)
+                </label>
+              </div>
+            </div>
+
             <DialogFooter className="mt-4 flex gap-2 flex-row justify-end">
               <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3" onClick={() => setShowAddUserModal(false)}>
                 Cancel
@@ -2139,6 +2272,47 @@ export function SuperuserDashboard() {
                 className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9"
               />
             </div>
+
+            {/* Subscription Settings in Edit Modal */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400 font-medium">Subscription Status</Label>
+                <Select
+                  value={editForm.subscriptionStatus || "active"}
+                  onValueChange={val => setEditForm({...editForm, subscriptionStatus: val})}
+                >
+                  <SelectTrigger className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 text-slate-100 text-xs">
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive / Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-400 font-medium">Expiry Date (YYYY-MM-DD)</Label>
+                <Input
+                  type="date"
+                  value={editForm.subscriptionExpiresAt || ""}
+                  onChange={e => setEditForm({...editForm, subscriptionExpiresAt: e.target.value})}
+                  className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-8"
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="edit-user-bypass"
+                  checked={!!editForm.bypassSubscription}
+                  onChange={e => setEditForm({...editForm, bypassSubscription: e.target.checked})}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 bg-slate-950 border-slate-700"
+                />
+                <label htmlFor="edit-user-bypass" className="text-xs text-slate-300 cursor-pointer">
+                  Bypass Subscription (Free Pass / No Expiry Restriction)
+                </label>
+              </div>
+            </div>
+
             <DialogFooter className="mt-4 flex gap-2 flex-row justify-end">
               <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3" onClick={() => setShowEditUserModal(false)}>
                 Cancel

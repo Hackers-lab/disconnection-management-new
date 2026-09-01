@@ -37,7 +37,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, password, role, agencies } = await request.json()
+    const { username, password, role, agencies, subscriptionStatus, subscriptionExpiresAt, bypassSubscription } = await request.json()
 
     // Validate input
     if (!username || !password) {
@@ -57,13 +57,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       cccCode,
       name: username,
       agencies: agencies || [],
-      subscriptionStatus: "active",
-      subscriptionExpiresAt: "",
-      bypassSubscription: false,
+      subscriptionStatus: subscriptionStatus || "active",
+      subscriptionExpiresAt: subscriptionExpiresAt || "",
+      bypassSubscription: Boolean(bypassSubscription),
     })
 
     console.log("✅ User added successfully:", username)
-    return NextResponse.json({ success: true, message: "User added successfully" })
+    return NextResponse.json({ success: true, message: "User added successfully", user: newUser })
   } catch (error) {
     console.error("Error adding user:", error)
     return NextResponse.json({ error: "Failed to add user" }, { status: 500 })
@@ -85,7 +85,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
   }
 
   try {
-    const { id, username, password, role, agencies } = await request.json()
+    const { id, username, password, role, agencies, subscriptionStatus, subscriptionExpiresAt, bypassSubscription } = await request.json()
 
     const existingUser = await userStorage.getUserById(id)
 
@@ -107,11 +107,14 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       role,
       cccCode,
       agencies: agencies || [],
+      subscriptionStatus: subscriptionStatus !== undefined ? subscriptionStatus : existingUser.subscriptionStatus,
+      subscriptionExpiresAt: subscriptionExpiresAt !== undefined ? subscriptionExpiresAt : existingUser.subscriptionExpiresAt,
+      bypassSubscription: bypassSubscription !== undefined ? Boolean(bypassSubscription) : existingUser.bypassSubscription,
     })
 
     if (updatedUser) {
       console.log("✅ User updated successfully:", username)
-      return NextResponse.json({ success: true, message: "User updated successfully" })
+      return NextResponse.json({ success: true, message: "User updated successfully", user: updatedUser })
     } else {
       return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
     }
