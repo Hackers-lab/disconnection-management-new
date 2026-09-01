@@ -74,6 +74,8 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallClicked, setIsInstallClicked] = useState(false)
   const [gradientIndex, setGradientIndex] = useState(0)
+  const [langIndex, setLangIndex] = useState<0 | 1>(0) // 0: English, 1: Bengali
+  const [textFade, setTextFade] = useState(true)
   const cidRef = useRef<string>("")
   const router = useRouter()
 
@@ -82,6 +84,18 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
     const interval = setInterval(() => {
       setGradientIndex((prev) => (prev + 1) % TRUSTED_GRADIENTS.length)
     }, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Rotate between English and Bengali every 3 seconds with smooth fade
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTextFade(false)
+      setTimeout(() => {
+        setLangIndex((prev) => (prev === 0 ? 1 : 0))
+        setTextFade(true)
+      }, 300)
+    }, 3000)
     return () => clearInterval(interval)
   }, [])
 
@@ -513,11 +527,19 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
         )}
       </div>
 
-      {/* Light Elegant Samarata Trust Line with 1s Cycling Gradient & Blinking Effect */}
-      <div className="text-center pt-1 select-none">
-        <p className="text-[17px] sm:text-[19px] font-bold font-[family-name:var(--font-samarata)] tracking-wide animate-pulse">
-          <span className={`bg-gradient-to-r ${TRUSTED_GRADIENTS[gradientIndex]} bg-clip-text text-transparent drop-shadow-sm transition-all duration-500`}>
-            Trusted by {initialTenantCount}+ Offices.
+      {/* Rotating Bilingual Trust Line (English & Bengali) with Smooth Fade & Gradient */}
+      <div className="text-center pt-1.5 select-none min-h-[28px] flex items-center justify-center">
+        <p
+          className={`text-[15px] sm:text-[16px] font-bold tracking-tight transition-opacity duration-300 ${
+            textFade ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          } ${langIndex === 1 ? "font-[family-name:var(--font-bengali)]" : "font-[family-name:var(--font-dm-sans)]"}`}
+        >
+          <span
+            className={`bg-gradient-to-r ${TRUSTED_GRADIENTS[gradientIndex]} bg-clip-text text-transparent drop-shadow-sm transition-all duration-700 inline-block`}
+          >
+            {langIndex === 0
+              ? `Trusted by ${initialTenantCount}+ CCCs`
+              : `${String(initialTenantCount).replace(/0/g, '০').replace(/1/g, '১').replace(/2/g, '২').replace(/3/g, '৩').replace(/4/g, '৪').replace(/5/g, '৫').replace(/6/g, '৬').replace(/7/g, '৭').replace(/8/g, '৮').replace(/9/g, '৯')}+ টি CCC-র বিশ্বস্ত সহযোগী`}
           </span>
         </p>
       </div>
