@@ -148,6 +148,12 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       if (res.ok) {
         const data = await res.json()
         setProfileData(data)
+        if (data?.cccCode) {
+          setClientCccCode(data.cccCode)
+          if (typeof window !== "undefined") {
+            localStorage.setItem("user_ccc_code", data.cccCode)
+          }
+        }
         return data
       }
     } catch (e) {
@@ -159,6 +165,12 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       if (permRes.ok) {
         const pData = await permRes.json()
         setProfileData(pData)
+        if (pData?.cccCode) {
+          setClientCccCode(pData.cccCode)
+          if (typeof window !== "undefined") {
+            localStorage.setItem("user_ccc_code", pData.cccCode)
+          }
+        }
         return pData
       }
     } catch (err) {
@@ -225,6 +237,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       setClientCccCode(localStorage.getItem("user_ccc_code") || "")
       setClientUsername(localStorage.getItem("user_username") || "")
     }
+    loadUserProfile()
   }, [])
   const homeLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isLongPressRef = useRef(false)
@@ -1073,7 +1086,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
             <div 
               onClick={() => {
                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                setActiveView("profile")
+                setShowProfileDialog(true)
               }}
               className="flex items-center gap-2 text-right hover:bg-slate-100/80 px-2 py-1 rounded-xl cursor-pointer transition-all select-none"
               title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}`}
