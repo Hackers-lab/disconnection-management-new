@@ -128,26 +128,45 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
       isNewVisit = false
     }
 
-    const fetchVisitCount = async () => {
-      try {
-        const initParam = isNewVisit ? "&init=1" : ""
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 3000)
-        const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-        if (res.ok) {
-          const data = await res.json()
-          if (data && typeof data.totalVisitors === "number") {
-            setVisitCount(data.totalVisitors)
-          }
+    let cachedCount: number | null = null
+    try {
+      const raw = sessionStorage.getItem("_app_visitor_stats")
+      const ts = Number(sessionStorage.getItem("_app_visitor_stats_ts") || 0)
+      if (raw && Date.now() - ts < 10 * 60 * 1000) {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed.totalVisitors === "number") {
+          cachedCount = parsed.totalVisitors
+          setVisitCount(cachedCount)
         }
-      } catch {}
-    }
+      }
+    } catch {}
 
-    fetchVisitCount()
+    if (cachedCount === null || isNewVisit) {
+      const fetchVisitCount = async () => {
+        try {
+          const initParam = isNewVisit ? "&init=1" : ""
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 3000)
+          const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          })
+          clearTimeout(timeoutId)
+          if (res.ok) {
+            const data = await res.json()
+            if (data && typeof data.totalVisitors === "number") {
+              setVisitCount(data.totalVisitors)
+              try {
+                sessionStorage.setItem("_app_visitor_stats", JSON.stringify(data))
+                sessionStorage.setItem("_app_visitor_stats_ts", Date.now().toString())
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+
+      fetchVisitCount()
+    }
   }, [])
 
   // 3. Detect PWA status & listen for install prompt

@@ -267,21 +267,36 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     let active = true
 
     // Load cached permissions from sessionStorage only if role matches
+    let isCacheFresh = false
     try {
       const cachedRole = sessionStorage.getItem("user_permissions_role")
       const cached = sessionStorage.getItem("user_permissions")
+      const cachedTs = Number(sessionStorage.getItem("user_permissions_ts") || 0)
+      const isFresh = Date.now() - cachedTs < 15 * 60 * 1000 // 15 min TTL
+
       if (cached && cachedRole === role) {
         const parsed = JSON.parse(cached)
         if (parsed) {
           setPermissions(parsed)
           setPermsLoaded(true)
+          if (isFresh) {
+            isCacheFresh = true
+          }
         }
       } else {
         sessionStorage.removeItem("user_permissions")
         sessionStorage.removeItem("user_permissions_role")
+        sessionStorage.removeItem("user_permissions_ts")
       }
     } catch (e) {
       console.error("Failed to read permissions from sessionStorage", e)
+    }
+
+    // Skip network request if cache is fresh
+    if (isCacheFresh) {
+      return () => {
+        active = false
+      }
     }
 
     fetch("/api/auth/permissions")
@@ -293,6 +308,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
             try {
               sessionStorage.setItem("user_permissions", JSON.stringify(data.permissions))
               sessionStorage.setItem("user_permissions_role", role)
+              sessionStorage.setItem("user_permissions_ts", Date.now().toString())
             } catch (e) {
               console.error("Failed to save permissions to sessionStorage", e)
             }

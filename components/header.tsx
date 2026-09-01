@@ -261,7 +261,6 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   useEffect(() => {
     console.log("🚀 Disconnection Management Web App - version 1.1.0 loaded");
-    loadUserProfile()
   }, [])
 
   useEffect(() => {

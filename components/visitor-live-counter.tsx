@@ -39,32 +39,49 @@ export function VisitorLiveCounter({ className = "", activeModule, action, showU
       isNewVisit = false
     }
 
-    // 3. Single fetch for visitor count (no repeated interval polling)
-    const fetchVisitCount = async () => {
-      try {
-        const initParam = isNewVisit ? "&init=1" : ""
-        const modParam = activeModule ? `&module=${encodeURIComponent(activeModule)}` : ""
-        const actParam = action ? `&action=${encodeURIComponent(action)}` : ""
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 3000)
-        const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}${modParam}${actParam}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-        if (res.ok) {
-          const data = await res.json()
-          if (data && typeof data.totalVisitors === "number") {
-            setStats(data)
-          }
-        }
-      } catch {
-        // Silently ignore network failures
+    // 3. Check sessionStorage cache (10 min TTL) to avoid repeat edge requests
+    let cachedStats: any = null
+    try {
+      const raw = sessionStorage.getItem("_app_visitor_stats")
+      const ts = Number(sessionStorage.getItem("_app_visitor_stats_ts") || 0)
+      if (raw && Date.now() - ts < 10 * 60 * 1000) {
+        cachedStats = JSON.parse(raw)
+        setStats(cachedStats)
       }
-    }
+    } catch {}
 
-    fetchVisitCount()
-  }, [activeModule, action])
+    // 4. Fetch visitor count only if not cached or is a brand new session visit
+    if (!cachedStats || isNewVisit) {
+      const fetchVisitCount = async () => {
+        try {
+          const initParam = isNewVisit ? "&init=1" : ""
+          const modParam = activeModule ? `&module=${encodeURIComponent(activeModule)}` : ""
+          const actParam = action ? `&action=${encodeURIComponent(action)}` : ""
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 3000)
+          const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}${modParam}${actParam}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          })
+          clearTimeout(timeoutId)
+          if (res.ok) {
+            const data = await res.json()
+            if (data && typeof data.totalVisitors === "number") {
+              setStats(data)
+              try {
+                sessionStorage.setItem("_app_visitor_stats", JSON.stringify(data))
+                sessionStorage.setItem("_app_visitor_stats_ts", Date.now().toString())
+              } catch {}
+            }
+          }
+        } catch {
+          // Silently ignore network failures
+        }
+      }
+
+      fetchVisitCount()
+    }
+  }, [])
 
   if (!showUi) return null
 

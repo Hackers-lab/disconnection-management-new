@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans } from 'next/font/google'
 import localFont from 'next/font/local'
-import { SpeedInsights } from '@vercel/speed-insights/next'
 import { AuthInterceptor } from '@/components/auth-interceptor'
 import './globals.css'
 
@@ -63,7 +62,6 @@ export default function RootLayout({
       <body>
         <AuthInterceptor />
         {children}
-        <SpeedInsights />
       </body>
     </html>
   )
