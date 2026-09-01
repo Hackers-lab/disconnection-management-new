@@ -1768,54 +1768,6 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       </div>
                     </div>
 
-                    {/* Subscription Settings for this user */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700">Subscription Status</Label>
-                        <Select
-                          value={editingUser.subscriptionStatus || "active"}
-                          onValueChange={(value) =>
-                            setEditingUser({ ...editingUser, subscriptionStatus: value })
-                          }
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive / Expired</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700">Expiry Date (YYYY-MM-DD)</Label>
-                        <Input
-                          type="date"
-                          value={editingUser.subscriptionExpiresAt || ""}
-                          onChange={(e) =>
-                            setEditingUser({ ...editingUser, subscriptionExpiresAt: e.target.value })
-                          }
-                          className="h-8 text-xs bg-white"
-                        />
-                      </div>
-
-                      <div className="flex items-center space-x-2 pt-6">
-                        <input
-                          type="checkbox"
-                          id={`edit-bypass-${editingUser.id}`}
-                          checked={!!editingUser.bypassSubscription}
-                          onChange={(e) =>
-                            setEditingUser({ ...editingUser, bypassSubscription: e.target.checked })
-                          }
-                          className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-                        />
-                        <label htmlFor={`edit-bypass-${editingUser.id}`} className="text-xs font-medium text-slate-700 cursor-pointer">
-                          Bypass Subscription (Free Pass)
-                        </label>
-                      </div>
-                    </div>
-
                     {editingUser.role !== "admin" && editingUser.role !== "viewer" && (
                       <div className="space-y-2">
                         <Label>Agencies</Label>

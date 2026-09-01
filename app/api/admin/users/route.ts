@@ -37,7 +37,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, password, role, agencies, subscriptionStatus, subscriptionExpiresAt, bypassSubscription } = await request.json()
+    const { username, password, role, agencies } = await request.json()
 
     // Validate input
     if (!username || !password) {
@@ -57,9 +57,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       cccCode,
       name: username,
       agencies: agencies || [],
-      subscriptionStatus: subscriptionStatus || "active",
-      subscriptionExpiresAt: subscriptionExpiresAt || "",
-      bypassSubscription: Boolean(bypassSubscription),
+      subscriptionStatus: "active",
+      subscriptionExpiresAt: "",
+      bypassSubscription: false,
     })
 
     console.log("✅ User added successfully:", username)
@@ -85,7 +85,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
   }
 
   try {
-    const { id, username, password, role, agencies, subscriptionStatus, subscriptionExpiresAt, bypassSubscription } = await request.json()
+    const { id, username, password, role, agencies } = await request.json()
 
     const existingUser = await userStorage.getUserById(id)
 
@@ -107,9 +107,9 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       role,
       cccCode,
       agencies: agencies || [],
-      subscriptionStatus: subscriptionStatus !== undefined ? subscriptionStatus : existingUser.subscriptionStatus,
-      subscriptionExpiresAt: subscriptionExpiresAt !== undefined ? subscriptionExpiresAt : existingUser.subscriptionExpiresAt,
-      bypassSubscription: bypassSubscription !== undefined ? Boolean(bypassSubscription) : existingUser.bypassSubscription,
+      subscriptionStatus: existingUser.subscriptionStatus,
+      subscriptionExpiresAt: existingUser.subscriptionExpiresAt,
+      bypassSubscription: existingUser.bypassSubscription,
     })
 
     if (updatedUser) {
