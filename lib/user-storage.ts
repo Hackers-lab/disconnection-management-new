@@ -248,36 +248,53 @@ export class UserStorage {
 
   async findUserByCredentials(username: string, password: string): Promise<MasterUser | null> {
     const t0 = performance.now()
-    const cleanUsername = username.trim()
+    const rawInput = username.trim()
     const cleanPassword = password.trim()
     let user: MasterUser | null = null
+
+    // Extract 10-digit mobile number if applicable (handles +91, 0, spaces, dashes)
+    const digitsOnly = rawInput.replace(/\D/g, "")
+    const normalizedMobile = digitsOnly.length === 10 
+      ? digitsOnly 
+      : digitsOnly.length > 10 && digitsOnly.startsWith("91") && digitsOnly.length === 12 
+        ? digitsOnly.slice(2) 
+        : rawInput
 
     try {
       const qStart = performance.now()
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
-                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                     u.ccc_id as cccId,
+                     a.subscription_status as agencySubStatus,
+                     a.subscription_expires_at as agencySubExpiresAt
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              LEFT JOIN agencies a ON a.ccc_id = u.ccc_id AND (a.name = u.agencies OR a.vendor_code = u.agencies)
               WHERE u.username = ? COLLATE NOCASE
+                 OR u.mobile_number = ?
                  OR u.mobile_number = ?
               UNION ALL
               SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
-                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                     u.ccc_id as cccId,
+                     NULL as agencySubStatus,
+                     NULL as agencySubExpiresAt
               FROM users u 
               JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ?)
+              WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ? OR c.mobile_number = ?)
                 AND u.role = 'admin'
                 AND u.username != ? COLLATE NOCASE`,
-        args: [cleanUsername, cleanUsername, cleanUsername, cleanUsername, cleanUsername]
+        args: [rawInput, rawInput, normalizedMobile, rawInput, rawInput, normalizedMobile, rawInput]
       })
       const qDuration = (performance.now() - qStart).toFixed(1)
 
       if (res.rows && res.rows.length > 0) {
         const matchingRow = res.rows.find((r: any) => 
-          String(r.password || "").trim() === cleanPassword && String(r.username || "").trim() === cleanUsername
+          String(r.password || "").trim() === cleanPassword && 
+          (String(r.username || "").trim().toLowerCase() === rawInput.toLowerCase() || String(r.username || "").trim() === normalizedMobile)
         ) || res.rows.find((r: any) => 
           String(r.password || "").trim() === cleanPassword
         )
@@ -288,17 +305,29 @@ export class UserStorage {
           const totalMs = (performance.now() - t0).toFixed(1)
           const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
           const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
-          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${cleanUsername}' authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
+          
+          // Resolve effective subscription status:
+          // If agency role, prioritize agency table subscription if set, otherwise fallback to user row
+          const roleLower = String(r.role || "viewer").toLowerCase()
+          let finalSubStatus = String(r.subStatus || "active")
+          let finalSubExpiresAt = String(r.subExpiresAt || "")
+
+          if (roleLower === "agency" && (r.agencySubStatus || r.agencySubExpiresAt)) {
+            finalSubStatus = String(r.agencySubStatus || "active")
+            finalSubExpiresAt = String(r.agencySubExpiresAt || "")
+          }
+
+          console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${rawInput}' authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
           user = {
             id: String(r.id || ""),
-            username: String(r.username || cleanUsername),
+            username: String(r.username || rawInput),
             password: dbPassword,
             role: String(r.role || "viewer"),
             cccCode: String(r.cccCode || ""),
-            name: String(r.name || cleanUsername),
+            name: String(r.name || rawInput),
             agencies: fallbackAgencies,
-            subscriptionStatus: String(r.subStatus || "active"),
-            subscriptionExpiresAt: String(r.subExpiresAt || ""),
+            subscriptionStatus: finalSubStatus,
+            subscriptionExpiresAt: finalSubExpiresAt,
             bypassSubscription: Boolean(r.bypassSub),
           }
         }

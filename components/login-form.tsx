@@ -325,7 +325,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
                 name="username"
                 type="text"
                 required
-                placeholder="Username / CCC Code / Mobile"
+                placeholder="Username, Mobile, or CCC Code"
                 className="pl-10 h-10 sm:h-11 rounded-xl border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 text-xs sm:text-sm font-medium placeholder:text-slate-400 transition-all"
               />
             </div>

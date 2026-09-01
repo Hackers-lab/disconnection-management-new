@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS agencies (
     mobile_number TEXT,
     email TEXT,
     is_active BOOLEAN DEFAULT 1,
+    subscription_status TEXT DEFAULT 'active',
+    subscription_expires_at TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
