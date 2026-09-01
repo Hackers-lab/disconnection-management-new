@@ -530,7 +530,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
       {/* Rotating Bilingual Trust Line (English & Bengali) with Smooth Fade & Gradient */}
       <div className="text-center pt-1.5 select-none min-h-[28px] flex items-center justify-center">
         <p
-          className={`text-[15px] sm:text-[16px] font-bold tracking-tight transition-opacity duration-300 ${
+          className={`text-[14.5px] sm:text-[15.5px] font-medium tracking-normal transition-opacity duration-300 ${
             textFade ? "opacity-100 scale-100" : "opacity-0 scale-95"
           } ${langIndex === 1 ? "font-[family-name:var(--font-bengali)]" : "font-[family-name:var(--font-dm-sans)]"}`}
         >
