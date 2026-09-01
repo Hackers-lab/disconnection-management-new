@@ -266,12 +266,9 @@ export class UserStorage {
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
-                     u.ccc_id as cccId,
-                     a.subscription_status as agencySubStatus,
-                     a.subscription_expires_at as agencySubExpiresAt
+                     u.ccc_id as cccId
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              LEFT JOIN agencies a ON a.ccc_id = u.ccc_id AND (a.name = u.agencies OR a.vendor_code = u.agencies)
               WHERE u.username = ? COLLATE NOCASE
                  OR u.mobile_number = ?
                  OR u.mobile_number = ?
@@ -279,9 +276,7 @@ export class UserStorage {
               SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
-                     u.ccc_id as cccId,
-                     NULL as agencySubStatus,
-                     NULL as agencySubExpiresAt
+                     u.ccc_id as cccId
               FROM users u 
               JOIN ccc_registry c ON u.ccc_id = c.id
               WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ? OR c.mobile_number = ?)
@@ -306,15 +301,26 @@ export class UserStorage {
           const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
           const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
           
-          // Resolve effective subscription status:
-          // If agency role, prioritize agency table subscription if set, otherwise fallback to user row
-          const roleLower = String(r.role || "viewer").toLowerCase()
           let finalSubStatus = String(r.subStatus || "active")
           let finalSubExpiresAt = String(r.subExpiresAt || "")
 
-          if (roleLower === "agency" && (r.agencySubStatus || r.agencySubExpiresAt)) {
-            finalSubStatus = String(r.agencySubStatus || "active")
-            finalSubExpiresAt = String(r.agencySubExpiresAt || "")
+          // For agency users, try to resolve subscription from agencies table (if columns exist)
+          const roleLower = String(r.role || "viewer").toLowerCase()
+          if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
+            try {
+              const agencyRes = await db.execute({
+                sql: `SELECT subscription_status, subscription_expires_at FROM agencies 
+                      WHERE ccc_id = ? AND (name = ? OR vendor_code = ?) LIMIT 1`,
+                args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
+              })
+              if (agencyRes.rows && agencyRes.rows.length > 0) {
+                const ag: any = agencyRes.rows[0]
+                if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
+                if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+              }
+            } catch {
+              // Agency subscription columns may not exist yet — silently fall back to user-level subscription
+            }
           }
 
           console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${rawInput}' authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
@@ -336,14 +342,14 @@ export class UserStorage {
       console.warn(`⚠️ [AUTH NOTICE] Direct Turso point query failed: ${err.message}`)
     }
 
-    if (!user && /^\d{4}000$/.test(cleanUsername) && cleanPassword === cleanUsername) {
-      const divPrefix = cleanUsername.slice(0, 4)
+    if (!user && /^\d{4}000$/.test(rawInput) && cleanPassword === rawInput) {
+      const divPrefix = rawInput.slice(0, 4)
       user = {
-        id: `div-${cleanUsername}`,
-        username: cleanUsername,
+        id: `div-${rawInput}`,
+        username: rawInput,
         password: cleanPassword,
         role: "division_viewer",
-        cccCode: cleanUsername,
+        cccCode: rawInput,
         name: `Division ${divPrefix} View Account`,
         agencies: [],
         subscriptionStatus: "active",
@@ -354,7 +360,7 @@ export class UserStorage {
 
     if (!user) {
       const totalMs = (performance.now() - t0).toFixed(1)
-      console.log(`❌ [AUTH FAILED] User '${cleanUsername}' not found in DB (Total: ${totalMs}ms).`)
+      console.log(`❌ [AUTH FAILED] User '${rawInput}' not found in DB (Total: ${totalMs}ms).`)
     }
 
     return user
