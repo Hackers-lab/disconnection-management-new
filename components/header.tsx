@@ -126,6 +126,16 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [changePwdError, setChangePwdError] = useState<string | null>(null)
   const [changePwdSuccess, setChangePwdSuccess] = useState(false)
   const [changePwdLoading, setChangePwdLoading] = useState(false)
+  // OTP states for Change Password
+  const [changePwdOtp, setChangePwdOtp] = useState("")
+  const [changePwdOtpSent, setChangePwdOtpSent] = useState(false)
+  const [changePwdOtpSending, setChangePwdOtpSending] = useState(false)
+  const [changePwdOtpVerifying, setChangePwdOtpVerifying] = useState(false)
+  const [changePwdOtpVerified, setChangePwdOtpVerified] = useState(false)
+  const [changePwdVerificationToken, setChangePwdVerificationToken] = useState("")
+  const [changePwdUserMobile, setChangePwdUserMobile] = useState("")
+  const [changePwdCountdown, setChangePwdCountdown] = useState(0)
+
   const [showHistoryReportDialog, setShowHistoryReportDialog] = useState(false)
   const [showBroadcastPushModal, setShowBroadcastPushModal] = useState(false)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
@@ -284,7 +294,16 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
 
 
-  const openChangePwdDialog = () => {
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (changePwdCountdown <= 0) return
+    const timer = setInterval(() => {
+      setChangePwdCountdown((prev) => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [changePwdCountdown])
+
+  const openChangePwdDialog = async () => {
     setChangePwdCurrent("")
     setChangePwdNew("")
     setChangePwdConfirm("")
@@ -293,12 +312,94 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     setShowPwdConfirm(false)
     setChangePwdError(null)
     setChangePwdSuccess(false)
+    setChangePwdOtp("")
+    setChangePwdOtpSent(false)
+    setChangePwdOtpSending(false)
+    setChangePwdOtpVerifying(false)
+    setChangePwdOtpVerified(false)
+    setChangePwdVerificationToken("")
+    setChangePwdCountdown(0)
+
+    let mob = profileData?.mobileNumber || ""
+    if (!mob) {
+      const data = await loadUserProfile()
+      mob = data?.mobileNumber || ""
+    }
+    setChangePwdUserMobile(mob)
     setShowChangePwdDialog(true)
   }
 
+  const handleSendChangePwdOtp = async () => {
+    if (!changePwdUserMobile || changePwdUserMobile.replace(/\D/g, "").length < 10) {
+      setChangePwdError("No valid 10-digit mobile number linked to this account. Please update mobile number in your profile first.")
+      return
+    }
+    const cleanMob = changePwdUserMobile.replace(/\D/g, "").slice(-10)
+    setChangePwdOtpSending(true)
+    setChangePwdError(null)
+    try {
+      const res = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", mobileNumber: cleanMob }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setChangePwdError(data.error || "Failed to send OTP.")
+      } else {
+        setChangePwdOtpSent(true)
+        setChangePwdCountdown(45)
+        if (data.devOtp) {
+          console.log("🔐 [DEV ONLY] Password change OTP:", data.devOtp)
+        }
+      }
+    } catch {
+      setChangePwdError("Failed to send OTP. Please check your connection.")
+    } finally {
+      setChangePwdOtpSending(false)
+    }
+  }
+
+  const handleVerifyChangePwdOtp = async () => {
+    const cleanMob = changePwdUserMobile.replace(/\D/g, "").slice(-10)
+    const cleanOtp = changePwdOtp.replace(/\D/g, "").slice(0, 6)
+    if (cleanOtp.length !== 6) {
+      setChangePwdError("Please enter the 6-digit OTP received on your mobile.")
+      return
+    }
+    setChangePwdOtpVerifying(true)
+    setChangePwdError(null)
+    try {
+      const res = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setChangePwdError(data.error || "Invalid or expired OTP.")
+      } else {
+        setChangePwdOtpVerified(true)
+        setChangePwdVerificationToken(data.verificationToken || "")
+      }
+    } catch {
+      setChangePwdError("Failed to verify OTP.")
+    } finally {
+      setChangePwdOtpVerifying(false)
+    }
+  }
+
   const handleChangePassword = async () => {
+    if (!changePwdOtpVerified || !changePwdVerificationToken) {
+      setChangePwdError("Please verify the mobile OTP first before saving new password.")
+      return
+    }
     if (!changePwdCurrent || !changePwdNew || !changePwdConfirm) {
       setChangePwdError("All fields are required")
+      return
+    }
+    if (changePwdNew.length < 4) {
+      setChangePwdError("New password must be at least 4 characters")
       return
     }
     if (changePwdNew !== changePwdConfirm) {
@@ -308,10 +409,16 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     setChangePwdLoading(true)
     setChangePwdError(null)
     try {
+      const cleanMob = changePwdUserMobile.replace(/\D/g, "").slice(-10)
       const res = await fetch("/api/user/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: changePwdCurrent, newPassword: changePwdNew }),
+        body: JSON.stringify({
+          currentPassword: changePwdCurrent,
+          newPassword: changePwdNew,
+          mobileNumber: cleanMob,
+          verificationToken: changePwdVerificationToken,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -1763,15 +1870,99 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" />
+              <KeyRound className="h-5 w-5 text-indigo-500" />
               Change Password
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {changePwdSuccess ? (
-              <p className="text-sm text-green-600 font-medium text-center py-4">Password changed successfully!</p>
+              <div className="text-center py-4 space-y-2">
+                <Check className="h-8 w-8 text-emerald-500 mx-auto" />
+                <p className="text-sm text-green-600 font-semibold">Password changed successfully!</p>
+              </div>
             ) : (
               <>
+                {/* Linked Mobile OTP Verification Section */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-indigo-600" />
+                      Linked Mobile Verification (Mandatory)
+                    </Label>
+                    {changePwdOtpVerified && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                        <Check className="h-3 w-3" /> OTP Verified
+                      </span>
+                    )}
+                  </div>
+
+                  {changePwdUserMobile ? (
+                    <p className="text-xs text-slate-600">
+                      OTP will be sent to registered mobile: <span className="font-mono font-bold text-slate-900">+91 {changePwdUserMobile.slice(0, 3)}•••••{changePwdUserMobile.slice(-2)}</span>
+                    </p>
+                  ) : (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span>No mobile number linked. Please update your mobile in <strong>My Profile</strong> first.</span>
+                    </div>
+                  )}
+
+                  {!changePwdOtpVerified && (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          maxLength={6}
+                          placeholder="Enter 6-digit OTP"
+                          value={changePwdOtp}
+                          disabled={!changePwdOtpSent || changePwdOtpVerifying}
+                          onChange={(e) => setChangePwdOtp(e.target.value.replace(/\D/g, ""))}
+                          className="h-9 text-xs font-mono text-center tracking-widest bg-white"
+                        />
+                        {changePwdOtpSent ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleVerifyChangePwdOtp}
+                            disabled={changePwdOtpVerifying || changePwdOtp.length !== 6}
+                            className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 font-semibold"
+                          >
+                            {changePwdOtpVerifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Verify OTP"}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleSendChangePwdOtp}
+                            disabled={changePwdOtpSending || !changePwdUserMobile || changePwdUserMobile.length < 10}
+                            className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 font-semibold"
+                          >
+                            {changePwdOtpSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Send OTP"}
+                          </Button>
+                        )}
+                      </div>
+
+                      {changePwdOtpSent && (
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>OTP sent to your registered mobile</span>
+                          {changePwdCountdown > 0 ? (
+                            <span className="font-mono text-indigo-600 font-semibold">Resend in {changePwdCountdown}s</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendChangePwdOtp}
+                              disabled={changePwdOtpSending}
+                              className="text-indigo-600 hover:underline font-semibold"
+                            >
+                              Resend OTP
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label>Current Password</Label>
                   <div className="relative">
@@ -1836,7 +2027,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   <p className="text-xs text-red-500">Passwords do not match</p>
                 )}
                 {changePwdError && (
-                  <p className="text-xs text-red-500">{changePwdError}</p>
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{changePwdError}</span>
+                  </p>
                 )}
               </>
             )}
@@ -1848,7 +2042,8 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               </Button>
               <Button
                 onClick={handleChangePassword}
-                disabled={changePwdLoading || !changePwdCurrent || !changePwdNew || !changePwdConfirm || changePwdNew !== changePwdConfirm}
+                disabled={changePwdLoading || !changePwdOtpVerified || !changePwdCurrent || !changePwdNew || !changePwdConfirm || changePwdNew !== changePwdConfirm}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
               >
                 {changePwdLoading ? "Saving..." : "Save Password"}
               </Button>
