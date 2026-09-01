@@ -1,6 +1,9 @@
 {
   "ignoreCommand": "bash vercel-ignore-build.sh",
   "fluid": false,
+  "speedInsights": {
+    "enabled": false
+  },
   "functions": {
     "app/api/**/*.ts": {
       "memory": 256,
