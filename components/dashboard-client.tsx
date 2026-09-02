@@ -39,6 +39,7 @@ const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m 
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2 } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
+import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
 
 // UI Components for the Dialog
@@ -1983,24 +1984,17 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       </div>
                       <span className="text-[10px] font-semibold text-slate-400">/ month</span>
                     </div>
-                    <Button 
-                      onClick={async () => {
-                        try {
-                          const res = await fetch("/api/billing/checkout", { method: "POST" })
-                          if (res.ok) {
-                            const data = await res.json()
-                            if (data.success) {
-                              window.location.reload()
-                            }
-                          }
-                        } catch (e) {
-                          console.error("Simulation failed", e)
-                        }
+                    <VendorSubscriptionCheckout 
+                      amount={9900}
+                      planName="1 Month Vendor Access"
+                      days={30}
+                      buttonText={isSubscribed ? "Extend Subscription (₹99)" : "Activate Subscription (₹99)"}
+                      userPrefill={{
+                        name: name || username,
+                        contact: mobileNumber,
                       }}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold py-2 rounded-lg"
-                    >
-                      {isSubscribed ? "Extend Subscription" : "Activate Subscription"}
-                    </Button>
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold py-2.5 rounded-lg shadow-md"
+                    />
                   </div>
                 )}
               </div>
@@ -2118,24 +2112,17 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
             </div>
 
             <DialogFooter className="mt-2 flex flex-col gap-2.5 sm:flex-col w-full">
-              <Button 
-                onClick={async () => {
-                  try {
-                    const res = await fetch("/api/billing/checkout", { method: "POST" })
-                    if (res.ok) {
-                      const data = await res.json()
-                      if (data.success) {
-                        window.location.reload()
-                      }
-                    }
-                  } catch (e) {
-                    console.error("Simulation failed", e)
-                  }
-                }} 
+              <VendorSubscriptionCheckout 
+                amount={9900}
+                planName="1 Month Vendor Access"
+                days={30}
+                buttonText="Pay with Razorpay & Activate"
+                userPrefill={{
+                  name: name || username,
+                  contact: mobileNumber,
+                }}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-lg shadow-md hover:shadow-indigo-500/10 transition-all duration-200"
-              >
-                Simulate Payment & Activate
-              </Button>
+              />
               <Button 
                 onClick={async () => {
                   await logout()
