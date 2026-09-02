@@ -31,6 +31,21 @@ export async function login(formData: FormData) {
     return { error: "Invalid username or password" }
   }
 
+  // Detect first-time login for newly provisioned agencies (using temporary 6-digit SAP vendor code)
+  const digitsOnly = username.replace(/\D/g, "")
+  const isTempVendorCode = /^\d{6}$/.test(user.password) && user.role === "agency"
+  if (isTempVendorCode || user.mustChangePassword) {
+    console.log(`⚠️ [FIRST LOGIN] Mandatory OTP password setup required for agency user '${username}'`)
+    return {
+      success: false,
+      requireFirstLoginReset: true,
+      mobileNumber: digitsOnly.length === 10 ? digitsOnly : user.username.replace(/\D/g, '').slice(-10),
+      username: user.username,
+      name: user.name,
+      message: "First-time login detected. Please verify OTP and create your permanent password."
+    }
+  }
+
   const sessionStart = performance.now()
   await createSession(
     user.id, username, user.role, user.agencies, user.cccCode,

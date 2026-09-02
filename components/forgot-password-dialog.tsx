@@ -45,16 +45,18 @@ function formatFriendlyError(err: any): string {
 interface ForgotPasswordDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialIdentifier?: string
+  isFirstLogin?: boolean
 }
 
-export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialogProps) {
+export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "", isFirstLogin = false }: ForgotPasswordDialogProps) {
   const [step, setStep] = useState<1 | 2>(1) // 1: Request OTP via identifier, 2: OTP + New Password
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // Step 1: Identifier
-  const [identifier, setIdentifier] = useState("")
+  const [identifier, setIdentifier] = useState(initialIdentifier)
   const [mobileNumber, setMobileNumber] = useState("")
   const [mobileMasked, setMobileMasked] = useState("")
   const [username, setUsername] = useState("")
@@ -67,8 +69,11 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
-  // Reset state on close
+  // Reset / sync state on open change
   useEffect(() => {
+    if (open && initialIdentifier) {
+      setIdentifier(initialIdentifier)
+    }
     if (!open) {
       setTimeout(() => {
         setStep(1)
@@ -88,7 +93,7 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
         }
       }, 300)
     }
-  }, [open])
+  }, [open, initialIdentifier])
 
   // Pre-warm reCAPTCHA verifier as soon as dialog is opened
   useEffect(() => {
@@ -286,12 +291,14 @@ export function ForgotPasswordDialog({ open, onOpenChange }: ForgotPasswordDialo
             <KeyRound className="w-5 h-5" />
           </div>
           <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">
-            Password Recovery
+            {isFirstLogin ? "Set Up Your Permanent Password" : "Password Recovery"}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
-            {step === 1
-              ? "Enter your mobile number, username, or CCC code to receive an OTP."
-              : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and set your new password.`}
+            {isFirstLogin
+              ? (step === 1 ? "First login detected! Click 'Send OTP' to verify your linked phone number." : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and choose your new password.`)
+              : (step === 1
+                  ? "Enter your mobile number, username, or CCC code to receive an OTP."
+                  : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and set your new password.`)}
           </DialogDescription>
         </DialogHeader>
 

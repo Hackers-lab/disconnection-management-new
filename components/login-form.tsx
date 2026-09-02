@@ -69,6 +69,8 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
   const [showPassword, setShowPassword] = useState(false)
   const [showRegisterDialog, setShowRegisterDialog] = useState(false)
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false)
+  const [resetIdentifier, setResetIdentifier] = useState("")
+  const [isFirstLoginReset, setIsFirstLoginReset] = useState(false)
   const [deviceId, setDeviceId] = useState("")
   const [isStandalone, setIsStandalone] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -296,6 +298,12 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
       triggerHaptic("error")
       setError(result.error)
       setLoading(false)
+    } else if (result?.requireFirstLoginReset) {
+      triggerHaptic("warning")
+      setLoading(false)
+      setResetIdentifier(result.mobileNumber || result.username)
+      setIsFirstLoginReset(true)
+      setShowForgotPasswordDialog(true)
     } else {
       triggerHaptic("success")
       if (result?.benchmark) {
@@ -557,10 +565,18 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
         onOpenChange={setShowRegisterDialog} 
       />
 
-      {/* Forgot Password Recovery Dialog */}
+      {/* Forgot Password / First-Time Login Password Setup Dialog */}
       <ForgotPasswordDialog 
         open={showForgotPasswordDialog} 
-        onOpenChange={setShowForgotPasswordDialog} 
+        onOpenChange={(open) => {
+          setShowForgotPasswordDialog(open)
+          if (!open) {
+            setIsFirstLoginReset(false)
+            setResetIdentifier("")
+          }
+        }} 
+        initialIdentifier={resetIdentifier}
+        isFirstLogin={isFirstLoginReset}
       />
 
       {/* Loading Overlay */}
