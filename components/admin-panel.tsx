@@ -20,6 +20,7 @@ import { Condition, Group, Operator, rowMatchesGroups, isNumericOp, OPERATOR_LAB
 import { userStorage } from "@/lib/user-storage";
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import { AdminSetupGuideBanner } from "@/components/admin-setup-guide"
+import { expandRolePermissions } from "@/lib/permission-utils"
 
 // Optional filter-only source columns (mapped for filtering/conflict, never uploaded).
 const FILTER_COLUMNS = ["Class", "Gov/Non-Gov", "Discon Status"] as const
@@ -975,6 +976,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       meter_replacement: ["read"],
       dtr_painting: ["read"],
       material: ["read"],
+      safety: ["read"],
+      misc_inspection: ["read"],
+      icds: ["read"],
+      permanent_disconnection: ["read"],
+      osd: ["read"],
       admin: []
     }
     
@@ -3250,6 +3256,17 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   const roleData = roles.find((x) => x.role === selectedRole)
                   if (!roleData) return <div className="p-4 text-center text-xs text-gray-500">Select a role</div>
 
+                  // Compute effective permissions (including defaults) for display
+                  const { role: roleName, ...rawPerms } = roleData
+                  const effectivePerms = expandRolePermissions(roleName, rawPerms)
+
+                  // Helper: check if a module's permissions are coming from defaults (not explicitly saved)
+                  const isDefaultPerm = (mod: string, act: string) => {
+                    const raw = rawPerms[mod] || []
+                    const eff = effectivePerms[mod] || []
+                    return !raw.includes(act) && eff.includes(act)
+                  }
+
                   const modulesList = [
                     { id: "disconnection", name: "Disconnection" },
                     { id: "reconnection", name: "Reconnection" },
@@ -3298,22 +3315,26 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         </TableHeader>
                         <TableBody>
                           {modulesList.filter(m => !["nsc", "meter_replacement", "icds", "permanent_disconnection"].includes(m.id)).map((mod) => {
-                            const curPerms = roleData[mod.id] || []
+                            const effPerms = effectivePerms[mod.id] || []
                             return (
                               <TableRow key={mod.id}>
                                 <TableCell className="text-xs font-semibold text-gray-800">{mod.name}</TableCell>
                                 {["read", "create", "update", "delete"].map((actId) => {
-                                  const checked = curPerms.includes(actId)
+                                  const checked = effPerms.includes(actId)
+                                  const isDefault = isDefaultPerm(mod.id, actId)
                                   const disabled = selectedRole === "admin"
                                   return (
                                     <TableCell key={actId} className="text-center py-2">
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        disabled={disabled}
-                                        onChange={() => togglePerm(mod.id, actId)}
-                                        className="h-4 w-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                                      />
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          disabled={disabled}
+                                          onChange={() => togglePerm(mod.id, actId)}
+                                          className={`h-4 w-4 rounded border-gray-300 focus:ring-blue-500 disabled:opacity-50 cursor-pointer ${isDefault ? "accent-amber-500" : "text-blue-600"}`}
+                                        />
+                                        {isDefault && <span className="text-[9px] text-amber-600 font-medium leading-none">default</span>}
+                                      </div>
                                     </TableCell>
                                   )
                                 })}
@@ -3339,17 +3360,19 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                               { id: "return", label: "Return Meter to Store" },
                               { id: "finalize", label: "Add / Edit Note Sheet" },
                             ].map(sub => {
-                              const checked = (roleData["permanent_disconnection"] || []).includes(sub.id)
+                              const checked = (effectivePerms["permanent_disconnection"] || []).includes(sub.id)
+                              const isDefault = isDefaultPerm("permanent_disconnection", sub.id)
                               return (
-                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-rose-50/50">
+                                <label key={sub.id} className={`flex items-center gap-2 p-1.5 bg-white rounded border cursor-pointer hover:bg-rose-50/50 ${isDefault ? "border-amber-300" : "border-slate-200"}`}>
                                   <input
                                     type="checkbox"
                                     checked={checked}
                                     disabled={selectedRole === "admin"}
                                     onChange={() => togglePerm("permanent_disconnection", sub.id)}
-                                    className="h-3.5 w-3.5 rounded text-rose-600"
+                                    className={`h-3.5 w-3.5 rounded ${isDefault ? "accent-amber-500" : "text-rose-600"}`}
                                   />
                                   <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                  {isDefault && <span className="text-[9px] text-amber-600 font-medium ml-auto">default</span>}
                                 </label>
                               )
                             })}
@@ -3370,17 +3393,19 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                               { id: "execute", label: "Stage 3: Physical Meter & CSR Wiring" },
                               { id: "certify", label: "Stage 4: Handover & PDF Certificate" },
                             ].map(sub => {
-                              const checked = (roleData["icds"] || []).includes(sub.id)
+                              const checked = (effectivePerms["icds"] || []).includes(sub.id)
+                              const isDefault = isDefaultPerm("icds", sub.id)
                               return (
-                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-emerald-50/50">
+                                <label key={sub.id} className={`flex items-center gap-2 p-1.5 bg-white rounded border cursor-pointer hover:bg-emerald-50/50 ${isDefault ? "border-amber-300" : "border-slate-200"}`}>
                                   <input
                                     type="checkbox"
                                     checked={checked}
                                     disabled={selectedRole === "admin"}
                                     onChange={() => togglePerm("icds", sub.id)}
-                                    className="h-3.5 w-3.5 rounded text-emerald-600"
+                                    className={`h-3.5 w-3.5 rounded ${isDefault ? "accent-amber-500" : "text-emerald-600"}`}
                                   />
                                   <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                  {isDefault && <span className="text-[9px] text-amber-600 font-medium ml-auto">default</span>}
                                 </label>
                               )
                             })}
@@ -3401,17 +3426,19 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                               { id: "agency_complete", label: "Mark Project Work Complete" },
                               { id: "admin_approve", label: "Approve Project Completion" },
                             ].map(sub => {
-                              const checked = (roleData["nsc"] || []).includes(sub.id)
+                              const checked = (effectivePerms["nsc"] || []).includes(sub.id)
+                              const isDefault = isDefaultPerm("nsc", sub.id)
                               return (
-                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-blue-50/50">
+                                <label key={sub.id} className={`flex items-center gap-2 p-1.5 bg-white rounded border cursor-pointer hover:bg-blue-50/50 ${isDefault ? "border-amber-300" : "border-slate-200"}`}>
                                   <input
                                     type="checkbox"
                                     checked={checked}
                                     disabled={selectedRole === "admin"}
                                     onChange={() => togglePerm("nsc", sub.id)}
-                                    className="h-3.5 w-3.5 rounded text-blue-600"
+                                    className={`h-3.5 w-3.5 rounded ${isDefault ? "accent-amber-500" : "text-blue-600"}`}
                                   />
                                   <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                  {isDefault && <span className="text-[9px] text-amber-600 font-medium ml-auto">default</span>}
                                 </label>
                               )
                             })}
@@ -3430,17 +3457,19 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                               { id: "return", label: "Return Meter to Store" },
                               { id: "finalize", label: "Finalize Replacement" },
                             ].map(sub => {
-                              const checked = (roleData["meter_replacement"] || []).includes(sub.id)
+                              const checked = (effectivePerms["meter_replacement"] || []).includes(sub.id)
+                              const isDefault = isDefaultPerm("meter_replacement", sub.id)
                               return (
-                                <label key={sub.id} className="flex items-center gap-2 p-1.5 bg-white rounded border border-slate-200 cursor-pointer hover:bg-purple-50/50">
+                                <label key={sub.id} className={`flex items-center gap-2 p-1.5 bg-white rounded border cursor-pointer hover:bg-purple-50/50 ${isDefault ? "border-amber-300" : "border-slate-200"}`}>
                                   <input
                                     type="checkbox"
                                     checked={checked}
                                     disabled={selectedRole === "admin"}
                                     onChange={() => togglePerm("meter_replacement", sub.id)}
-                                    className="h-3.5 w-3.5 rounded text-purple-600"
+                                    className={`h-3.5 w-3.5 rounded ${isDefault ? "accent-amber-500" : "text-purple-600"}`}
                                   />
                                   <span className="text-[11px] font-medium text-slate-700">{sub.label}</span>
+                                  {isDefault && <span className="text-[9px] text-amber-600 font-medium ml-auto">default</span>}
                                 </label>
                               )
                             })}
