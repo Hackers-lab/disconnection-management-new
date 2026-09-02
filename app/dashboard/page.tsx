@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { verifySession } from "@/lib/session"
 import DashboardClient from "@/components/dashboard-client"
+import { SubscriptionPaywall } from "@/components/subscription-paywall"
 import { roleStorage } from "@/lib/role-storage"
 import { expandRolePermissions } from "@/lib/permissions"
 import { getTenantRegistry } from "@/lib/tenant-resolver"
@@ -13,27 +14,9 @@ export default async function DashboardPage() {
     redirect("/login")
   }
 
-  // Server-side subscription gate: if not subscribed, only pass minimal data
-  // The DashboardClient will show the subscription paywall modal
-  // But we avoid loading expensive data (permissions, feedback) for unsubscribed users
+  // Server-side subscription paywall: unsubscribed users NEVER see the dashboard
   if (!session.isSubscribed) {
-    return (
-      <DashboardClient 
-        role={session.role} 
-        agencies={session.agencies}
-        initialPermissions={{}}
-        initialHasFeedback={false}
-        initialProfile={{
-          name: session.name,
-          username: session.username,
-          cccCode: session.cccCode,
-          cccName: session.cccCode || "",
-          isSubscribed: false,
-          subscriptionExpiresAt: session.subscriptionExpiresAt,
-          bypassSubscription: session.bypassSubscription,
-        }}
-      />
-    )
+    return <SubscriptionPaywall session={session} />
   }
 
   let permissions: Record<string, string[]> = {}

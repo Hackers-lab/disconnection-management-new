@@ -205,13 +205,15 @@ export async function addAgency({
   description, 
   isActive, 
   vendorCode, 
-  mobileNumber 
+  mobileNumber,
+  subscriptionExpiresAt
 }: { 
   name: string
   description: string
   isActive: boolean
   vendorCode?: string
-  mobileNumber?: string 
+  mobileNumber?: string
+  subscriptionExpiresAt?: string
 }) {
   const context = getTenantContext()
   const cccCode = context?.cccCode || "SYSTEM"
@@ -230,15 +232,16 @@ export async function addAgency({
 
     if (cccId) {
       const insertRes = await db.execute({
-        sql: `INSERT INTO agencies (vendor_code, ccc_id, name, description, mobile_number, is_active)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO agencies (vendor_code, ccc_id, name, description, mobile_number, is_active, subscription_status, subscription_expires_at)
+              VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
         args: [
           vendorCode || null,
           cccId,
           name.toUpperCase().trim(),
           description || "",
           mobileNumber || null,
-          isActive ? 1 : 0
+          isActive ? 1 : 0,
+          subscriptionExpiresAt || null
         ]
       })
       newId = String(insertRes.lastInsertRowid || newId)
@@ -262,7 +265,7 @@ export async function addAgency({
   } catch (e) {}
   
   invalidateAgencyCache(cccCode)
-  return { id: newId, name, description, isActive, vendorCode, mobileNumber }
+  return { id: newId, name, description, isActive, vendorCode, mobileNumber, subscriptionStatus: "active", subscriptionExpiresAt }
 }
 
 export async function updateAgency({ 

@@ -108,7 +108,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         if (data.name) setProfileName(data.name)
         if (data.cccCode) setProfileCccCode(data.cccCode)
         if (data.cccName) setProfileCccName(data.cccName)
-        if (data.subscriptionStatus) setIsSubscribed(data.subscriptionStatus === "active" || data.isSubscribed)
+        if (typeof data.isSubscribed === "boolean") setIsSubscribed(data.isSubscribed)
         if (data.subscriptionExpiresAt) setSubscriptionExpiresAt(data.subscriptionExpiresAt)
         return data
       }

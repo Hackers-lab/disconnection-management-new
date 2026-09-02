@@ -187,6 +187,8 @@ interface Agency {
   mobileNumber?: string
   email?: string
   isActive: boolean
+  subscriptionStatus?: string
+  subscriptionExpiresAt?: string
 }
 
 
@@ -1116,11 +1118,21 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       })
 
       if (response.ok) {
+        const data = await response.json()
         setNewAgency({ name: "", description: "", vendorCode: "", mobileNumber: "", isActive: true })
         setShowAddAgency(false)
         const agenciesResponse = await fetch("/api/admin/agencies")
         setAgencies(await agenciesResponse.json())
-        setMessage({ type: "success", text: "Agency added successfully" })
+        const usersResponse = await fetch("/api/admin/users")
+        setUsers(await usersResponse.json())
+        if (data?.credentials) {
+          setMessage({
+            type: "success",
+            text: `🎉 Agency Added! Login ID (Mobile): ${data.credentials.username} | Temporary Password: ${data.credentials.password} | 1-Month Free Trial active until ${data.credentials.expiresAt}.`
+          })
+        } else {
+          setMessage({ type: "success", text: data?.message || "Agency added successfully" })
+        }
       } else {
         const error = await response.json()
         throw new Error(error.error || "Failed to add agency")
@@ -1144,13 +1156,16 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         setEditingAgency(null)
         const agenciesResponse = await fetch("/api/admin/agencies")
         setAgencies(await agenciesResponse.json())
+        const usersResponse = await fetch("/api/admin/users")
+        setUsers(await usersResponse.json())
         setMessage({ type: "success", text: "Agency updated successfully" })
       } else {
-        throw new Error("Failed to update agency")
+        const error = await response.json()
+        throw new Error(error.error || "Failed to update agency")
       }
     } catch (error) {
       console.error("Error updating agency:", error)
-      setMessage({ type: "error", text: "Failed to update agency" })
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to update agency" })
     }
   }
 

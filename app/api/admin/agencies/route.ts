@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { getAgencies, addAgency, updateAgency, deleteAgency } from "@/lib/agency-storage"
+import { userStorage, type MasterUser } from "@/lib/user-storage"
 import { withTenant } from "@/lib/tenant-context"
 import { incrKV, getTenantKey } from "@/lib/kv-store"
 
@@ -33,16 +34,51 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     if (agencies.find((a) => a.name.toUpperCase() === name.toUpperCase())) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
+
+    const trialExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+
     await addAgency({ 
       name: name.toUpperCase(), 
       description: description || "", 
       isActive: isActive !== false,
       vendorCode: vendorCode || undefined,
-      mobileNumber: mobileNumber || undefined
+      mobileNumber: mobileNumber || undefined,
+      subscriptionExpiresAt: trialExpiresAt
     })
+
+    if (mobileNumber && vendorCode) {
+      const cleanMobile = mobileNumber.replace(/\D/g, '').slice(-10)
+      const existingUser = await userStorage.getUserByUsername(cleanMobile)
+      if (!existingUser) {
+        await userStorage.addUser({
+          username: cleanMobile,
+          password: vendorCode.trim(), // Temporary password is SAP Vendor Code
+          name: name.toUpperCase().trim(),
+          role: "agency",
+          cccCode: session.cccCode || "",
+          agencies: [name.toUpperCase().trim()],
+          subscriptionStatus: "active",
+          subscriptionExpiresAt: trialExpiresAt,
+          bypassSubscription: false,
+        })
+        console.log(`👤 [AUTO-PROVISION] Created agency user: ${cleanMobile} (Temp password: ${vendorCode})`)
+      }
+    }
+
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
-    return NextResponse.json({ success: true, message: "Agency added successfully" })
+
+    const credentials = (mobileNumber && vendorCode) ? {
+      username: mobileNumber.replace(/\D/g, '').slice(-10),
+      password: vendorCode.trim(),
+      expiresAt: trialExpiresAt
+    } : undefined
+
+    return NextResponse.json({
+      success: true,
+      message: "Agency added successfully",
+      credentials
+    })
   } catch (error) {
     console.error("Error adding agency:", error)
     return NextResponse.json({ error: "Failed to add agency" }, { status: 500 })
@@ -67,8 +103,21 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now() &&
       existingAgency.subscriptionStatus === "active"
 
-    // Prevent renaming or changing vendor code of a paid agency by regular admins
-    if (isSubscribed) {
+    // Find linked user to check if on temporary credentials
+    const oldCleanMobile = existingAgency.mobileNumber ? existingAgency.mobileNumber.replace(/\D/g, '').slice(-10) : ""
+    let linkedUser = oldCleanMobile ? await userStorage.getUserByUsername(oldCleanMobile) : null
+    if (!linkedUser) {
+      const cccUsers = await userStorage.getUsersByCcc(session.cccCode || "")
+      linkedUser = cccUsers.find(u => u.role === "agency" && (
+        u.name?.toUpperCase().trim() === existingAgency.name.toUpperCase().trim() ||
+        u.agencies.some(ag => ag.toUpperCase().trim() === existingAgency.name.toUpperCase().trim())
+      )) || null
+    }
+
+    const isOnTempCredentials = !linkedUser || (existingAgency.vendorCode && linkedUser.password === existingAgency.vendorCode.trim())
+
+    // Prevent renaming or changing vendor code of a paid agency by regular admins unless on temporary credentials
+    if (isSubscribed && !isOnTempCredentials) {
       if (name && name.toUpperCase().trim() !== existingAgency.name.toUpperCase().trim()) {
         return NextResponse.json(
           { error: "Agency Name cannot be changed while an active subscription exists. Please contact Superuser for authorization." },
@@ -86,6 +135,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
     if (agencies.find((a) => a.name.toUpperCase() === name.toUpperCase() && a.id !== id)) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
+
     await updateAgency({ 
       id, 
       name: name.toUpperCase(), 
@@ -94,6 +144,50 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       vendorCode: vendorCode || undefined,
       mobileNumber: mobileNumber || undefined
     })
+
+    // Also update the linked user in users table if mobile or vendor code changes!
+    const newCleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : ""
+    const newVendorCode = vendorCode ? vendorCode.trim() : ""
+    const newAgencyName = name ? name.toUpperCase().trim() : ""
+
+    if (linkedUser) {
+      const userUpdates: Partial<Omit<MasterUser, "id">> = {}
+      if (newCleanMobile && linkedUser.username !== newCleanMobile) {
+        const existingWithNewMobile = await userStorage.getUserByUsername(newCleanMobile)
+        if (!existingWithNewMobile || existingWithNewMobile.id === linkedUser.id) {
+          userUpdates.username = newCleanMobile
+        }
+      }
+      if (newVendorCode && (isOnTempCredentials || !linkedUser.password)) {
+        userUpdates.password = newVendorCode
+      }
+      if (newAgencyName && linkedUser.name !== newAgencyName) {
+        userUpdates.name = newAgencyName
+        userUpdates.agencies = [newAgencyName]
+      }
+      if (Object.keys(userUpdates).length > 0) {
+        await userStorage.updateUser(linkedUser.id, userUpdates)
+        console.log(`👤 [AUTO-PROVISION] Updated linked agency user for: ${newAgencyName || linkedUser.name}`)
+      }
+    } else if (newCleanMobile && newVendorCode) {
+      const existingUser = await userStorage.getUserByUsername(newCleanMobile)
+      if (!existingUser) {
+        const trialExpiresAt = existingAgency.subscriptionExpiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        await userStorage.addUser({
+          username: newCleanMobile,
+          password: newVendorCode,
+          name: newAgencyName || existingAgency.name.toUpperCase().trim(),
+          role: "agency",
+          cccCode: session.cccCode || "",
+          agencies: [newAgencyName || existingAgency.name.toUpperCase().trim()],
+          subscriptionStatus: existingAgency.subscriptionStatus || "active",
+          subscriptionExpiresAt: trialExpiresAt,
+          bypassSubscription: false,
+        })
+        console.log(`👤 [AUTO-PROVISION] Created missing agency user on update: ${newCleanMobile}`)
+      }
+    }
+
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency updated successfully" })
