@@ -10,7 +10,7 @@ export const maxDuration = 10
 const localPresenceMap = new Map<string, number>()
 const PRESENCE_TIMEOUT_MS = 120_000 // 2 minutes window for live users
 
-const BASELINE_VISITORS = 19900
+const BASELINE_VISITORS = 22115
 let memoryVisitorCounter = BASELINE_VISITORS
 let lastSyncedTime = 0
 const SYNC_INTERVAL_MS = 10_000 // Sync from central store every 10 seconds
@@ -36,6 +36,9 @@ async function getSynchronizedVisitorCount(isNewVisit: boolean): Promise<number>
       const stored = await getKV<number>("system:total_visitors")
       if (typeof stored === "number" && stored > memoryVisitorCounter) {
         memoryVisitorCounter = stored
+      } else if (typeof stored !== "number" || stored < BASELINE_VISITORS) {
+        // Upgrade central KV store immediately to baseline
+        setKV("system:total_visitors", Math.max(memoryVisitorCounter, BASELINE_VISITORS)).catch(() => {})
       }
       lastSyncedTime = now
     } catch {
