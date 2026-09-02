@@ -2089,24 +2089,46 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 if (agencyFilter === "completed") return isComplete
                 return true
               })
-              .map((agency: any) => (
+              .map((agency: any) => {
+                const isAgencySubscribed = Boolean(
+                  agency.subscriptionExpiresAt && 
+                  new Date(agency.subscriptionExpiresAt).getTime() > Date.now() && 
+                  agency.subscriptionStatus === "active"
+                )
+                return (
               <Card key={agency.id} className="p-3">
                 {editingAgency?.id === agency.id ? (
                   <div className="space-y-4 p-2">
+                    {isAgencySubscribed && (
+                      <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
+                        <span className="font-semibold">🔒 Protected Agency:</span>
+                        <span>This agency has an active subscription until <strong>{agency.subscriptionExpiresAt}</strong>. Agency Name and SAP Vendor Code are locked to prevent license transfer.</span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Agency Name <span className="text-rose-500">*</span></Label>
+                        <Label className="flex items-center justify-between">
+                          <span>Agency Name <span className="text-rose-500">*</span></span>
+                          {isAgencySubscribed && <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>}
+                        </Label>
                         <Input
                           value={editingAgency.name}
+                          disabled={isAgencySubscribed}
+                          className={isAgencySubscribed ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, name: e.target.value })
                           }
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>SAP Vendor Code <span className="text-rose-500">*</span></Label>
+                        <Label className="flex items-center justify-between">
+                          <span>SAP Vendor Code <span className="text-rose-500">*</span></span>
+                          {isAgencySubscribed && <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>}
+                        </Label>
                         <Input
                           value={editingAgency.vendorCode || ""}
+                          disabled={isAgencySubscribed}
+                          className={isAgencySubscribed ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, vendorCode: e.target.value.replace(/\D/g, '').slice(0, 6) })
                           }
@@ -2188,6 +2210,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                             Missing Phone
                           </Badge>
                         )}
+                        {isAgencySubscribed && (
+                          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]">
+                            🛡️ Subscribed (until {agency.subscriptionExpiresAt})
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant={agency.isActive ? "default" : "secondary"}>
@@ -2209,6 +2236,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <Button
                         variant="destructive"
                         size="sm"
+                        disabled={isAgencySubscribed}
+                        title={isAgencySubscribed ? "Cannot delete agency with active subscription" : "Delete Agency"}
                         onClick={() => deleteAgency(agency.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -2217,7 +2246,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   </div>
                 )}
               </Card>
-            ))}
+                )
+              })}
           </div>
         </div>
       )}
