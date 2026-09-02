@@ -1,6 +1,4 @@
 import { createClient, Client } from "@libsql/client"
-import path from "path"
-import fs from "fs"
 
 // Singleton database connection client
 let clientInstance: Client | null = null
@@ -8,45 +6,13 @@ let clientInstance: Client | null = null
 export function getDb(): Client {
   if (clientInstance) return clientInstance
 
-  const remoteUrl = process.env.TURSO_DATABASE_URL
-  const authToken = process.env.TURSO_AUTH_TOKEN
+  const url = process.env.TURSO_DATABASE_URL || "file:turso_v4.db"
+  const authToken = url.startsWith("file:") ? undefined : process.env.TURSO_AUTH_TOKEN
 
-  // If no remote URL is configured or if explicitly using local file
-  if (!remoteUrl || remoteUrl.startsWith("file:")) {
-    clientInstance = createClient({
-      url: remoteUrl || "file:turso_v4.db",
-    })
-    ensureIndexes(clientInstance)
-    return clientInstance
-  }
-
-  // Determine local replica file path (/tmp on Vercel/serverless, .turso locally)
-  const isVercel = process.env.VERCEL === "1" || process.env.NODE_ENV === "production"
-  const localDir = isVercel ? "/tmp" : path.join(process.cwd(), ".turso")
-  if (!fs.existsSync(localDir)) {
-    try { fs.mkdirSync(localDir, { recursive: true }) } catch {}
-  }
-  const localDbPath = `file:${path.join(localDir, "turso_embedded.db")}`
-
-  try {
-    clientInstance = createClient({
-      url: localDbPath,
-      syncUrl: remoteUrl,
-      authToken: authToken,
-      syncInterval: 60,
-    })
-
-    // Perform non-blocking initial sync
-    clientInstance.sync().catch(err => {
-      console.warn("[Turso] Initial replica sync warning:", err.message)
-    })
-  } catch (e: any) {
-    console.warn("[Turso] Embedded sync setup failed, falling back to direct cloud connection:", e.message)
-    clientInstance = createClient({
-      url: remoteUrl,
-      authToken,
-    })
-  }
+  clientInstance = createClient({
+    url,
+    authToken,
+  })
 
   ensureIndexes(clientInstance)
   return clientInstance
