@@ -6,11 +6,10 @@ import { incrKV, getTenantKey } from "@/lib/kv-store"
 
 export const dynamic = "force-dynamic"
 
-// GET - List all agencies
+// GET - List all agencies (accessible to authenticated users for dropdowns/filters)
 export const GET = withTenant(async function GET(request: NextRequest) {
   const session = await verifySession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   const agencies = await getAgencies()
   return NextResponse.json(agencies, {
     // no-store: browser never caches — every user always hits the server.
