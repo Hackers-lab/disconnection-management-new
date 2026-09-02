@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Zap, RefreshCw, Gauge, ClipboardCheck, ShieldCheck } from "lucide-react"
+import { Zap, RefreshCw, Gauge, ClipboardCheck, ShieldCheck, PowerOff } from "lucide-react"
 import { triggerHaptic } from "@/lib/haptics"
 
 interface ModuleItem {
@@ -15,6 +15,11 @@ const MODULES: ModuleItem[] = [
     title: "Disconnection Management",
     icon: Zap,
     iconClass: "text-amber-400 fill-amber-400",
+  },
+  {
+    title: "Permanent Disconnection",
+    icon: PowerOff,
+    iconClass: "text-rose-400",
   },
   {
     title: "Reconnection Management",
