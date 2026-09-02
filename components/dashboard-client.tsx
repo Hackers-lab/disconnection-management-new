@@ -1990,7 +1990,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       days={30}
                       buttonText={isSubscribed ? "Extend Subscription (₹99)" : "Activate Subscription (₹99)"}
                       userPrefill={{
-                        name: name || username,
+                        name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                         contact: profileData?.mobileNumber || profileEditMobile || "",
                       }}
                       className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold py-2.5 rounded-lg shadow-md"
@@ -2118,7 +2118,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                 days={30}
                 buttonText="Pay with Razorpay & Activate"
                 userPrefill={{
-                  name: name || username,
+                  name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                   contact: profileData?.mobileNumber || profileEditMobile || "",
                 }}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-lg shadow-md hover:shadow-indigo-500/10 transition-all duration-200"
