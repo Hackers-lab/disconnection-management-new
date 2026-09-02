@@ -55,7 +55,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { consumerId, consumerName, address, mobile, liveOsdAmount, agency } = body
+    const { consumerId, consumerName, address, meterNumber, mobile, liveOsdAmount, agency } = body
 
     if (!consumerId || !consumerName || !address) {
       return NextResponse.json({ error: "Consumer ID, Name, and Address are required" }, { status: 400 })
@@ -65,6 +65,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       consumerId,
       consumerName,
       address,
+      meterNumber: meterNumber || "",
       mobile: mobile || "",
       liveOsdAmount: typeof liveOsdAmount === "number" ? liveOsdAmount : parseFloat(liveOsdAmount || "0") || 0,
       agency: agency || "",
@@ -76,12 +77,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     await appendDeltaPatch(tenantId, "permanent-disconnection", {
       action: "UPDATE",
       recordId: result.pdId,
-      changes: { pdId: result.pdId, consumerId, consumerName, status: agency ? "issued" : "proposed" }
+      changes: { pdId: result.pdId, consumerId, consumerName, meterNumber: meterNumber || "", status: "proposed" }
     }).catch(e => console.warn("Patch log error:", e))
-
-    if (agency) {
-      await updateBadgeCounts(tenantId, "permanent-disconnection", undefined, 1).catch(e => console.warn("Badge count error:", e))
-    }
 
     return NextResponse.json({ success: true, pdId: result.pdId, record: result.record })
   } catch (e: any) {

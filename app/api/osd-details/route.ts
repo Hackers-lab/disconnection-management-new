@@ -47,8 +47,12 @@ export async function GET(request: NextRequest) {
 
     if (!firstRes.ok) {
       return NextResponse.json(
-        { error: `WBSEDCL Portal returned HTTP status ${firstRes.status}` },
-        { status: 502 }
+        {
+          success: false,
+          error: `WBSEDCL Portal server is temporarily unreachable (HTTP ${firstRes.status}). The portal server may be under maintenance.`,
+          portalOffline: true
+        },
+        { status: 200 }
       )
     }
 
@@ -121,8 +125,12 @@ export async function GET(request: NextRequest) {
 
     if (!pdfBuffer) {
       return NextResponse.json(
-        { error: "Returned document is not a valid PDF file. WBSEDCL server may be down or Consumer ID may be invalid." },
-        { status: 422 }
+        {
+          success: false,
+          error: "WBSEDCL portal did not return a valid PDF report. The portal may be busy or the Consumer ID is not found.",
+          portalOffline: true
+        },
+        { status: 200 }
       )
     }
 

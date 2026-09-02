@@ -25,9 +25,9 @@ const MODULE_ENDPOINT_MAP: Record<string, string> = {
   icds: "/api/icds/base",
   gis: "/api/gis/base",
   gis_captures: "/api/gis/base",
-  "permanent-disconnection": "/api/permanent-disconnection/base",
-  permanent_disconnection: "/api/permanent-disconnection/base",
-  pd: "/api/permanent-disconnection/base",
+  "permanent-disconnection": "/api/permanent-disconnection",
+  permanent_disconnection: "/api/permanent-disconnection",
+  pd: "/api/permanent-disconnection",
 }
 
 export function useModuleVersionSync<T extends Record<string, any>>(

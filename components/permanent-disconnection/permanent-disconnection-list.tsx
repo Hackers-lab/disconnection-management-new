@@ -7,9 +7,15 @@ import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   PowerOff,
   Search,
@@ -22,22 +28,23 @@ import {
   Printer,
   Download,
   Filter,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
-  Eye,
   MapPin,
   IndianRupee,
   Building2,
-  XCircle,
   X,
   LayoutGrid,
   List,
   SlidersHorizontal,
-  RotateCcw
+  RotateCcw,
+  MoreVertical,
+  Phone,
+  Zap,
+  Gauge,
+  TrendingUp,
+  BarChart3,
+  FileSpreadsheet,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -71,13 +78,15 @@ export function PermanentDisconnectionList({
   const { toast } = useToast()
   const [records, setRecords] = useState<PermanentDisconnection[]>([])
   const [loading, setLoading] = useState(true)
-  const [showKpis, setShowKpis] = useState(true)
-  const [showAgencySummary, setShowAgencySummary] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
   const [activeTab, setActiveTab] = useState<PDTab>("all")
   const [searchInput, setSearchInput] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [viewMode, setViewMode] = useState<"card" | "list">("card")
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false)
+  const [consumerMasterMap, setConsumerMasterMap] = useState<Record<string, any>>({})
+  const [dynamicAgencies, setDynamicAgencies] = useState<string[]>(agencies)
 
   // Advanced Filters State
   const [filters, setFilters] = useState({
@@ -123,6 +132,53 @@ export function PermanentDisconnectionList({
   const canReturn = isAdmin || isExec || userRole === "store_keeper" || pdPerms.has("return")
   const canFinalize = isAdmin || isExec || pdPerms.has("finalize")
 
+  // Load consumer master details and agencies cache
+  useEffect(() => {
+    async function loadAuxData() {
+      try {
+        const [cachedMaster, cachedConsumers, cachedAgencies, cachedZoneMap] = await Promise.all([
+          getFromCache<any[]>("consumer_master_cache"),
+          getFromCache<any[]>("consumers_data_cache"),
+          getFromCache<string[]>("agencies_data_cache"),
+          getFromCache<{ zone: string; agency: string }[]>("zone_map_cache")
+        ])
+
+        const map: Record<string, any> = {}
+        if (cachedMaster && Array.isArray(cachedMaster)) {
+          cachedMaster.forEach(c => {
+            const cid = String(c.consumerId || "").trim()
+            if (cid) map[cid] = c
+          })
+        }
+        if (cachedConsumers && Array.isArray(cachedConsumers)) {
+          cachedConsumers.forEach(c => {
+            const cid = String(c.consumerId || "").trim()
+            if (cid && !map[cid]) {
+              map[cid] = c
+            }
+          })
+        }
+        setConsumerMasterMap(map)
+
+        const allAg = new Set<string>(agencies.filter(Boolean))
+        if (cachedAgencies && Array.isArray(cachedAgencies)) {
+          cachedAgencies.forEach(a => { if (a) allAg.add(a.trim()) })
+        }
+        if (cachedZoneMap && Array.isArray(cachedZoneMap)) {
+          cachedZoneMap.forEach(z => { if (z.agency) allAg.add(z.agency.trim()) })
+        }
+        if (cachedConsumers && Array.isArray(cachedConsumers)) {
+          cachedConsumers.forEach(c => { if (c.agency) allAg.add(c.agency.trim()) })
+        }
+        const sorted = Array.from(allAg).filter(Boolean).sort()
+        if (sorted.length > 0) {
+          setDynamicAgencies(sorted)
+        }
+      } catch { /* ignore */ }
+    }
+    loadAuxData()
+  }, [agencies])
+
   const activeFiltersCount = useMemo(() => {
     let count = 0
     if (filters.agency !== "all") count++
@@ -149,14 +205,17 @@ export function PermanentDisconnectionList({
     setSearchQuery("")
   }
 
-  const handleExecuteSearch = () => {
-    setSearchQuery(searchInput.trim())
+  // Live search as user types
+  const handleSearchChange = (val: string) => {
+    setSearchInput(val)
+    setSearchQuery(val.trim())
   }
 
   const { syncState, checkVersion } = useModuleVersionSync<PermanentDisconnection>(
     "permanent-disconnection",
     CACHE_KEY,
     "pdId",
+    "/api/permanent-disconnection?bypassCache=true",
     useCallback((freshData: PermanentDisconnection[]) => {
       setRecords(freshData)
       setLoading(false)
@@ -167,7 +226,10 @@ export function PermanentDisconnectionList({
     setLoading(true)
     try {
       if (bypassCache) {
-        const res = await fetch(`/api/permanent-disconnection?bypassCache=true`)
+        const res = await fetch(`/api/permanent-disconnection?bypassCache=true`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" }
+        })
         if (res.ok) {
           const fresh: PermanentDisconnection[] = await res.json()
           if (Array.isArray(fresh)) {
@@ -310,13 +372,17 @@ export function PermanentDisconnectionList({
       // 8. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
+        const aux = consumerMasterMap[r.consumerId] || {}
         const matches =
           (r.consumerId || "").toLowerCase().includes(q) ||
           (r.consumerName || "").toLowerCase().includes(q) ||
           (r.address || "").toLowerCase().includes(q) ||
+          (r.meterNumber || "").toLowerCase().includes(q) ||
           (r.mobile || "").toLowerCase().includes(q) ||
+          (aux.mobile || "").toLowerCase().includes(q) ||
           (r.pdId || "").toLowerCase().includes(q) ||
           (r.removedMeterNo || "").toLowerCase().includes(q) ||
+          (aux.meterNumber || aux.meterNo || "").toLowerCase().includes(q) ||
           (r.agency || "").toLowerCase().includes(q) ||
           (r.noteSheetNo || "").toLowerCase().includes(q)
         if (!matches) return false
@@ -324,7 +390,7 @@ export function PermanentDisconnectionList({
 
       return true
     })
-  }, [records, activeTab, filters, searchQuery])
+  }, [records, activeTab, filters, searchQuery, consumerMasterMap])
 
   // Select all handler
   const handleSelectAll = (checked: boolean) => {
@@ -351,6 +417,7 @@ export function PermanentDisconnectionList({
       "Consumer ID",
       "Consumer Name",
       "Address",
+      "Meter Number",
       "Mobile",
       "Live OSD Amount (Rs)",
       "Status",
@@ -387,6 +454,7 @@ export function PermanentDisconnectionList({
         `="${r.consumerId}"`,
         `"${(r.consumerName || "").replace(/"/g, '""')}"`,
         `"${(r.address || "").replace(/"/g, '""')}"`,
+        `="${r.meterNumber || ""}"`,
         `="${r.mobile || ""}"`,
         r.liveOsdAmount || 0,
         r.status,
@@ -441,105 +509,61 @@ export function PermanentDisconnectionList({
   }, [records])
 
   return (
-    <div className="space-y-4 p-2 sm:p-4 pb-24">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <div>
-          <h1 className="text-xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <PowerOff className="h-6 w-6 text-rose-600" />
-            <span>Permanent Disconnection (PD)</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Track permanent meter dismantling, Live OSD dues, GIS photo evidence, CCC store returns, and Note Sheets.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => loadData(true)}
-            disabled={loading}
-            className="text-xs shrink-0"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="text-xs shrink-0 text-slate-700 hover:text-emerald-700"
-          >
-            <Download className="h-3.5 w-3.5 mr-1" />
-            Export CSV
-          </Button>
-
-          {canPropose && (
-            <Button
-              size="sm"
-              onClick={() => setProposeOpen(true)}
-              className="text-xs bg-rose-600 hover:bg-rose-700 text-white shrink-0"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Propose PD
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Collapsible KPI Counters Bar */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <button
-            type="button"
-            onClick={() => setShowKpis(v => !v)}
-            className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1.5 cursor-pointer select-none transition-colors"
-          >
-            <PowerOff className="h-3.5 w-3.5 text-rose-600" />
-            <span>KPI Stage Overview</span>
-            {showKpis ? (
-              <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            )}
-          </button>
-          {!showKpis && (
-            <span className="text-[11px] font-mono text-slate-500 font-semibold">
-              Total: <strong className="text-slate-900">{counts.all}</strong> | Pending: <strong className="text-rose-700">{counts.proposed + counts.issued + counts.return_pending + counts.note_sheet_pending}</strong>
+    <div className="space-y-4 p-2 sm:p-4 pb-28">
+      {/* 1. Full-Width Collapsible Dashboard Bar (Collapsed by default) */}
+      <div className="space-y-3">
+        <div
+          className="flex justify-between items-center p-3.5 sm:p-4 rounded-2xl cursor-pointer bg-white/80 hover:bg-white backdrop-blur-md border border-slate-200/80 shadow-sm hover:shadow-md transition-all duration-300"
+          onClick={() => setShowDashboard(v => !v)}
+        >
+          <div className="flex items-center gap-3">
+            <span className={`p-2 rounded-xl transition-colors duration-300 ${showDashboard ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600"}`}>
+              <TrendingUp className="h-5 w-5" />
             </span>
-          )}
+            <span className="font-bold text-slate-800 text-sm tracking-tight">Dashboard</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+              {showDashboard ? "Hide Panel" : "Show Panel"}
+            </span>
+            <div className={`p-1.5 rounded-lg ${showDashboard ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-600"} transition-colors duration-200`}>
+              {showDashboard ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </div>
         </div>
 
-        {showKpis && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-            {[
-              { key: "all", label: "All", count: counts.all, color: "text-slate-900", bg: "bg-slate-50 border-slate-200" },
-              { key: "proposed", label: "Proposed", count: counts.proposed, color: "text-amber-700", bg: "bg-amber-50/70 border-amber-200" },
-              { key: "issued", label: "Issued", count: counts.issued, color: "text-blue-700", bg: "bg-blue-50/70 border-blue-200" },
-              { key: "executed", label: "Executed", count: counts.executed, color: "text-rose-700", bg: "bg-rose-50/70 border-rose-200" },
-              { key: "return_pending", label: "Ret. Pending", count: counts.return_pending, color: "text-orange-700", bg: "bg-orange-50/70 border-orange-200" },
-              { key: "note_sheet_pending", label: "NS Pending", count: counts.note_sheet_pending, color: "text-purple-700", bg: "bg-purple-50/70 border-purple-200" },
-              { key: "completed", label: "Completed", count: counts.completed, color: "text-emerald-700", bg: "bg-emerald-50/70 border-emerald-200" }
-            ].map(item => (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key as PDTab)}
-                className={`p-2.5 rounded-lg border text-left transition-all ${item.bg} ${
-                  activeTab === item.key ? "ring-2 ring-slate-800 font-bold shadow-sm" : "hover:opacity-90"
-                }`}
-              >
-                <div className="text-[11px] text-slate-500 font-medium truncate">{item.label}</div>
-                <div className={`text-lg font-black font-mono ${item.color}`}>{item.count}</div>
-              </button>
-            ))}
+        {showDashboard && (
+          <div className="space-y-3 animate-in fade-in-50 duration-200">
+            {/* KPI Cards Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+              {[
+                { key: "all", label: "All", count: counts.all, color: "text-slate-900", bg: "bg-slate-50/80 border-slate-200" },
+                { key: "proposed", label: "Proposed", count: counts.proposed, color: "text-amber-700", bg: "bg-amber-50/70 border-amber-200" },
+                { key: "issued", label: "Issued", count: counts.issued, color: "text-blue-700", bg: "bg-blue-50/70 border-blue-200" },
+                { key: "executed", label: "Dismantled", count: counts.executed, color: "text-rose-700", bg: "bg-rose-50/70 border-rose-200" },
+                { key: "return_pending", label: "Ret. Pending", count: counts.return_pending, color: "text-orange-700", bg: "bg-orange-50/70 border-orange-200" },
+                { key: "note_sheet_pending", label: "NS Pending", count: counts.note_sheet_pending, color: "text-purple-700", bg: "bg-purple-50/70 border-purple-200" },
+                { key: "completed", label: "Completed", count: counts.completed, color: "text-emerald-700", bg: "bg-emerald-50/70 border-emerald-200" },
+                { key: "closed", label: "Closed", count: counts.closed, color: "text-slate-600", bg: "bg-slate-50 border-slate-200" }
+              ].map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveTab(item.key as PDTab)}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${item.bg} ${
+                    activeTab === item.key ? "ring-2 ring-slate-900 font-bold shadow-sm" : "hover:opacity-90"
+                  }`}
+                >
+                  <div className="text-[11px] text-slate-500 font-medium truncate">{item.label}</div>
+                  <div className={`text-lg font-black font-mono ${item.color}`}>{item.count}</div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Mobile-Optimized Compact Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b text-xs scrollbar-thin">
+      {/* 2. Compact Stage Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-thin">
         {[
           { id: "all", label: "All" },
           { id: "proposed", label: `Proposed (${counts.proposed})` },
@@ -553,7 +577,7 @@ export function PermanentDisconnectionList({
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id as PDTab)}
-            className={`px-3 py-1.5 rounded-md font-semibold text-xs whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-colors ${
               activeTab === t.id
                 ? "bg-slate-900 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
@@ -564,113 +588,149 @@ export function PermanentDisconnectionList({
         ))}
       </div>
 
-      {/* Search and Filters Bar */}
-      <div className="space-y-2 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-center gap-2">
-          {/* Search Input Row with Filter Icon right beside */}
-          <div className="flex items-center gap-1.5 flex-1 w-full">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search Consumer ID, Name, Mobile, Meter No, Note Sheet No..."
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === "Enter") {
-                    handleExecuteSearch()
-                  }
+      {/* 3. Search and Options Bar (No extra Search button, with 3-dot dropdown) */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 shadow-sm">
+          {/* Search Input with looking glass only */}
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Search Consumer ID, Name, Mobile, Meter No, Zone..."
+              value={searchInput}
+              onChange={e => handleSearchChange(e.target.value)}
+              className="pl-8 pr-8 text-xs h-9 border-slate-200 bg-slate-50/50 focus:bg-white"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput("")
+                  setSearchQuery("")
                 }}
-                className="pl-8 pr-8 text-xs h-9"
-              />
-              {searchInput && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchInput("")
-                    setSearchQuery("")
-                  }}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Filter Icon Button placed directly alongside the Search Input */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setIsFilterDialogOpen(true)}
-              className={`h-9 w-9 shrink-0 relative ${
-                activeFiltersCount > 0
-                  ? "border-rose-300 bg-rose-50 text-rose-700"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-              title="Open Advanced Filters"
-            >
-              <Filter className="h-4 w-4" />
-              {activeFiltersCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-600 border-2 border-white text-[9px] text-white flex items-center justify-center font-bold" />
-              )}
-            </Button>
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          {/* Dedicated Search Button */}
+          {/* Filter Button */}
           <Button
-            size="sm"
-            onClick={handleExecuteSearch}
-            className="h-9 px-3.5 text-xs bg-slate-900 hover:bg-slate-800 text-white shrink-0 w-full sm:w-auto"
+            variant="outline"
+            size="icon"
+            onClick={() => setIsFilterDialogOpen(true)}
+            className={`h-9 w-9 shrink-0 relative ${
+              activeFiltersCount > 0
+                ? "border-rose-300 bg-rose-50 text-rose-700"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+            title="Filter Options"
           >
-            <Search className="h-3.5 w-3.5 mr-1" />
-            Search
+            <Filter className="h-4 w-4" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-rose-600 border-2 border-white text-[9px] text-white flex items-center justify-center font-bold">
+                {activeFiltersCount}
+              </span>
+            )}
           </Button>
 
-          {/* View Mode Toggle (Card vs List Table) */}
-          <div className="flex items-center border rounded-md overflow-hidden shrink-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={`h-9 w-9 rounded-none ${viewMode === "card" ? "bg-slate-100 text-slate-900 font-bold" : "text-slate-500"}`}
-              onClick={() => setViewMode("card")}
-              title="Card Grid View"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <div className="w-px h-5 bg-slate-200" />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={`h-9 w-9 rounded-none ${viewMode === "list" ? "bg-slate-100 text-slate-900 font-bold" : "text-slate-500"}`}
-              onClick={() => setViewMode("list")}
-              title="Table List View"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
+          {/* 3-Dot Options Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 text-slate-600 hover:bg-slate-50"
+                title="More Options"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={handleExportCSV} className="text-xs cursor-pointer gap-2">
+                <Download className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Export Filtered CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsReportDialogOpen(true)} className="text-xs cursor-pointer gap-2">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-purple-600" />
+                <span>Tracking Summary Report</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setViewMode(viewMode === "card" ? "list" : "card")}
+                className="text-xs cursor-pointer gap-2"
+              >
+                {viewMode === "card" ? (
+                  <>
+                    <List className="h-3.5 w-3.5 text-slate-600" />
+                    <span>Switch to Table View</span>
+                  </>
+                ) : (
+                  <>
+                    <LayoutGrid className="h-3.5 w-3.5 text-slate-600" />
+                    <span>Switch to Card View</span>
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => loadData(true)} className="text-xs cursor-pointer gap-2">
+                <RefreshCw className="h-3.5 w-3.5 text-blue-600" />
+                <span>Force Server Refresh</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Bulk Action Button (if items selected) */}
           {selectedIds.length > 0 && canIssue && (
             <Button
               size="sm"
               onClick={() => setIssueOpen(true)}
-              className="h-9 text-xs bg-blue-600 hover:bg-blue-700 text-white shrink-0 w-full sm:w-auto"
+              className="h-9 text-xs bg-blue-600 hover:bg-blue-700 text-white shrink-0"
             >
               <Send className="h-3.5 w-3.5 mr-1" />
-              Issue {selectedIds.length} Selected
+              Issue ({selectedIds.length})
             </Button>
           )}
         </div>
 
-        {/* Active Filter Pills Bar */}
-        {(activeFiltersCount > 0 || searchQuery) && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
-            <span className="text-[11px] text-slate-400 font-medium mr-1">Active filters:</span>
+        {/* 4. Tab Counts Summary + Refresh Icon Below Search Bar */}
+        <div className="flex items-center justify-between px-1 text-xs">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => loadData(true)}
+              disabled={loading}
+              className="h-7 w-7 p-0 rounded-full hover:bg-slate-100 text-slate-600"
+              title="Refresh PD Records"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-rose-600" : ""}`} />
+            </Button>
+            <span className="font-semibold text-slate-700">
+              Showing <span className="font-mono font-bold text-slate-900">{filteredRecords.length}</span> record{filteredRecords.length !== 1 ? "s" : ""}
+              {activeTab !== "all" && (
+                <span className="text-slate-400 font-normal"> &bull; {activeTab.replace(/_/g, " ")}</span>
+              )}
+            </span>
+          </div>
 
+          {(activeFiltersCount > 0 || searchQuery) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetFilters}
+              className="h-6 text-[11px] px-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" /> Reset Filters
+            </Button>
+          )}
+        </div>
+
+        {/* Active Filter Badges */}
+        {(activeFiltersCount > 0 || searchQuery) && (
+          <div className="flex flex-wrap items-center gap-1.5 px-1 text-xs">
             {searchQuery && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-slate-100 text-slate-800 font-medium">
-                Query: "{searchQuery}"
+              <Badge variant="secondary" className="gap-1 text-[11px] bg-slate-100 text-slate-800">
+                "{searchQuery}"
                 <X
                   className="h-3 w-3 cursor-pointer hover:text-red-600"
                   onClick={() => {
@@ -680,7 +740,6 @@ export function PermanentDisconnectionList({
                 />
               </Badge>
             )}
-
             {filters.agency !== "all" && (
               <Badge variant="secondary" className="gap-1 text-[11px] bg-blue-50 text-blue-800 border border-blue-200">
                 Agency: {filters.agency}
@@ -690,37 +749,6 @@ export function PermanentDisconnectionList({
                 />
               </Badge>
             )}
-
-            {filters.meterCondition !== "all" && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-amber-50 text-amber-800 border border-amber-200 capitalize">
-                Condition: {filters.meterCondition}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-red-600"
-                  onClick={() => setFilters(prev => ({ ...prev, meterCondition: "all" }))}
-                />
-              </Badge>
-            )}
-
-            {filters.returnStatus !== "all" && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200">
-                Store Return: {filters.returnStatus === "returned" ? "Returned" : "Pending Return"}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-red-600"
-                  onClick={() => setFilters(prev => ({ ...prev, returnStatus: "all" }))}
-                />
-              </Badge>
-            )}
-
-            {filters.noteSheetStatus !== "all" && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-purple-50 text-purple-800 border border-purple-200">
-                Note Sheet: {filters.noteSheetStatus === "done" ? "Done" : "Pending"}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-red-600"
-                  onClick={() => setFilters(prev => ({ ...prev, noteSheetStatus: "all" }))}
-                />
-              </Badge>
-            )}
-
             {filters.minOsd > 0 && (
               <Badge variant="secondary" className="gap-1 text-[11px] bg-rose-50 text-rose-800 border border-rose-200">
                 Min OSD: ₹{filters.minOsd}
@@ -730,32 +758,13 @@ export function PermanentDisconnectionList({
                 />
               </Badge>
             )}
-
-            {(filters.fromDate || filters.toDate) && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-slate-100 text-slate-800">
-                Date: {filters.fromDate || "Start"} &rarr; {filters.toDate || "End"}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-red-600"
-                  onClick={() => setFilters(prev => ({ ...prev, fromDate: "", toDate: "" }))}
-                />
-              </Badge>
-            )}
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetFilters}
-              className="h-6 text-[11px] px-2 text-rose-600 hover:text-rose-800 hover:bg-rose-50 ml-auto"
-            >
-              <RotateCcw className="h-3 w-3 mr-1" /> Reset All
-            </Button>
           </div>
         )}
       </div>
 
-      {/* Main Records List / Table */}
+      {/* 5. Main Content: Redesigned Cards or List Table */}
       {filteredRecords.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-slate-200 text-center space-y-3">
+        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200 text-center space-y-3">
           <PowerOff className="h-10 w-10 text-slate-300" />
           <h3 className="text-sm font-bold text-slate-700">No Permanent Disconnection Records Found</h3>
           <p className="text-xs text-slate-500 max-w-sm">
@@ -770,17 +779,17 @@ export function PermanentDisconnectionList({
               </Button>
             )}
             {canPropose && (
-              <Button size="sm" onClick={() => setProposeOpen(true)} className="bg-rose-600 hover:bg-rose-700 text-white text-xs">
+              <Button size="sm" onClick={() => setProposeOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white text-xs">
                 <Plus className="h-3.5 w-3.5 mr-1" /> Propose Consumer for PD
               </Button>
             )}
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div>
           {viewMode === "card" ? (
-            /* Card View for Mobile & Desktop */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            /* Redesigned SVG-Enriched Cards */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {filteredRecords.map(r => {
                 const isClosed = r.status === "closed"
                 const isDisconnected = r.status === "disconnected"
@@ -788,37 +797,50 @@ export function PermanentDisconnectionList({
                 const hasNoteSheet = !!(r.noteSheetNo && r.noteSheetNo.trim())
                 const isFullyCompleted = isDisconnected && isReturned && hasNoteSheet && !isClosed
 
+                // Aux data from consumer master or consumers dataset
+                const aux = consumerMasterMap[r.consumerId] || {}
+                const phoneNum = r.mobile || aux.mobile || aux.mobileNumber || ""
+                const meterNum = r.removedMeterNo || aux.meterNumber || aux.meterNo || aux.meter || ""
+                const zoneName = aux.zone || aux.mru || ""
+                const phaseVal = aux.phase || (aux.tariff && aux.tariff.includes("3") ? "3-Phase" : "1-Phase")
+
                 return (
                   <div
                     key={r.pdId}
-                    className={`bg-white rounded-xl border p-3.5 space-y-3 shadow-sm hover:shadow transition-shadow relative ${
+                    className={`bg-white rounded-2xl border p-4 space-y-3.5 shadow-sm hover:shadow-md transition-all relative ${
                       isFullyCompleted
                         ? "border-emerald-200 bg-emerald-50/10"
                         : isClosed
                         ? "border-slate-200 opacity-70"
-                        : "border-slate-200"
+                        : "border-slate-200/90"
                     }`}
                   >
-                    {/* Top Header: ID & Status */}
+                    {/* Header: Consumer Name, ID, Checkbox & Stage Badge */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-start gap-2.5">
                         {canIssue && r.status === "proposed" && (
                           <Checkbox
                             checked={selectedIds.includes(r.pdId)}
                             onCheckedChange={() => handleToggleSelect(r.pdId)}
-                            className="h-4 w-4"
+                            className="h-4 w-4 mt-1"
                           />
                         )}
                         <div>
-                          <span className="text-[10px] font-mono text-slate-400 font-bold">{r.pdId}</span>
-                          <h3 className="text-xs font-bold text-slate-900 leading-tight flex items-center gap-1.5">
-                            <span>{r.consumerName}</span>
-                            <span className="font-mono text-rose-700 font-black text-xs">#{r.consumerId}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {r.pdId}
+                            </span>
+                            <span className="font-mono font-black text-xs text-rose-700">
+                              #{r.consumerId}
+                            </span>
+                          </div>
+                          <h3 className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 leading-snug">
+                            {r.consumerName}
                           </h3>
                         </div>
                       </div>
 
-                      {/* Stage Badges */}
+                      {/* Stage Pill */}
                       <div className="flex flex-col items-end gap-1">
                         {isFullyCompleted ? (
                           <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold">
@@ -834,43 +856,88 @@ export function PermanentDisconnectionList({
                           </Badge>
                         ) : r.status === "issued" ? (
                           <Badge className="bg-blue-100 text-blue-800 border border-blue-300 text-[10px]">
-                            Issued to Agency
+                            Issued
                           </Badge>
                         ) : isDisconnected ? (
                           <Badge className="bg-rose-100 text-rose-800 border border-rose-300 text-[10px]">
-                            Meter Dismantled
+                            Dismantled
                           </Badge>
                         ) : null}
 
                         {/* Live OSD Badge */}
-                        {r.liveOsdAmount > 0 && (
-                          <span className="inline-flex items-center text-[10px] font-mono font-bold bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-200">
-                            OSD: ₹{r.liveOsdAmount.toLocaleString("en-IN")}
+                        {r.liveOsdAmount > 0 ? (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded-full border border-rose-200">
+                            <IndianRupee className="h-2.5 w-2.5" />
+                            {r.liveOsdAmount.toLocaleString("en-IN")}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-[9px] font-mono font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-200">
+                            OSD: Unverified
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Address & Mobile */}
-                    <div className="text-[11px] text-slate-600 space-y-0.5">
-                      <p className="line-clamp-1">{r.address}</p>
-                      <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-100">
-                        <span>Agency: <strong className="text-slate-800">{r.agency || "Unassigned"}</strong></span>
-                        <span>Proposed: {r.proposedDate}</span>
+                    {/* Address with Location SVG */}
+                    <div className="flex items-start gap-1.5 text-xs text-slate-600">
+                      <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <p className="line-clamp-2 text-[11px] leading-tight text-slate-600">{r.address}</p>
+                    </div>
+
+                    {/* Technical & Contact Details Grid (SVG icons) */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 text-xs">
+                      {/* Mobile with Direct Call Option */}
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        {phoneNum ? (
+                          <a
+                            href={`tel:${phoneNum}`}
+                            className="font-mono text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline truncate"
+                            title="Click to Call"
+                          >
+                            {phoneNum}
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-mono">No Mobile</span>
+                        )}
+                      </div>
+
+                      {/* Meter Number */}
+                      <div className="flex items-center gap-1.5">
+                        <Gauge className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                        <span className="font-mono text-[11px] text-slate-800 font-semibold truncate" title={`Meter: ${meterNum || "N/A"}`}>
+                          {meterNum || "—"}
+                        </span>
+                      </div>
+
+                      {/* Zone / MRU */}
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                        <span className="text-[11px] text-slate-700 truncate" title={`Zone / Agency: ${r.agency || zoneName || "N/A"}`}>
+                          {r.agency || zoneName || "Unassigned"}
+                        </span>
+                      </div>
+
+                      {/* Phase */}
+                      <div className="flex items-center gap-1.5">
+                        <Zap className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                        <span className="text-[11px] text-slate-700 font-medium">
+                          {phaseVal}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Disconnection & Store Return Details */}
+                    {/* Post-Disconnection Status Strip */}
                     {isDisconnected && (
-                      <div className="bg-slate-50 p-2 rounded-lg text-[11px] space-y-1 border border-slate-100">
+                      <div className="bg-slate-50 p-2.5 rounded-xl text-[11px] space-y-1.5 border border-slate-200/70">
                         <div className="grid grid-cols-2 gap-1">
                           <div>
-                            <span className="text-slate-400">Removed Meter:</span>{" "}
+                            <span className="text-slate-400">Removed:</span>{" "}
                             <strong className="font-mono text-blue-700">{r.removedMeterNo || "—"}</strong>
                           </div>
                           <div>
                             <span className="text-slate-400">Final Reading:</span>{" "}
-                            <strong className="font-mono text-emerald-700">{r.finalReading || "—"}</strong>
+                            <strong className="font-mono text-emerald-700">{r.finalReading || "—"} kWh</strong>
                           </div>
                         </div>
 
@@ -891,81 +958,80 @@ export function PermanentDisconnectionList({
                       </div>
                     )}
 
-                    {/* Action Buttons Toolbar */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-                      {/* 1. Issue Button */}
+                    {/* Black Centered Primary Action Button + Side Printer Icon */}
+                    <div className="flex items-center justify-center gap-2 pt-2 border-t border-slate-100">
+                      {/* 1. Proposed stage -> Issue Button */}
                       {canIssue && r.status === "proposed" && (
                         <Button
-                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setActiveRecord(r)
                             setIssueOpen(true)
                           }}
-                          className="h-7 text-[11px] px-2 text-blue-700 border-blue-200 hover:bg-blue-50"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <Send className="h-3 w-3 mr-1" /> Issue to Agency
+                          <Send className="h-3.5 w-3.5 mr-1.5" />
+                          Issue to Agency
                         </Button>
                       )}
 
-                      {/* 2. Execute Disconnection Button */}
-                      {canDisconnect && (r.status === "issued" || r.status === "proposed") && (
+                      {/* 2. Issued / Proposed stage -> Mark Disconnected */}
+                      {canDisconnect && (r.status === "issued" || (r.status === "proposed" && isAgency)) && (
                         <Button
-                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setActiveRecord(r)
                             setDisconnectOpen(true)
                           }}
-                          className="h-7 text-[11px] px-2 text-rose-700 border-rose-200 hover:bg-rose-50 font-bold"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <Camera className="h-3 w-3 mr-1" /> Mark Disconnected
+                          <Camera className="h-3.5 w-3.5 mr-1.5" />
+                          Mark Disconnected
                         </Button>
                       )}
 
-                      {/* 3. Return Meter Button */}
+                      {/* 3. Disconnected stage -> Store Return Button (if pending) */}
                       {canReturn && isDisconnected && !isReturned && (
                         <Button
-                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setActiveRecord(r)
                             setReturnOpen(true)
                           }}
-                          className="h-7 text-[11px] px-2 text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-medium"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <PackageCheck className="h-3 w-3 mr-1" /> Return Meter
+                          <PackageCheck className="h-3.5 w-3.5 mr-1.5" />
+                          Return Meter
                         </Button>
                       )}
 
-                      {/* 4. Note Sheet Button */}
-                      {canFinalize && isDisconnected && (
+                      {/* 4. Note Sheet Button (if disconnected & store returned or pending note sheet) */}
+                      {canFinalize && isDisconnected && (isReturned || !hasNoteSheet) && (
                         <Button
-                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setActiveRecord(r)
                             setNoteSheetOpen(true)
                           }}
-                          className="h-7 text-[11px] px-2 text-purple-700 border-purple-200 hover:bg-purple-50 font-medium"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <FileText className="h-3 w-3 mr-1" />
-                          {hasNoteSheet ? "Edit Note Sheet" : "+ Note Sheet"}
+                          <FileText className="h-3.5 w-3.5 mr-1.5" />
+                          {hasNoteSheet ? "Edit Note Sheet" : "Create Note Sheet"}
                         </Button>
                       )}
 
-                      {/* 5. Printable Memo */}
+                      {/* Side Printer Memo Icon Button */}
                       <Button
-                        variant="ghost"
-                        size="sm"
+                        variant="outline"
+                        size="icon"
                         onClick={() => {
                           setActiveRecord(r)
                           setCertificateOpen(true)
                         }}
-                        className="h-7 text-[11px] px-2 text-slate-600 hover:text-slate-900 ml-auto"
+                        className="h-8 w-8 shrink-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200"
                         title="Print Disconnection Memo"
                       >
-                        <Printer className="h-3 w-3 mr-1" /> Memo
+                        <Printer className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -973,8 +1039,8 @@ export function PermanentDisconnectionList({
               })}
             </div>
           ) : (
-            /* Table List View for Desktop */
-            <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
+            /* Table List View */
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-sm">
               <Table>
                 <TableHeader>
                   <TableRow className="text-[11px] bg-slate-50">
@@ -986,13 +1052,14 @@ export function PermanentDisconnectionList({
                     </TableHead>
                     <TableHead>PD ID / Con ID</TableHead>
                     <TableHead>Consumer Name & Address</TableHead>
+                    <TableHead>Mobile</TableHead>
                     <TableHead className="text-center">Live OSD</TableHead>
                     <TableHead>Agency</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead>Removed Meter / Reading</TableHead>
                     <TableHead className="text-center">Store Return</TableHead>
                     <TableHead className="text-center">Note Sheet</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1002,6 +1069,8 @@ export function PermanentDisconnectionList({
                     const isReturned = r.meterReturnStatus === "returned"
                     const hasNoteSheet = !!(r.noteSheetNo && r.noteSheetNo.trim())
                     const isFullyCompleted = isDisconnected && isReturned && hasNoteSheet && !isClosed
+                    const aux = consumerMasterMap[r.consumerId] || {}
+                    const phoneNum = r.mobile || aux.mobile || aux.mobileNumber || ""
 
                     return (
                       <TableRow key={r.pdId} className="text-xs hover:bg-slate-50/80">
@@ -1018,6 +1087,15 @@ export function PermanentDisconnectionList({
                         <TableCell>
                           <div className="font-bold text-slate-900">{r.consumerName}</div>
                           <div className="text-[11px] text-slate-500 line-clamp-1 max-w-xs">{r.address}</div>
+                        </TableCell>
+                        <TableCell>
+                          {phoneNum ? (
+                            <a href={`tel:${phoneNum}`} className="text-emerald-700 font-mono font-bold hover:underline">
+                              {phoneNum}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center font-mono font-bold text-rose-700">
                           {r.liveOsdAmount > 0 ? `₹${r.liveOsdAmount.toLocaleString("en-IN")}` : "₹0"}
@@ -1065,17 +1143,16 @@ export function PermanentDisconnectionList({
                             <span className="text-slate-400">Pending</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1.5">
                             {canIssue && r.status === "proposed" && (
                               <Button
                                 size="sm"
-                                variant="outline"
                                 onClick={() => {
                                   setActiveRecord(r)
                                   setIssueOpen(true)
                                 }}
-                                className="h-6 text-[10px] px-2 text-blue-700"
+                                className="h-7 text-[10px] px-2.5 bg-slate-900 hover:bg-slate-800 text-white"
                               >
                                 Issue
                               </Button>
@@ -1083,12 +1160,11 @@ export function PermanentDisconnectionList({
                             {canDisconnect && (r.status === "issued" || r.status === "proposed") && (
                               <Button
                                 size="sm"
-                                variant="outline"
                                 onClick={() => {
                                   setActiveRecord(r)
                                   setDisconnectOpen(true)
                                 }}
-                                className="h-6 text-[10px] px-2 text-rose-700 font-bold"
+                                className="h-7 text-[10px] px-2.5 bg-slate-900 hover:bg-slate-800 text-white"
                               >
                                 Disconnect
                               </Button>
@@ -1096,12 +1172,11 @@ export function PermanentDisconnectionList({
                             {canReturn && isDisconnected && !isReturned && (
                               <Button
                                 size="sm"
-                                variant="outline"
                                 onClick={() => {
                                   setActiveRecord(r)
                                   setReturnOpen(true)
                                 }}
-                                className="h-6 text-[10px] px-2 text-emerald-700"
+                                className="h-7 text-[10px] px-2.5 bg-slate-900 hover:bg-slate-800 text-white"
                               >
                                 Return
                               </Button>
@@ -1109,12 +1184,11 @@ export function PermanentDisconnectionList({
                             {canFinalize && isDisconnected && (
                               <Button
                                 size="sm"
-                                variant="outline"
                                 onClick={() => {
                                   setActiveRecord(r)
                                   setNoteSheetOpen(true)
                                 }}
-                                className="h-6 text-[10px] px-2 text-purple-700"
+                                className="h-7 text-[10px] px-2.5 bg-slate-900 hover:bg-slate-800 text-white"
                               >
                                 Note Sheet
                               </Button>
@@ -1126,10 +1200,10 @@ export function PermanentDisconnectionList({
                                 setActiveRecord(r)
                                 setCertificateOpen(true)
                               }}
-                              className="h-6 text-[10px] px-1.5 text-slate-600"
+                              className="h-7 w-7 p-0 text-slate-600"
                               title="Print Memo"
                             >
-                              <Printer className="h-3 w-3" />
+                              <Printer className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -1143,53 +1217,74 @@ export function PermanentDisconnectionList({
         </div>
       )}
 
-      {/* Agency Performance Breakdown Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setShowAgencySummary(v => !v)}
-            className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5 cursor-pointer select-none hover:text-slate-950 transition-colors"
+      {/* 6. Propose PD Button at the Bottom of Module */}
+      {canPropose && (
+        <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-30">
+          <Button
+            onClick={() => setProposeOpen(true)}
+            className="bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl rounded-full px-5 py-2.5 h-auto text-xs sm:text-sm font-bold flex items-center gap-2 transition-all transform hover:-translate-y-0.5 border border-slate-700"
           >
-            <Building2 className="h-4 w-4 text-slate-600" />
-            <span>Agency Tracking & Progress Summary</span>
-            {showAgencySummary ? (
-              <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            )}
-          </button>
+            <Plus className="h-4 w-4" />
+            <span>Propose PD</span>
+          </Button>
         </div>
+      )}
 
-        {showAgencySummary && (
-          <div className="overflow-x-auto pt-1">
-            <Table>
-              <TableHeader>
-                <TableRow className="text-[11px]">
-                  <TableHead className="font-bold">Agency Name</TableHead>
-                  <TableHead className="text-center">Total Assigned</TableHead>
-                  <TableHead className="text-center">Pending Field Execution</TableHead>
-                  <TableHead className="text-center">Dismantled (Executed)</TableHead>
-                  <TableHead className="text-center">Meter Returned</TableHead>
-                  <TableHead className="text-center">Completed (Full)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {agencySummary.map(row => (
-                  <TableRow key={row.agency} className="text-xs">
-                    <TableCell className="font-semibold text-slate-800">{row.agency}</TableCell>
-                    <TableCell className="text-center font-mono font-bold">{row.total}</TableCell>
-                    <TableCell className="text-center font-mono text-blue-700 font-bold">{row.issued}</TableCell>
-                    <TableCell className="text-center font-mono text-rose-700 font-bold">{row.executed}</TableCell>
-                    <TableCell className="text-center font-mono text-emerald-700 font-bold">{row.returnDone}</TableCell>
-                    <TableCell className="text-center font-mono text-purple-700 font-black">{row.completed}</TableCell>
+      {/* Tracking Summary Report Modal */}
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+              <BarChart3 className="h-5 w-5 text-purple-600" />
+              <span>Agency Tracking & Summary Report</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2 text-xs">
+            <p className="text-slate-500">
+              Overview of permanent disconnection execution and stage progression by assigned agency.
+            </p>
+
+            <div className="rounded-xl border border-slate-200 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-[11px] bg-slate-50">
+                    <TableHead className="font-bold">Agency Name</TableHead>
+                    <TableHead className="text-center">Total</TableHead>
+                    <TableHead className="text-center">Proposed</TableHead>
+                    <TableHead className="text-center">Issued</TableHead>
+                    <TableHead className="text-center">Dismantled</TableHead>
+                    <TableHead className="text-center">Returned</TableHead>
+                    <TableHead className="text-center">Completed</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {agencySummary.map(row => (
+                    <TableRow key={row.agency} className="text-xs">
+                      <TableCell className="font-semibold text-slate-800">{row.agency}</TableCell>
+                      <TableCell className="text-center font-mono font-bold">{row.total}</TableCell>
+                      <TableCell className="text-center font-mono text-amber-700">{row.proposed}</TableCell>
+                      <TableCell className="text-center font-mono text-blue-700">{row.issued}</TableCell>
+                      <TableCell className="text-center font-mono text-rose-700">{row.executed}</TableCell>
+                      <TableCell className="text-center font-mono text-emerald-700">{row.returnDone}</TableCell>
+                      <TableCell className="text-center font-mono text-purple-700 font-black">{row.completed}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        )}
-      </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} className="text-xs">
+              <Download className="h-3.5 w-3.5 mr-1" /> Export CSV
+            </Button>
+            <Button size="sm" onClick={() => setIsReportDialogOpen(false)} className="bg-slate-900 hover:bg-slate-800 text-white text-xs">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Advanced Filters Dialog Modal */}
       <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
@@ -1214,7 +1309,7 @@ export function PermanentDisconnectionList({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Agencies</SelectItem>
-                  {agencies.map(ag => (
+                  {dynamicAgencies.map(ag => (
                     <SelectItem key={ag} value={ag} className="text-xs">
                       {ag}
                     </SelectItem>
@@ -1339,7 +1434,8 @@ export function PermanentDisconnectionList({
         isOpen={proposeOpen}
         onClose={() => setProposeOpen(false)}
         onSuccess={handleProposeSuccess}
-        agencies={agencies}
+        agencies={dynamicAgencies}
+        existingRecords={records}
       />
 
       <PDIssueDialog
@@ -1351,7 +1447,7 @@ export function PermanentDisconnectionList({
         }}
         onSuccess={() => loadData(true)}
         pdIds={activeRecord ? [activeRecord.pdId] : selectedIds}
-        agencies={agencies}
+        agencies={dynamicAgencies}
         currentAgency={activeRecord?.agency || ""}
       />
 

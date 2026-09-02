@@ -17,7 +17,7 @@ export interface AuthResult {
  * Admins & Superusers bypass all checks.
  * SERVER-SIDE ONLY: Used in API routes (/app/api/*).
  */
-export async function checkApiPermission(module: string, action: string | string[]): Promise<AuthResult> {
+export async function checkApiPermission(module: string | string[], action: string | string[]): Promise<AuthResult> {
   const session = await verifySession()
   if (!session) {
     return { authorized: false, error: "Unauthorized", status: 401 }
@@ -46,11 +46,14 @@ export async function checkApiPermission(module: string, action: string | string
 
     const permissions = expandRolePermissions(session.role, rawPermissions)
 
-    const possibleKeys = getModulePermKeys(module)
+    const modules = Array.isArray(module) ? module : [module]
     let modulePerms: string[] = []
-    for (const key of possibleKeys) {
-      if (permissions[key] && permissions[key].length > 0) {
-        modulePerms = [...modulePerms, ...permissions[key]]
+    for (const mod of modules) {
+      const possibleKeys = getModulePermKeys(mod)
+      for (const key of possibleKeys) {
+        if (permissions[key] && permissions[key].length > 0) {
+          modulePerms = [...modulePerms, ...permissions[key]]
+        }
       }
     }
 
@@ -58,7 +61,8 @@ export async function checkApiPermission(module: string, action: string | string
     const hasAccess = actions.some(act => modulePerms.includes(act))
 
     if (!hasAccess) {
-      return { authorized: false, error: `Forbidden: No ${actions.join(" or ")} access to module '${module}'`, status: 403, session }
+      const modLabel = Array.isArray(module) ? module.join("/") : module
+      return { authorized: false, error: `Forbidden: No ${actions.join(" or ")} access to module '${modLabel}'`, status: 403, session }
     }
 
     return { authorized: true, session }

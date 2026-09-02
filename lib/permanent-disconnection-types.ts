@@ -9,6 +9,7 @@ export interface PermanentDisconnection {
   consumerId: string               // 9-digit Consumer ID
   consumerName: string
   address: string
+  meterNumber?: string             // Meter Number (single source of truth)
   mobile: string
   liveOsdAmount: number            // Live OSD recorded during proposal
   status: PermanentDisconnectionStatus

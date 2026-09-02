@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Send } from "lucide-react"
+import { getFromCache } from "@/lib/indexed-db"
 
 interface Props {
   isOpen: boolean
@@ -17,10 +18,61 @@ interface Props {
   currentAgency?: string
 }
 
-export function PDIssueDialog({ isOpen, onClose, onSuccess, pdIds, agencies, currentAgency = "" }: Props) {
+export function PDIssueDialog({ isOpen, onClose, onSuccess, pdIds, agencies = [], currentAgency = "" }: Props) {
   const { toast } = useToast()
+  const [agenciesList, setAgenciesList] = useState<string[]>(agencies)
   const [selectedAgency, setSelectedAgency] = useState(currentAgency)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (currentAgency) {
+      setSelectedAgency(currentAgency)
+    }
+  }, [currentAgency, isOpen])
+
+  useEffect(() => {
+    async function loadAgencies() {
+      const allAgencies = new Set<string>(agencies.filter(Boolean))
+      try {
+        const [cachedAgencies, cachedZoneMap, cachedConsumers] = await Promise.all([
+          getFromCache<string[]>("agencies_data_cache"),
+          getFromCache<{ zone: string; agency: string }[]>("zone_map_cache"),
+          getFromCache<any[]>("consumers_data_cache"),
+        ])
+        if (cachedAgencies && Array.isArray(cachedAgencies)) {
+          cachedAgencies.forEach(a => { if (a && typeof a === "string") allAgencies.add(a.trim()) })
+        }
+        if (cachedZoneMap && Array.isArray(cachedZoneMap)) {
+          cachedZoneMap.forEach(z => { if (z.agency) allAgencies.add(z.agency.trim()) })
+        }
+        if (cachedConsumers && Array.isArray(cachedConsumers)) {
+          cachedConsumers.forEach(c => { if (c.agency) allAgencies.add(c.agency.trim()) })
+        }
+        if (allAgencies.size === 0) {
+          const res = await fetch("/api/admin/agencies")
+          if (res.ok) {
+            const data = await res.json()
+            if (Array.isArray(data)) {
+              data.filter((a: any) => a.isActive !== false).forEach((a: any) => {
+                if (a.name) allAgencies.add(a.name.trim())
+              })
+            }
+          }
+        }
+      } catch { /* ignore */ }
+
+      const sorted = Array.from(allAgencies).filter(Boolean).sort()
+      if (sorted.length > 0) {
+        setAgenciesList(sorted)
+        if (!selectedAgency && !currentAgency && sorted.length > 0) {
+          setSelectedAgency(sorted[0])
+        }
+      }
+    }
+    if (isOpen) {
+      loadAgencies()
+    }
+  }, [isOpen, agencies])
 
   const count = pdIds.length
 
@@ -86,7 +138,7 @@ export function PDIssueDialog({ isOpen, onClose, onSuccess, pdIds, agencies, cur
                 <SelectValue placeholder="Select Agency" />
               </SelectTrigger>
               <SelectContent>
-                {agencies.map(ag => (
+                {agenciesList.map(ag => (
                   <SelectItem key={ag} value={ag} className="text-xs">
                     {ag}
                   </SelectItem>
