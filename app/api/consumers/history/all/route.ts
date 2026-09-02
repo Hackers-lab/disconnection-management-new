@@ -11,6 +11,9 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
+  if (!session.isSubscribed) {
+    return NextResponse.json({ error: "Subscription required" }, { status: 402 })
+  }
 
   try {
     const spreadsheetId = getSpreadsheetId()

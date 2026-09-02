@@ -440,6 +440,24 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    ccc_code TEXT,
+    agency_name TEXT,
+    vendor_code TEXT,
+    razorpay_order_id TEXT NOT NULL,
+    razorpay_payment_id TEXT NOT NULL UNIQUE,
+    amount INTEGER NOT NULL,
+    currency TEXT DEFAULT 'INR',
+    plan_id TEXT,
+    plan_name TEXT,
+    days_granted INTEGER,
+    subscription_expires_at TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
 -- 20. User Feedbacks Table
 CREATE TABLE IF NOT EXISTS user_feedbacks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

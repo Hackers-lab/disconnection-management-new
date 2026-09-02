@@ -6,6 +6,9 @@ import { withTenant } from "@/lib/tenant-context"
 export const POST = withTenant(async function POST(request: NextRequest) {
   const session = await verifySession()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session.isSubscribed) {
+    return NextResponse.json({ error: "Subscription required" }, { status: 402 })
+  }
 
   try {
     const body = await request.json()

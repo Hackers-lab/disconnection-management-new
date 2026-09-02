@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { withTenant } from "@/lib/tenant-context"
 import { createSubscriptionOrder } from "@/lib/razorpay"
+import { getPlanByAmount, SUBSCRIPTION_PLANS } from "@/lib/subscription-plans"
 
 export const dynamic = "force-dynamic"
 
 /**
  * Endpoint to create a Razorpay Order strictly for vendor subscriptions.
  * POST /api/create-order
+ *
+ * Only accepts amounts that match predefined subscription plans.
+ * The `days` field is derived server-side from the plan catalog — never from the client.
  */
 export const POST = withTenant(async function POST(request: NextRequest) {
   try {
@@ -17,19 +21,23 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { amount = 9900, planName = "1 Month Vendor Access", days = 30 } = body
+    const { amount = 9900 } = body
 
-    // Enforce minimum 100 paise
+    // Enforce that amount matches a predefined subscription plan
     const parsedAmount = typeof amount === "number" ? amount : parseInt(amount, 10)
-    if (isNaN(parsedAmount) || parsedAmount < 100) {
+    const plan = getPlanByAmount(parsedAmount)
+
+    if (!plan) {
       return NextResponse.json(
-        { error: "Invalid amount. Minimum subscription charge is 100 paise (₹1.00)" },
+        {
+          error: `Invalid plan amount. Allowed plans: ${SUBSCRIPTION_PLANS.map((p) => `₹${(p.amount / 100).toFixed(0)} (${p.name})`).join(", ")}`,
+        },
         { status: 400 }
       )
     }
 
     const orderData = await createSubscriptionOrder({
-      amount: parsedAmount,
+      amount: plan.amount,
       currency: "INR",
       receipt: `sub_${session.userId}_${Date.now()}`,
       notes: {
@@ -37,14 +45,18 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         username: session.username,
         role: session.role,
         cccCode: session.cccCode || "",
-        planName,
-        days: String(days),
+        planId: plan.id,
+        planName: plan.name,
+        days: String(plan.days),
       },
     })
 
     return NextResponse.json({
       success: true,
       ...orderData,
+      planId: plan.id,
+      planName: plan.name,
+      days: plan.days,
     })
   } catch (error: any) {
     console.error("POST /api/create-order error:", error)

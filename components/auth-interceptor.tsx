@@ -23,6 +23,15 @@ export function AuthInterceptor() {
         }
       }
 
+      // Handle 402 Subscription Required — reload to trigger the subscription paywall
+      if (res.status === 402) {
+        const urlStr = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url || ""
+        if (urlStr.includes("/api/") && !urlStr.includes("/api/create-order") && !urlStr.includes("/api/verify-payment") && !urlStr.includes("/api/billing/")) {
+          // Dispatch a custom event that the dashboard can listen for
+          window.dispatchEvent(new CustomEvent("subscription-required"))
+        }
+      }
+
       return res
     }
 

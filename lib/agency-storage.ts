@@ -74,7 +74,8 @@ export async function getAgencyById(id: string) {
     const res = await db.execute({
       sql: `SELECT a.id, a.vendor_code as vendorCode, a.name, a.description, 
                    a.contact_person as contactPerson, a.mobile_number as mobileNumber,
-                   a.is_active as isActive, c.ccc_code as cccCode
+                   a.is_active as isActive, a.subscription_status as subscriptionStatus,
+                   a.subscription_expires_at as subscriptionExpiresAt, c.ccc_code as cccCode
             FROM agencies a
             LEFT JOIN ccc_registry c ON a.ccc_id = c.id
             WHERE a.id = ?
@@ -90,6 +91,8 @@ export async function getAgencyById(id: string) {
         vendorCode: String(r.vendorCode || "").trim(),
         mobileNumber: String(r.mobileNumber || "").trim(),
         isActive: Boolean(r.isActive),
+        subscriptionStatus: String(r.subscriptionStatus || "active"),
+        subscriptionExpiresAt: String(r.subscriptionExpiresAt || ""),
         cccCode: String(r.cccCode || ""),
       }
     }
@@ -118,13 +121,15 @@ export async function getAgencies() {
       sql: isSystem
         ? `SELECT a.id, a.vendor_code as vendorCode, a.name, a.description, 
                   a.contact_person as contactPerson, a.mobile_number as mobileNumber,
-                  a.is_active as isActive, c.ccc_code as cccCode
+                  a.is_active as isActive, a.subscription_status as subscriptionStatus,
+                  a.subscription_expires_at as subscriptionExpiresAt, c.ccc_code as cccCode
            FROM agencies a
            LEFT JOIN ccc_registry c ON a.ccc_id = c.id
            ORDER BY a.name ASC`
         : `SELECT a.id, a.vendor_code as vendorCode, a.name, a.description, 
                   a.contact_person as contactPerson, a.mobile_number as mobileNumber,
-                  a.is_active as isActive, c.ccc_code as cccCode
+                  a.is_active as isActive, a.subscription_status as subscriptionStatus,
+                  a.subscription_expires_at as subscriptionExpiresAt, c.ccc_code as cccCode
            FROM agencies a
            JOIN ccc_registry c ON a.ccc_id = c.id
            WHERE c.ccc_code = ? COLLATE NOCASE
@@ -139,6 +144,8 @@ export async function getAgencies() {
         vendorCode: String(r.vendorCode || "").trim(),
         mobileNumber: String(r.mobileNumber || "").trim(),
         isActive: Boolean(r.isActive),
+        subscriptionStatus: String(r.subscriptionStatus || "active"),
+        subscriptionExpiresAt: String(r.subscriptionExpiresAt || ""),
         cccCode: String(r.cccCode || cccCode),
       }))
       agenciesCache[cccCode] = agencies
@@ -377,4 +384,28 @@ export async function deleteAgency(id: string) {
   
   invalidateAgencyCache(cccCode)
   return { id }
+}
+
+export async function updateAgencySubscription(
+  cccCode: string,
+  agencyNameOrCode: string,
+  expiresAt: string,
+  status: string = "active"
+) {
+  try {
+    const res = await db.execute({
+      sql: `UPDATE agencies
+            SET subscription_status = ?,
+                subscription_expires_at = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
+              AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
+      args: [status, expiresAt, cccCode, agencyNameOrCode, agencyNameOrCode]
+    })
+    invalidateAgencyCache(cccCode)
+    return res.rowsAffected > 0
+  } catch (err) {
+    console.error("Failed to update agency subscription in DB:", err)
+    return false
+  }
 }

@@ -62,6 +62,28 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
     if (agencyIndex === -1) {
       return NextResponse.json({ error: "Agency not found" }, { status: 404 })
     }
+
+    const existingAgency = agencies[agencyIndex]
+    const isSubscribed = existingAgency.subscriptionExpiresAt && 
+      new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now() &&
+      existingAgency.subscriptionStatus === "active"
+
+    // Prevent renaming or changing vendor code of a paid agency by regular admins
+    if (isSubscribed) {
+      if (name && name.toUpperCase().trim() !== existingAgency.name.toUpperCase().trim()) {
+        return NextResponse.json(
+          { error: "Agency Name cannot be changed while an active subscription exists. Please contact Superuser for authorization." },
+          { status: 403 }
+        )
+      }
+      if (vendorCode && existingAgency.vendorCode && vendorCode.trim() !== existingAgency.vendorCode.trim()) {
+        return NextResponse.json(
+          { error: "SAP Vendor Code cannot be changed while an active subscription exists. Please contact Superuser for authorization." },
+          { status: 403 }
+        )
+      }
+    }
+
     if (agencies.find((a) => a.name.toUpperCase() === name.toUpperCase() && a.id !== id)) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
@@ -98,6 +120,19 @@ export const DELETE = withTenant(async function DELETE(request: NextRequest) {
     if (agencyIndex === -1) {
       return NextResponse.json({ error: "Agency not found" }, { status: 404 })
     }
+
+    const existingAgency = agencies[agencyIndex]
+    const isSubscribed = existingAgency.subscriptionExpiresAt && 
+      new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now() &&
+      existingAgency.subscriptionStatus === "active"
+
+    if (isSubscribed) {
+      return NextResponse.json(
+        { error: "Cannot delete an agency with an active subscription. Contact Superuser." },
+        { status: 403 }
+      )
+    }
+
     await deleteAgency(id)
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))

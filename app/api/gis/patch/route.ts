@@ -12,6 +12,12 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     const context = getTenantContext()
     const tenantId = context?.cccCode || req.headers.get("x-tenant-id") || "default"
     const session = await verifySession()
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    if (!session.isSubscribed) {
+      return NextResponse.json({ error: "Subscription required" }, { status: 402 })
+    }
 
     const [allPatches, versions] = await Promise.all([
       getDeltaPatchesSince(tenantId, "gis", since),

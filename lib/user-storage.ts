@@ -56,7 +56,8 @@ export class UserStorage {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
-                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                     u.ccc_id as cccId
               FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
               WHERE u.id = ?
               LIMIT 1`,
@@ -66,6 +67,29 @@ export class UserStorage {
         const r: any = res.rows[0]
         const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
         const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+        
+        let finalSubStatus = String(r.subStatus || "active")
+        let finalSubExpiresAt = String(r.subExpiresAt || "")
+
+        // For agency users, check agency-level subscription
+        const roleLower = String(r.role || "viewer").toLowerCase()
+        if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
+          try {
+            const agencyRes = await db.execute({
+              sql: `SELECT subscription_status, subscription_expires_at FROM agencies 
+                    WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE) LIMIT 1`,
+              args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
+            })
+            if (agencyRes.rows && agencyRes.rows.length > 0) {
+              const ag: any = agencyRes.rows[0]
+              if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
+              if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+            }
+          } catch {
+            // fallback to user-level
+          }
+        }
+
         return {
           id: String(r.id || ""),
           username: String(r.username || ""),
@@ -74,8 +98,8 @@ export class UserStorage {
           cccCode: String(r.cccCode || ""),
           name: String(r.name || ""),
           agencies: fallbackAgencies,
-          subscriptionStatus: String(r.subStatus || "active"),
-          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          subscriptionStatus: finalSubStatus,
+          subscriptionExpiresAt: finalSubExpiresAt,
           bypassSubscription: Boolean(r.bypassSub),
         }
       }
@@ -94,7 +118,8 @@ export class UserStorage {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
-                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                     u.ccc_id as cccId
               FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
               WHERE u.username = ? COLLATE NOCASE
               LIMIT 1`,
@@ -104,6 +129,29 @@ export class UserStorage {
         const r: any = res.rows[0]
         const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
         const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+        
+        let finalSubStatus = String(r.subStatus || "active")
+        let finalSubExpiresAt = String(r.subExpiresAt || "")
+
+        // For agency users, check agency-level subscription
+        const roleLower = String(r.role || "viewer").toLowerCase()
+        if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
+          try {
+            const agencyRes = await db.execute({
+              sql: `SELECT subscription_status, subscription_expires_at FROM agencies 
+                    WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE) LIMIT 1`,
+              args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
+            })
+            if (agencyRes.rows && agencyRes.rows.length > 0) {
+              const ag: any = agencyRes.rows[0]
+              if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
+              if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+            }
+          } catch {
+            // fallback to user-level
+          }
+        }
+
         return {
           id: String(r.id || ""),
           username: String(r.username || ""),
@@ -112,8 +160,8 @@ export class UserStorage {
           cccCode: String(r.cccCode || ""),
           name: String(r.name || ""),
           agencies: fallbackAgencies,
-          subscriptionStatus: String(r.subStatus || "active"),
-          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          subscriptionStatus: finalSubStatus,
+          subscriptionExpiresAt: finalSubExpiresAt,
           bypassSubscription: Boolean(r.bypassSub),
         }
       }

@@ -13,6 +13,29 @@ export default async function DashboardPage() {
     redirect("/login")
   }
 
+  // Server-side subscription gate: if not subscribed, only pass minimal data
+  // The DashboardClient will show the subscription paywall modal
+  // But we avoid loading expensive data (permissions, feedback) for unsubscribed users
+  if (!session.isSubscribed) {
+    return (
+      <DashboardClient 
+        role={session.role} 
+        agencies={session.agencies}
+        initialPermissions={{}}
+        initialHasFeedback={false}
+        initialProfile={{
+          name: session.name,
+          username: session.username,
+          cccCode: session.cccCode,
+          cccName: session.cccCode || "",
+          isSubscribed: false,
+          subscriptionExpiresAt: session.subscriptionExpiresAt,
+          bypassSubscription: session.bypassSubscription,
+        }}
+      />
+    )
+  }
+
   let permissions: Record<string, string[]> = {}
   try {
     const raw = await roleStorage.getPermissionsForRole(session.role, session.cccCode || "")
