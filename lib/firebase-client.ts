@@ -10,24 +10,60 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-// Lazy-initialize Firebase only on the client side to prevent
-// SSR/prerender crashes when NEXT_PUBLIC_FIREBASE_API_KEY is not available.
 let _app: FirebaseApp | null = null
 let _auth: Auth | null = null
 
-function getFirebaseApp(): FirebaseApp {
+export function isFirebaseConfigured(): boolean {
+  const key = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+  return (
+    typeof window !== "undefined" &&
+    typeof key === "string" &&
+    key.trim().length > 5 &&
+    !key.includes("your-api-key")
+  )
+}
+
+export function getFirebaseApp(): FirebaseApp | null {
+  if (typeof window === "undefined" || !isFirebaseConfigured()) return null
   if (_app) return _app
-  _app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
-  return _app
+  try {
+    _app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
+    return _app
+  } catch (err) {
+    console.warn("[Firebase] Initialization skipped or invalid config:", err)
+    return null
+  }
 }
 
-function getFirebaseAuth(): Auth {
+export function getFirebaseAuth(): Auth | null {
+  if (typeof window === "undefined" || !isFirebaseConfigured()) return null
   if (_auth) return _auth
-  _auth = getAuth(getFirebaseApp())
-  return _auth
+  try {
+    const app = getFirebaseApp()
+    if (!app) return null
+    _auth = getAuth(app)
+    return _auth
+  } catch (err) {
+    console.warn("[Firebase] Auth initialization skipped or invalid config:", err)
+    return null
+  }
 }
 
-// Keep the original export names so existing imports continue to work.
-// Using getters ensures initialization is deferred until actual client-side usage.
-export const firebaseApp = typeof window !== "undefined" ? getFirebaseApp() : (null as unknown as FirebaseApp)
-export const firebaseAuth = typeof window !== "undefined" ? getFirebaseAuth() : (null as unknown as Auth)
+// Proxied lazy exports so importing this file NEVER executes getAuth() at bundle evaluation time
+export const firebaseApp = new Proxy({} as FirebaseApp, {
+  get(_target, prop) {
+    const instance = getFirebaseApp()
+    if (!instance) return undefined
+    const val = (instance as any)[prop]
+    return typeof val === "function" ? val.bind(instance) : val
+  },
+})
+
+export const firebaseAuth = new Proxy({} as Auth, {
+  get(_target, prop) {
+    const instance = getFirebaseAuth()
+    if (!instance) return undefined
+    const val = (instance as any)[prop]
+    return typeof val === "function" ? val.bind(instance) : val
+  },
+})
