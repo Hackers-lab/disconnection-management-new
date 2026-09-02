@@ -93,6 +93,14 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "User not found in this tenant" }, { status: 404 })
     }
 
+    // Option B: Vendor Privacy Lock — prevent regular admins from overwriting agency/vendor passwords
+    if (password && existingUser.role === "agency") {
+      return NextResponse.json(
+        { error: "Vendor passwords cannot be changed by Admins. The vendor must use the 'Forgot Password' option on the login page to reset their password via mobile OTP." },
+        { status: 403 }
+      )
+    }
+
     // Check if new username conflicts with existing users
     if (username && username.toLowerCase() !== existingUser.username.toLowerCase()) {
       const conflictUser = await userStorage.getUserByUsername(username)

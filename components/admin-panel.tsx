@@ -1898,7 +1898,9 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-xs text-gray-500 font-mono">
-                          {visiblePasswordId === user.id ? user.password : "••••••••"}
+                          {user.role === "agency" 
+                            ? (visiblePasswordId === user.id ? user.password : "•••••••• (Vendor Private)")
+                            : (visiblePasswordId === user.id ? user.password : "••••••••")}
                         </span>
                         <Button
                           type="button"
@@ -1919,8 +1921,16 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        title="Change Password"
+                        disabled={user.role === "agency"}
+                        title={user.role === "agency" ? "Vendor passwords cannot be changed by Admins. Vendors manage their passwords via mobile OTP." : "Change Password"}
                         onClick={() => {
+                          if (user.role === "agency") {
+                            setMessage({
+                              type: "error",
+                              text: "🔒 Vendor passwords are encrypted and managed directly by the vendor via Mobile OTP (Forgot Password)."
+                            })
+                            return
+                          }
                           setChangingPasswordUser({ ...user })
                           setChangePasswordValue("")
                           setChangePasswordConfirm("")
@@ -1928,7 +1938,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                           setShowChangePwdConfirm(false)
                         }}
                       >
-                        <KeyRound className="h-4 w-4" />
+                        <KeyRound className={`h-4 w-4 ${user.role === "agency" ? "text-slate-300" : ""}`} />
                       </Button>
                       <Button
                         variant="ghost"
