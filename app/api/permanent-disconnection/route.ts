@@ -14,7 +14,7 @@ import {
 import { checkApiPermission } from "@/lib/permissions"
 import { matchesAgency } from "@/lib/permission-utils"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
-import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
+import { appendDeltaPatch, compactBaseVersion, updateBadgeCounts } from "@/lib/version-engine"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 
 export const dynamic = "force-dynamic"
@@ -29,6 +29,16 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   const id = getSpreadsheetId()
   const bypass = request.nextUrl.searchParams.get("bypassCache") === "true"
   const all = bypass ? await _fetchPDRaw(id) : await fetchPermanentDisconnections(id)
+
+  const tenantContext = getTenantContext()
+  const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || session.cccCode || "default"
+
+  // When a user explicitly refreshes (bypassCache=true), advance the server base version so other devices automatically sync the fresh base dataset
+  if (bypass) {
+    compactBaseVersion(tenantId, "permanent-disconnection").catch(e =>
+      console.warn("[Version Engine] compactBaseVersion error for permanent-disconnection:", e)
+    )
+  }
 
   if (session.role === "agency") {
     const upperAgencies = (session.agencies || []).map((a: string) => a.trim().toUpperCase())
