@@ -1,4 +1,5 @@
-import { createClient, Client } from "@libsql/client"
+import { createClient, type Client } from "@libsql/client"
+import path from "path"
 
 // Singleton database connection client
 let clientInstance: Client | null = null
@@ -6,12 +7,20 @@ let clientInstance: Client | null = null
 export function getDb(): Client {
   if (clientInstance) return clientInstance
 
-  const url = process.env.TURSO_DATABASE_URL || "file:turso_v4.db"
-  const authToken = url.startsWith("file:") ? undefined : process.env.TURSO_AUTH_TOKEN
+  const remoteUrl = process.env.TURSO_DATABASE_URL
+  const authToken = process.env.TURSO_AUTH_TOKEN
+
+  let url = remoteUrl || "file:turso_v4.db"
+  if (!remoteUrl || remoteUrl.startsWith("file:")) {
+    const rawFile = (remoteUrl || "file:turso_v4.db").replace(/^file:/, "")
+    const absolutePath = path.isAbsolute(rawFile) ? rawFile : path.resolve(process.cwd(), rawFile)
+    const normalizedPath = absolutePath.replace(/\\/g, "/")
+    url = `file:${normalizedPath}`
+  }
 
   clientInstance = createClient({
     url,
-    authToken,
+    authToken: url.startsWith("file:") ? undefined : authToken,
   })
 
   ensureIndexes(clientInstance)
