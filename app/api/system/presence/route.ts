@@ -79,32 +79,33 @@ export async function GET(req: NextRequest) {
 
     pruneLocalPresence(now)
 
-    // 3. Track Authenticated User Presence (Non-blocking background)
-    verifySession()
-      .then((session) => {
-        if (session && session.userId) {
-          const userAgent = req.headers.get("user-agent") || ""
-          const ip =
-            req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-            req.headers.get("x-real-ip") ||
-            ""
+    // 3. Track Authenticated User Presence (Scoped to request)
+    try {
+      const session = await verifySession()
+      if (session && session.userId) {
+        const userAgent = req.headers.get("user-agent") || ""
+        const ip =
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          req.headers.get("x-real-ip") ||
+          ""
 
-          trackUserPresence({
-            userId: session.userId,
-            username: session.username,
-            name: session.name || session.username,
-            role: session.role,
-            cccCode: session.cccCode,
-            agencies: session.agencies || [],
-            activeModule,
-            lastAction: lastAction || (activeModule ? `Viewing ${activeModule.toUpperCase()}` : "Active on Dashboard"),
-            userAgent,
-            ip,
-            lastSeen: now,
-          }).catch(() => {})
-        }
-      })
-      .catch(() => {})
+        await trackUserPresence({
+          userId: session.userId,
+          username: session.username,
+          name: session.name || session.username,
+          role: session.role,
+          cccCode: session.cccCode,
+          agencies: session.agencies || [],
+          activeModule,
+          lastAction: lastAction || (activeModule ? `Viewing ${activeModule.toUpperCase()}` : "Active on Dashboard"),
+          userAgent,
+          ip,
+          lastSeen: now,
+        })
+      }
+    } catch {
+      // Non-fatal if session verification or presence write fails
+    }
 
     // Calculate live active users
     let liveCount = localPresenceMap.size

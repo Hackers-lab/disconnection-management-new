@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { DM_Sans, Noto_Sans_Bengali } from 'next/font/google'
 import localFont from 'next/font/local'
 import { AuthInterceptor } from '@/components/auth-interceptor'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -69,6 +70,7 @@ export default function RootLayout({
       <body>
         <AuthInterceptor />
         {children}
+        <Analytics />
       </body>
     </html>
   )

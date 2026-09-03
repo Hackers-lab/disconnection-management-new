@@ -50,7 +50,8 @@ export interface OnlineUsersReport {
 
 // In-Memory Fast Cache for instantaneous UI reads
 const inMemoryPresence = new Map<string, ActiveUserInfo>()
-const PRESENCE_TIMEOUT_MS = 180_000 // 3 minutes
+const PRESENCE_TIMEOUT_MS = 300_000 // 5 minutes
+const LIVE_WINDOW_MS = 300_000 // 5 minutes window for live badge
 const userLastTursoSync = new Map<string, { lastSync: number; action: string }>()
 
 // Server memory micro-cache for aggregate report
@@ -275,22 +276,21 @@ export async function getOnlineUsersReport(forceRefresh = false): Promise<Online
     if (now - user.lastSeen <= PRESENCE_TIMEOUT_MS) {
       activeUsersMap.set(userId, {
         ...user,
-        isLive: now - user.lastSeen < 60_000,
+        isLive: (now - user.lastSeen < LIVE_WINDOW_MS) && Number(user.isLive) !== 0,
       })
     } else {
       inMemoryPresence.delete(userId)
     }
   }
 
-  // 2. Read dedicated user_presence table with cutoff filter to prevent runaway row scans
+  // 2. Read dedicated user_presence table for Personnel Activity & Live Status (Full history, up to 500 records)
   const turso = getTursoClient()
   if (turso) {
     try {
       await ensurePresenceTable(turso)
-      const cutoff = now - PRESENCE_TIMEOUT_MS // last 3 minutes only
       const res = await turso.execute({
-        sql: "SELECT * FROM user_presence WHERE last_seen >= ? ORDER BY last_seen DESC LIMIT 50",
-        args: [cutoff]
+        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC LIMIT 500",
+        args: []
       })
 
       for (const row of res.rows) {
@@ -301,7 +301,7 @@ export async function getOnlineUsersReport(forceRefresh = false): Promise<Online
         } catch {}
 
         const lastSeen = Number(row.last_seen || 0)
-        const isLive = now - lastSeen < 60_000 && Number(row.is_online || 0) === 1
+        const isLive = (now - lastSeen < LIVE_WINDOW_MS) && Number(row.is_online || 0) === 1
 
         const info: ActiveUserInfo = {
           userId: uId,
@@ -334,6 +334,12 @@ export async function getOnlineUsersReport(forceRefresh = false): Promise<Online
   const onlineUsers = Array.from(activeUsersMap.values()).map((user) => {
     const cccName = tenantRegistry[user.cccCode]?.cccName || user.cccCode
     return { ...user, cccName }
+  })
+
+  // Sort: isLive first, then by lastSeen descending
+  onlineUsers.sort((a, b) => {
+    if (a.isLive !== b.isLive) return a.isLive ? -1 : 1
+    return b.lastSeen - a.lastSeen
   })
 
   // 4. Calculate Aggregate Stats

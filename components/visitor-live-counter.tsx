@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 
 interface VisitorLiveCounterProps {
   className?: string
@@ -13,22 +13,51 @@ interface VisitorLiveCounterProps {
 export function VisitorLiveCounter({ className = "", activeModule, action, showUi = true, showLiveUsers = false }: VisitorLiveCounterProps) {
   const [stats, setStats] = useState<{ totalVisitors: number; liveUsers: number } | null>(null)
   const cidRef = useRef<string>("")
+  const lastPingRef = useRef<number>(0)
 
-  useEffect(() => {
-    // 1. Get or generate persistent client ID
-    let cid = ""
+  const sendPresencePing = useCallback(async (isNewVisit = false) => {
+    const now = Date.now()
+    // Avoid spamming faster than 15s unless it is a new visit
+    if (!isNewVisit && now - lastPingRef.current < 15_000) return
+    lastPingRef.current = now
+
+    if (!cidRef.current) {
+      try {
+        let cid = localStorage.getItem("_app_cid") || ""
+        if (!cid) {
+          cid = "c_" + Math.random().toString(36).substring(2, 11) + Date.now().toString(36)
+          localStorage.setItem("_app_cid", cid)
+        }
+        cidRef.current = cid
+      } catch {
+        cidRef.current = "c_" + Math.random().toString(36).substring(2, 11)
+      }
+    }
+
     try {
-      cid = localStorage.getItem("_app_cid") || ""
-      if (!cid) {
-        cid = "c_" + Math.random().toString(36).substring(2, 11) + Date.now().toString(36)
-        localStorage.setItem("_app_cid", cid)
+      const initParam = isNewVisit ? "&init=1" : ""
+      const modParam = activeModule ? `&module=${encodeURIComponent(activeModule)}` : ""
+      const actParam = action ? `&action=${encodeURIComponent(action)}` : ""
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 4000)
+      const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}${modParam}${actParam}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      if (res.ok) {
+        const data = await res.json()
+        if (data && typeof data.totalVisitors === "number") {
+          setStats(data)
+        }
       }
     } catch {
-      cid = "c_" + Math.random().toString(36).substring(2, 11)
+      // Silently ignore network failures
     }
-    cidRef.current = cid
+  }, [activeModule, action])
 
-    // 2. Check if this is a new visit in this browser session
+  useEffect(() => {
+    // 1. Initial check for new session visit
     let isNewVisit = false
     try {
       if (!sessionStorage.getItem("_app_visit_logged")) {
@@ -39,49 +68,29 @@ export function VisitorLiveCounter({ className = "", activeModule, action, showU
       isNewVisit = false
     }
 
-    // 3. Check sessionStorage cache (10 min TTL) to avoid repeat edge requests
-    let cachedStats: any = null
-    try {
-      const raw = sessionStorage.getItem("_app_visitor_stats")
-      const ts = Number(sessionStorage.getItem("_app_visitor_stats_ts") || 0)
-      if (raw && Date.now() - ts < 10 * 60 * 1000) {
-        cachedStats = JSON.parse(raw)
-        setStats(cachedStats)
-      }
-    } catch {}
+    // Fire initial presence ping
+    sendPresencePing(isNewVisit)
 
-    // 4. Fetch visitor count only if not cached or is a brand new session visit
-    if (!cachedStats || isNewVisit) {
-      const fetchVisitCount = async () => {
-        try {
-          const initParam = isNewVisit ? "&init=1" : ""
-          const modParam = activeModule ? `&module=${encodeURIComponent(activeModule)}` : ""
-          const actParam = action ? `&action=${encodeURIComponent(action)}` : ""
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 3000)
-          const res = await fetch(`/api/system/presence?cid=${encodeURIComponent(cidRef.current)}${initParam}${modParam}${actParam}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          })
-          clearTimeout(timeoutId)
-          if (res.ok) {
-            const data = await res.json()
-            if (data && typeof data.totalVisitors === "number") {
-              setStats(data)
-              try {
-                sessionStorage.setItem("_app_visitor_stats", JSON.stringify(data))
-                sessionStorage.setItem("_app_visitor_stats_ts", Date.now().toString())
-              } catch {}
-            }
-          }
-        } catch {
-          // Silently ignore network failures
-        }
+    // 2. Periodic heartbeat every 60 seconds while tab is active
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        sendPresencePing(false)
       }
+    }, 60_000)
 
-      fetchVisitCount()
+    // 3. Immediately heartbeat when user switches back to tab
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        sendPresencePing(false)
+      }
     }
-  }, [])
+    document.addEventListener("visibilitychange", handleVisibility)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisibility)
+    }
+  }, [sendPresencePing])
 
   if (!showUi) return null
 
