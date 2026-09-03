@@ -2227,13 +2227,20 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 return true
               })
               .map((agency: any) => {
+                const billingStartDate = new Date("2026-09-16T00:00:00").getTime()
+                const isPaidAgency = Boolean(
+                  Date.now() >= billingStartDate &&
+                  agency.subscriptionStatus === "paid" &&
+                  agency.subscriptionExpiresAt && 
+                  new Date(agency.subscriptionExpiresAt).getTime() > Date.now()
+                )
                 const isAgencySubscribed = Boolean(
                   agency.subscriptionExpiresAt && 
                   new Date(agency.subscriptionExpiresAt).getTime() > Date.now() && 
-                  agency.subscriptionStatus === "active"
+                  (agency.subscriptionStatus === "active" || agency.subscriptionStatus === "paid")
                 )
                 const hasExistingVendor = Boolean(agency.vendorCode && String(agency.vendorCode).trim().length >= 6)
-                const isVendorLocked = isAgencySubscribed && hasExistingVendor
+                const isVendorLocked = isPaidAgency && hasExistingVendor
                 const isIncomplete = !agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10
                 const initials = (agency.name || "AG").split(" ").filter(Boolean).slice(0, 2).map((s: string) => s[0]).join("").toUpperCase()
                 return (
@@ -2252,7 +2259,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     {isVendorLocked && (
                       <div className="flex items-center gap-2 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-800 dark:text-emerald-300">
                         <span className="font-semibold">🔒 Protected Agency:</span>
-                        <span>This agency has an active subscription until <strong>{agency.subscriptionExpiresAt}</strong>. Agency Name and Vendor Code are locked to prevent license transfer.</span>
+                        <span>This agency has an active paid subscription until <strong>{agency.subscriptionExpiresAt}</strong>. Agency Name and Vendor Code are locked to prevent license transfer.</span>
                       </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2371,10 +2378,15 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                               Incomplete
                             </span>
                           ) : null}
-                          {isAgencySubscribed && (
+                          {isPaidAgency ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Subscribed till {agency.subscriptionExpiresAt}
+                              Paid till {agency.subscriptionExpiresAt}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                              Free Trial till {agency.subscriptionExpiresAt || "30 Days"}
                             </span>
                           )}
                         </div>
@@ -2434,8 +2446,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-30 cursor-pointer"
-                        disabled={isAgencySubscribed}
-                        title={isAgencySubscribed ? "Cannot delete agency with active subscription" : "Delete Agency"}
+                        disabled={isPaidAgency}
+                        title={isPaidAgency ? "Cannot delete agency with active paid subscription" : "Delete Agency"}
                         onClick={() => deleteAgency(agency.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />

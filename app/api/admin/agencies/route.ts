@@ -80,9 +80,13 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
     }
 
     const existingAgency = agencies[agencyIndex]
-    const isSubscribed = existingAgency.subscriptionExpiresAt && 
-      new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now() &&
-      existingAgency.subscriptionStatus === "active"
+    const billingStartDate = new Date("2026-09-16T00:00:00").getTime()
+    const isPaidAgency = Boolean(
+      Date.now() >= billingStartDate &&
+      existingAgency.subscriptionStatus === "paid" &&
+      existingAgency.subscriptionExpiresAt && 
+      new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now()
+    )
 
     // Find linked user to check if on temporary credentials
     const oldCleanMobile = existingAgency.mobileNumber ? existingAgency.mobileNumber.replace(/\D/g, '').slice(-10) : ""
@@ -97,17 +101,17 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
 
     const isOnTempCredentials = !linkedUser || (existingAgency.vendorCode && linkedUser.password === existingAgency.vendorCode.trim())
 
-    // Prevent renaming or changing vendor code of a paid agency by regular admins unless on temporary credentials
-    if (isSubscribed && !isOnTempCredentials) {
+    // Prevent renaming or changing vendor code ONLY if a real paid subscription exists
+    if (isPaidAgency && !isOnTempCredentials) {
       if (name && name.toUpperCase().trim() !== existingAgency.name.toUpperCase().trim()) {
         return NextResponse.json(
-          { error: "Agency Name cannot be changed while an active subscription exists. Please contact Superuser for authorization." },
+          { error: "Agency Name cannot be changed while an active paid subscription exists. Please contact Superuser for authorization." },
           { status: 403 }
         )
       }
       if (vendorCode && existingAgency.vendorCode && vendorCode.trim() !== existingAgency.vendorCode.trim()) {
         return NextResponse.json(
-          { error: "SAP Vendor Code cannot be changed while an active subscription exists. Please contact Superuser for authorization." },
+          { error: "SAP Vendor Code cannot be changed while an active paid subscription exists. Please contact Superuser for authorization." },
           { status: 403 }
         )
       }
@@ -155,18 +159,36 @@ export const DELETE = withTenant(async function DELETE(request: NextRequest) {
     }
 
     const existingAgency = agencies[agencyIndex]
-    const isSubscribed = existingAgency.subscriptionExpiresAt && 
-      new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now() &&
-      existingAgency.subscriptionStatus === "active"
+    const billingStartDate = new Date("2026-09-16T00:00:00").getTime()
+    const isPaidAgency = Boolean(
+      Date.now() >= billingStartDate &&
+      existingAgency.subscriptionStatus === "paid" &&
+      existingAgency.subscriptionExpiresAt && 
+      new Date(existingAgency.subscriptionExpiresAt).getTime() > Date.now()
+    )
 
-    if (isSubscribed) {
+    if (isPaidAgency) {
       return NextResponse.json(
-        { error: "Cannot delete an agency with an active subscription. Contact Superuser." },
+        { error: "Cannot delete an agency with an active paid subscription. Contact Superuser." },
         { status: 403 }
       )
     }
 
     await deleteAgency(id)
+
+    // Cascade clean up: remove this agency from any users assigned to it in this CCC
+    try {
+      const cccUsers = await userStorage.getUsersByCcc(session.cccCode || "")
+      const deletedNameUpper = existingAgency.name.trim().toUpperCase()
+      for (const u of cccUsers) {
+        if (u.agencies && u.agencies.some(a => a.trim().toUpperCase() === deletedNameUpper)) {
+          const updatedAgencies = u.agencies.filter(a => a.trim().toUpperCase() !== deletedNameUpper)
+          await userStorage.updateUser(u.id, { agencies: updatedAgencies })
+        }
+      }
+    } catch (cleanErr) {
+      console.warn("User agency assignment cleanup notice:", cleanErr)
+    }
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
     return NextResponse.json({ success: true, message: "Agency deleted successfully" })
