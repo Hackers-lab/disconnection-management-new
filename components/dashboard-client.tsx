@@ -1928,7 +1928,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                     {(() => {
                       const roleLower = role.toLowerCase()
                       const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || bypassSubscription
-                      const billingStartDate = new Date("2026-09-16T00:00:00")
+                      const billingStartDate = new Date("2026-09-07T00:00:00")
                       const isTrial = Date.now() < billingStartDate.getTime()
 
                       if (isExempt) {

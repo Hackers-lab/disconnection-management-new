@@ -477,7 +477,7 @@ export async function isAgencySubscribed(
   cccCode: string,
   agencyNameOrVendor: string
 ): Promise<{ subscribed: boolean; reason?: string; expiresAt?: string; agencyName?: string }> {
-  const billingStartDate = new Date("2026-09-16T00:00:00")
+  const billingStartDate = new Date("2026-09-07T00:00:00")
   if (Date.now() < billingStartDate.getTime()) {
     return { subscribed: true, reason: "trial" }
   }

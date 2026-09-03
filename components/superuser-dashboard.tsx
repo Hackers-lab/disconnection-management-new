@@ -1568,7 +1568,7 @@ export function SuperuserDashboard() {
                                             {/* Individual Subscription Status */}
                                             {(() => {
                                               const isExempt = u.role === "superuser" || u.role === "admin" || u.bypassSubscription
-                                              const billingStartDate = new Date("2026-09-16T00:00:00")
+                                              const billingStartDate = new Date("2026-09-07T00:00:00")
                                               const isTrial = Date.now() < billingStartDate.getTime()
 
                                               if (isExempt) {
@@ -1828,7 +1828,7 @@ export function SuperuserDashboard() {
                                             {/* Individual Subscription Status */}
                                             {(() => {
                                               const isExempt = u.role === "superuser" || u.role === "admin" || u.bypassSubscription
-                                              const billingStartDate = new Date("2026-09-16T00:00:00")
+                                              const billingStartDate = new Date("2026-09-07T00:00:00")
                                               const isTrial = Date.now() < billingStartDate.getTime()
 
                                               if (isExempt) {

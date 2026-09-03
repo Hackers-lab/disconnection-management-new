@@ -2282,7 +2282,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   {(() => {
                     const roleLower = (profileData.role || "").toLowerCase()
                     const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || profileData.bypassSubscription
-                    const billingStartDate = new Date("2026-09-16T00:00:00")
+                    const billingStartDate = new Date("2026-09-07T00:00:00")
                     const isTrial = Date.now() < billingStartDate.getTime()
 
                     if (isExempt) {

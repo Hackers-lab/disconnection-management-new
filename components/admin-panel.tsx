@@ -2227,7 +2227,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 return true
               })
               .map((agency: any) => {
-                const billingStartDate = new Date("2026-09-16T00:00:00").getTime()
+                const billingStartDate = new Date("2026-09-07T00:00:00").getTime()
                 const isPaidAgency = Boolean(
                   Date.now() >= billingStartDate &&
                   agency.subscriptionStatus === "paid" &&

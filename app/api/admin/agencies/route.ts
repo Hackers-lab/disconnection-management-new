@@ -80,7 +80,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
     }
 
     const existingAgency = agencies[agencyIndex]
-    const billingStartDate = new Date("2026-09-16T00:00:00").getTime()
+    const billingStartDate = new Date("2026-09-07T00:00:00").getTime()
     const isPaidAgency = Boolean(
       Date.now() >= billingStartDate &&
       existingAgency.subscriptionStatus === "paid" &&
@@ -159,7 +159,7 @@ export const DELETE = withTenant(async function DELETE(request: NextRequest) {
     }
 
     const existingAgency = agencies[agencyIndex]
-    const billingStartDate = new Date("2026-09-16T00:00:00").getTime()
+    const billingStartDate = new Date("2026-09-07T00:00:00").getTime()
     const isPaidAgency = Boolean(
       Date.now() >= billingStartDate &&
       existingAgency.subscriptionStatus === "paid" &&
