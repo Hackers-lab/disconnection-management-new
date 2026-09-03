@@ -462,10 +462,10 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
           </div>
 
           <Select value={tab} onValueChange={(val) => setTab(val as Tab)}>
-            <SelectTrigger className="w-[155px] h-9 rounded-xl shrink-0 text-xs font-semibold bg-gray-50 border-gray-200 hover:bg-gray-100 transition-colors">
+            <SelectTrigger className="notranslate w-[155px] h-9 rounded-xl shrink-0 text-xs font-semibold bg-gray-50 border-gray-200 hover:bg-gray-100 transition-colors">
               <SelectValue placeholder="Status: Pending" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="notranslate">
               <SelectItem value="pending" className="text-xs font-medium">⏳ Pending ({pendingCount})</SelectItem>
               <SelectItem value="reconnected" className="text-xs font-medium">✅ Reconnected ({reconnectedCount})</SelectItem>
               <SelectItem value="door_locked" className="text-xs font-medium">🔒 Door Locked ({doorLockedCount})</SelectItem>
@@ -484,7 +484,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
 
         <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
           <div className="flex items-center gap-2">
-            <span>{filtered.length} records</span>
+            <span><span className="notranslate font-bold text-gray-700">{filtered.length}</span> records</span>
             <button
               onClick={() => load(false, true)}
               disabled={syncState === "loading"}

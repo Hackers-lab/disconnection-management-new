@@ -71,6 +71,7 @@ import { getAgencyDescription } from "@/app/actions/agency-details"
 import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/indexed-db"
 import { generateAndShareAgencyUpdatesJPEG } from "@/lib/agency-update-image"
 import { unlockSpotAiSession } from "@/lib/spotai-guard"
+import { LanguageToggle } from "@/components/language-toggle"
 
 interface HeaderProps {
   userRole: string
@@ -1189,6 +1190,9 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
           {/* RIGHT SIDE: Actions */}
           <div className="flex items-center space-x-2 sm:space-x-4">
             
+            {/* Language Toggle (Bilingual English <-> Bengali) */}
+            <LanguageToggle />
+
             {/* User Info / Profile Link (Available on both desktop & mobile) */}
             <div 
               onClick={() => {

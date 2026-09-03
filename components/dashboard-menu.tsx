@@ -1004,7 +1004,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                           </p>
                         </div>
                       </div>
-                      <div className="px-3 py-1 rounded-full bg-red-100/90 text-red-800 border border-red-200/80 text-xs font-bold shrink-0 ml-2 shadow-xs">
+                      <div className="notranslate px-3 py-1 rounded-full bg-red-100/90 text-red-800 border border-red-200/80 text-xs font-bold shrink-0 ml-2 shadow-xs">
                         {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.count.toLocaleString()}
                       </div>
                     </div>
@@ -1053,7 +1053,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                       </div>
 
                       {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] ${pillStyleClass}`}>
+                        <span className={`notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] ${pillStyleClass}`}>
                           {module.isLoading ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
                           ) : (
@@ -1126,7 +1126,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                 >
                   {/* Executive Dark Badge Counter */}
                   {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
-                    <div className={`absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
+                    <div className={`notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
                       module.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
                     }`}>
                       {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.id === "consumer-master" ? module.count.toLocaleString() : (module.count ?? 0)}
