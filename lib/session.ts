@@ -117,7 +117,7 @@ export async function verifySession() {
 
   let isSubscribed = true
   const roleLower = (session.role || "").toLowerCase()
-  const billingStartDate = new Date("2026-09-01T00:00:00")
+  const billingStartDate = new Date("2026-09-16T00:00:00")
   
   const isExempt =
     roleLower === "admin" ||

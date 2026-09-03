@@ -2,6 +2,8 @@ import { redirect } from "next/navigation"
 import { verifySession } from "@/lib/session"
 import DashboardClient from "@/components/dashboard-client"
 import { SubscriptionPaywall } from "@/components/subscription-paywall"
+import { AgencyProfileIncomplete } from "@/components/agency-profile-incomplete"
+import { db } from "@/lib/db"
 import { roleStorage } from "@/lib/role-storage"
 import { expandRolePermissions } from "@/lib/permissions"
 import { getTenantRegistry } from "@/lib/tenant-resolver"
@@ -17,6 +19,48 @@ export default async function DashboardPage() {
   // Server-side subscription paywall: unsubscribed users NEVER see the dashboard
   if (!session.isSubscribed) {
     return <SubscriptionPaywall session={session} />
+  }
+
+  // Server-side profile completeness gate: agency users must have SAP Vendor Code & Mobile
+  if (session.role === "agency") {
+    try {
+      const rawAgencies = session.agencies || []
+      const agencyName = rawAgencies.length > 0 ? rawAgencies[0] : (session.name || session.username)
+      const cccCode = session.cccCode || ""
+
+      if (cccCode && agencyName) {
+        const agencyRes = await db.execute({
+          sql: `SELECT a.id, a.name, a.vendor_code, a.mobile_number, a.is_active
+                FROM agencies a
+                JOIN ccc_registry c ON a.ccc_id = c.id
+                WHERE c.ccc_code = ? COLLATE NOCASE
+                  AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
+                LIMIT 1`,
+          args: [cccCode, agencyName, session.username]
+        })
+
+        let ag: any = (agencyRes.rows && agencyRes.rows.length > 0) ? agencyRes.rows[0] : null
+        const isMissingVendor = !ag?.vendor_code || !String(ag.vendor_code).trim()
+        const isMissingMobile = !ag?.mobile_number || !String(ag.mobile_number).trim()
+
+        if (isMissingVendor || isMissingMobile) {
+          return (
+            <AgencyProfileIncomplete
+              session={session}
+              agencyName={String(ag?.name || agencyName)}
+              existingVendorCode={String(ag?.vendor_code || "")}
+              existingMobileNumber={String(ag?.mobile_number || "")}
+              missingFields={{
+                vendorCode: isMissingVendor,
+                mobileNumber: isMissingMobile,
+              }}
+            />
+          )
+        }
+      }
+    } catch (profileCheckErr) {
+      console.warn("Agency profile completeness check notice:", profileCheckErr)
+    }
   }
 
   let permissions: Record<string, string[]> = {}

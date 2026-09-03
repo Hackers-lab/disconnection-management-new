@@ -1928,7 +1928,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                     {(() => {
                       const roleLower = role.toLowerCase()
                       const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || bypassSubscription
-                      const billingStartDate = new Date("2026-09-01T00:00:00")
+                      const billingStartDate = new Date("2026-09-16T00:00:00")
                       const isTrial = Date.now() < billingStartDate.getTime()
 
                       if (isExempt) {
@@ -1946,7 +1946,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                             <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 animate-pulse">
                               Trial Period Active
                             </span>
-                            <p className="text-xs text-slate-500 leading-relaxed">Billing starts on <strong>01-09-2026</strong>. You have unrestricted trial access until then.</p>
+                            <p className="text-xs text-slate-500 leading-relaxed">Billing starts on <strong>16-09-2026</strong>. You have unrestricted trial access until then.</p>
                           </div>
                         )
                       } else if (isSubscribed) {

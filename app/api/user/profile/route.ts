@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (cleanVendor && !/^\d{6}$/.test(cleanVendor)) {
-      return NextResponse.json({ error: "SAP Vendor Code must be exactly 6 digits" }, { status: 400 })
+      return NextResponse.json({ error: "Vendor Code must be exactly 6 digits" }, { status: 400 })
     }
 
     // 1. Update users table
@@ -133,10 +133,14 @@ export async function POST(req: NextRequest) {
     // 2. If vendor code or mobile is provided, also update agency table if applicable
     const userRole = (session.role || "").toLowerCase()
     const username = session.username
-    const agencies = session.agencies || []
-    const agencyName = userRole === "agency" ? (agencies[0] || username) : (agencies[0] || "")
+    const rawAgencies = session.agencies || []
+    const agencyCandidates = Array.from(new Set([
+      ...rawAgencies,
+      session.name,
+      username
+    ].filter(Boolean).map(s => String(s).trim())))
 
-    if (agencyName || cleanVendor) {
+    for (const agName of agencyCandidates) {
       try {
         await db.execute({
           sql: `UPDATE agencies
@@ -144,14 +148,14 @@ export async function POST(req: NextRequest) {
                     mobile_number = COALESCE(?, mobile_number),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
-                  AND (name = ? COLLATE NOCASE OR name = ? COLLATE NOCASE)`,
-          args: [cleanVendor || null, cleanMobile || null, cccCode, agencyName, username]
+                  AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
+          args: [cleanVendor || null, cleanMobile || null, cccCode, agName, agName]
         })
-        invalidateAgencyCache(cccCode)
       } catch (err) {
-        console.warn("Agency profile update warning:", err)
+        console.warn("Agency profile candidate update warning:", err)
       }
     }
+    invalidateAgencyCache(cccCode)
 
     return NextResponse.json({
       success: true,

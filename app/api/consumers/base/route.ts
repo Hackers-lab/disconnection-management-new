@@ -11,6 +11,28 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       return NextResponse.json({ error }, { status: status || 403 })
     }
 
+    // Agency Profile Completeness Check
+    if (session?.role === "agency") {
+      const { db } = await import("@/lib/db")
+      const rawAgencies = session.agencies || []
+      const agencyName = rawAgencies.length > 0 ? rawAgencies[0] : (session.name || session.username)
+      const cccCode = session.cccCode || ""
+      if (cccCode && agencyName) {
+        const agencyRes = await db.execute({
+          sql: `SELECT a.vendor_code, a.mobile_number, a.is_active FROM agencies a
+                JOIN ccc_registry c ON a.ccc_id = c.id
+                WHERE c.ccc_code = ? COLLATE NOCASE AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE) LIMIT 1`,
+          args: [cccCode, agencyName, session.username]
+        })
+        const ag: any = (agencyRes.rows && agencyRes.rows.length > 0) ? agencyRes.rows[0] : null
+        if (!ag || !ag.vendor_code || !String(ag.vendor_code).trim() || !ag.mobile_number || !String(ag.mobile_number).trim()) {
+          return NextResponse.json({ 
+            error: "Agency profile incomplete: Please enter your Vendor Code and Mobile Number to unlock field data." 
+          }, { status: 403 })
+        }
+      }
+    }
+
     let data = []
     try {
       const spreadsheetId = getSpreadsheetId()

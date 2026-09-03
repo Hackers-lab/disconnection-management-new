@@ -2271,7 +2271,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   {(() => {
                     const roleLower = (profileData.role || "").toLowerCase()
                     const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || profileData.bypassSubscription
-                    const billingStartDate = new Date("2026-09-01T00:00:00")
+                    const billingStartDate = new Date("2026-09-16T00:00:00")
                     const isTrial = Date.now() < billingStartDate.getTime()
 
                     if (isExempt) {
@@ -2283,7 +2283,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                     } else if (isTrial) {
                       return (
                         <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse">
-                          Under Trial (Starts 01-09-2026)
+                          Under Trial (Starts 16-09-2026)
                         </span>
                       )
                     } else if (profileData.subscriptionStatus === "active") {

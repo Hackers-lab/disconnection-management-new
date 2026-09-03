@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell } from "lucide-react"
+import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, AlertTriangle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Condition, Group, Operator, rowMatchesGroups, isNumericOp, OPERATOR_LABELS } from "@/lib/upload-filter"
 import { userStorage } from "@/lib/user-storage";
@@ -1855,7 +1855,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         {/* Individual Subscription Status Badge */}
                         {(() => {
                           const isExempt = user.role === "admin" || user.bypassSubscription
-                          const billingStartDate = new Date("2026-09-01T00:00:00")
+                          const billingStartDate = new Date("2026-09-16T00:00:00")
                           const isTrial = Date.now() < billingStartDate.getTime()
 
                           if (isExempt) {
@@ -1988,6 +1988,36 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </Button>
           </div>
 
+          {/* Alert Banner for Incomplete Agencies */}
+          {(() => {
+            const missingCount = agencies.filter(a => a.isActive && (!a.vendorCode || a.vendorCode.length < 6 || !a.mobileNumber || a.mobileNumber.length < 10)).length
+            if (missingCount === 0) return null
+            return (
+              <div className="mb-4 flex items-center justify-between p-3 px-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-slate-800 dark:text-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      {missingCount} {missingCount === 1 ? 'Agency requires' : 'Agencies require'} Vendor Code & Mobile Number
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Field operations are paused until completed. Vendors can also self-activate upon login.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAgencyFilter("missing")}
+                  className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline shrink-0 ml-4 cursor-pointer"
+                >
+                  View Incomplete ({missingCount}) →
+                </button>
+              </div>
+            )
+          })()}
+
           {/* Add Agency Form */}
           {showAddAgency && (
             <Card className="mb-4">
@@ -2011,12 +2041,12 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="agencyVendorCode">SAP Vendor Code <span className="text-rose-500">*</span></Label>
+                    <Label htmlFor="agencyVendorCode">Vendor Code <span className="text-rose-500">*</span></Label>
                     <Input
                       id="agencyVendorCode"
                       value={newAgency.vendorCode}
                       onChange={(e) => setNewAgency({ ...newAgency, vendorCode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                      placeholder="6-digit SAP Vendor Code (e.g. 500287)"
+                      placeholder="6-digit Vendor Code (e.g. 500287)"
                       maxLength={6}
                     />
                   </div>
@@ -2157,26 +2187,28 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   new Date(agency.subscriptionExpiresAt).getTime() > Date.now() && 
                   agency.subscriptionStatus === "active"
                 )
+                const hasExistingVendor = Boolean(agency.vendorCode && String(agency.vendorCode).trim().length >= 6)
+                const isVendorLocked = isAgencySubscribed && hasExistingVendor
                 return (
               <Card key={agency.id} className="p-3">
                 {editingAgency?.id === agency.id ? (
                   <div className="space-y-4 p-2">
-                    {isAgencySubscribed && (
+                    {isVendorLocked && (
                       <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
                         <span className="font-semibold">🔒 Protected Agency:</span>
-                        <span>This agency has an active subscription until <strong>{agency.subscriptionExpiresAt}</strong>. Agency Name and SAP Vendor Code are locked to prevent license transfer.</span>
+                        <span>This agency has an active subscription until <strong>{agency.subscriptionExpiresAt}</strong>. Agency Name and Vendor Code are locked to prevent license transfer.</span>
                       </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="flex items-center justify-between">
                           <span>Agency Name <span className="text-rose-500">*</span></span>
-                          {isAgencySubscribed && <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>}
+                          {isVendorLocked && <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>}
                         </Label>
                         <Input
                           value={editingAgency.name}
-                          disabled={isAgencySubscribed}
-                          className={isAgencySubscribed ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
+                          disabled={isVendorLocked}
+                          className={isVendorLocked ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, name: e.target.value })
                           }
@@ -2184,17 +2216,21 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       </div>
                       <div className="space-y-2">
                         <Label className="flex items-center justify-between">
-                          <span>SAP Vendor Code <span className="text-rose-500">*</span></span>
-                          {isAgencySubscribed && <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>}
+                          <span>Vendor Code <span className="text-rose-500">*</span></span>
+                          {isVendorLocked ? (
+                            <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>
+                          ) : !hasExistingVendor ? (
+                            <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-1 rounded border border-rose-200">Required</span>
+                          ) : null}
                         </Label>
                         <Input
                           value={editingAgency.vendorCode || ""}
-                          disabled={isAgencySubscribed}
-                          className={isAgencySubscribed ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
+                          disabled={isVendorLocked}
+                          className={isVendorLocked ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, vendorCode: e.target.value.replace(/\D/g, '').slice(0, 6) })
                           }
-                          placeholder="6-digit SAP Vendor Code"
+                          placeholder="6-digit Vendor Code"
                           maxLength={6}
                         />
                       </div>
@@ -2252,14 +2288,14 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 ) : (
                   <div className="flex justify-between items-center">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-base">{agency.name}</span>
                         {agency.vendorCode ? (
                           <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-mono text-xs">
                             Vendor: {agency.vendorCode}
                           </Badge>
                         ) : (
-                          <Badge variant="destructive" className="text-[10px]">
+                          <Badge variant="destructive" className="text-[10px] animate-pulse">
                             Missing Vendor Code
                           </Badge>
                         )}
@@ -2268,8 +2304,13 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                             📞 {agency.mobileNumber}
                           </span>
                         ) : (
-                          <Badge variant="destructive" className="text-[10px]">
+                          <Badge variant="destructive" className="text-[10px] animate-pulse">
                             Missing Phone
+                          </Badge>
+                        )}
+                        {(!agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10) && (
+                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 text-[10px] font-semibold">
+                            ⚠️ Incomplete Profile (Field Access Restricted)
                           </Badge>
                         )}
                         {isAgencySubscribed && (
@@ -2287,7 +2328,17 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center shrink-0">
+                      {(!agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 text-xs font-semibold h-8"
+                          onClick={() => setEditingAgency({ ...agency })}
+                        >
+                          Complete Profile
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
