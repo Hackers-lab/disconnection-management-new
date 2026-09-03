@@ -17,7 +17,13 @@ export const GET = withTenant(async function GET(request: NextRequest) {
 
   const tenantUsers = await userStorage.getUsersByCcc(cccCode)
   
-  return NextResponse.json(tenantUsers, {
+  // Redact agency user passwords — vendors manage their own passwords via OTP
+  const sanitizedUsers = tenantUsers.map(user => ({
+    ...user,
+    password: user.role === "agency" ? "" : user.password,
+  }))
+  
+  return NextResponse.json(sanitizedUsers, {
     headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
   })
 })

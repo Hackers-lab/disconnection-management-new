@@ -23,28 +23,44 @@ async function getSheetsClient() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { action, identifier, mobileNumber, verificationToken, newPassword } = body
+    const { action, identifier, mobileNumber, username, verificationToken, newPassword } = body
 
     // =========================================================================
     // ACTION 1: Request Password Reset OTP
     // =========================================================================
     if (action === "request") {
-      const cleanIdent = String(identifier || "").trim()
+      let cleanIdent = String(identifier || "").trim()
       if (!cleanIdent) {
         return NextResponse.json({ error: "Please enter your Mobile Number, Username, or CCC Code." }, { status: 400 })
       }
 
-      // Query user or CCC in Turso DB
+      // Normalize: if identifier looks like a phone number, extract 10 digits
+      const identDigits = cleanIdent.replace(/\D/g, "")
+      if (identDigits.length === 10) {
+        cleanIdent = identDigits
+      } else if (identDigits.length > 10 && identDigits.length <= 13) {
+        // Handle +91, 091, 0 prefixes
+        const last10 = identDigits.slice(-10)
+        if (last10.length === 10) cleanIdent = last10
+      }
+
+      // Query user or CCC in Turso DB with priority ordering: exact username first, then user mobile, then CCC admin
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.full_name, u.mobile_number as userMobile, u.role, c.mobile_number as cccMobile, c.ccc_code
               FROM users u
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE u.mobile_number = ?
-                 OR u.username = ? COLLATE NOCASE
+              WHERE u.username = ? COLLATE NOCASE
+                 OR u.mobile_number = ?
                  OR (c.ccc_code = ? AND u.role = 'admin')
                  OR c.mobile_number = ?
+              ORDER BY (CASE 
+                WHEN u.username = ? COLLATE NOCASE THEN 1 
+                WHEN u.mobile_number = ? THEN 2 
+                WHEN (c.ccc_code = ? AND u.role = 'admin') THEN 3 
+                ELSE 4 
+              END)
               LIMIT 1`,
-        args: [cleanIdent, cleanIdent, cleanIdent, cleanIdent]
+        args: [cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent]
       })
 
       if (!res.rows || res.rows.length === 0) {
@@ -54,7 +70,22 @@ export async function POST(req: NextRequest) {
       }
 
       const userRow: any = res.rows[0]
-      const targetMobile = String(userRow.userMobile || userRow.cccMobile || "").replace(/\D/g, "").slice(-10)
+      
+      // Determine target mobile: prefer user's own mobile_number, then check if username is a 10-digit mobile
+      let targetMobile = String(userRow.userMobile || "").replace(/\D/g, "").slice(-10)
+      
+      // Fallback: if user.mobile_number is NULL but username is a 10-digit number, use username as mobile
+      if ((!targetMobile || targetMobile.length !== 10) && userRow.username) {
+        const usernameDigits = String(userRow.username).replace(/\D/g, "")
+        if (usernameDigits.length === 10) {
+          targetMobile = usernameDigits
+        }
+      }
+      
+      // Last resort fallback to CCC admin mobile (only for admin role users)
+      if ((!targetMobile || targetMobile.length !== 10) && String(userRow.role) === "admin") {
+        targetMobile = String(userRow.cccMobile || "").replace(/\D/g, "").slice(-10)
+      }
 
       if (!targetMobile || targetMobile.length !== 10) {
         return NextResponse.json({
@@ -83,6 +114,7 @@ export async function POST(req: NextRequest) {
     if (action === "reset") {
       const cleanMobile = String(mobileNumber || "").replace(/\D/g, "").slice(-10)
       const cleanNewPassword = String(newPassword || "").trim()
+      const targetUsername = String(username || "").trim()
 
       if (!cleanMobile || cleanMobile.length !== 10) {
         return NextResponse.json({ error: "Invalid mobile number." }, { status: 400 })
@@ -96,16 +128,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "OTP verification expired or invalid. Please verify again." }, { status: 401 })
       }
 
-      // Update in Turso DB users table
-      const updateRes = await db.execute({
-        sql: `UPDATE users 
-              SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
-              WHERE mobile_number = ? 
-                 OR (ccc_id = (SELECT id FROM ccc_registry WHERE mobile_number = ? LIMIT 1) AND role = 'admin')`,
-        args: [cleanNewPassword, cleanMobile, cleanMobile]
-      })
+      // Update in Turso DB users table: target specific username if provided to prevent cross-account overwrites
+      let updateRes: any
+      if (targetUsername) {
+        updateRes = await db.execute({
+          sql: `UPDATE users 
+                SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE username = ? COLLATE NOCASE`,
+          args: [cleanNewPassword, targetUsername]
+        })
+      } else {
+        updateRes = await db.execute({
+          sql: `UPDATE users 
+                SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE mobile_number = ? 
+                   OR username = ?
+                   OR (ccc_id = (SELECT id FROM ccc_registry WHERE mobile_number = ? LIMIT 1) AND role = 'admin')`,
+          args: [cleanNewPassword, cleanMobile, cleanMobile, cleanMobile]
+        })
+      }
 
-      console.log(`🔑 [PASSWORD RESET SUCCESS] Updated password for mobile +91 ${cleanMobile} in Turso DB (${updateRes.rowsAffected} rows affected)`)
+      console.log(`🔑 [PASSWORD RESET SUCCESS] Updated password for mobile +91 ${cleanMobile}${targetUsername ? ` (User: ${targetUsername})` : ""} in Turso DB (${updateRes.rowsAffected} rows affected)`)
 
       UserStorage.getInstance().invalidateCache()
 

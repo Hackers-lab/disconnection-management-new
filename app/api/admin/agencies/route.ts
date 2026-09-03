@@ -4,6 +4,7 @@ import { getAgencies, addAgency, updateAgency, deleteAgency } from "@/lib/agency
 import { userStorage, type MasterUser } from "@/lib/user-storage"
 import { withTenant } from "@/lib/tenant-context"
 import { incrKV, getTenantKey } from "@/lib/kv-store"
+import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
@@ -46,38 +47,91 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       subscriptionExpiresAt: trialExpiresAt
     })
 
+    // Auto-provision agency user if mobile + vendor code are provided
+    let credentials: { username: string; password: string; expiresAt: string; conflict?: string } | undefined
     if (mobileNumber && vendorCode) {
       const cleanMobile = mobileNumber.replace(/\D/g, '').slice(-10)
-      const existingUser = await userStorage.getUserByUsername(cleanMobile)
-      if (!existingUser) {
+      
+      // Check for mobile number conflicts across ALL user accounts and CCC registry
+      const existingByUsername = await userStorage.getUserByUsername(cleanMobile)
+      
+      // Also check if any user already has this as their mobile_number
+      let existingByMobile: any = null
+      try {
+        const mobileCheck = await db.execute({
+          sql: `SELECT u.id, u.username, u.role, u.full_name FROM users u WHERE u.mobile_number = ? LIMIT 1`,
+          args: [cleanMobile]
+        })
+        if (mobileCheck.rows && mobileCheck.rows.length > 0) {
+          existingByMobile = mobileCheck.rows[0]
+        }
+      } catch {}
+
+      // Also check if this mobile belongs to a CCC admin registration
+      let existingCccAdmin: any = null
+      try {
+        const cccCheck = await db.execute({
+          sql: `SELECT c.ccc_code, c.contact_person FROM ccc_registry c WHERE c.mobile_number = ? LIMIT 1`,
+          args: [cleanMobile]
+        })
+        if (cccCheck.rows && cccCheck.rows.length > 0) {
+          existingCccAdmin = cccCheck.rows[0]
+        }
+      } catch {}
+
+      if (existingByUsername) {
+        // Username already taken — agency record was created but user not provisioned
+        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${cleanMobile} already in use as username by user: ${existingByUsername.username} (${existingByUsername.role})`)
+        credentials = { 
+          username: cleanMobile, 
+          password: vendorCode.trim(), 
+          expiresAt: trialExpiresAt,
+          conflict: `Mobile ${cleanMobile} is already registered as a login username for another account (${existingByUsername.role}). The agency was created but a separate login account was NOT auto-created. Please use a different mobile number for this agency.`
+        }
+      } else if (existingByMobile) {
+        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${cleanMobile} already linked to user: ${existingByMobile.username} (${existingByMobile.role})`)
+        credentials = { 
+          username: cleanMobile, 
+          password: vendorCode.trim(), 
+          expiresAt: trialExpiresAt,
+          conflict: `Mobile ${cleanMobile} is already linked to another account (${String(existingByMobile.role)}: ${String(existingByMobile.full_name || existingByMobile.username)}). The agency was created but a separate login account was NOT auto-created to avoid login conflicts. Please use a different mobile number.`
+        }
+      } else if (existingCccAdmin) {
+        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${cleanMobile} belongs to CCC admin: ${existingCccAdmin.ccc_code}`)
+        credentials = { 
+          username: cleanMobile, 
+          password: vendorCode.trim(), 
+          expiresAt: trialExpiresAt,
+          conflict: `Mobile ${cleanMobile} is registered as the CCC Station Admin contact number (${String(existingCccAdmin.ccc_code)}). The agency was created but a separate login account was NOT auto-created to avoid login conflicts. Please use the agency contractor's own mobile number.`
+        }
+      } else {
+        // No conflict — safe to create agency user
         await userStorage.addUser({
           username: cleanMobile,
-          password: vendorCode.trim(), // Temporary password is SAP Vendor Code
+          password: vendorCode.trim(),
           name: name.toUpperCase().trim(),
           role: "agency",
           cccCode: session.cccCode || "",
+          mobileNumber: cleanMobile,
           agencies: [name.toUpperCase().trim()],
           subscriptionStatus: "active",
           subscriptionExpiresAt: trialExpiresAt,
           bypassSubscription: false,
         })
         console.log(`👤 [AUTO-PROVISION] Created agency user: ${cleanMobile} (Temp password: ${vendorCode})`)
+        credentials = { username: cleanMobile, password: vendorCode.trim(), expiresAt: trialExpiresAt }
       }
     }
 
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
 
-    const credentials = (mobileNumber && vendorCode) ? {
-      username: mobileNumber.replace(/\D/g, '').slice(-10),
-      password: vendorCode.trim(),
-      expiresAt: trialExpiresAt
-    } : undefined
-
     return NextResponse.json({
       success: true,
-      message: "Agency added successfully",
-      credentials
+      message: credentials?.conflict 
+        ? `⚠️ Agency created, but login account NOT auto-created: ${credentials.conflict}`
+        : "Agency added successfully",
+      credentials,
     })
   } catch (error) {
     console.error("Error adding agency:", error)
@@ -156,6 +210,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
         const existingWithNewMobile = await userStorage.getUserByUsername(newCleanMobile)
         if (!existingWithNewMobile || existingWithNewMobile.id === linkedUser.id) {
           userUpdates.username = newCleanMobile
+          userUpdates.mobileNumber = newCleanMobile
         }
       }
       if (newVendorCode && (isOnTempCredentials || !linkedUser.password)) {
@@ -170,8 +225,28 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
         console.log(`👤 [AUTO-PROVISION] Updated linked agency user for: ${newAgencyName || linkedUser.name}`)
       }
     } else if (newCleanMobile && newVendorCode) {
+      // Check for mobile number conflicts before auto-provisioning
       const existingUser = await userStorage.getUserByUsername(newCleanMobile)
+      let mobileConflict = false
       if (!existingUser) {
+        try {
+          const mobileCheck = await db.execute({
+            sql: `SELECT u.id FROM users u WHERE u.mobile_number = ? LIMIT 1`,
+            args: [newCleanMobile]
+          })
+          if (mobileCheck.rows && mobileCheck.rows.length > 0) mobileConflict = true
+        } catch {}
+        if (!mobileConflict) {
+          try {
+            const cccCheck = await db.execute({
+              sql: `SELECT c.id FROM ccc_registry c WHERE c.mobile_number = ? LIMIT 1`,
+              args: [newCleanMobile]
+            })
+            if (cccCheck.rows && cccCheck.rows.length > 0) mobileConflict = true
+          } catch {}
+        }
+      }
+      if (!existingUser && !mobileConflict) {
         const trialExpiresAt = existingAgency.subscriptionExpiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
         await userStorage.addUser({
           username: newCleanMobile,
@@ -179,12 +254,15 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
           name: newAgencyName || existingAgency.name.toUpperCase().trim(),
           role: "agency",
           cccCode: session.cccCode || "",
+          mobileNumber: newCleanMobile,
           agencies: [newAgencyName || existingAgency.name.toUpperCase().trim()],
           subscriptionStatus: existingAgency.subscriptionStatus || "active",
           subscriptionExpiresAt: trialExpiresAt,
           bypassSubscription: false,
         })
         console.log(`👤 [AUTO-PROVISION] Created missing agency user on update: ${newCleanMobile}`)
+      } else {
+        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${newCleanMobile} already in use — skipping user creation on update`)
       }
     }
 

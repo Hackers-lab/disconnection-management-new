@@ -257,6 +257,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         body: JSON.stringify({
           action: "reset",
           mobileNumber,
+          username,
           verificationToken,
           newPassword,
         })

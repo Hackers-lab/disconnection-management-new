@@ -1125,7 +1125,12 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         setAgencies(await agenciesResponse.json())
         const usersResponse = await fetch("/api/admin/users")
         setUsers(await usersResponse.json())
-        if (data?.credentials) {
+        if (data?.credentials?.conflict) {
+          setMessage({
+            type: "error",
+            text: `⚠️ Agency created but login NOT auto-created: ${data.credentials.conflict}`
+          })
+        } else if (data?.credentials) {
           setMessage({
             type: "success",
             text: `🎉 Agency Added! Login ID (Mobile): ${data.credentials.username} | Temporary Password: ${data.credentials.password} | 1-Month Free Trial active until ${data.credentials.expiresAt}.`
@@ -1745,24 +1750,30 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       </div>
                       <div className="space-y-2">
                         <Label>Password</Label>
-                        <div className="relative">
-                          <Input
-                            type={showEditPassword ? "text" : "password"}
-                            value={editingUser.password}
-                            onChange={(e) =>
-                              setEditingUser({ ...editingUser, password: e.target.value })
-                            }
-                            className="pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowEditPassword(!showEditPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            tabIndex={-1}
-                          >
-                            {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
+                        {editingUser.role === "agency" ? (
+                          <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-input bg-muted/50">
+                            <span className="text-sm text-muted-foreground font-mono">•••••••• (Vendor Private)</span>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <Input
+                              type={showEditPassword ? "text" : "password"}
+                              value={editingUser.password}
+                              onChange={(e) =>
+                                setEditingUser({ ...editingUser, password: e.target.value })
+                              }
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowEditPassword(!showEditPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              tabIndex={-1}
+                            >
+                              {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label>Role</Label>
@@ -1899,21 +1910,23 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-xs text-gray-500 font-mono">
                           {user.role === "agency" 
-                            ? (visiblePasswordId === user.id ? user.password : "•••••••• (Vendor Private)")
+                            ? "•••••••• (Vendor Private)"
                             : (visiblePasswordId === user.id ? user.password : "••••••••")}
                         </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          onClick={() => setVisiblePasswordId(visiblePasswordId === user.id ? null : user.id)}
-                          title={visiblePasswordId === user.id ? "Hide password" : "Show password"}
-                        >
-                          {visiblePasswordId === user.id
-                            ? <EyeOff className="h-3 w-3 text-gray-400" />
-                            : <Eye className="h-3 w-3 text-gray-400" />}
-                        </Button>
+                        {user.role !== "agency" && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => setVisiblePasswordId(visiblePasswordId === user.id ? null : user.id)}
+                            title={visiblePasswordId === user.id ? "Hide password" : "Show password"}
+                          >
+                            {visiblePasswordId === user.id
+                              ? <EyeOff className="h-3 w-3 text-gray-400" />
+                              : <Eye className="h-3 w-3 text-gray-400" />}
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -2019,6 +2032,23 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       placeholder="10-digit contractor phone for OTP/Login"
                       maxLength={10}
                     />
+                    {(() => {
+                      const cleanMob = newAgency.mobileNumber?.replace(/\D/g, '').slice(-10)
+                      if (!cleanMob || cleanMob.length !== 10) return null
+                      const conflict = users.find(u => u.username === cleanMob || u.mobileNumber === cleanMob)
+                      if (!conflict) return null
+                      return (
+                        <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 mt-1 space-y-0.5">
+                          <p className="font-semibold">⚠️ Mobile Number Already in Use</p>
+                          <p>
+                            This number is already registered to user <strong>{conflict.username}</strong> ({conflict.role.toUpperCase()}).
+                          </p>
+                          <p className="text-amber-700">
+                            Each agency account requires a unique mobile number because it is used as their login ID. Please provide the agency contractor's own phone number.
+                          </p>
+                        </div>
+                      )
+                    })()}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="agencyDescription">Description / Notes</Label>
@@ -2047,7 +2077,14 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 <div className="flex space-x-2">
                   <Button 
                     onClick={addAgency} 
-                    disabled={!newAgency.name || !newAgency.vendorCode || newAgency.vendorCode.length < 6 || !newAgency.mobileNumber || newAgency.mobileNumber.length < 10}
+                    disabled={
+                      !newAgency.name || 
+                      !newAgency.vendorCode || 
+                      newAgency.vendorCode.length < 6 || 
+                      !newAgency.mobileNumber || 
+                      newAgency.mobileNumber.length < 10 ||
+                      Boolean(users.some(u => u.username === newAgency.mobileNumber.replace(/\D/g, '').slice(-10) || u.mobileNumber === newAgency.mobileNumber.replace(/\D/g, '').slice(-10)))
+                    }
                   >
                     <Save className="h-4 w-4 mr-2" />
                     Add Agency

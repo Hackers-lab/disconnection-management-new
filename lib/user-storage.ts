@@ -8,6 +8,7 @@ export interface MasterUser {
   role: string
   cccCode: string
   name: string
+  mobileNumber?: string
   agencies: string[]
   subscriptionStatus: string
   subscriptionExpiresAt: string
@@ -55,7 +56,7 @@ export class UserStorage {
     try {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
                      u.ccc_id as cccId
               FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
@@ -97,6 +98,7 @@ export class UserStorage {
           role: String(r.role || ""),
           cccCode: String(r.cccCode || ""),
           name: String(r.name || ""),
+          mobileNumber: String(r.mobileNumber || ""),
           agencies: fallbackAgencies,
           subscriptionStatus: finalSubStatus,
           subscriptionExpiresAt: finalSubExpiresAt,
@@ -117,7 +119,7 @@ export class UserStorage {
     try {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
                      u.ccc_id as cccId
               FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
@@ -159,6 +161,7 @@ export class UserStorage {
           role: String(r.role || ""),
           cccCode: String(r.cccCode || ""),
           name: String(r.name || ""),
+          mobileNumber: String(r.mobileNumber || ""),
           agencies: fallbackAgencies,
           subscriptionStatus: finalSubStatus,
           subscriptionExpiresAt: finalSubExpiresAt,
@@ -181,7 +184,7 @@ export class UserStorage {
     try {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u 
               JOIN ccc_registry c ON u.ccc_id = c.id
@@ -199,6 +202,7 @@ export class UserStorage {
             role: String(r.role || ""),
             cccCode: String(r.cccCode || cleanCcc),
             name: String(r.name || ""),
+            mobileNumber: String(r.mobileNumber || ""),
             agencies: fallbackAgencies,
             subscriptionStatus: String(r.subStatus || "active"),
             subscriptionExpiresAt: String(r.subExpiresAt || ""),
@@ -261,7 +265,7 @@ export class UserStorage {
     try {
       const res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                     u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub 
               FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id`,
         args: []
@@ -277,6 +281,7 @@ export class UserStorage {
             role: String(r.role || ""),
             cccCode: String(r.cccCode || ""),
             name: String(r.name || ""),
+            mobileNumber: String(r.mobileNumber || ""),
             agencies: fallbackAgencies,
             subscriptionStatus: String(r.subStatus || "active"),
             subscriptionExpiresAt: String(r.subExpiresAt || ""),
@@ -317,9 +322,11 @@ export class UserStorage {
                      u.ccc_id as cccId
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              LEFT JOIN agencies a ON (u.ccc_id = a.ccc_id AND (a.name = u.name OR a.mobile_number = u.mobile_number OR instr(u.agencies, a.name) > 0))
               WHERE u.username = ? COLLATE NOCASE
                  OR u.mobile_number = ?
                  OR u.mobile_number = ?
+                 OR (a.vendor_code = ? AND u.role = 'agency')
               UNION ALL
               SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
@@ -330,7 +337,7 @@ export class UserStorage {
               WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ? OR c.mobile_number = ?)
                 AND u.role = 'admin'
                 AND u.username != ? COLLATE NOCASE`,
-        args: [rawInput, rawInput, normalizedMobile, rawInput, rawInput, normalizedMobile, rawInput]
+        args: [rawInput, rawInput, normalizedMobile, rawInput, rawInput, rawInput, normalizedMobile, rawInput]
       })
       const qDuration = (performance.now() - qStart).toFixed(1)
 
@@ -418,8 +425,8 @@ export class UserStorage {
     const newId = randomUUID()
     
     await db.execute({
-      sql: `INSERT INTO users (id, username, password_hash, full_name, role, ccc_id, agencies, subscription_status, subscription_expires_at, bypass_subscription)
-            VALUES (?, ?, ?, ?, ?, (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1), ?, ?, ?, ?)`,
+      sql: `INSERT INTO users (id, username, password_hash, full_name, role, ccc_id, mobile_number, agencies, subscription_status, subscription_expires_at, bypass_subscription)
+            VALUES (?, ?, ?, ?, ?, (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1), ?, ?, ?, ?, ?)`,
       args: [
         newId,
         user.username,
@@ -427,6 +434,7 @@ export class UserStorage {
         user.name,
         user.role,
         user.cccCode,
+        user.mobileNumber || null,
         user.agencies.join(","),
         user.subscriptionStatus || "active",
         user.subscriptionExpiresAt || "",
@@ -445,12 +453,13 @@ export class UserStorage {
     const updated = { ...currentUser, ...updates }
     
     await db.execute({
-      sql: `UPDATE users SET username=?, password_hash=?, full_name=?, role=?, agencies=?, subscription_status=?, subscription_expires_at=?, bypass_subscription=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+      sql: `UPDATE users SET username=?, password_hash=?, full_name=?, role=?, mobile_number=?, agencies=?, subscription_status=?, subscription_expires_at=?, bypass_subscription=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
       args: [
         updated.username,
         updated.password,
         updated.name,
         updated.role,
+        updated.mobileNumber || null,
         updated.agencies.join(","),
         updated.subscriptionStatus || "active",
         updated.subscriptionExpiresAt || "",
