@@ -156,173 +156,217 @@ export function FeedbackDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
 
-      <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white shadow-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl text-white">
-            <MessageSquarePlus className="w-5 h-5 text-indigo-400" />
-            {hasExisting ? "Edit Your Feedback" : "Share Your Experience"}
-          </DialogTitle>
-          <DialogDescription className="text-slate-400">
-            {hasExisting
-              ? "You can view or update your submitted rating and review below."
-              : "Your review will be featured on the login screen for all officers & colleagues to see!"}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-md w-[92vw] p-0 overflow-hidden bg-white border border-slate-200/90 rounded-2xl shadow-2xl text-slate-900">
+        {/* Subtle Brand Accent Bar */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 via-orange-400 to-blue-600" />
 
-        {isSubmitted ? (
-          <div className="py-8 text-center space-y-3">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto animate-bounce" />
-            <h3 className="text-lg font-bold text-white">Thank You!</h3>
-            <p className="text-sm text-slate-300">Your review is now featured on the login screen.</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            {/* Star Rating Selection - Defaults to 5 Stars, Reducible by User */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between px-0.5">
-                <label className="text-xs font-semibold text-slate-300">Your Rating</label>
-                <span className="text-xs font-bold text-amber-300 font-mono">
-                  {(hoverRating || rating)}.0 / 5 {rating === 5 ? "★ Excellent" : rating === 4 ? "★ Very Good" : rating === 3 ? "★ Good" : rating === 2 ? "★ Fair" : "★ Needs Improvement"}
-                </span>
+        <div className="p-5 sm:p-6 space-y-4">
+          <DialogHeader className="text-left space-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-500 shrink-0">
+                <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-900/80 p-3 rounded-xl border border-slate-800 justify-center">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(star)}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(0)}
-                    className="p-1 text-amber-400 hover:scale-110 transition-transform cursor-pointer focus:outline-none"
-                    title={`Select ${star} Star${star > 1 ? "s" : ""}`}
-                  >
-                    <Star
-                      className={`w-7 h-7 transition-all ${
-                        star <= (hoverRating || rating)
-                          ? "fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]"
-                          : "text-slate-700 fill-slate-900"
-                      }`}
-                    />
-                  </button>
-                ))}
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  {hasExisting ? "Edit Your Feedback" : "Share Your Experience"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 font-normal">
+                  {hasExisting
+                    ? "Update your review and rating anytime."
+                    : "Your review will be featured on the station login screen!"}
+                </DialogDescription>
               </div>
             </div>
+          </DialogHeader>
 
-            {/* Quick 1-Tap Compliment Chips */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
-                <span>Quick Feedback (1-Tap)</span>
-                <span className="text-[10px] text-amber-400 font-medium">Tap to auto-fill</span>
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_CHIPS.map((chip) => {
-                  const isSelected = comment.includes(chip)
-                  return (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          setComment((prev) =>
-                            prev
-                              .replace(chip, "")
-                              .replace(/,\s*,/g, ",")
-                              .replace(/^,\s*|,\s*$/g, "")
-                              .trim()
-                          )
-                        } else {
-                          setComment((prev) => (prev.trim() ? `${prev.trim()}, ${chip}` : chip))
-                        }
-                      }}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-all cursor-pointer select-none ${
-                        isSelected
-                          ? "bg-amber-500/20 border-amber-400 text-amber-300 font-medium scale-102"
-                          : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
-                      }`}
-                    >
-                      {chip}
-                    </button>
-                  )
-                })}
+          {isSubmitted ? (
+            <div className="py-8 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-xs animate-in zoom-in-75 duration-200">
+                <CheckCircle2 className="w-7 h-7" />
               </div>
-            </div>
-
-            {/* Comment Area */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300">Feedback / Review</label>
-                {rating >= 4 && !comment.trim() && (
-                  <span className="text-[10px] text-emerald-400 font-medium">Optional for {rating}★</span>
-                )}
-              </div>
-              <Textarea
-                placeholder={rating >= 4 ? "Optional: Add your own words or tap a quick feedback chip above..." : "What can we improve for you in the field?"}
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[70px] resize-none"
-                maxLength={300}
-              />
-            </div>
-
-            {/* Live Preview on Login Screen */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 text-xs space-y-1">
-              <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                  Live Preview on Station Login Page
-                </span>
-                <span className="text-slate-500 text-[9px] font-normal">Featured for colleagues</span>
-              </div>
-              <p className="text-slate-200 italic font-medium leading-relaxed">
-                &ldquo;{comment.trim() || (rating === 5 ? "Excellent app! Makes daily field operations very smooth, accurate and fast." : rating === 4 ? "Very good and reliable app for daily disconnection and field work." : "Needs improvement in field features.")}&rdquo;
+              <h3 className="text-base font-bold text-slate-900">Thank You! 🎉</h3>
+              <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
+                Your rating and review have been recorded and will now be featured on the login screen.
               </p>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              {/* Star Rating Section */}
+              <div className="bg-slate-50/90 border border-slate-150 rounded-xl p-3 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="p-1 text-amber-400 hover:scale-115 transition-transform cursor-pointer focus:outline-none"
+                      title={`Rate ${star} Star${star > 1 ? "s" : ""}`}
+                    >
+                      <Star
+                        className={`w-7 h-7 transition-all ${
+                          star <= (hoverRating || rating)
+                            ? "fill-amber-400 text-amber-400 drop-shadow-[0_2px_8px_rgba(251,191,36,0.35)]"
+                            : "text-slate-200 fill-slate-100 hover:text-amber-200"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
 
-            {/* Optional Suggestions */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
-                <span>Feature Suggestions</span>
-                <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
-              </label>
-              <Textarea
-                placeholder="Any feature suggestions or ideas for improvement?"
-                value={suggestion}
-                onChange={(e) => setSuggestion(e.target.value)}
-                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[50px] resize-none"
-                maxLength={200}
-              />
-            </div>
+                {/* Rating Badge */}
+                <span
+                  className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-all ${
+                    (hoverRating || rating) === 5
+                      ? "bg-amber-50 text-amber-800 border-amber-200/80"
+                      : (hoverRating || rating) === 4
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200/80"
+                      : (hoverRating || rating) === 3
+                      ? "bg-blue-50 text-blue-700 border-blue-200/80"
+                      : "bg-slate-100 text-slate-700 border-slate-200"
+                  }`}
+                >
+                  {(hoverRating || rating)}.0 / 5 •{" "}
+                  {(hoverRating || rating) === 5
+                    ? "★ Excellent"
+                    : (hoverRating || rating) === 4
+                    ? "★ Very Good"
+                    : (hoverRating || rating) === 3
+                    ? "★ Good"
+                    : (hoverRating || rating) === 2
+                    ? "★ Fair"
+                    : "★ Needs Improvement"}
+                </span>
+              </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setOpen(false)}
-                className="text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold gap-2 shadow-lg shadow-indigo-600/25"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Submit Feedback
-                  </>
-                )}
-              </Button>
-            </div>
-          </form>
-        )}
+              {/* Quick 1-Tap Compliment Chips */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-700 text-[11px]">Quick Highlights</span>
+                  <span className="text-[10px] text-blue-600 font-medium">1-tap auto fill</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_CHIPS.map((chip) => {
+                    const isSelected = comment.includes(chip)
+                    return (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setComment((prev) =>
+                              prev
+                                .replace(chip, "")
+                                .replace(/,\s*,/g, ",")
+                                .replace(/^,\s*|,\s*$/g, "")
+                                .trim()
+                            )
+                          } else {
+                            setComment((prev) => (prev.trim() ? `${prev.trim()}, ${chip}` : chip))
+                          }
+                        }}
+                        className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? "bg-amber-500 text-white border-amber-500 font-semibold shadow-xs"
+                            : "bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-700 hover:text-slate-900"
+                        }`}
+                      >
+                        {chip}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Comment Area */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="font-semibold text-slate-700 text-[11px]">Your Review</label>
+                  {rating >= 4 && !comment.trim() && (
+                    <span className="text-[10px] text-emerald-600 font-medium">Optional for {rating}★</span>
+                  )}
+                </div>
+                <Textarea
+                  placeholder={
+                    rating >= 4
+                      ? "Optional: Add your thoughts or pick a quick highlight above..."
+                      : "How can we make this app better for you?"
+                  }
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  className="bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-xl text-xs transition-all min-h-[64px] resize-none"
+                  maxLength={300}
+                />
+              </div>
+
+              {/* Minimalist Live Preview Card */}
+              <div className="bg-gradient-to-br from-amber-50/60 via-orange-50/30 to-slate-50 border border-amber-200/50 rounded-xl p-2.5 text-xs space-y-1">
+                <div className="flex items-center justify-between text-[10px] font-semibold text-amber-800">
+                  <span className="flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                    Preview on Station Login
+                  </span>
+                  <span className="text-slate-400 text-[9px] font-normal">Visible to staff</span>
+                </div>
+                <p className="text-slate-700 italic font-medium leading-relaxed line-clamp-2 text-[11px]">
+                  &ldquo;
+                  {comment.trim() ||
+                    (rating === 5
+                      ? "Excellent app! Makes daily field operations very smooth, accurate and fast."
+                      : rating === 4
+                      ? "Very good and reliable app for daily disconnection and field work."
+                      : "Needs improvement in field operations.")}
+                  &rdquo;
+                </p>
+              </div>
+
+              {/* Optional Feature Suggestion */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600 flex items-center justify-between">
+                  <span>Any Feature Suggestions?</span>
+                  <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                </label>
+                <Textarea
+                  placeholder="Ideas or feature requests for upcoming updates..."
+                  value={suggestion}
+                  onChange={(e) => setSuggestion(e.target.value)}
+                  className="bg-slate-50/70 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-xl text-xs transition-all min-h-[44px] resize-none"
+                  maxLength={200}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setOpen(false)}
+                  className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl text-xs h-9 px-3.5"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs h-9 px-4 shadow-sm gap-1.5 transition-all"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Submit Review
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

@@ -64,8 +64,8 @@ export function FloatingRatingPill({ initialHasFeedback = false }: FloatingRatin
 
   return (
     <>
-      <div className="fixed bottom-20 sm:bottom-5 right-3 sm:right-5 z-40 flex items-center gap-1.5 bg-slate-900/95 text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-400/40 shadow-2xl backdrop-blur-md hover:border-amber-400 transition-all duration-300 group">
-        <span className="text-[11px] font-semibold text-amber-300 mr-1 hidden sm:inline">
+      <div className="fixed bottom-20 sm:bottom-5 right-3 sm:right-5 z-40 flex items-center gap-1.5 bg-white/95 text-slate-800 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-amber-300/80 shadow-lg hover:shadow-xl backdrop-blur-md hover:border-amber-400 transition-all duration-300 group">
+        <span className="text-[11px] font-semibold text-slate-600 mr-1 hidden sm:inline">
           ★ Rate App:
         </span>
         
@@ -88,7 +88,7 @@ export function FloatingRatingPill({ initialHasFeedback = false }: FloatingRatin
             setSelectedStar(5)
             setDialogOpen(true)
           }}
-          className="text-[11px] font-bold text-amber-300 hover:text-amber-200 transition-colors ml-1 underline decoration-amber-400/50 cursor-pointer"
+          className="text-[11px] font-bold text-amber-600 hover:text-amber-700 transition-colors ml-1 underline decoration-amber-400/50 cursor-pointer"
           title="Click to submit or update your feedback"
         >
           Review
@@ -97,7 +97,7 @@ export function FloatingRatingPill({ initialHasFeedback = false }: FloatingRatin
         {/* X Dismiss Button */}
         <button
           onClick={handleDismiss}
-          className="ml-1 p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          className="ml-1 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           title="Close rating prompt"
         >
           <X className="w-3 h-3" />
