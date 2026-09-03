@@ -15,6 +15,18 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     if (!body.issueId)    return NextResponse.json({ error: "issueId required" }, { status: 400 })
     if (!body.afterImage) return NextResponse.json({ error: "After-installation image required" }, { status: 400 })
 
+    const { getSpreadsheetId } = await import("@/lib/google-sheets-api")
+    const { _fetchIssuesRaw } = await import("@/lib/meter-service")
+    const issues = await _fetchIssuesRaw(getSpreadsheetId())
+    const issue = issues.find((i: any) => i.issueId === body.issueId)
+    if (issue?.agency) {
+      const { assertAgencySubscribedForUpdate } = await import("@/lib/permissions")
+      const subCheck = await assertAgencySubscribedForUpdate(session, issue.agency)
+      if (!subCheck.allowed) {
+        return NextResponse.json({ error: subCheck.error }, { status: 403 })
+      }
+    }
+
     await completeMeterInstallation({
       issueId:          body.issueId,
       afterImage:       body.afterImage,

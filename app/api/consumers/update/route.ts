@@ -4,7 +4,7 @@ import { updateConsumerInGoogleSheet, getSpreadsheetId } from "@/lib/google-shee
 import { invalidateConsumerCache, fetchConsumerData, type ConsumerData } from "@/lib/google-sheets"
 import { appendHistory, nowTimestamp, invalidateHistoryCache } from "@/lib/consumer-history"
 import { verifySession } from "@/lib/session"
-import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
+import { checkApiPermission, isAgencyScopeRestricted, assertAgencySubscribedForUpdate } from "@/lib/permissions"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
@@ -40,6 +40,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         { error: "Forbidden: This consumer is not assigned to your agency scope" },
         { status: 403 }
       )
+    }
+
+    // Agency subscription check: updates are disabled if the assigned agency is unsubscribed/expired
+    const targetAgency = consumer.agency || existing?.agency
+    const subCheck = await assertAgencySubscribedForUpdate(session, targetAgency)
+    if (!subCheck.allowed) {
+      return NextResponse.json({ error: subCheck.error }, { status: 403 })
     }
 
     console.log(`🔄 Updating consumer ${consumer.consumerId}...`)

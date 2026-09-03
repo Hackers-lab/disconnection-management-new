@@ -128,17 +128,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const expiresAt = baseDate.toISOString().split("T")[0]
 
     // Step 5: Update database records
-    // 5a. Update current user
-    const updatedUser = await userStorage.updateUser(session.userId, {
-      subscriptionStatus: "active",
-      subscriptionExpiresAt: expiresAt,
-    })
-
-    if (!updatedUser) {
-      return NextResponse.json({ error: "User record not found" }, { status: 404 })
-    }
-
-    // 5b. Update agency record in agencies table (so all agency checks succeed)
+    // Update agency record in agencies table (Single Source of Truth)
     if (cccCode && agencyName) {
       try {
         await db.execute({
@@ -153,22 +143,6 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         invalidateAgencyCache(cccCode)
       } catch (agUpErr) {
         console.error("[Agency Subscription Update Error]:", agUpErr)
-      }
-
-      // 5c. Cascade active subscription to ALL user accounts in this CCC belonging to this agency
-      try {
-        await db.execute({
-          sql: `UPDATE users
-                SET subscription_status = 'active',
-                    subscription_expires_at = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
-                  AND (agencies LIKE ? OR username = ? COLLATE NOCASE)`,
-          args: [expiresAt, cccCode, `%${agencyName}%`, session.username]
-        })
-        userStorage.invalidateCache()
-      } catch (cascadeErr) {
-        console.error("[User Cascade Subscription Update Error]:", cascadeErr)
       }
     }
 

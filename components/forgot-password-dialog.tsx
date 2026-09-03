@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react"
+import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, ShieldCheck, Building2 } from "lucide-react"
 import { firebaseAuth } from "@/lib/firebase-client"
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
 
@@ -55,13 +55,16 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
-  // Step 1: Identifier
+  // Step 1: Identifier & Accounts
   const [identifier, setIdentifier] = useState(initialIdentifier)
   const [mobileNumber, setMobileNumber] = useState("")
   const [mobileMasked, setMobileMasked] = useState("")
   const [username, setUsername] = useState("")
   const [countdown, setCountdown] = useState(0)
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
+  const [matchedAccounts, setMatchedAccounts] = useState<any[]>([])
+  const [selectedAccount, setSelectedAccount] = useState<string>("all")
+  const [selectedAccountLabel, setSelectedAccountLabel] = useState<string>("All Stations")
 
   // Step 2: OTP & New Password
   const [otp, setOtp] = useState("")
@@ -83,6 +86,9 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         setMobileNumber("")
         setMobileMasked("")
         setUsername("")
+        setMatchedAccounts([])
+        setSelectedAccount("all")
+        setSelectedAccountLabel("All Stations")
         setOtp("")
         setNewPassword("")
         setConfirmPassword("")
@@ -138,7 +144,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
   }, [countdown])
 
   // 1. Request Reset OTP (Look up linked phone and send SMS via Firebase)
-  const handleRequestOtp = async (e: React.FormEvent) => {
+  const handleRequestOtp = async (e: React.FormEvent, accountChoice?: string) => {
     e.preventDefault()
     setError(null)
     const cleanIdent = identifier.trim()
@@ -154,15 +160,30 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "request", identifier: cleanIdent })
+        body: JSON.stringify({ 
+          action: "request", 
+          identifier: cleanIdent,
+          selectedAccount: accountChoice
+        })
       })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Failed to find account.")
 
+      // If multiple accounts found and user hasn't made a choice, display the account picker
+      if (data.requiresAccountSelection) {
+        setMobileNumber(data.mobileNumber)
+        setMobileMasked(data.mobileMasked)
+        setMatchedAccounts(data.accounts || [])
+        setSelectedAccount("all")
+        setSelectedAccountLabel("All Stations")
+        setLoading(false)
+        return
+      }
+
       setMobileNumber(data.mobileNumber)
       setMobileMasked(data.mobileMasked)
-      setUsername(data.username)
+      setUsername(data.username || data.selectedAccount || "")
 
       // Send SMS OTP via Firebase
       try {
@@ -190,7 +211,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       }
 
       setCountdown(45)
-      setSuccessMsg(`OTP sent to +91 ${data.mobileMasked}.`)
+      setSuccessMsg(`OTP sent to +91 ${data.mobileMasked}. If not received, please check your SMS Spam / Blocked folder.`)
       setTimeout(() => {
         setSuccessMsg(null)
         setStep(2)
@@ -257,7 +278,8 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         body: JSON.stringify({
           action: "reset",
           mobileNumber,
-          username,
+          username: selectedAccount === "all" ? "all" : (selectedAccount || username),
+          selectedAccount,
           verificationToken,
           newPassword,
         })
@@ -298,7 +320,9 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
             {isFirstLogin
               ? (step === 1 ? "First login detected! Click 'Send OTP' to verify your linked phone number." : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and choose your new password.`)
               : (step === 1
-                  ? "Enter your mobile number, username, or CCC code to receive an OTP."
+                  ? (matchedAccounts.length > 1
+                      ? `Select which supply station account password to reset.`
+                      : "Enter your mobile number, username, or CCC code to receive an OTP.")
                   : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and set your new password.`)}
           </DialogDescription>
         </DialogHeader>
@@ -318,10 +342,109 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         )}
 
         {/* ===================================================================== */}
+        {/* STEP 1.5: MULTIPLE ACCOUNTS FOUND - SELECT SUPPLY STATION */}
+        {/* ===================================================================== */}
+        {step === 1 && matchedAccounts.length > 1 && (
+          <div className="space-y-3 pt-1">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900">
+              <p className="font-semibold flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                Multiple stations found for +91 {mobileMasked}
+              </p>
+              <p className="text-[11px] text-amber-700/90 mt-0.5">
+                Select which station account password you want to reset:
+              </p>
+            </div>
+
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <label
+                onClick={() => {
+                  setSelectedAccount("all")
+                  setSelectedAccountLabel("All Stations")
+                }}
+                className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                  selectedAccount === "all"
+                    ? "border-slate-900 bg-slate-900/5 ring-1 ring-slate-900"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                }`}
+              >
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-slate-900">🌐 All Stations (Recommended)</p>
+                  <p className="text-[11px] text-slate-500">Apply this new password to all your linked stations</p>
+                </div>
+                <input
+                  type="radio"
+                  name="selectedAccount"
+                  checked={selectedAccount === "all"}
+                  onChange={() => {}}
+                  className="w-4 h-4 text-slate-900 accent-slate-900"
+                />
+              </label>
+
+              {matchedAccounts.map((acc) => {
+                const isChecked = selectedAccount === acc.username
+                return (
+                  <label
+                    key={acc.id || acc.username}
+                    onClick={() => {
+                      setSelectedAccount(acc.username)
+                      setSelectedAccountLabel(`${acc.cccName || acc.cccCode} (${acc.username})`)
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                      isChecked
+                        ? "border-slate-900 bg-slate-900/5 ring-1 ring-slate-900"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-bold text-slate-900">{acc.cccName || acc.cccCode}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        Username: <strong>{acc.username}</strong> • Role: {String(acc.role).toUpperCase()}
+                      </p>
+                    </div>
+                    <input
+                      type="radio"
+                      name="selectedAccount"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="w-4 h-4 text-slate-900 accent-slate-900"
+                    />
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setMatchedAccounts([])
+                  setSelectedAccount("all")
+                  setSelectedAccountLabel("All Stations")
+                }}
+                className="flex-1 h-10 rounded-xl text-xs cursor-pointer"
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                disabled={loading}
+                onClick={(e) => handleRequestOtp(e, selectedAccount)}
+                className="flex-2 h-10 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl text-xs cursor-pointer"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
+                Send OTP
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ===================================================================== */}
         {/* STEP 1: FIND ACCOUNT BY USERNAME / CCC / MOBILE */}
         {/* ===================================================================== */}
-        {step === 1 && (
-          <form onSubmit={handleRequestOtp} className="space-y-3.5 pt-1">
+        {step === 1 && matchedAccounts.length <= 1 && (
+          <form onSubmit={(e) => handleRequestOtp(e)} className="space-y-3.5 pt-1">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700">
                 Mobile Number, Username, or CCC Code <span className="text-rose-500">*</span>
@@ -355,9 +478,11 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         {/* ===================================================================== */}
         {step === 2 && (
           <form onSubmit={handleResetPassword} className="space-y-3.5 pt-1">
-            <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-800 font-medium">
-              <span>Account: <strong>{username}</strong></span>
-              <span className="text-slate-500">+91 {mobileMasked}</span>
+            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-800 dark:text-slate-200 font-medium">
+              <span className="truncate max-w-[240px]">
+                Target: <strong>{selectedAccount === "all" ? "All Stations" : (selectedAccountLabel || username)}</strong>
+              </span>
+              <span className="text-slate-500 font-mono shrink-0">+91 {mobileMasked}</span>
             </div>
 
             <div className="space-y-1.5">
@@ -371,6 +496,10 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
                 className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                 autoFocus
               />
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg p-2 flex items-start gap-1.5 mt-1 leading-tight">
+                <span className="shrink-0 text-amber-600">📩</span>
+                <span><strong>Google Messages Note:</strong> Verification SMS may be placed in your <strong>Spam & Blocked</strong> folder. Please check there if OTP is delayed.</span>
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
@@ -412,14 +541,19 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
               <button
                 type="button"
                 disabled={countdown > 0 || loading}
-                onClick={handleRequestOtp}
+                onClick={(e) => handleRequestOtp(e, selectedAccount)}
                 className="text-slate-800 hover:text-black font-semibold disabled:text-slate-400 cursor-pointer transition-colors"
               >
                 {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
               </button>
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => {
+                  setStep(1)
+                  setMatchedAccounts([])
+                  setSelectedAccount("all")
+                  setSelectedAccountLabel("All Stations")
+                }}
                 className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
               >
                 Change Account

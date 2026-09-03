@@ -185,7 +185,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
       setOtpSent(true)
       setCountdown(45)
-      setSuccessMsg(`OTP sent to +91 ${cleanMob}.`)
+      setSuccessMsg(`OTP sent to +91 ${cleanMob}. If not received, please check your SMS Spam / Blocked folder.`)
     } catch (err: any) {
       console.error("Auth send OTP error:", err)
       const errorMsg = formatFriendlyError(err)
@@ -401,6 +401,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
                     placeholder="• • • • • •"
                     className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
                   />
+                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg p-2 flex items-start gap-1.5 mt-1 leading-tight">
+                    <span className="shrink-0 text-amber-600">📩</span>
+                    <span><strong>Google Messages Note:</strong> Verification SMS may be placed in your <strong>Spam & Blocked</strong> folder. Please check there if OTP is delayed.</span>
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between text-xs px-0.5">

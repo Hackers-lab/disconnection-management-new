@@ -126,17 +126,47 @@ export async function verifySession() {
     session.bypassSubscription ||
     Date.now() < billingStartDate.getTime()
 
+  let subscriptionExpiresAt = session.subscriptionExpiresAt || ""
+  let subscriptionStatus = session.subscriptionStatus || "active"
+
   if (!isExempt) {
-    if (session.subscriptionStatus === "active") {
-      if (session.subscriptionExpiresAt) {
-        const expiry = new Date(session.subscriptionExpiresAt)
-        expiry.setHours(23, 59, 59, 999)
-        if (Date.now() > expiry.getTime()) {
-          isSubscribed = false
+    if (roleLower === "agency" || (session.agencies && session.agencies.length > 0)) {
+      // Dynamic lookup from agencies table (Single Source of Truth)
+      const rawAgencies = session.agencies || []
+      const agencyCandidates = rawAgencies.length > 0 ? rawAgencies : [session.name || session.username]
+      const cccCode = session.cccCode || ""
+      
+      if (cccCode && agencyCandidates.length > 0) {
+        try {
+          const { isAgencySubscribed } = await import("./agency-storage")
+          let anyActive = false
+          let lastSubDetails: any = null
+
+          for (const ag of agencyCandidates) {
+            if (!ag) continue
+            const sub = await isAgencySubscribed(cccCode, ag)
+            lastSubDetails = sub
+            if (sub.subscribed) {
+              anyActive = true
+              subscriptionExpiresAt = sub.expiresAt || ""
+              subscriptionStatus = "active"
+              break
+            }
+          }
+
+          isSubscribed = anyActive
+          if (!anyActive && lastSubDetails) {
+            subscriptionExpiresAt = lastSubDetails.expiresAt || ""
+            subscriptionStatus = lastSubDetails.reason === "expired" ? "expired" : "inactive"
+          }
+        } catch (subErr) {
+          console.warn("Dynamic agency subscription check warning:", subErr)
         }
       }
     } else {
-      isSubscribed = false
+      // Non-agency roles (station staff, executive, etc.) are allowed into their workspace.
+      // Their write/update actions are gated per agency on the mutation APIs.
+      isSubscribed = true
     }
   }
 
@@ -147,9 +177,9 @@ export async function verifySession() {
     cccCode: session.cccCode,
     agencies: session.agencies,
     isSubscribed,
-    subscriptionExpiresAt: session.subscriptionExpiresAt || "",
+    subscriptionExpiresAt,
     name: session.name || "",
     bypassSubscription: session.bypassSubscription || false,
-    subscriptionStatus: session.subscriptionStatus || "active",
+    subscriptionStatus,
   }
 }

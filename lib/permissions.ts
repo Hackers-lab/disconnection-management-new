@@ -70,3 +70,41 @@ export async function checkApiPermission(module: string | string[], action: stri
     return { authorized: false, error: `Permission check error: ${e.message}`, status: 403, session }
   }
 }
+
+/**
+ * Validates that an agency has an active subscription before permitting data modification.
+ * Admins and Superusers are exempt.
+ */
+export async function assertAgencySubscribedForUpdate(
+  session: any,
+  agencyName: string | undefined
+): Promise<{ allowed: boolean; error?: string }> {
+  if (!session) return { allowed: false, error: "Unauthorized" }
+  const roleLower = (session.role || "").toLowerCase()
+  if (roleLower === "admin" || roleLower === "superuser" || session.bypassSubscription) {
+    return { allowed: true }
+  }
+
+  const cleanAgency = String(agencyName || "").trim()
+  if (!cleanAgency) {
+    return { allowed: true }
+  }
+
+  const { isAgencySubscribed } = await import("./agency-storage")
+  const result = await isAgencySubscribed(session.cccCode || "", cleanAgency)
+
+  if (!result.subscribed) {
+    const reasonText =
+      result.reason === "expired"
+        ? `subscription expired on ${result.expiresAt || "prior date"}`
+        : result.reason === "inactive"
+        ? "is marked inactive"
+        : "does not have an active subscription"
+    return {
+      allowed: false,
+      error: `Update disabled: Agency '${result.agencyName || cleanAgency}' ${reasonText}. Please renew or activate this agency's subscription.`,
+    }
+  }
+
+  return { allowed: true }
+}

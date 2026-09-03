@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { updateReconnectionStatus, fetchReconnectionData } from "@/lib/reconnection-service"
-import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
+import { checkApiPermission, isAgencyScopeRestricted, assertAgencySubscribedForUpdate } from "@/lib/permissions"
 import { roleStorage } from "@/lib/role-storage"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
@@ -36,6 +36,12 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     if (isAgencyScopeRestricted(session, req.agency)) {
       return NextResponse.json({ error: "Forbidden: Request is outside your agency scope" }, { status: 403 })
+    }
+
+    // Agency subscription check: updates are disabled if the assigned agency is unsubscribed/expired
+    const subCheck = await assertAgencySubscribedForUpdate(session, req.agency)
+    if (!subCheck.allowed) {
+      return NextResponse.json({ error: subCheck.error }, { status: 403 })
     }
 
     // Cancelled only if user has delete/cancel permission

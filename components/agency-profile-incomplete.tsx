@@ -20,6 +20,7 @@ interface AgencyProfileIncompleteProps {
   agencyName: string
   existingVendorCode?: string
   existingMobileNumber?: string
+  existingUserMobile?: string
   missingFields: {
     vendorCode: boolean
     mobileNumber: boolean
@@ -31,10 +32,13 @@ export function AgencyProfileIncomplete({
   agencyName,
   existingVendorCode = "",
   existingMobileNumber = "",
+  existingUserMobile = "",
   missingFields,
 }: AgencyProfileIncompleteProps) {
   const [vendorCode, setVendorCode] = useState(existingVendorCode)
-  const [mobileNumber, setMobileNumber] = useState(existingMobileNumber)
+  const [agencyMobile, setAgencyMobile] = useState(existingMobileNumber)
+  const [userMobile, setUserMobile] = useState(existingUserMobile || existingMobileNumber)
+  const [sameAsAgency, setSameAsAgency] = useState(!existingUserMobile || existingUserMobile === existingMobileNumber)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -54,15 +58,21 @@ export function AgencyProfileIncomplete({
     setError("")
 
     const cleanVendor = vendorCode.trim()
-    const cleanMobile = mobileNumber.replace(/\D/g, "").slice(-10)
+    const cleanAgencyMob = agencyMobile.replace(/\D/g, "").slice(-10)
+    const cleanUserMob = sameAsAgency ? cleanAgencyMob : userMobile.replace(/\D/g, "").slice(-10)
 
     if (!cleanVendor || !/^\d{6}$/.test(cleanVendor)) {
       setError("Please enter a valid 6-digit Vendor Code (e.g. 701254).")
       return
     }
 
-    if (!cleanMobile || cleanMobile.length !== 10) {
-      setError("Please enter a valid 10-digit mobile number.")
+    if (!cleanAgencyMob || cleanAgencyMob.length !== 10) {
+      setError("Please enter a valid 10-digit Agency Contact mobile number.")
+      return
+    }
+
+    if (!cleanUserMob || cleanUserMob.length !== 10) {
+      setError("Please enter a valid 10-digit User Login mobile number.")
       return
     }
 
@@ -73,7 +83,8 @@ export function AgencyProfileIncomplete({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendorCode: cleanVendor,
-          mobileNumber: cleanMobile,
+          agencyMobile: cleanAgencyMob,
+          userMobile: cleanUserMob,
         }),
       })
 
@@ -116,7 +127,7 @@ export function AgencyProfileIncomplete({
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-400 max-w-sm mx-auto">
-            Enter your Vendor Code and mobile number to activate field operations for <strong className="text-slate-200">{agencyName}</strong>.
+            Enter your Vendor Code and mobile numbers to activate field operations for <strong className="text-slate-200">{agencyName}</strong>.
           </p>
         </div>
 
@@ -138,7 +149,7 @@ export function AgencyProfileIncomplete({
 
           <div className="space-y-1.5">
             <Label htmlFor="vendorCode" className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span>Vendor Code</span>
+              <span>6-Digit Vendor Code (SAP)</span>
               {missingFields.vendorCode && (
                 <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Required</span>
               )}
@@ -149,7 +160,7 @@ export function AgencyProfileIncomplete({
               maxLength={6}
               value={vendorCode}
               onChange={(e) => setVendorCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="6-digit Vendor Code (e.g. 701254)"
+              placeholder="e.g. 701254"
               disabled={loading || success}
               className="bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500 text-sm font-mono tracking-wider h-11"
               required
@@ -157,8 +168,8 @@ export function AgencyProfileIncomplete({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="mobileNumber" className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-              <span>Contractor Mobile Number</span>
+            <Label htmlFor="agencyMobile" className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              <span>Agency Official Contact Number</span>
               {missingFields.mobileNumber && (
                 <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Required</span>
               )}
@@ -166,17 +177,64 @@ export function AgencyProfileIncomplete({
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">+91</span>
               <Input
-                id="mobileNumber"
+                id="agencyMobile"
                 type="tel"
                 maxLength={10}
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                placeholder="10-digit phone number"
+                value={agencyMobile}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10)
+                  setAgencyMobile(val)
+                  if (sameAsAgency) setUserMobile(val)
+                }}
+                placeholder="Agency contractor phone"
                 disabled={loading || success}
                 className="bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500 pl-11 text-sm font-mono tracking-wider h-11"
                 required
               />
             </div>
+            <p className="text-[10px] text-slate-500">Official phone for the agency vendor record</p>
+          </div>
+
+          {/* Same as agency toggle */}
+          <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800 space-y-2.5">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="samePhone"
+                checked={sameAsAgency}
+                onChange={(e) => {
+                  setSameAsAgency(e.target.checked)
+                  if (e.target.checked) setUserMobile(agencyMobile)
+                }}
+                className="rounded border-slate-700 accent-indigo-600"
+              />
+              <label htmlFor="samePhone" className="text-xs text-slate-300 font-medium cursor-pointer select-none">
+                Use this same number as my personal user login phone
+              </label>
+            </div>
+
+            {!sameAsAgency && (
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="userMobile" className="text-xs font-semibold text-slate-300">
+                  Your Personal Mobile Number (For Login & OTP)
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">+91</span>
+                  <Input
+                    id="userMobile"
+                    type="tel"
+                    maxLength={10}
+                    value={userMobile}
+                    onChange={(e) => setUserMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="Local supervisor / personal phone"
+                    disabled={loading || success}
+                    className="bg-slate-950/60 border-slate-700 text-white placeholder:text-slate-600 focus:border-indigo-500 pl-11 text-sm font-mono tracking-wider h-11"
+                    required
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500">Must be unique across all user accounts in the system</p>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}

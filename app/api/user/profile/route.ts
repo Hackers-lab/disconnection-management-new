@@ -100,24 +100,47 @@ export async function POST(req: NextRequest) {
     const userId = session.userId
     const cccCode = session.cccCode || "SYSTEM"
     const body = await req.json()
-    const { mobileNumber, vendorCode, fullName, email } = body
+    const { mobileNumber, userMobile, agencyMobile, vendorCode, fullName, email } = body
 
-    const cleanMobile = mobileNumber !== undefined ? String(mobileNumber).trim() : null
-    const cleanVendor = vendorCode !== undefined ? String(vendorCode).trim() : null
+    // agencyMobile defaults to mobileNumber if not explicitly passed
+    const targetAgencyMobile = agencyMobile !== undefined ? String(agencyMobile).trim() : (mobileNumber !== undefined ? String(mobileNumber).trim() : null)
+    // userMobile defaults to mobileNumber if not explicitly passed
+    const targetUserMobile = userMobile !== undefined ? String(userMobile).trim() : (mobileNumber !== undefined ? String(mobileNumber).trim() : null)
+
+    const cleanAgencyMobile = targetAgencyMobile ? targetAgencyMobile.replace(/\D/g, "").slice(-10) : null
+    const cleanUserMobile = targetUserMobile ? targetUserMobile.replace(/\D/g, "").slice(-10) : null
+    const cleanVendor = vendorCode !== undefined && vendorCode ? String(vendorCode).trim() : null
     const cleanName = fullName !== undefined ? String(fullName).trim() : null
     const cleanEmail = email !== undefined ? String(email).trim() : null
 
     // Validation
-    if (cleanMobile && !/^\d{10}$/.test(cleanMobile)) {
-      return NextResponse.json({ error: "Mobile number must be exactly 10 digits" }, { status: 400 })
+    if (cleanAgencyMobile && cleanAgencyMobile.length !== 10) {
+      return NextResponse.json({ error: "Agency contact mobile number must be exactly 10 digits" }, { status: 400 })
+    }
+
+    if (cleanUserMobile) {
+      if (cleanUserMobile.length !== 10) {
+        return NextResponse.json({ error: "User personal mobile number must be exactly 10 digits" }, { status: 400 })
+      }
+      // Check uniqueness across all users table
+      const conflictRes = await db.execute({
+        sql: `SELECT id, username, role FROM users WHERE mobile_number = ? AND id != ? LIMIT 1`,
+        args: [cleanUserMobile, userId]
+      })
+      if (conflictRes.rows && conflictRes.rows.length > 0) {
+        const conf: any = conflictRes.rows[0]
+        return NextResponse.json({
+          error: `Mobile number ${cleanUserMobile} is already registered to user '${conf.username}' (${String(conf.role).toUpperCase()}). Every user account must have a unique login mobile number.`
+        }, { status: 400 })
+      }
     }
 
     if (cleanVendor && !/^\d{6}$/.test(cleanVendor)) {
       return NextResponse.json({ error: "Vendor Code must be exactly 6 digits" }, { status: 400 })
     }
 
-    // 1. Update users table
-    if (cleanMobile !== null || cleanName !== null || cleanEmail !== null) {
+    // 1. Update users table (user personal mobile)
+    if (cleanUserMobile !== null || cleanName !== null || cleanEmail !== null) {
       await db.execute({
         sql: `UPDATE users 
               SET mobile_number = COALESCE(?, mobile_number),
@@ -125,12 +148,12 @@ export async function POST(req: NextRequest) {
                   email = COALESCE(?, email),
                   updated_at = CURRENT_TIMESTAMP
               WHERE id = ?`,
-        args: [cleanMobile || null, cleanName || null, cleanEmail || null, userId]
+        args: [cleanUserMobile || null, cleanName || null, cleanEmail || null, userId]
       })
       UserStorage.getInstance().invalidateCache()
     }
 
-    // 2. If vendor code or mobile is provided, also update agency table if applicable
+    // 2. Update agencies table (agency vendor code & agency contact mobile)
     const userRole = (session.role || "").toLowerCase()
     const username = session.username
     const rawAgencies = session.agencies || []
@@ -149,7 +172,7 @@ export async function POST(req: NextRequest) {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
                   AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
-          args: [cleanVendor || null, cleanMobile || null, cccCode, agName, agName]
+          args: [cleanVendor || null, cleanAgencyMobile || null, cccCode, agName, agName]
         })
       } catch (err) {
         console.warn("Agency profile candidate update warning:", err)
@@ -161,7 +184,8 @@ export async function POST(req: NextRequest) {
       success: true,
       message: "Profile updated successfully",
       profile: {
-        mobileNumber: cleanMobile,
+        agencyMobile: cleanAgencyMobile,
+        userMobile: cleanUserMobile,
         vendorCode: cleanVendor,
         fullName: cleanName,
       }

@@ -47,91 +47,18 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       subscriptionExpiresAt: trialExpiresAt
     })
 
-    // Auto-provision agency user if mobile + vendor code are provided
-    let credentials: { username: string; password: string; expiresAt: string; conflict?: string } | undefined
-    if (mobileNumber && vendorCode) {
-      const cleanMobile = mobileNumber.replace(/\D/g, '').slice(-10)
-      
-      // Check for mobile number conflicts across ALL user accounts and CCC registry
-      const existingByUsername = await userStorage.getUserByUsername(cleanMobile)
-      
-      // Also check if any user already has this as their mobile_number
-      let existingByMobile: any = null
-      try {
-        const mobileCheck = await db.execute({
-          sql: `SELECT u.id, u.username, u.role, u.full_name FROM users u WHERE u.mobile_number = ? LIMIT 1`,
-          args: [cleanMobile]
-        })
-        if (mobileCheck.rows && mobileCheck.rows.length > 0) {
-          existingByMobile = mobileCheck.rows[0]
-        }
-      } catch {}
-
-      // Also check if this mobile belongs to a CCC admin registration
-      let existingCccAdmin: any = null
-      try {
-        const cccCheck = await db.execute({
-          sql: `SELECT c.ccc_code, c.contact_person FROM ccc_registry c WHERE c.mobile_number = ? LIMIT 1`,
-          args: [cleanMobile]
-        })
-        if (cccCheck.rows && cccCheck.rows.length > 0) {
-          existingCccAdmin = cccCheck.rows[0]
-        }
-      } catch {}
-
-      if (existingByUsername) {
-        // Username already taken — agency record was created but user not provisioned
-        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${cleanMobile} already in use as username by user: ${existingByUsername.username} (${existingByUsername.role})`)
-        credentials = { 
-          username: cleanMobile, 
-          password: vendorCode.trim(), 
-          expiresAt: trialExpiresAt,
-          conflict: `Mobile ${cleanMobile} is already registered as a login username for another account (${existingByUsername.role}). The agency was created but a separate login account was NOT auto-created. Please use a different mobile number for this agency.`
-        }
-      } else if (existingByMobile) {
-        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${cleanMobile} already linked to user: ${existingByMobile.username} (${existingByMobile.role})`)
-        credentials = { 
-          username: cleanMobile, 
-          password: vendorCode.trim(), 
-          expiresAt: trialExpiresAt,
-          conflict: `Mobile ${cleanMobile} is already linked to another account (${String(existingByMobile.role)}: ${String(existingByMobile.full_name || existingByMobile.username)}). The agency was created but a separate login account was NOT auto-created to avoid login conflicts. Please use a different mobile number.`
-        }
-      } else if (existingCccAdmin) {
-        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${cleanMobile} belongs to CCC admin: ${existingCccAdmin.ccc_code}`)
-        credentials = { 
-          username: cleanMobile, 
-          password: vendorCode.trim(), 
-          expiresAt: trialExpiresAt,
-          conflict: `Mobile ${cleanMobile} is registered as the CCC Station Admin contact number (${String(existingCccAdmin.ccc_code)}). The agency was created but a separate login account was NOT auto-created to avoid login conflicts. Please use the agency contractor's own mobile number.`
-        }
-      } else {
-        // No conflict — safe to create agency user
-        await userStorage.addUser({
-          username: cleanMobile,
-          password: vendorCode.trim(),
-          name: name.toUpperCase().trim(),
-          role: "agency",
-          cccCode: session.cccCode || "",
-          mobileNumber: cleanMobile,
-          agencies: [name.toUpperCase().trim()],
-          subscriptionStatus: "active",
-          subscriptionExpiresAt: trialExpiresAt,
-          bypassSubscription: false,
-        })
-        console.log(`👤 [AUTO-PROVISION] Created agency user: ${cleanMobile} (Temp password: ${vendorCode})`)
-        credentials = { username: cleanMobile, password: vendorCode.trim(), expiresAt: trialExpiresAt }
-      }
-    }
-
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
 
     return NextResponse.json({
       success: true,
-      message: credentials?.conflict 
-        ? `⚠️ Agency created, but login account NOT auto-created: ${credentials.conflict}`
-        : "Agency added successfully",
-      credentials,
+      message: "Agency added successfully",
+      agency: {
+        name: name.toUpperCase().trim(),
+        vendorCode: vendorCode ? vendorCode.trim() : undefined,
+        mobileNumber: mobileNumber ? mobileNumber.trim() : undefined,
+        expiresAt: trialExpiresAt
+      }
     })
   } catch (error) {
     console.error("Error adding agency:", error)

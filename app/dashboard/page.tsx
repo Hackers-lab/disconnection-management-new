@@ -44,12 +44,24 @@ export default async function DashboardPage() {
         const isMissingMobile = !ag?.mobile_number || !String(ag.mobile_number).trim()
 
         if (isMissingVendor || isMissingMobile) {
+          let userMobile = ""
+          try {
+            const uRes = await db.execute({
+              sql: `SELECT mobile_number FROM users WHERE id = ? LIMIT 1`,
+              args: [session.userId]
+            })
+            if (uRes.rows && uRes.rows.length > 0) {
+              userMobile = String((uRes.rows[0] as any).mobile_number || "")
+            }
+          } catch {}
+
           return (
             <AgencyProfileIncomplete
               session={session}
               agencyName={String(ag?.name || agencyName)}
               existingVendorCode={String(ag?.vendor_code || "")}
               existingMobileNumber={String(ag?.mobile_number || "")}
+              existingUserMobile={userMobile}
               missingFields={{
                 vendorCode: isMissingVendor,
                 mobileNumber: isMissingMobile,

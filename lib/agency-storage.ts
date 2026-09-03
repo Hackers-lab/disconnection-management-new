@@ -411,4 +411,75 @@ export async function updateAgencySubscription(
     console.error("Failed to update agency subscription in DB:", err)
     return false
   }
+}
+
+/**
+ * Checks if a specific agency has an active subscription in the given CCC.
+ * The agencies table is the single source of truth for subscriptions.
+ */
+export async function isAgencySubscribed(
+  cccCode: string,
+  agencyNameOrVendor: string
+): Promise<{ subscribed: boolean; reason?: string; expiresAt?: string; agencyName?: string }> {
+  const billingStartDate = new Date("2026-09-16T00:00:00")
+  if (Date.now() < billingStartDate.getTime()) {
+    return { subscribed: true, reason: "trial" }
+  }
+
+  const cleanName = String(agencyNameOrVendor || "").trim()
+  if (!cleanName) {
+    return { subscribed: true }
+  }
+
+  try {
+    const agencies = await getAgencies(cccCode)
+    const matched = agencies.find(
+      (a) =>
+        a.name.toUpperCase() === cleanName.toUpperCase() ||
+        (a.vendorCode && a.vendorCode.toUpperCase() === cleanName.toUpperCase())
+    )
+
+    if (!matched) {
+      return { subscribed: true }
+    }
+
+    if (!matched.isActive) {
+      return {
+        subscribed: false,
+        reason: "inactive",
+        agencyName: matched.name,
+      }
+    }
+
+    if (matched.subscriptionStatus !== "active") {
+      return {
+        subscribed: false,
+        reason: "unsubscribed",
+        agencyName: matched.name,
+        expiresAt: matched.subscriptionExpiresAt,
+      }
+    }
+
+    if (matched.subscriptionExpiresAt) {
+      const expDate = new Date(matched.subscriptionExpiresAt)
+      expDate.setHours(23, 59, 59, 999)
+      if (Date.now() > expDate.getTime()) {
+        return {
+          subscribed: false,
+          reason: "expired",
+          agencyName: matched.name,
+          expiresAt: matched.subscriptionExpiresAt,
+        }
+      }
+    }
+
+    return {
+      subscribed: true,
+      agencyName: matched.name,
+      expiresAt: matched.subscriptionExpiresAt,
+    }
+  } catch (err) {
+    console.warn("isAgencySubscribed check warning:", err)
+    return { subscribed: true }
+  }
 }

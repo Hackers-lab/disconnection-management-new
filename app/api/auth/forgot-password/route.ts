@@ -44,23 +44,35 @@ export async function POST(req: NextRequest) {
         if (last10.length === 10) cleanIdent = last10
       }
 
-      // Query user or CCC in Turso DB with priority ordering: exact username first, then user mobile, then CCC admin
+      // Query user or CCC in Turso DB with multi-supply resolution
       const res = await db.execute({
-        sql: `SELECT u.id, u.username, u.full_name, u.mobile_number as userMobile, u.role, c.mobile_number as cccMobile, c.ccc_code
+        sql: `SELECT DISTINCT 
+                u.id, 
+                u.username, 
+                u.full_name, 
+                COALESCE(u.mobile_number, a.mobile_number, c.mobile_number) as userMobile, 
+                u.role, 
+                c.ccc_code, 
+                c.ccc_name,
+                c.mobile_number as cccMobile
               FROM users u
-              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              JOIN ccc_registry c ON u.ccc_id = c.id
+              LEFT JOIN agencies a ON u.ccc_id = a.ccc_id AND (
+                u.username = a.name COLLATE NOCASE OR 
+                u.full_name = a.name COLLATE NOCASE OR
+                u.username = a.vendor_code COLLATE NOCASE OR
+                u.agencies = a.name COLLATE NOCASE
+              )
               WHERE u.username = ? COLLATE NOCASE
                  OR u.mobile_number = ?
                  OR (c.ccc_code = ? AND u.role = 'admin')
-                 OR c.mobile_number = ?
+                 OR (a.mobile_number = ? AND (u.username = a.name COLLATE NOCASE OR u.full_name = a.name COLLATE NOCASE OR u.agencies = a.name COLLATE NOCASE))
               ORDER BY (CASE 
                 WHEN u.username = ? COLLATE NOCASE THEN 1 
                 WHEN u.mobile_number = ? THEN 2 
-                WHEN (c.ccc_code = ? AND u.role = 'admin') THEN 3 
-                ELSE 4 
-              END)
-              LIMIT 1`,
-        args: [cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent]
+                ELSE 3 
+              END)`,
+        args: [cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent]
       })
 
       if (!res.rows || res.rows.length === 0) {
@@ -69,40 +81,59 @@ export async function POST(req: NextRequest) {
         }, { status: 404 })
       }
 
-      const userRow: any = res.rows[0]
-      
-      // Determine target mobile: prefer user's own mobile_number, then check if username is a 10-digit mobile
-      let targetMobile = String(userRow.userMobile || "").replace(/\D/g, "").slice(-10)
-      
-      // Fallback: if user.mobile_number is NULL but username is a 10-digit number, use username as mobile
-      if ((!targetMobile || targetMobile.length !== 10) && userRow.username) {
-        const usernameDigits = String(userRow.username).replace(/\D/g, "")
-        if (usernameDigits.length === 10) {
-          targetMobile = usernameDigits
+      // Determine target mobile
+      let targetMobile = ""
+      for (const row of res.rows as any[]) {
+        const mob = String(row.userMobile || row.cccMobile || "").replace(/\D/g, "").slice(-10)
+        if (mob.length === 10) {
+          targetMobile = mob
+          break
         }
       }
-      
-      // Last resort fallback to CCC admin mobile (only for admin role users)
-      if ((!targetMobile || targetMobile.length !== 10) && String(userRow.role) === "admin") {
-        targetMobile = String(userRow.cccMobile || "").replace(/\D/g, "").slice(-10)
+
+      if (!targetMobile && cleanIdent.length === 10 && /^\d{10}$/.test(cleanIdent)) {
+        targetMobile = cleanIdent
       }
 
       if (!targetMobile || targetMobile.length !== 10) {
         return NextResponse.json({
-          error: `Account '${userRow.username}' does not have a verified mobile number linked. Please contact your CCC Station Admin to link your mobile number.`
+          error: `Account '${res.rows[0].username}' does not have a verified mobile number linked. Please contact your CCC Station Admin.`
         }, { status: 400 })
       }
 
-      // Generate & send OTP
-      const { otp: generatedOtp, expiresAt } = generateOtp(targetMobile)
       const masked = `${targetMobile.slice(0, 3)}•••••${targetMobile.slice(-2)}`
+
+      // If multiple accounts found and user hasn't selected an account yet, return account list for user choice
+      if (res.rows.length > 1 && !body.selectedAccount) {
+        return NextResponse.json({
+          requiresAccountSelection: true,
+          mobileNumber: targetMobile,
+          mobileMasked: masked,
+          accounts: (res.rows as any[]).map((r) => ({
+            id: r.id,
+            username: r.username,
+            fullName: r.full_name || r.username,
+            role: r.role,
+            cccCode: r.ccc_code,
+            cccName: r.ccc_name,
+          }))
+        })
+      }
+
+      // User either has 1 account or explicitly picked an account: proceed to generate & send OTP
+      const { otp: generatedOtp, expiresAt } = generateOtp(targetMobile)
+
+      const chosenUsername = body.selectedAccount === "all" 
+        ? "all" 
+        : body.selectedAccount || res.rows[0].username
 
       return NextResponse.json({
         success: true,
         message: `OTP sent to linked mobile number (+91 ${masked}).`,
         mobileNumber: targetMobile,
         mobileMasked: masked,
-        username: userRow.username,
+        username: chosenUsername,
+        selectedAccount: chosenUsername,
         expiresAt,
         ...(process.env.NODE_ENV !== "production" ? { devOtp: generatedOtp } : {})
       })
@@ -114,7 +145,7 @@ export async function POST(req: NextRequest) {
     if (action === "reset") {
       const cleanMobile = String(mobileNumber || "").replace(/\D/g, "").slice(-10)
       const cleanNewPassword = String(newPassword || "").trim()
-      const targetUsername = String(username || "").trim()
+      const targetUsername = String(username || body.selectedAccount || "").trim()
 
       if (!cleanMobile || cleanMobile.length !== 10) {
         return NextResponse.json({ error: "Invalid mobile number." }, { status: 400 })
@@ -128,9 +159,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "OTP verification expired or invalid. Please verify again." }, { status: 401 })
       }
 
-      // Update in Turso DB users table: target specific username if provided to prevent cross-account overwrites
+      // Update in Turso DB users table: target specific username or all linked accounts
       let updateRes: any
-      if (targetUsername) {
+      if (targetUsername && targetUsername !== "all") {
         updateRes = await db.execute({
           sql: `UPDATE users 
                 SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
@@ -138,17 +169,22 @@ export async function POST(req: NextRequest) {
           args: [cleanNewPassword, targetUsername]
         })
       } else {
+        // Reset across all accounts linked to this phone number / vendor agencies
         updateRes = await db.execute({
           sql: `UPDATE users 
                 SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
                 WHERE mobile_number = ? 
                    OR username = ?
-                   OR (ccc_id = (SELECT id FROM ccc_registry WHERE mobile_number = ? LIMIT 1) AND role = 'admin')`,
+                   OR id IN (
+                     SELECT u2.id FROM users u2
+                     JOIN agencies a2 ON u2.ccc_id = a2.ccc_id
+                     WHERE a2.mobile_number = ? AND (u2.username = a2.name COLLATE NOCASE OR u2.full_name = a2.name COLLATE NOCASE OR u2.agencies = a2.name COLLATE NOCASE)
+                   )`,
           args: [cleanNewPassword, cleanMobile, cleanMobile, cleanMobile]
         })
       }
 
-      console.log(`🔑 [PASSWORD RESET SUCCESS] Updated password for mobile +91 ${cleanMobile}${targetUsername ? ` (User: ${targetUsername})` : ""} in Turso DB (${updateRes.rowsAffected} rows affected)`)
+      console.log(`🔑 [PASSWORD RESET SUCCESS] Updated password for mobile +91 ${cleanMobile}${targetUsername ? ` (User/Target: ${targetUsername})` : ""} in Turso DB (${updateRes.rowsAffected} rows affected)`)
 
       UserStorage.getInstance().invalidateCache()
 

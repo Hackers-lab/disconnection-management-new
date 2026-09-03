@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, AlertTriangle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell } from "lucide-react"
+import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, AlertTriangle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell, UserPlus } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Condition, Group, Operator, rowMatchesGroups, isNumericOp, OPERATOR_LABELS } from "@/lib/upload-filter"
 import { userStorage } from "@/lib/user-storage";
@@ -560,6 +560,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     password: "",
     role: "agency",
     agencies: [] as string[],
+    mobileNumber: "",
   })
 
   const [newAgency, setNewAgency] = useState({
@@ -571,6 +572,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
   })
 
   const [agencyFilter, setAgencyFilter] = useState<"all" | "missing" | "completed">("all")
+  const [agencyCreatedPrompt, setAgencyCreatedPrompt] = useState<{ name: string; mobileNumber: string } | null>(null)
 
   // --- PAYMENT UPLOAD STATE (items 3 + 13) ---
   type PaymentParsed = { consumerId: string; paidAmount: number; paidDate: string }
@@ -1036,7 +1038,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       })
 
       if (response.ok) {
-        setNewUser({ username: "", password: "", role: "agency", agencies: [] })
+        setNewUser({ username: "", password: "", role: "agency", agencies: [], mobileNumber: "" })
         setShowAddUser(false)
         const usersResponse = await fetch("/api/admin/users")
         setUsers(await usersResponse.json())
@@ -1118,26 +1120,16 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       })
 
       if (response.ok) {
-        const data = await response.json()
+        const addedName = newAgency.name.toUpperCase().trim()
+        const addedMobile = newAgency.mobileNumber.trim()
         setNewAgency({ name: "", description: "", vendorCode: "", mobileNumber: "", isActive: true })
         setShowAddAgency(false)
         const agenciesResponse = await fetch("/api/admin/agencies")
         setAgencies(await agenciesResponse.json())
         const usersResponse = await fetch("/api/admin/users")
         setUsers(await usersResponse.json())
-        if (data?.credentials?.conflict) {
-          setMessage({
-            type: "error",
-            text: `⚠️ Agency created but login NOT auto-created: ${data.credentials.conflict}`
-          })
-        } else if (data?.credentials) {
-          setMessage({
-            type: "success",
-            text: `🎉 Agency Added! Login ID (Mobile): ${data.credentials.username} | Temporary Password: ${data.credentials.password} | 1-Month Free Trial active until ${data.credentials.expiresAt}.`
-          })
-        } else {
-          setMessage({ type: "success", text: data?.message || "Agency added successfully" })
-        }
+        setAgencyCreatedPrompt({ name: addedName, mobileNumber: addedMobile })
+        setMessage({ type: "success", text: `Agency '${addedName}' added successfully!` })
       } else {
         const error = await response.json()
         throw new Error(error.error || "Failed to add agency")
@@ -1625,9 +1617,9 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">Username <span className="text-rose-500">*</span></Label>
                 <Input
                   id="username"
                   value={newUser.username}
@@ -1636,7 +1628,28 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="userMobile">10-Digit Mobile Number</Label>
+                <Input
+                  id="userMobile"
+                  value={newUser.mobileNumber}
+                  onChange={(e) => setNewUser({ ...newUser, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  placeholder="10-digit phone for mobile login"
+                  maxLength={10}
+                />
+                {(() => {
+                  const cleanMob = newUser.mobileNumber?.replace(/\D/g, '').slice(-10)
+                  if (!cleanMob || cleanMob.length !== 10) return null
+                  const conflict = users.find(u => u.mobileNumber === cleanMob || u.username === cleanMob)
+                  if (!conflict) return null
+                  return (
+                    <p className="text-xs text-rose-600 font-medium">
+                      ⚠️ Mobile registered to <strong>{conflict.username}</strong> ({conflict.role.toUpperCase()}). Every user must have a unique number.
+                    </p>
+                  )
+                })()}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password <span className="text-rose-500">*</span></Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -1688,7 +1701,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
             {newUser.role !== "admin" && newUser.role !== "viewer" && (
               <div className="space-y-2">
-                <Label>Assigned Agencies</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Assigned Agencies</Label>
+                  <span className="text-[11px] text-muted-foreground">Bound to agency work scope & subscription</span>
+                </div>
                 {activeAgencies.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {activeAgencies.map((agency) => (
@@ -1720,7 +1736,15 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             )}
 
             <div className="flex space-x-2">
-              <Button onClick={addUser} disabled={!newUser.username || !newUser.password}>
+              <Button 
+                onClick={addUser} 
+                disabled={
+                  !newUser.username || 
+                  !newUser.password ||
+                  (Boolean(newUser.mobileNumber) && newUser.mobileNumber.length !== 10) ||
+                  Boolean(newUser.mobileNumber && users.some(u => u.mobileNumber === newUser.mobileNumber.replace(/\D/g, '').slice(-10) || u.username === newUser.mobileNumber.replace(/\D/g, '').slice(-10)))
+                }
+              >
                 <Save className="h-4 w-4 mr-2" />
                 Add User
               </Button>
@@ -1738,7 +1762,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
               <Card key={user.id} className="p-3">
                 {editingUser?.id === user.id ? (
                   <div className="space-y-4 p-2">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-2">
                         <Label>Username</Label>
                         <Input
@@ -1747,6 +1771,28 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                             setEditingUser({ ...editingUser, username: e.target.value })
                           }
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>10-Digit Mobile Number</Label>
+                        <Input
+                          value={editingUser.mobileNumber || ""}
+                          onChange={(e) =>
+                            setEditingUser({ ...editingUser, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })
+                          }
+                          placeholder="10-digit mobile"
+                          maxLength={10}
+                        />
+                        {(() => {
+                          const cleanMob = editingUser.mobileNumber?.replace(/\D/g, '').slice(-10)
+                          if (!cleanMob || cleanMob.length !== 10) return null
+                          const conflict = users.find(u => u.id !== editingUser.id && (u.mobileNumber === cleanMob || u.username === cleanMob))
+                          if (!conflict) return null
+                          return (
+                            <p className="text-xs text-rose-600 font-medium">
+                              ⚠️ Already registered to <strong>{conflict.username}</strong> ({conflict.role.toUpperCase()})
+                            </p>
+                          )
+                        })()}
                       </div>
                       <div className="space-y-2">
                         <Label>Password</Label>
@@ -1808,7 +1854,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
                     {editingUser.role !== "admin" && editingUser.role !== "viewer" && (
                       <div className="space-y-2">
-                        <Label>Agencies</Label>
+                        <div className="flex items-center justify-between">
+                          <Label>Assigned Agencies</Label>
+                          <span className="text-[11px] text-muted-foreground">Bound to agency work scope & subscription</span>
+                        </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                           {activeAgencies.map((agency) => (
                             <div key={agency.id} className="flex items-center space-x-2">
@@ -1834,7 +1883,14 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     )}
 
                     <div className="flex space-x-2">
-                      <Button onClick={() => updateUser(editingUser)}>
+                      <Button 
+                        onClick={() => updateUser(editingUser)}
+                        disabled={
+                          !editingUser.username ||
+                          (Boolean(editingUser.mobileNumber) && editingUser.mobileNumber.length !== 10) ||
+                          Boolean(editingUser.mobileNumber && users.some(u => u.id !== editingUser.id && (u.mobileNumber === editingUser.mobileNumber?.replace(/\D/g, '').slice(-10) || u.username === editingUser.mobileNumber?.replace(/\D/g, '').slice(-10))))
+                        }
+                      >
                         <Save className="h-4 w-4 mr-2" />
                         Save
                       </Button>
@@ -1851,52 +1907,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         <Badge variant={user.role === "admin" ? "default" : "secondary"}>
                           {user.role}
                         </Badge>
-
-                        {/* Individual Subscription Status Badge */}
-                        {(() => {
-                          const isExempt = user.role === "admin" || user.bypassSubscription
-                          const billingStartDate = new Date("2026-09-16T00:00:00")
-                          const isTrial = Date.now() < billingStartDate.getTime()
-
-                          if (isExempt) {
-                            return (
-                              <Badge variant="outline" className="text-[10px] font-semibold bg-slate-100 text-slate-700 border-slate-300">
-                                Free Pass / Bypassed
-                              </Badge>
-                            )
-                          } else if (isTrial) {
-                            return (
-                              <Badge variant="outline" className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border-indigo-200">
-                                Trial Active
-                              </Badge>
-                            )
-                          } else if (user.subscriptionStatus === "active") {
-                            let isExpired = false
-                            if (user.subscriptionExpiresAt) {
-                              const expDate = new Date(user.subscriptionExpiresAt)
-                              expDate.setHours(23, 59, 59, 999)
-                              if (Date.now() > expDate.getTime()) isExpired = true
-                            }
-                            if (isExpired) {
-                              return (
-                                <Badge variant="outline" className="text-[10px] font-semibold bg-rose-50 text-rose-700 border-rose-200">
-                                  Expired ({user.subscriptionExpiresAt})
-                                </Badge>
-                              )
-                            }
-                            return (
-                              <Badge className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-100">
-                                Active {user.subscriptionExpiresAt ? `(Expires: ${user.subscriptionExpiresAt})` : ""}
-                              </Badge>
-                            )
-                          } else {
-                            return (
-                              <Badge variant="destructive" className="text-[10px] font-semibold bg-rose-100 text-rose-800 border border-rose-200">
-                                Expired / Inactive
-                              </Badge>
-                            )
-                          }
-                        })()}
+                        {user.mobileNumber && (
+                          <span className="text-xs text-slate-500 font-mono">
+                            📞 {user.mobileNumber}
+                          </span>
+                        )}
                       </div>
 
                       {user.agencies?.length > 0 && (
@@ -1988,19 +2003,67 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </Button>
           </div>
 
+          {/* Post-Agency Creation Prompt to Add Login User */}
+          {agencyCreatedPrompt && (
+            <div className="mb-4 p-3.5 sm:p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in-50 duration-200">
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 sm:mt-0">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Agency &lsquo;{agencyCreatedPrompt.name}&rsquo; added!
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Would you like to create a login user account with this agency auto-assigned?
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAgencyCreatedPrompt(null)}
+                  className="text-xs h-8 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Dismiss
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const targetAgency = agencyCreatedPrompt.name
+                    setAgencyCreatedPrompt(null)
+                    setView("users")
+                    setShowAddUser(true)
+                    setNewUser({
+                      username: "",
+                      password: "",
+                      role: "agency",
+                      agencies: [targetAgency],
+                    })
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                  Create Login Account
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Alert Banner for Incomplete Agencies */}
           {(() => {
             const missingCount = agencies.filter(a => a.isActive && (!a.vendorCode || a.vendorCode.length < 6 || !a.mobileNumber || a.mobileNumber.length < 10)).length
             if (missingCount === 0) return null
             return (
-              <div className="mb-4 flex items-center justify-between p-3 px-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-slate-800 dark:text-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-                    <AlertTriangle className="h-4 w-4" />
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 sm:px-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-slate-800 dark:text-slate-200">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0">
+                    <AlertTriangle className="h-3.5 w-3.5" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      {missingCount} {missingCount === 1 ? 'Agency requires' : 'Agencies require'} Vendor Code & Mobile Number
+                      {missingCount} {missingCount === 1 ? 'Agency requires' : 'Agencies require'} Vendor Code & Mobile
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Field operations are paused until completed. Vendors can also self-activate upon login.
@@ -2010,7 +2073,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 <button
                   type="button"
                   onClick={() => setAgencyFilter("missing")}
-                  className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline shrink-0 ml-4 cursor-pointer"
+                  className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline shrink-0 self-end sm:self-auto cursor-pointer"
                 >
                   View Incomplete ({missingCount}) →
                 </button>
@@ -2062,23 +2125,6 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       placeholder="10-digit contractor phone for OTP/Login"
                       maxLength={10}
                     />
-                    {(() => {
-                      const cleanMob = newAgency.mobileNumber?.replace(/\D/g, '').slice(-10)
-                      if (!cleanMob || cleanMob.length !== 10) return null
-                      const conflict = users.find(u => u.username === cleanMob || u.mobileNumber === cleanMob)
-                      if (!conflict) return null
-                      return (
-                        <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 mt-1 space-y-0.5">
-                          <p className="font-semibold">⚠️ Mobile Number Already in Use</p>
-                          <p>
-                            This number is already registered to user <strong>{conflict.username}</strong> ({conflict.role.toUpperCase()}).
-                          </p>
-                          <p className="text-amber-700">
-                            Each agency account requires a unique mobile number because it is used as their login ID. Please provide the agency contractor's own phone number.
-                          </p>
-                        </div>
-                      )
-                    })()}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="agencyDescription">Description / Notes</Label>
@@ -2112,8 +2158,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       !newAgency.vendorCode || 
                       newAgency.vendorCode.length < 6 || 
                       !newAgency.mobileNumber || 
-                      newAgency.mobileNumber.length < 10 ||
-                      Boolean(users.some(u => u.username === newAgency.mobileNumber.replace(/\D/g, '').slice(-10) || u.mobileNumber === newAgency.mobileNumber.replace(/\D/g, '').slice(-10)))
+                      newAgency.mobileNumber.length < 10
                     }
                   >
                     <Save className="h-4 w-4 mr-2" />
@@ -2129,28 +2174,28 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
           {/* Filter Pills & Summary */}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg overflow-x-auto max-w-full">
               <button
                 type="button"
                 onClick={() => setAgencyFilter("all")}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-all ${
                   agencyFilter === "all"
                     ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                All Agencies ({agencies.length})
+                All ({agencies.length})
               </button>
               <button
                 type="button"
                 onClick={() => setAgencyFilter("missing")}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1 ${
                   agencyFilter === "missing"
                     ? "bg-amber-500 text-white shadow-2xs font-semibold"
-                    : "text-amber-700 dark:text-amber-400 hover:bg-amber-50"
+                    : "text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                 }`}
               >
-                <span>Missing Code / Phone</span>
+                <span>Missing Code/Phone</span>
                 <span className="bg-amber-600/20 text-current text-[10px] px-1.5 py-0.2 rounded-full">
                   {agencies.filter(a => !a.vendorCode || a.vendorCode.length < 6 || !a.mobileNumber || a.mobileNumber.length < 10).length}
                 </span>
@@ -2158,10 +2203,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
               <button
                 type="button"
                 onClick={() => setAgencyFilter("completed")}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1 ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1 ${
                   agencyFilter === "completed"
                     ? "bg-emerald-600 text-white shadow-2xs font-semibold"
-                    : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50"
+                    : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                 }`}
               >
                 <span>Completed</span>
@@ -2189,44 +2234,55 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 )
                 const hasExistingVendor = Boolean(agency.vendorCode && String(agency.vendorCode).trim().length >= 6)
                 const isVendorLocked = isAgencySubscribed && hasExistingVendor
+                const isIncomplete = !agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10
+                const initials = (agency.name || "AG").split(" ").filter(Boolean).slice(0, 2).map((s: string) => s[0]).join("").toUpperCase()
                 return (
-              <Card key={agency.id} className="p-3">
+              <div
+                key={agency.id}
+                className={`rounded-2xl border transition-all duration-200 p-3.5 sm:p-4 bg-white dark:bg-slate-900/70 shadow-2xs hover:shadow-xs ${
+                  editingAgency?.id === agency.id
+                    ? "border-indigo-500/40 ring-2 ring-indigo-500/10"
+                    : isIncomplete
+                    ? "border-amber-500/30 dark:border-amber-500/20 hover:border-amber-500/50"
+                    : "border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700"
+                }`}
+              >
                 {editingAgency?.id === agency.id ? (
-                  <div className="space-y-4 p-2">
+                  <div className="space-y-4 p-1">
                     {isVendorLocked && (
-                      <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
+                      <div className="flex items-center gap-2 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-800 dark:text-emerald-300">
                         <span className="font-semibold">🔒 Protected Agency:</span>
                         <span>This agency has an active subscription until <strong>{agency.subscriptionExpiresAt}</strong>. Agency Name and Vendor Code are locked to prevent license transfer.</span>
                       </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="flex items-center justify-between">
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
                           <span>Agency Name <span className="text-rose-500">*</span></span>
-                          {isVendorLocked && <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>}
+                          {isVendorLocked && <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">🔒 Locked</span>}
                         </Label>
                         <Input
                           value={editingAgency.name}
                           disabled={isVendorLocked}
-                          className={isVendorLocked ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
+                          className={isVendorLocked ? "bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed" : ""}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, name: e.target.value })
                           }
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center justify-between">
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
                           <span>Vendor Code <span className="text-rose-500">*</span></span>
                           {isVendorLocked ? (
-                            <span className="text-[10px] text-amber-700 font-mono">🔒 Locked</span>
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-mono">🔒 Locked</span>
                           ) : !hasExistingVendor ? (
-                            <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-1 rounded border border-rose-200">Required</span>
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">Required</span>
                           ) : null}
                         </Label>
                         <Input
                           value={editingAgency.vendorCode || ""}
                           disabled={isVendorLocked}
-                          className={isVendorLocked ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""}
+                          className={isVendorLocked ? "bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed font-mono" : "font-mono"}
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, vendorCode: e.target.value.replace(/\D/g, '').slice(0, 6) })
                           }
@@ -2237,10 +2293,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
                         <Input
                           value={editingAgency.mobileNumber || ""}
+                          className="font-mono"
                           onChange={(e) =>
                             setEditingAgency({ ...editingAgency, mobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) })
                           }
@@ -2248,8 +2305,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                           maxLength={10}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Description / Notes</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">Description / Notes</Label>
                         <Input
                           value={editingAgency.description || ""}
                           onChange={(e) =>
@@ -2260,7 +2317,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 pt-1">
                       <input
                         type="checkbox"
                         id={`active-${agency.id}`}
@@ -2270,95 +2327,123 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         }
                         className="rounded"
                       />
-                      <label htmlFor={`active-${agency.id}`} className="text-sm">
+                      <label htmlFor={`active-${agency.id}`} className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
                         Active
                       </label>
                     </div>
 
-                    <div className="flex space-x-2">
-                      <Button onClick={() => updateAgency(editingAgency)}>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save
+                    <div className="flex space-x-2 pt-2">
+                      <Button onClick={() => updateAgency(editingAgency)} className="h-9 px-4 text-xs font-semibold rounded-xl">
+                        <Save className="h-4 w-4 mr-1.5" />
+                        Save Changes
                       </Button>
-                      <Button variant="outline" onClick={() => setEditingAgency(null)}>
+                      <Button variant="outline" onClick={() => setEditingAgency(null)} className="h-9 px-4 text-xs font-semibold rounded-xl">
                         Cancel
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-base">{agency.name}</span>
-                        {agency.vendorCode ? (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-mono text-xs">
-                            Vendor: {agency.vendorCode}
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="text-[10px] animate-pulse">
-                            Missing Vendor Code
-                          </Badge>
-                        )}
-                        {agency.mobileNumber ? (
-                          <span className="text-xs text-slate-600 font-mono flex items-center gap-1">
-                            📞 {agency.mobileNumber}
-                          </span>
-                        ) : (
-                          <Badge variant="destructive" className="text-[10px] animate-pulse">
-                            Missing Phone
-                          </Badge>
-                        )}
-                        {(!agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10) && (
-                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 text-[10px] font-semibold">
-                            ⚠️ Incomplete Profile (Field Access Restricted)
-                          </Badge>
-                        )}
-                        {isAgencySubscribed && (
-                          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]">
-                            🛡️ Subscribed (until {agency.subscriptionExpiresAt})
-                          </Badge>
-                        )}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    {/* Left: Avatar + Details */}
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 select-none ${
+                        !agency.isActive
+                          ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                          : isIncomplete
+                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                          : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20"
+                      }`}>
+                        {initials || "AG"}
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={agency.isActive ? "default" : "secondary"}>
-                          {agency.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                        {agency.description && (
-                          <span className="text-xs text-slate-500">{agency.description}</span>
-                        )}
+
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-sm sm:text-base text-slate-900 dark:text-slate-100 break-words leading-tight">
+                            {agency.name}
+                          </h3>
+                          {!agency.isActive ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              Inactive
+                            </span>
+                          ) : isIncomplete ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                              Incomplete
+                            </span>
+                          ) : null}
+                          {isAgencySubscribed && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Subscribed till {agency.subscriptionExpiresAt}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-x-2.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+                          {agency.vendorCode ? (
+                            <span className="font-mono text-slate-700 dark:text-slate-300">
+                              Code: <strong className="font-semibold">{agency.vendorCode}</strong>
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium text-[11px]">
+                              No vendor code
+                            </span>
+                          )}
+                          <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+                          {agency.mobileNumber ? (
+                            <span className="font-mono text-slate-700 dark:text-slate-300">
+                              {agency.mobileNumber}
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 font-medium text-[11px]">
+                              No mobile
+                            </span>
+                          )}
+                          {agency.description && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+                              <span className="truncate max-w-[200px] sm:max-w-xs">{agency.description}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 items-center shrink-0">
-                      {(!agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10) && (
+
+                    {/* Right: Clean Action Bar */}
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800/80 w-full sm:w-auto justify-end">
+                      {isIncomplete && (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 text-xs font-semibold h-8"
+                          className="h-8 px-3 text-xs font-semibold rounded-lg border-amber-500/30 text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer"
                           onClick={() => setEditingAgency({ ...agency })}
                         >
-                          Complete Profile
+                          Complete Setup
                         </Button>
                       )}
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                         onClick={() => setEditingAgency({ ...agency })}
+                        title="Edit Agency"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3.5 w-3.5" />
                       </Button>
                       <Button
-                        variant="destructive"
+                        variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-30 cursor-pointer"
                         disabled={isAgencySubscribed}
                         title={isAgencySubscribed ? "Cannot delete agency with active subscription" : "Delete Agency"}
                         onClick={() => deleteAgency(agency.id)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
                 )}
-              </Card>
+              </div>
                 )
               })}
           </div>

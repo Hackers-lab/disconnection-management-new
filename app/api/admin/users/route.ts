@@ -43,7 +43,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, password, role, agencies } = await request.json()
+    const { username, password, role, agencies, mobileNumber, name } = await request.json()
 
     // Validate input
     if (!username || !password) {
@@ -56,19 +56,35 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username already exists" }, { status: 400 })
     }
 
+    // Validate mobile number uniqueness across all users
+    let cleanMobile: string | null = null
+    if (mobileNumber && String(mobileNumber).trim()) {
+      cleanMobile = String(mobileNumber).replace(/\D/g, "").slice(-10)
+      if (cleanMobile.length !== 10) {
+        return NextResponse.json({ error: "Mobile number must be exactly 10 digits" }, { status: 400 })
+      }
+      const existingUserByMobile = await userStorage.getUserByMobile(cleanMobile)
+      if (existingUserByMobile) {
+        return NextResponse.json({ 
+          error: `Mobile number ${cleanMobile} is already registered to user '${existingUserByMobile.username}' (${existingUserByMobile.role.toUpperCase()}). Every user account must have a unique mobile number.` 
+        }, { status: 400 })
+      }
+    }
+
     const newUser = await userStorage.addUser({
       username,
       password,
       role: role || "agency",
       cccCode,
-      name: username,
+      name: name || username,
+      mobileNumber: cleanMobile || undefined,
       agencies: agencies || [],
       subscriptionStatus: "active",
       subscriptionExpiresAt: "",
       bypassSubscription: false,
     })
 
-    console.log("✅ User added successfully:", username)
+    console.log("✅ User added successfully:", username, cleanMobile ? `(Mobile: ${cleanMobile})` : "")
     return NextResponse.json({ success: true, message: "User added successfully", user: newUser })
   } catch (error) {
     console.error("Error adding user:", error)
@@ -91,7 +107,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
   }
 
   try {
-    const { id, username, password, role, agencies } = await request.json()
+    const { id, username, password, role, agencies, mobileNumber, name } = await request.json()
 
     const existingUser = await userStorage.getUserById(id)
 
@@ -115,11 +131,33 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       }
     }
 
+    // Validate unique mobile number across all users
+    let cleanMobile: string | null = existingUser.mobileNumber || null
+    if (mobileNumber !== undefined) {
+      if (mobileNumber && String(mobileNumber).trim()) {
+        const parsed = String(mobileNumber).replace(/\D/g, "").slice(-10)
+        if (parsed.length !== 10) {
+          return NextResponse.json({ error: "Mobile number must be exactly 10 digits" }, { status: 400 })
+        }
+        const conflictMobile = await userStorage.getUserByMobile(parsed)
+        if (conflictMobile && conflictMobile.id !== id) {
+          return NextResponse.json({ 
+            error: `Mobile number ${parsed} is already registered to user '${conflictMobile.username}' (${conflictMobile.role.toUpperCase()}). Every user account must have a unique mobile number.` 
+          }, { status: 400 })
+        }
+        cleanMobile = parsed
+      } else {
+        cleanMobile = null
+      }
+    }
+
     const updatedUser = await userStorage.updateUser(id, {
       username,
       password: password || existingUser.password,
+      name: name || existingUser.name,
       role,
       cccCode,
+      mobileNumber: cleanMobile || undefined,
       agencies: agencies || [],
       subscriptionStatus: existingUser.subscriptionStatus,
       subscriptionExpiresAt: existingUser.subscriptionExpiresAt,
@@ -127,7 +165,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
     })
 
     if (updatedUser) {
-      console.log("✅ User updated successfully:", username)
+      console.log("✅ User updated successfully:", username, cleanMobile ? `(Mobile: ${cleanMobile})` : "")
       return NextResponse.json({ success: true, message: "User updated successfully", user: updatedUser })
     } else {
       return NextResponse.json({ error: "Failed to update user" }, { status: 500 })

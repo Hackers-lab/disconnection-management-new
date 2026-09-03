@@ -175,6 +175,46 @@ export class UserStorage {
     return null
   }
 
+  async getUserByMobile(mobileNumber: string): Promise<MasterUser | null> {
+    const cleanMobile = String(mobileNumber || "").replace(/\D/g, "").slice(-10)
+    if (!cleanMobile || cleanMobile.length !== 10) return null
+
+    try {
+      const res = await db.execute({
+        sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                     u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
+                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                     u.ccc_id as cccId
+              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE u.mobile_number = ?
+              LIMIT 1`,
+        args: [cleanMobile]
+      })
+      if (res.rows && res.rows.length > 0) {
+        const r: any = res.rows[0]
+        const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+        const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
+        return {
+          id: String(r.id || ""),
+          username: String(r.username || ""),
+          password: String(r.password || ""),
+          role: String(r.role || ""),
+          cccCode: String(r.cccCode || ""),
+          name: String(r.name || ""),
+          mobileNumber: String(r.mobileNumber || ""),
+          agencies: fallbackAgencies,
+          subscriptionStatus: String(r.subStatus || "active"),
+          subscriptionExpiresAt: String(r.subExpiresAt || ""),
+          bypassSubscription: Boolean(r.bypassSub),
+        }
+      }
+    } catch (err) {
+      console.warn("Turso getUserByMobile error:", err)
+    }
+
+    return null
+  }
+
   async getUsersByCcc(cccCode: string): Promise<MasterUser[]> {
     const cleanCcc = String(cccCode || "").trim()
     if (!cleanCcc || cleanCcc === "SYSTEM") {
