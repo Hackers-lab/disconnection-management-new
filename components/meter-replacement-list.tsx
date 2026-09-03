@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Search, X, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Loader2, Download, RefreshCw, Check, ArrowLeft, RotateCcw, Package,
-  MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet, AlertCircle
+  MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet, AlertCircle,
+  IndianRupee, AlertTriangle, ShieldCheck
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
@@ -893,6 +894,24 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
   const [agencyList, setAgencyList] = useState<string[]>(agencies)
   const [lookupStatus, setLookupStatus] = useState("")
 
+  // Live OSD & Connection Status verification
+  const [checkingLiveStatus, setCheckingLiveStatus] = useState(false)
+  const [liveOsdResult, setLiveOsdResult] = useState<{
+    connectionStatus: string
+    isLive: boolean
+    isDeemed: boolean
+    isDisconnected: boolean
+    totalDues: number
+    osd: number
+    lpsc: number
+    docType: string
+    office?: string
+    connDate?: string
+    name?: string
+    address?: string
+  } | null>(null)
+  const [liveOsdError, setLiveOsdError] = useState<string | null>(null)
+
   // Form states
   const [manualName, setManualName] = useState("")
   const [manualAddress, setManualAddress] = useState("")
@@ -910,6 +929,76 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
   // Excel Bulk states
   const [parsedExcelItems, setParsedExcelItems] = useState<any[]>([])
   const excelFileRef = useRef<HTMLInputElement>(null)
+
+  const checkLiveStatus = async (id: string): Promise<{
+    connectionStatus: string
+    isLive: boolean
+    isDeemed: boolean
+    isDisconnected: boolean
+    totalDues: number
+    osd: number
+    lpsc: number
+    docType: string
+    office?: string
+    connDate?: string
+    name?: string
+    address?: string
+  } | null> => {
+    const clean = id.trim()
+    if (!clean || clean.length !== 9) return null
+    setCheckingLiveStatus(true)
+    setLiveOsdError(null)
+
+    try {
+      const res = await fetch(`/api/osd-details?consumerId=${encodeURIComponent(clean)}`)
+      const json = await res.json()
+
+      if (json.success && json.data) {
+        const d = json.data
+        const statusUpper = String(d.connectionStatus || "").toUpperCase()
+        const isDeemed = d.isDeemed ?? statusUpper.includes("DEEMED")
+        const isDisconnected = d.isDisconnected ?? (!isDeemed && statusUpper.includes("DISCONNECT"))
+        const isLive = d.isLive ?? (!isDeemed && !isDisconnected && (statusUpper.includes("LIVE") || /\bCONNECTED\b/.test(statusUpper)))
+
+        const parsedResult = {
+          connectionStatus: d.connectionStatus || "UNKNOWN",
+          isLive,
+          isDeemed,
+          isDisconnected,
+          totalDues: d.totalDues ?? d.osd ?? 0,
+          osd: d.osd ?? 0,
+          lpsc: d.lpsc ?? 0,
+          docType: d.docType || "OUTSTANDING REPORT",
+          office: d.office,
+          connDate: d.connDate,
+          name: d.name,
+          address: d.address,
+        }
+
+        setLiveOsdResult(parsedResult)
+
+        // Autofill official portal details if manual fields are empty
+        if (d.name && d.name !== "N/A" && !manualName) {
+          setManualName(d.name)
+        }
+        if (d.address && d.address !== "N/A" && !manualAddress) {
+          setManualAddress(d.address)
+        }
+
+        return parsedResult
+      } else {
+        const errMsg = json.error || "Unable to fetch live status from WBSEDCL portal"
+        setLiveOsdError(errMsg)
+        return null
+      }
+    } catch (e: any) {
+      const errMsg = e.message || "Failed to contact WBSEDCL live portal"
+      setLiveOsdError(errMsg)
+      return null
+    } finally {
+      setCheckingLiveStatus(false)
+    }
+  }
 
   // Load agencies
   useEffect(() => {
@@ -963,6 +1052,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
         let cAgency = String(r["Agency"] || r["agency"] || "").trim()
         let cOldMeter = String(r["Old Meter No"] || r["Old Meter"] || r["Meter No"] || r["old_meter_no"] || "").trim()
 
+        let isDeemedCached = false
         // Lookup from cache if consumer ID exists and missing info
         if (cid && cid.length === 9) {
           const matchConsumer = consumersCache.find(c => c.consumerId === cid)
@@ -973,6 +1063,9 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
           if (!cMob) cMob = matchConsumer?.mobileNumber || matchMaster?.mobile || ""
           if (!cAgency) cAgency = matchConsumer?.agency || ""
           if (!cOldMeter) cOldMeter = matchConsumer?.device || matchMaster?.meterNo || ""
+
+          isDeemedCached = (matchConsumer?.status || "").toLowerCase().includes("deemed") ||
+                           String((matchMaster as any)?.status || "").toLowerCase().includes("deemed")
         }
 
         const rawPurpose = String(r["Purpose"] || r["purpose"] || "").trim()
@@ -988,7 +1081,9 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
           purpose: purposeVal,
           oldMeterNo: cOldMeter,
           remarks: remarksVal,
-          isValid: !!(cName && cAddr)
+          isDeemed: isDeemedCached,
+          isValid: !!(cName && cAddr) && !isDeemedCached,
+          invalidReason: isDeemedCached ? "Deemed Disconnected" : !(cName && cAddr) ? "Missing Name/Address" : undefined
         }
       })
 
@@ -1001,9 +1096,9 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
   }
 
   const handleBulkSubmit = async () => {
-    const validItems = parsedExcelItems.filter(i => i.isValid)
+    const validItems = parsedExcelItems.filter(i => i.isValid && !i.isDeemed)
     if (validItems.length === 0) {
-      alert("No valid proposal items to submit. Ensure Consumer Name and Address are present.")
+      alert("No valid proposal items to submit. Ensure Consumer Name and Address are present and connection is not deemed disconnected.")
       return
     }
 
@@ -1032,7 +1127,11 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
     setLooking(true)
     setFound(null)
     setNotFound(false)
-    setLookupStatus("Searching disconnection list...")
+    setLookupStatus("Searching disconnection list & checking live portal...")
+
+    // Concurrently trigger Live OSD check
+    const livePromise = checkLiveStatus(id)
+
     try {
       // 1. Try active disconnection cache
       const cache = await getFromCache<ConsumerData[]>("consumers_data_cache")
@@ -1045,6 +1144,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
         setAgency(match.agency || "")
         setOldMeterNo(match.device || oldMeterMap[id] || "")
         setLooking(false)
+        await livePromise
         return
       }
 
@@ -1104,13 +1204,28 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
         setAgency(mappedAgency || "")
         setOldMeterNo(masterMatch.meterNo || "")
       } else {
-        setNotFound(true)
-        setManualName("")
-        setManualAddress("")
-        setManualMobile("")
-        setAgency("")
-        setOldMeterNo("")
+        const liveRes = await livePromise
+        if (liveRes && liveRes.name && liveRes.name !== "N/A") {
+          setFound({
+            consumerId: id,
+            name: liveRes.name,
+            address: liveRes.address,
+            mobileNumber: "",
+            agency: "",
+          })
+          setManualName(liveRes.name)
+          setManualAddress(liveRes.address || "")
+          setNotFound(false)
+        } else {
+          setNotFound(true)
+          setManualName("")
+          setManualAddress("")
+          setManualMobile("")
+          setAgency("")
+          setOldMeterNo("")
+        }
       }
+      await livePromise
     } catch {
       setNotFound(true)
     } finally {
@@ -1159,13 +1274,29 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
       return
     }
 
+    const cid = consumerId.trim()
+    // Strict block if deemed
+    if (liveOsdResult?.isDeemed) {
+      alert(`Cannot propose replacement: Consumer connection is Deemed Disconnected (${liveOsdResult.connectionStatus}) on WBSEDCL portal.`)
+      return
+    }
+
     setSubmitting(true)
     try {
+      if (cid.length === 9 && !liveOsdResult && !liveOsdError) {
+        const check = await checkLiveStatus(cid)
+        if (check?.isDeemed) {
+          alert(`Cannot propose replacement: Consumer connection is Deemed Disconnected (${check.connectionStatus}) on WBSEDCL portal.`)
+          setSubmitting(false)
+          return
+        }
+      }
+
       const res = await fetch("/api/meters/replacement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          consumerId: consumerId.trim() || "000000000",
+          consumerId: cid || "000000000",
           consumerName: manualName.trim(),
           address: manualAddress.trim(),
           mobile: manualMobile.trim() || "",
@@ -1291,7 +1422,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
                         <Badge variant="outline" className="text-[10px] uppercase">
                           {PURPOSE_LABELS[item.purpose] || item.purpose}
                         </Badge>
-                        {!item.isValid && <span className="text-[10px] font-bold text-red-600">Missing Name/Address</span>}
+                        {!item.isValid && <span className="text-[10px] font-bold text-red-600">{item.invalidReason || "Missing Name/Address"}</span>}
                       </div>
                     </div>
                   ))}
@@ -1323,19 +1454,140 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
                 <Input
                   id="search-cid"
                   value={consumerId}
-                  onChange={e => setConsumerId(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                  onChange={e => {
+                    const clean = e.target.value.replace(/\D/g, "").slice(0, 9)
+                    setConsumerId(clean)
+                    if (clean !== consumerId) {
+                      setLiveOsdResult(null)
+                      setLiveOsdError(null)
+                    }
+                  }}
                   placeholder="e.g. 661200001"
                   maxLength={9}
-                  disabled={looking || submitting}
+                  disabled={looking || checkingLiveStatus || submitting}
                 />
-                <Button type="button" onClick={handleLookup} disabled={looking || consumerId.length !== 9 || submitting}>
-                  {looking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button
+                  type="button"
+                  onClick={handleLookup}
+                  disabled={looking || checkingLiveStatus || consumerId.length !== 9 || submitting}
+                  title="Lookup from database and verify live OSD"
+                >
+                  {looking || checkingLiveStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
               {looking && <p className="text-xs text-blue-600 font-medium">{lookupStatus}</p>}
               {notFound && <p className="text-xs text-amber-600 font-semibold">Consumer not found in active list or master database. Please fill details manually.</p>}
               {found && <p className="text-xs text-green-700 font-bold flex items-center gap-1">✓ Match Found: {found.name}</p>}
             </div>
+
+            {/* Live Status and OSD Panel */}
+            {checkingLiveStatus && (
+              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl mb-4 flex items-center gap-2 text-xs text-blue-800">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600 shrink-0" />
+                <span className="font-medium">Connecting to WBSEDCL portal & parsing live OSD report...</span>
+              </div>
+            )}
+
+            {liveOsdResult && (
+              <div className={`p-3.5 rounded-xl border mb-4 space-y-2.5 transition-all ${
+                liveOsdResult.isDeemed
+                  ? "bg-red-50 border-red-200 text-red-950"
+                  : liveOsdResult.isLive
+                  ? "bg-emerald-50/80 border-emerald-200 text-emerald-950"
+                  : "bg-amber-50/80 border-amber-200 text-amber-950"
+              }`}>
+                <div className="flex items-center justify-between gap-2 border-b pb-2 border-current/10">
+                  <div className="flex items-center gap-2">
+                    {liveOsdResult.isDeemed ? (
+                      <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+                    ) : liveOsdResult.isLive ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    )}
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">
+                        Live Connection Status
+                      </span>
+                      <span className="text-sm font-extrabold flex items-center gap-1.5">
+                        {liveOsdResult.connectionStatus}
+                        {liveOsdResult.isLive && <Badge className="bg-emerald-600 text-white text-[10px] px-1.5 py-0">LIVE</Badge>}
+                        {liveOsdResult.isDeemed && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">DEEMED BLOCKED</Badge>}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => checkLiveStatus(consumerId)}
+                    disabled={checkingLiveStatus}
+                    className="h-7 px-2 text-[11px] bg-white hover:bg-slate-50 border-current/20 shrink-0"
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${checkingLiveStatus ? "animate-spin" : ""}`} /> Re-check
+                  </Button>
+                </div>
+
+                {/* Deemed block banner */}
+                {liveOsdResult.isDeemed && (
+                  <div className="p-2.5 bg-red-100/80 border border-red-300 rounded-lg text-xs font-semibold text-red-800 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
+                    <div>
+                      <p className="font-bold">Proposal Blocked: Deemed Disconnected</p>
+                      <p className="text-[11px] font-normal text-red-700 mt-0.5">
+                        This consumer connection is marked as Deemed Disconnected on the WBSEDCL portal. Under operating regulations, deemed disconnected consumers cannot be proposed for meter replacement.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Live Financial / Portal Info Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-0.5">
+                  <div className="bg-white/80 p-2 rounded-lg border border-current/10">
+                    <span className="text-[10px] opacity-75 uppercase block font-semibold">Live OSD (Dues)</span>
+                    <span className="font-bold text-sm flex items-center gap-0.5">
+                      <IndianRupee className="h-3 w-3" />
+                      {liveOsdResult.totalDues.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  <div className="bg-white/80 p-2 rounded-lg border border-current/10">
+                    <span className="text-[10px] opacity-75 uppercase block font-semibold">Doc Type</span>
+                    <span className="font-semibold text-xs truncate block" title={liveOsdResult.docType}>
+                      {liveOsdResult.docType}
+                    </span>
+                  </div>
+
+                  {liveOsdResult.office && (
+                    <div className="col-span-2 sm:col-span-1 bg-white/80 p-2 rounded-lg border border-current/10">
+                      <span className="text-[10px] opacity-75 uppercase block font-semibold">Office / CCC</span>
+                      <span className="font-semibold text-xs truncate block" title={liveOsdResult.office}>
+                        {liveOsdResult.office}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {liveOsdError && !checkingLiveStatus && !liveOsdResult && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-4 text-xs text-amber-900 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>Live portal check advisory: {liveOsdError}</span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => checkLiveStatus(consumerId)}
+                  className="h-6 px-2 text-[10px] shrink-0 bg-white"
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
 
             {/* Form details */}
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -1423,9 +1675,27 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
                 <Button type="button" variant="outline" className="flex-1" onClick={onCancel} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-[2] bg-slate-950 hover:bg-slate-900 text-white" disabled={submitting || uploading}>
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                  {submitting ? "Submitting..." : "Save Proposal"}
+                <Button
+                  type="submit"
+                  className={`flex-[2] text-white transition ${
+                    liveOsdResult?.isDeemed
+                      ? "bg-red-600 hover:bg-red-700 cursor-not-allowed"
+                      : "bg-slate-950 hover:bg-slate-900"
+                  }`}
+                  disabled={submitting || uploading || checkingLiveStatus || liveOsdResult?.isDeemed === true}
+                >
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : liveOsdResult?.isDeemed ? (
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  {submitting
+                    ? "Submitting..."
+                    : liveOsdResult?.isDeemed
+                    ? "Blocked (Deemed Disconnected)"
+                    : "Save Proposal"}
                 </Button>
               </div>
             </form>

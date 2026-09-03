@@ -44,6 +44,22 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
+    // Validate live connection status: Deemed Disconnected connections are strictly blocked from meter replacement
+    if (consumerId && /^\d{9}$/.test(String(consumerId).trim())) {
+      try {
+        const { fetchLiveOsdData } = await import("@/lib/live-osd-service")
+        const liveCheck = await fetchLiveOsdData(String(consumerId).trim(), { timeoutMs: 10000 })
+        if (liveCheck.success && liveCheck.data?.isDeemed) {
+          return NextResponse.json({
+            error: `Cannot propose meter replacement: Consumer connection is Deemed Disconnected (${liveCheck.data.connectionStatus}) on WBSEDCL portal.`,
+            isDeemed: true
+          }, { status: 400 })
+        }
+      } catch (err) {
+        console.warn("Server-side live deemed check error, proceeding with proposal:", err)
+      }
+    }
+
     const replacementId = await addReplacement({
       consumerId,
       consumerName,
