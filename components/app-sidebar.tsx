@@ -20,6 +20,7 @@ import {
   Building2,
   Camera,
   PowerOff,
+  Star,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -28,6 +29,7 @@ import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { Badge } from "@/components/ui/badge"
 import { matchesAgency } from "@/lib/permission-utils"
+import { FeedbackDialog } from "@/components/feedback-dialog"
 
 // Define the available views
 export type ViewType = "disconnection" | "reconnection" | "deemed" | "nsc" | "meter" | "admin" | "home" | "analysis" | "agency-updates" | "consumer-master" | "dtr" | "meter-replacement" | "dtr-painting" | "material" | "profile" | "osd" | "spotai" | "safety" | "misc-inspection" | "icds" | "gis-camera" | "permanent-disconnection"
@@ -429,6 +431,25 @@ export function AppSidebar({ activeView, setActiveView, userRole, isMobile = fal
           </Button>
         )
       })}
+
+      {/* Direct Rate App / Feedback Button for all users */}
+      <div className="pt-2 mt-2 border-t border-slate-100">
+        <FeedbackDialog
+          trigger={
+            <Button
+              variant="outline"
+              onClick={() => setOpen(false)}
+              className="w-full justify-start text-left border-amber-300/80 bg-amber-50/80 hover:bg-amber-100 text-amber-900 font-semibold gap-2.5 text-xs rounded-xl shadow-2xs h-10 px-3 cursor-pointer"
+            >
+              <Star className="w-4 h-4 fill-amber-500 text-amber-500 shrink-0" />
+              <div className="flex flex-col items-start leading-tight">
+                <span className="font-bold">Rate App / Feedback</span>
+                <span className="text-[10px] text-amber-700/80 font-normal">Featured on Login Screen</span>
+              </div>
+            </Button>
+          }
+        />
+      </div>
     </div>
   )
 

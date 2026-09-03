@@ -83,22 +83,38 @@ export function FeedbackDialog({
     }
   }, [open])
 
+  const QUICK_CHIPS = [
+    "⚡ Super Fast & Smooth",
+    "📱 Easy on Mobile",
+    "⏳ Saves a Lot of Time",
+    "🎯 Very Helpful in Field",
+    "👍 Best Tool for DC Work",
+    "👌 Simple & User Friendly"
+  ]
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!comment.trim()) {
-      toast({
-        title: "Feedback required",
-        description: "Please write a brief comment before submitting.",
-        variant: "destructive",
-      })
-      return
+    let finalComment = comment.trim()
+    if (!finalComment) {
+      if (rating === 5) {
+        finalComment = "Excellent app! Makes daily field operations very smooth, accurate and fast."
+      } else if (rating === 4) {
+        finalComment = "Very good and reliable app for daily disconnection and field work."
+      } else {
+        toast({
+          title: "Feedback required",
+          description: "Please write a brief note on what we can improve.",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     setIsSubmitting(true)
     try {
       const fullComment = suggestion.trim()
-        ? `${comment.trim()} (Suggestion: ${suggestion.trim()})`
-        : comment.trim()
+        ? `${finalComment} (Suggestion: ${suggestion.trim()})`
+        : finalComment
 
       const res = await fetch("/api/feedback", {
         method: "POST",
@@ -115,7 +131,7 @@ export function FeedbackDialog({
       if (onSuccess) onSuccess()
       toast({
         title: "Feedback Submitted! 🎉",
-        description: "Thank you! Your feedback will now be featured on the login screen.",
+        description: "Thank you! Your feedback is now featured on the station login screen.",
       })
 
       setTimeout(() => {
@@ -149,7 +165,7 @@ export function FeedbackDialog({
           <DialogDescription className="text-slate-400">
             {hasExisting
               ? "You can view or update your submitted rating and review below."
-              : "Your rating and review will be featured on the login screen for your supply office!"}
+              : "Your review will be featured on the login screen for all officers & colleagues to see!"}
           </DialogDescription>
         </DialogHeader>
 
@@ -157,7 +173,7 @@ export function FeedbackDialog({
           <div className="py-8 text-center space-y-3">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto animate-bounce" />
             <h3 className="text-lg font-bold text-white">Thank You!</h3>
-            <p className="text-sm text-slate-300">Your review has been recorded successfully.</p>
+            <p className="text-sm text-slate-300">Your review is now featured on the login screen.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -192,16 +208,74 @@ export function FeedbackDialog({
               </div>
             </div>
 
+            {/* Quick 1-Tap Compliment Chips */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-slate-400 flex items-center justify-between">
+                <span>Quick Feedback (1-Tap)</span>
+                <span className="text-[10px] text-amber-400 font-medium">Tap to auto-fill</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_CHIPS.map((chip) => {
+                  const isSelected = comment.includes(chip)
+                  return (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setComment((prev) =>
+                            prev
+                              .replace(chip, "")
+                              .replace(/,\s*,/g, ",")
+                              .replace(/^,\s*|,\s*$/g, "")
+                              .trim()
+                          )
+                        } else {
+                          setComment((prev) => (prev.trim() ? `${prev.trim()}, ${chip}` : chip))
+                        }
+                      }}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-all cursor-pointer select-none ${
+                        isSelected
+                          ? "bg-amber-500/20 border-amber-400 text-amber-300 font-medium scale-102"
+                          : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-850"
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* Comment Area */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Feedback / Review</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300">Feedback / Review</label>
+                {rating >= 4 && !comment.trim() && (
+                  <span className="text-[10px] text-emerald-400 font-medium">Optional for {rating}★</span>
+                )}
+              </div>
               <Textarea
-                placeholder="What do you like about the app? Any thoughts to share?"
+                placeholder={rating >= 4 ? "Optional: Add your own words or tap a quick feedback chip above..." : "What can we improve for you in the field?"}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[80px] resize-none"
+                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[70px] resize-none"
                 maxLength={300}
               />
+            </div>
+
+            {/* Live Preview on Login Screen */}
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-2.5 text-xs space-y-1">
+              <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                  Live Preview on Station Login Page
+                </span>
+                <span className="text-slate-500 text-[9px] font-normal">Featured for colleagues</span>
+              </div>
+              <p className="text-slate-200 italic font-medium leading-relaxed">
+                &ldquo;{comment.trim() || (rating === 5 ? "Excellent app! Makes daily field operations very smooth, accurate and fast." : rating === 4 ? "Very good and reliable app for daily disconnection and field work." : "Needs improvement in field features.")}&rdquo;
+              </p>
             </div>
 
             {/* Optional Suggestions */}
@@ -214,7 +288,7 @@ export function FeedbackDialog({
                 placeholder="Any feature suggestions or ideas for improvement?"
                 value={suggestion}
                 onChange={(e) => setSuggestion(e.target.value)}
-                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[60px] resize-none"
+                className="bg-slate-900/90 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 min-h-[50px] resize-none"
                 maxLength={200}
               />
             </div>
