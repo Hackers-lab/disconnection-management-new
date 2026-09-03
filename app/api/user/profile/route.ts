@@ -157,32 +157,36 @@ export async function POST(req: NextRequest) {
       UserStorage.getInstance().invalidateCache()
     }
 
-    // 2. Update agencies table (agency vendor code & agency contact mobile)
+    // 2. Update agencies table (Only admin/superuser can update official agency vendor_code / agency mobile!)
     const userRole = (session.role || "").toLowerCase()
-    const username = session.username
-    const rawAgencies = session.agencies || []
-    const agencyCandidates = Array.from(new Set([
-      ...rawAgencies,
-      session.name,
-      username
-    ].filter(Boolean).map(s => String(s).trim())))
+    const isAdmin = userRole === "admin" || userRole === "superuser"
 
-    for (const agName of agencyCandidates) {
-      try {
-        await db.execute({
-          sql: `UPDATE agencies
-                SET vendor_code = COALESCE(?, vendor_code),
-                    mobile_number = COALESCE(?, mobile_number),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
-                  AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
-          args: [cleanVendor || null, cleanAgencyMobile || null, cccCode, agName, agName]
-        })
-      } catch (err) {
-        console.warn("Agency profile candidate update warning:", err)
+    if (isAdmin && (cleanVendor !== null || cleanAgencyMobile !== null)) {
+      const username = session.username
+      const rawAgencies = session.agencies || []
+      const agencyCandidates = Array.from(new Set([
+        ...rawAgencies,
+        session.name,
+        username
+      ].filter(Boolean).map(s => String(s).trim())))
+
+      for (const agName of agencyCandidates) {
+        try {
+          await db.execute({
+            sql: `UPDATE agencies
+                  SET vendor_code = COALESCE(?, vendor_code),
+                      mobile_number = COALESCE(?, mobile_number),
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
+                    AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
+            args: [cleanVendor || null, cleanAgencyMobile || null, cccCode, agName, agName]
+          })
+        } catch (err) {
+          console.warn("Agency profile candidate update warning:", err)
+        }
       }
+      invalidateAgencyCache(cccCode)
     }
-    invalidateAgencyCache(cccCode)
 
     return NextResponse.json({
       success: true,

@@ -37,7 +37,7 @@ const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m =>
 const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
-import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2 } from "lucide-react"
+import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
@@ -122,8 +122,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   }, [])
 
   const startEditProfile = () => {
-    setProfileEditMobile(profileData?.mobileNumber || "")
-    setProfileEditVendor(profileData?.vendorCode || "")
+    setProfileEditMobile(profileData?.userMobile || profileData?.mobileNumber || "")
     setProfileSaveError(null)
     setProfileSaveSuccess(false)
     setIsEditingProfile(true)
@@ -131,15 +130,9 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
   const handleSaveProfileDetails = async () => {
     const cleanMob = profileEditMobile.trim()
-    const cleanVen = profileEditVendor.trim()
 
     if (cleanMob && !/^\d{10}$/.test(cleanMob)) {
-      setProfileSaveError("Mobile number must be exactly 10 digits")
-      return
-    }
-
-    if (cleanVen && !/^\d{6}$/.test(cleanVen)) {
-      setProfileSaveError("SAP Vendor code must be exactly 6 digits")
+      setProfileSaveError("Personal login mobile number must be exactly 10 digits")
       return
     }
 
@@ -152,8 +145,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mobileNumber: cleanMob || null,
-          vendorCode: cleanVen || null,
+          userMobile: cleanMob || null,
         }),
       })
 
@@ -1757,8 +1749,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                   <div className="space-y-4 pt-1">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-purple-600" />
-                        Registered Mobile Number (10 digits)
+                        <Phone className="h-3.5 w-3.5 text-blue-600" />
+                        Personal Login Mobile Number (10 digits)
                       </Label>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 select-none">
@@ -1772,22 +1764,17 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           className="font-mono text-sm bg-white border-slate-300 focus:border-blue-500"
                         />
                       </div>
-                      <p className="text-[11px] text-slate-500">Used for verification, SMS alerts, and supervisor communications.</p>
+                      <p className="text-[11px] text-slate-500">Used for your personal dashboard login, SMS alerts, and OTP verification.</p>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                        <Hash className="h-3.5 w-3.5 text-blue-600" />
-                        SAP Vendor Code (6 digits)
-                      </Label>
-                      <Input
-                        value={profileEditVendor}
-                        onChange={(e) => setProfileEditVendor(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="e.g. 104523"
-                        maxLength={6}
-                        className="font-mono text-sm bg-white border-slate-300 focus:border-blue-500"
-                      />
-                      <p className="text-[11px] text-slate-500">6-digit SAP / ERP vendor identification number.</p>
+                    {/* Locked Station Records Notice */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                      <div className="font-semibold text-slate-700 flex items-center gap-1">
+                        <Lock className="h-3.5 w-3.5 text-slate-400" /> SAP Vendor Code & Agency Phone
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Official contractor phone numbers and 6-digit SAP Vendor Codes are station records managed exclusively by the Station Admin in the CCC Admin Panel.
+                      </p>
                     </div>
 
                     {profileSaveError && (
@@ -1861,16 +1848,16 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       </span>
                     </div>
 
-                    {/* Mobile Number Row */}
+                    {/* Personal Login Mobile Number Row */}
                     <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
                       <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-purple-600" />
-                        Mobile No:
+                        <Phone className="h-3.5 w-3.5 text-blue-600" />
+                        Login Mobile (OTP):
                       </span>
                       <div className="col-span-2 flex items-center justify-between gap-2">
-                        {profileData?.mobileNumber && /^\d{10}$/.test(profileData.mobileNumber) ? (
-                          <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 text-xs">
-                            +91 {profileData.mobileNumber}
+                        {profileData?.userMobile || profileData?.mobileNumber ? (
+                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-xs">
+                            +91 {profileData.userMobile || profileData.mobileNumber}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
@@ -1883,12 +1870,34 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           onClick={startEditProfile}
                           className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
                         >
-                          {profileData?.mobileNumber ? "Change" : "+ Add Mobile"}
+                          {profileData?.userMobile || profileData?.mobileNumber ? "Change" : "+ Add Mobile"}
                         </Button>
                       </div>
                     </div>
 
-                    {/* Vendor Code Row */}
+                    {/* Agency Official Mobile Row (if user belongs to an agency) */}
+                    {(profileData?.hasAgency || profileData?.agencyMobile) && (
+                      <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
+                        <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-purple-600" />
+                          Agency Phone:
+                        </span>
+                        <div className="col-span-2 flex items-center justify-between gap-2">
+                          {profileData?.agencyMobile ? (
+                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 text-xs flex items-center gap-1.5">
+                              +91 {profileData.agencyMobile}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">Not specified in agency master</span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            <Lock className="h-3 w-3" /> Station Record
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Locked SAP Vendor Code Row */}
                     <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
                       <span className="text-slate-500 font-medium flex items-center gap-1.5">
                         <Hash className="h-3.5 w-3.5 text-blue-600" />
@@ -1904,14 +1913,9 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                             <AlertTriangle className="h-3 w-3" /> Not Tagged
                           </span>
                         )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={startEditProfile}
-                          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
-                        >
-                          {profileData?.vendorCode ? "Change" : "+ Add Vendor Code"}
-                        </Button>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          <Lock className="h-3 w-3" /> SAP Contract Code
+                        </span>
                       </div>
                     </div>
                   </div>
