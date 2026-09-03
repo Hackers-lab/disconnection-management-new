@@ -6,6 +6,7 @@ import { UserStorage } from "@/lib/user-storage"
 import { invalidateTenantCache } from "@/lib/tenant-resolver"
 import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
+import { BILLING_START_DATE } from "@/lib/billing-config"
 
 export const dynamic = "force-dynamic"
 
@@ -145,8 +146,14 @@ export async function POST(req: NextRequest) {
     const cccId = Number(insertCccRes.lastInsertRowid)
     const userId = `u_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
 
-    const trialDays = 90
-    const expiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    // Initial 14-day onboarding setup window (full 90-day operational trial starts upon first DC list upload)
+    const setupDays = 14
+    const baseTime = Math.max(Date.now(), BILLING_START_DATE.getTime())
+    const expiresAtDate = new Date(baseTime + setupDays * 24 * 60 * 60 * 1000)
+    const y = expiresAtDate.getFullYear()
+    const m = String(expiresAtDate.getMonth() + 1).padStart(2, "0")
+    const d = String(expiresAtDate.getDate()).padStart(2, "0")
+    const expiresAt = `${y}-${m}-${d}`
 
     // 5. Insert Admin User into users table
     await db.execute({
@@ -163,7 +170,7 @@ export async function POST(req: NextRequest) {
       ]
     })
 
-    console.log(`⚡ [NEW CCC REGISTERED] Station '${cleanCccName}' (${cleanCccCode}) registered successfully with 90-day trial until ${expiresAt} by +91 ${cleanMobile}`)
+    console.log(`⚡ [NEW CCC REGISTERED] Station '${cleanCccName}' (${cleanCccCode}) registered successfully with setup window until ${expiresAt} by +91 ${cleanMobile}`)
 
     // 6. Invalidate server memory caches
     invalidateTenantCache()

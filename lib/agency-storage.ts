@@ -454,7 +454,11 @@ export async function triggerFirstDcUploadTrial(cccCode: string): Promise<string
     }
 
     const trialDays = 90
-    const newExpiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    const expDate = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000)
+    const y = expDate.getFullYear()
+    const m = String(expDate.getMonth() + 1).padStart(2, "0")
+    const d = String(expDate.getDate()).padStart(2, "0")
+    const newExpiresAt = `${y}-${m}-${d}`
 
     // 1. Record first upload timestamp (ensures it only fires once ever)
     await db.execute({
@@ -494,9 +498,9 @@ export async function triggerFirstDcUploadTrial(cccCode: string): Promise<string
  * Inherits the CCC's current expiry date:
  * 1. Checks existing agencies in this CCC (if they have an expiry date, inherits it, e.g. 2026-09-07 for Kushida).
  * 2. Or checks ccc_registry.first_dc_upload_at: if first DC upload happened, trial is upload date + 90 days.
- * 3. Fallback: BILLING_START_DATE (e.g. 2026-09-07).
- * 
- * Never blindly grants Date.now() + 90 days!
+ * 3. If NO DC list uploaded yet (new CCC setup mode): inherits the CCC admin's setup window (14 days)
+ *    so agencies can be configured and tested prior to the first DC list upload.
+ * 4. Fallback: BILLING_START_DATE_STR (e.g. 2026-09-07).
  */
 export async function resolveAgencyDefaultExpiry(cccCode?: string): Promise<string> {
   const fallback = BILLING_START_DATE_STR
@@ -517,19 +521,55 @@ export async function resolveAgencyDefaultExpiry(cccCode?: string): Promise<stri
       return String(agRes.rows[0].subscription_expires_at).trim()
     }
 
-    // 2. Check if CCC has a recorded first DC upload timestamp (90-day trial from upload date)
+    // 2. Check CCC details: first DC upload timestamp, registration date, or admin user expiry
     const cccRes = await db.execute({
-      sql: `SELECT first_dc_upload_at FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
+      sql: `SELECT first_dc_upload_at, created_at FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
       args: [cccCode]
     })
-    if (cccRes.rows && cccRes.rows.length > 0 && cccRes.rows[0].first_dc_upload_at) {
-      const uploadDate = new Date(String(cccRes.rows[0].first_dc_upload_at))
-      if (!isNaN(uploadDate.getTime())) {
-        const exp = new Date(uploadDate.getTime() + 90 * 24 * 60 * 60 * 1000)
-        const y = exp.getFullYear()
-        const m = String(exp.getMonth() + 1).padStart(2, "0")
-        const d = String(exp.getDate()).padStart(2, "0")
-        return `${y}-${m}-${d}`
+    if (cccRes.rows && cccRes.rows.length > 0) {
+      const cccRow: any = cccRes.rows[0]
+
+      // 2a. If first DC list was uploaded, trial is upload date + 90 days
+      if (cccRow.first_dc_upload_at) {
+        const uploadDate = new Date(String(cccRow.first_dc_upload_at))
+        if (!isNaN(uploadDate.getTime())) {
+          const exp = new Date(uploadDate.getTime() + 90 * 24 * 60 * 60 * 1000)
+          const y = exp.getFullYear()
+          const m = String(exp.getMonth() + 1).padStart(2, "0")
+          const d = String(exp.getDate()).padStart(2, "0")
+          return `${y}-${m}-${d}`
+        }
+      }
+
+      // 2b. If NO DC list uploaded yet, inherit the CCC admin user's setup expiry
+      const userRes = await db.execute({
+        sql: `SELECT u.subscription_expires_at 
+              FROM users u 
+              JOIN ccc_registry c ON u.ccc_id = c.id 
+              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin' AND u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at != ''
+              ORDER BY u.created_at ASC 
+              LIMIT 1`,
+        args: [cccCode]
+      })
+      if (userRes.rows && userRes.rows.length > 0 && userRes.rows[0].subscription_expires_at) {
+        const adminExp = String(userRes.rows[0].subscription_expires_at).trim()
+        const expDate = new Date(adminExp)
+        if (!isNaN(expDate.getTime()) && expDate.getTime() > Date.now()) {
+          return adminExp
+        }
+      }
+
+      // 2c. If newly registered CCC without agencies, grant initial 14-day setup window
+      if (cccRow.created_at) {
+        const regDate = new Date(String(cccRow.created_at))
+        if (!isNaN(regDate.getTime())) {
+          const baseTime = Math.max(regDate.getTime(), BILLING_START_DATE.getTime())
+          const setupExp = new Date(baseTime + 14 * 24 * 60 * 60 * 1000)
+          const y = setupExp.getFullYear()
+          const m = String(setupExp.getMonth() + 1).padStart(2, "0")
+          const d = String(setupExp.getDate()).padStart(2, "0")
+          return `${y}-${m}-${d}`
+        }
       }
     }
   } catch (err) {
