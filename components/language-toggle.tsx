@@ -306,58 +306,52 @@ export function LanguageToggle() {
       {/* Invisible container for Google Translate */}
       <div id="google_translate_element" className="hidden" aria-hidden="true" style={{ display: "none" }} />
 
-      {/* Compact Language Toggle Button: "E/বা" */}
-      <button
-        type="button"
+      {/* Option C: Sliding Segmented Capsule Toggle */}
+      <div
         onClick={handleToggleLanguage}
-        className={`notranslate relative inline-flex items-center justify-center gap-1 h-6.5 sm:h-7 px-2 py-0.5 rounded-full border text-[11px] font-bold shadow-2xs transition-all duration-200 active:scale-95 select-none cursor-pointer shrink-0 ${
-          currentLang === "bn"
-            ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-emerald-500/10"
-            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-        } ${isTranslating ? "opacity-75 scale-95" : "opacity-100"}`}
-        title={currentLang === "en" ? "বাংলায় পরিবর্তন করুন (E / বা)" : "Switch to English (E / বা)"}
-        aria-label="Toggle Bengali/English Language"
+        className={`notranslate relative inline-flex items-center h-7 p-0.5 rounded-full bg-slate-100/95 border border-slate-200/90 shadow-2xs cursor-pointer select-none transition-all duration-200 active:scale-95 shrink-0 ${
+          isTranslating ? "opacity-75 scale-95" : "opacity-100"
+        }`}
+        title={currentLang === "en" ? "বাংলায় পরিবর্তন করুন (Switch to Bengali)" : "Switch to English"}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            handleToggleLanguage()
+          }
+        }}
+        aria-label="Toggle language between English and Bengali"
       >
-        {/* Minimal Translation Globe SVG */}
-        <svg
-          className={`w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 ${
-            currentLang === "bn" ? "text-emerald-600" : "text-blue-600"
+        {/* Sliding Active Pill Background */}
+        <span
+          className={`absolute top-0.5 bottom-0.5 w-[24px] rounded-full bg-white shadow-xs transition-transform duration-200 ease-out border border-slate-200/60 ${
+            currentLang === "bn" ? "translate-x-[24px]" : "translate-x-0"
           }`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="2" y1="12" x2="22" y2="12" />
-          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-        </svg>
+        />
 
-        {/* Ultra-compact "E/বা" text */}
-        <span className="inline-flex items-center leading-none tracking-tight">
-          <span
-            className={
-              currentLang === "en"
-                ? "text-blue-700 font-extrabold"
-                : "text-slate-400 font-medium"
-            }
-          >
-            E
-          </span>
-          <span className="text-slate-300 font-light mx-[1px]">/</span>
-          <span
-            className={`font-[family-name:var(--font-bengali)] ${
-              currentLang === "bn"
-                ? "text-emerald-700 font-extrabold"
-                : "text-slate-500 font-medium"
-            }`}
-          >
-            বা
-          </span>
+        {/* English Segment */}
+        <span
+          className={`relative z-10 w-[24px] h-full flex items-center justify-center text-[11px] transition-colors duration-200 ${
+            currentLang === "en"
+              ? "text-blue-700 font-extrabold drop-shadow-2xs"
+              : "text-slate-400 hover:text-slate-600 font-medium"
+          }`}
+        >
+          E
         </span>
-      </button>
+
+        {/* Bengali Segment */}
+        <span
+          className={`relative z-10 w-[24px] h-full flex items-center justify-center text-[11px] font-[family-name:var(--font-bengali)] transition-colors duration-200 ${
+            currentLang === "bn"
+              ? "text-emerald-700 font-extrabold drop-shadow-2xs"
+              : "text-slate-400 hover:text-slate-600 font-medium"
+          }`}
+        >
+          বা
+        </span>
+      </div>
     </>
   )
 }
