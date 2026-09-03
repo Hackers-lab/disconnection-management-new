@@ -65,6 +65,12 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     const spreadsheetId = getSpreadsheetId()
     const result = await uploadMasterData(rows, clearExisting, spreadsheetId)
+
+    const cccCode = session.cccCode || ""
+    if (cccCode && rows.length > 0) {
+      import("@/lib/agency-storage").then(m => m.triggerFirstDcUploadTrial(cccCode)).catch(err => console.warn("triggerFirstDcUploadTrial notice:", err))
+    }
+
     return NextResponse.json({ success: true, count: result.count })
   } catch (e: any) {
     console.error("Consumer master upload error:", e)

@@ -381,7 +381,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
     await compactBaseVersion(tenantId, "consumer").catch(e => console.warn("Base compaction failed:", e))
 
-    // 8. Fire-and-forget history (non-critical, doesn't block response)
+    // 8. Trigger 90-day trial if this is the CCC's very first DC list upload!
+    const cccCode = session.cccCode || tenantContext?.cccCode || ""
+    if (cccCode && uploadRows.length > 0) {
+      import("@/lib/agency-storage").then(m => m.triggerFirstDcUploadTrial(cccCode)).catch(err => console.warn("triggerFirstDcUploadTrial notice:", err))
+    }
+
+    // 9. Fire-and-forget history (non-critical, doesn't block response)
     if (historyEntries.length > 0) {
       appendHistory(historyEntries, spreadsheetId)
         .then(() => invalidateHistoryCache(spreadsheetId))

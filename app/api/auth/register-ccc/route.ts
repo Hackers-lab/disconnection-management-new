@@ -145,21 +145,25 @@ export async function POST(req: NextRequest) {
     const cccId = Number(insertCccRes.lastInsertRowid)
     const userId = `u_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
 
+    const trialDays = 90
+    const expiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+
     // 5. Insert Admin User into users table
     await db.execute({
-      sql: `INSERT INTO users (id, username, password_hash, role, full_name, mobile_number, ccc_id, subscription_status, bypass_subscription)
-            VALUES (?, ?, ?, 'admin', ?, ?, ?, 'active', 1)`,
+      sql: `INSERT INTO users (id, username, password_hash, role, full_name, mobile_number, ccc_id, subscription_status, subscription_expires_at, bypass_subscription)
+            VALUES (?, ?, ?, 'admin', ?, ?, ?, 'active', ?, 1)`,
       args: [
         userId,
         cleanCccCode,
         cleanPassword,
         cleanContactPerson || `${cleanCccName} Admin`,
         cleanMobile,
-        cccId
+        cccId,
+        expiresAt
       ]
     })
 
-    console.log(`⚡ [NEW CCC REGISTERED] Station '${cleanCccName}' (${cleanCccCode}) registered successfully by +91 ${cleanMobile}`)
+    console.log(`⚡ [NEW CCC REGISTERED] Station '${cleanCccName}' (${cleanCccCode}) registered successfully with 90-day trial until ${expiresAt} by +91 ${cleanMobile}`)
 
     // 6. Invalidate server memory caches
     invalidateTenantCache()

@@ -414,6 +414,62 @@ export async function updateAgencySubscription(
 }
 
 /**
+ * Automatically starts the 90-day operational trial when a CCC uploads its FIRST DC list.
+ * Idempotent: If first_dc_upload_at is already recorded, this is a NO-OP so daily/weekly uploads
+ * never reset or extend the trial period.
+ */
+export async function triggerFirstDcUploadTrial(cccCode: string): Promise<string | null> {
+  if (!cccCode) return null
+  try {
+    const cccRes = await db.execute({
+      sql: `SELECT id, first_dc_upload_at FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
+      args: [cccCode]
+    })
+    if (!cccRes.rows || cccRes.rows.length === 0) return null
+    const cccRow: any = cccRes.rows[0]
+
+    // If first upload timestamp already exists, do NOT reset or extend!
+    if (cccRow.first_dc_upload_at) {
+      return null
+    }
+
+    const trialDays = 90
+    const newExpiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+
+    // 1. Record first upload timestamp (ensures it only fires once ever)
+    await db.execute({
+      sql: `UPDATE ccc_registry 
+            SET first_dc_upload_at = CURRENT_TIMESTAMP 
+            WHERE id = ?`,
+      args: [cccRow.id]
+    })
+
+    // 2. Grant 90 days from today to all agencies in this CCC
+    await db.execute({
+      sql: `UPDATE agencies 
+            SET subscription_expires_at = ?, subscription_status = 'active', updated_at = CURRENT_TIMESTAMP 
+            WHERE ccc_id = ?`,
+      args: [newExpiresAt, cccRow.id]
+    })
+
+    // 3. Grant 90 days from today to all users in this CCC
+    await db.execute({
+      sql: `UPDATE users 
+            SET subscription_expires_at = ?, subscription_status = 'active' 
+            WHERE ccc_id = ?`,
+      args: [newExpiresAt, cccRow.id]
+    })
+
+    invalidateAgencyCache(cccCode)
+    console.log(`🎉 [FIRST DC LIST UPLOAD] Activated 90-day operational trial for CCC ${cccCode} until ${newExpiresAt}`)
+    return newExpiresAt
+  } catch (err) {
+    console.warn("triggerFirstDcUploadTrial error:", err)
+    return null
+  }
+}
+
+/**
  * Checks if a specific agency has an active subscription in the given CCC.
  * The agencies table is the single source of truth for subscriptions.
  */

@@ -36,7 +36,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
 
-    const trialExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    const trialExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
     await addAgency({ 
       name: name.toUpperCase(), 
