@@ -1932,8 +1932,6 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                     {(() => {
                       const roleLower = role.toLowerCase()
                       const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || bypassSubscription
-                      const billingStartDate = new Date("2026-09-07T00:00:00")
-                      const isTrial = Date.now() < billingStartDate.getTime()
 
                       if (isExempt) {
                         return (
@@ -1944,33 +1942,66 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                             <p className="text-xs text-slate-500 leading-relaxed">Your role or user account has been exempted from billing.</p>
                           </div>
                         )
-                      } else if (isTrial) {
-                        return (
-                          <div className="space-y-2">
-                            <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 animate-pulse">
-                              Trial Period Active
-                            </span>
-                            <p className="text-xs text-slate-500 leading-relaxed">Billing starts on <strong>16-09-2026</strong>. You have unrestricted trial access until then.</p>
-                          </div>
-                        )
-                      } else if (isSubscribed) {
+                      }
+
+                      const rawExp = subscriptionExpiresAt || profileData?.subscriptionExpiresAt
+                      if (rawExp) {
+                        const expDate = new Date(rawExp)
+                        const isExpired = expDate.getTime() < Date.now()
+                        const expFormatted = isNaN(expDate.getTime()) ? rawExp : expDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
+                        const isPaid = profileData?.subscriptionStatus === "paid"
+
+                        if (isExpired) {
+                          return (
+                            <div className="space-y-2">
+                              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-red-50 text-red-700 border border-red-100">
+                                Subscription Expired
+                              </span>
+                              <p className="text-xs text-slate-500 leading-relaxed">
+                                Access expired on <strong>{expFormatted}</strong>. Please subscribe below to restore full access.
+                              </p>
+                            </div>
+                          )
+                        } else if (isPaid) {
+                          return (
+                            <div className="space-y-2">
+                              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                Paid Active
+                              </span>
+                              <p className="text-xs text-slate-500 leading-relaxed">
+                                Paid subscription valid until <strong>{expFormatted}</strong>.
+                              </p>
+                            </div>
+                          )
+                        } else {
+                          return (
+                            <div className="space-y-2">
+                              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 animate-pulse">
+                                Free Trial Active
+                              </span>
+                              <p className="text-xs text-slate-500 leading-relaxed">
+                                Free trial valid until <strong>{expFormatted}</strong>. Billing starts after this date.
+                              </p>
+                            </div>
+                          )
+                        }
+                      }
+
+                      if (isSubscribed) {
                         return (
                           <div className="space-y-2">
                             <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-100">
                               Active Subscription
                             </span>
-                            <p className="text-xs text-slate-500 leading-relaxed">
-                              Expires on: <strong>{subscriptionExpiresAt}</strong>
-                            </p>
                           </div>
                         )
                       } else {
                         return (
                           <div className="space-y-2">
                             <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-red-50 text-red-700 border border-red-100">
-                              Subscription Expired
+                              Subscription Inactive
                             </span>
-                            <p className="text-xs text-slate-500 leading-relaxed">Your subscription is inactive. Please subscribe below to restore full access.</p>
+                            <p className="text-xs text-slate-500 leading-relaxed">Please subscribe below to activate agency access.</p>
                           </div>
                         )
                       }

@@ -2282,8 +2282,6 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   {(() => {
                     const roleLower = (profileData.role || "").toLowerCase()
                     const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || profileData.bypassSubscription
-                    const billingStartDate = new Date("2026-09-07T00:00:00")
-                    const isTrial = Date.now() < billingStartDate.getTime()
 
                     if (isExempt) {
                       return (
@@ -2291,24 +2289,46 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                           Free Pass / Bypassed
                         </span>
                       )
-                    } else if (isTrial) {
-                      return (
-                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse">
-                          Under Trial (Starts 16-09-2026)
-                        </span>
-                      )
+                    } else if (profileData.subscriptionExpiresAt) {
+                      const expDate = new Date(profileData.subscriptionExpiresAt)
+                      const isExpired = expDate.getTime() < Date.now()
+                      const expFormatted = isNaN(expDate.getTime()) ? profileData.subscriptionExpiresAt : expDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
+                      const isPaid = profileData.subscriptionStatus === "paid"
+
+                      if (isExpired) {
+                        return (
+                          <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                            Expired ({expFormatted})
+                          </span>
+                        )
+                      } else if (isPaid) {
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Paid Active
+                            </span>
+                            <span className="text-[10px] text-emerald-400/80 font-medium">
+                              Valid till {expFormatted}
+                            </span>
+                          </div>
+                        )
+                      } else {
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse">
+                              Free Trial
+                            </span>
+                            <span className="text-[10px] text-indigo-400/80 font-medium">
+                              Valid till {expFormatted}
+                            </span>
+                          </div>
+                        )
+                      }
                     } else if (profileData.subscriptionStatus === "active") {
                       return (
-                        <div className="flex flex-col gap-1">
-                          <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            Active
-                          </span>
-                          {profileData.subscriptionExpiresAt && (
-                            <span className="text-[10px] text-slate-400 font-semibold">
-                              Expires: {profileData.subscriptionExpiresAt}
-                            </span>
-                          )}
-                        </div>
+                        <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          Active
+                        </span>
                       )
                     } else {
                       return (
