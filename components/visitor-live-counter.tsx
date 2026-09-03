@@ -17,8 +17,8 @@ export function VisitorLiveCounter({ className = "", activeModule, action, showU
 
   const sendPresencePing = useCallback(async (isNewVisit = false) => {
     const now = Date.now()
-    // Avoid spamming faster than 15s unless it is a new visit
-    if (!isNewVisit && now - lastPingRef.current < 15_000) return
+    // Avoid spamming faster than 60s unless it is a brand new session visit
+    if (!isNewVisit && now - lastPingRef.current < 60_000) return
     lastPingRef.current = now
 
     if (!cidRef.current) {
@@ -71,16 +71,18 @@ export function VisitorLiveCounter({ className = "", activeModule, action, showU
     // Fire initial presence ping
     sendPresencePing(isNewVisit)
 
-    // 2. Periodic heartbeat every 60 seconds while tab is active
+    // 2. Gentle periodic heartbeat every 4 minutes while tab is active
+    // With 10-minute server presence window, 4 minutes ensures continuous live status
+    // while reducing Vercel invocations by 75-80%!
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
         sendPresencePing(false)
       }
-    }, 60_000)
+    }, 240_000)
 
-    // 3. Immediately heartbeat when user switches back to tab
+    // 3. Heartbeat when user switches back to tab (debounced to at most once per 2 minutes)
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && Date.now() - lastPingRef.current > 120_000) {
         sendPresencePing(false)
       }
     }

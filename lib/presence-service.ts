@@ -50,13 +50,13 @@ export interface OnlineUsersReport {
 
 // In-Memory Fast Cache for instantaneous UI reads
 const inMemoryPresence = new Map<string, ActiveUserInfo>()
-const PRESENCE_TIMEOUT_MS = 300_000 // 5 minutes
-const LIVE_WINDOW_MS = 300_000 // 5 minutes window for live badge
+const PRESENCE_TIMEOUT_MS = 600_000 // 10 minutes
+const LIVE_WINDOW_MS = 600_000 // 10 minutes window for live badge
 const userLastTursoSync = new Map<string, { lastSync: number; action: string }>()
 
-// Server memory micro-cache for aggregate report
+// Server memory micro-cache for aggregate report (prevents Turso row read spikes)
 let cachedOnlineReport: { report: OnlineUsersReport; timestamp: number } | null = null
-const REPORT_CACHE_TTL_MS = 15_000 // 15 seconds
+const REPORT_CACHE_TTL_MS = 60_000 // 60 seconds
 
 let tursoClient: Client | null = null
 let presenceTableInitialized = false
@@ -150,10 +150,10 @@ export async function trackUserPresence(
 
   inMemoryPresence.set(user.userId, record)
 
-  // Throttle Turso SQL writes to at most once every 45s per user unless action changed
+  // Throttle Turso SQL writes to at most once every 3 minutes per user unless action changed
   const lastSync = userLastTursoSync.get(user.userId)
   const currentAction = record.lastAction || "Active"
-  if (lastSync && now - lastSync.lastSync < 45_000 && lastSync.action === currentAction) {
+  if (lastSync && now - lastSync.lastSync < 180_000 && lastSync.action === currentAction) {
     return
   }
 

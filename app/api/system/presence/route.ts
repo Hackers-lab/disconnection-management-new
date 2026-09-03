@@ -8,12 +8,12 @@ export const maxDuration = 10
 
 // In-memory cache for ultra-fast, non-blocking response (sub-5ms)
 const localPresenceMap = new Map<string, number>()
-const PRESENCE_TIMEOUT_MS = 120_000 // 2 minutes window for live users
+const PRESENCE_TIMEOUT_MS = 600_000 // 10 minutes window for live users
 
 const BASELINE_VISITORS = 22115
 let memoryVisitorCounter = BASELINE_VISITORS
 let lastSyncedTime = 0
-const SYNC_INTERVAL_MS = 10_000 // Sync from central store every 10 seconds
+const SYNC_INTERVAL_MS = 300_000 // Sync from central KV at most once every 5 minutes (eliminates Turso row read burns)
 
 function cleanClientId(id: string): string {
   return String(id || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64)
