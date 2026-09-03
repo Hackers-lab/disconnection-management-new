@@ -4,7 +4,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { auth } from "@/lib/google-drive"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
-import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
+import { checkApiPermission, isAgencyScopeRestricted, assertAgencySubscribedForUpdate } from "@/lib/permissions"
 import { appendDeltaPatch, updateBadgeCounts } from "@/lib/version-engine"
 
 export const POST = withTenant(async function POST(request: NextRequest) {
@@ -34,6 +34,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         { success: false, error: "Forbidden: Record is outside your assigned agency scope" },
         { status: 403 }
       )
+    }
+
+    // Agency subscription check: updates are disabled if the assigned agency is unsubscribed/expired
+    const targetAgency = body.agency || existing?.agency
+    const subCheck = await assertAgencySubscribedForUpdate(session, targetAgency)
+    if (!subCheck.allowed) {
+      return NextResponse.json({ success: false, error: subCheck.error }, { status: 403 })
     }
 
     const sheets = googleSheets({ version: "v4", auth })

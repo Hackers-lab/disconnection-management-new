@@ -127,26 +127,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     baseDate.setDate(baseDate.getDate() + plan.days)
     const expiresAt = baseDate.toISOString().split("T")[0]
 
-    // Step 5: Update database records
-    // Update agency record in agencies table (Single Source of Truth)
-    if (cccCode && agencyName) {
-      try {
-        await db.execute({
-          sql: `UPDATE agencies
-                SET subscription_status = 'active',
-                    subscription_expires_at = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
-                  AND (name = ? COLLATE NOCASE OR name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
-          args: [expiresAt, cccCode, agencyName, session.username, agencyName]
-        })
-        invalidateAgencyCache(cccCode)
-      } catch (agUpErr) {
-        console.error("[Agency Subscription Update Error]:", agUpErr)
-      }
-    }
-
-    // Step 6: Record payment transaction for immutable audit trail
+    // Step 5: Record payment transaction FIRST — this acts as the duplicate guard.
+    // The UNIQUE constraint on razorpay_payment_id ensures the same payment
+    // cannot extend a subscription twice (replay protection).
     try {
       await db.execute({
         sql: `INSERT INTO payment_transactions (id, user_id, ccc_code, agency_name, vendor_code, razorpay_order_id, razorpay_payment_id, amount, currency, plan_id, plan_name, days_granted, subscription_expires_at)
@@ -166,8 +149,40 @@ export const POST = withTenant(async function POST(request: NextRequest) {
           expiresAt,
         ],
       })
-    } catch (txErr) {
-      console.error("[Payment Audit] Failed to record transaction:", txErr)
+    } catch (txErr: any) {
+      // If this fails due to UNIQUE constraint on razorpay_payment_id, the payment was already processed
+      const errMsg = String(txErr?.message || "").toLowerCase()
+      if (errMsg.includes("unique") || errMsg.includes("duplicate") || errMsg.includes("constraint")) {
+        console.warn(`⚠️ [Razorpay Replay Blocked] Payment ${razorpay_payment_id} already processed for user ${session.username}`)
+        return NextResponse.json(
+          { error: "This payment has already been processed", verified: true },
+          { status: 409 }
+        )
+      }
+      // For non-duplicate errors, log but do NOT proceed with subscription activation
+      console.error("[Payment Audit] Failed to record transaction — blocking activation:", txErr)
+      return NextResponse.json(
+        { error: "Failed to record payment transaction. Please contact support." },
+        { status: 500 }
+      )
+    }
+
+    // Step 6: Update agency subscription (only reached if payment record was successfully created)
+    if (cccCode && agencyName) {
+      try {
+        await db.execute({
+          sql: `UPDATE agencies
+                SET subscription_status = 'active',
+                    subscription_expires_at = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
+                  AND (name = ? COLLATE NOCASE OR name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
+          args: [expiresAt, cccCode, agencyName, session.username, agencyName]
+        })
+        invalidateAgencyCache(cccCode)
+      } catch (agUpErr) {
+        console.error("[Agency Subscription Update Error]:", agUpErr)
+      }
     }
 
     // Step 7: Refresh the JWT session cookie with updated subscription data

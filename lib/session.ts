@@ -1,7 +1,11 @@
 import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
+import { isBillingActive } from "./billing-config"
 
-const secretKey = process.env.SESSION_SECRET || "pramod"
+const secretKey = process.env.SESSION_SECRET
+if (!secretKey) {
+  throw new Error("FATAL: SESSION_SECRET environment variable is required. Cannot start without a secure signing key.")
+}
 const encodedKey = new TextEncoder().encode(secretKey)
 
 export interface SessionPayload {
@@ -117,14 +121,13 @@ export async function verifySession() {
 
   let isSubscribed = true
   const roleLower = (session.role || "").toLowerCase()
-  const billingStartDate = new Date("2026-09-07T00:00:00")
   
   const isExempt =
     roleLower === "admin" ||
     roleLower === "superuser" ||
     roleLower === "monitor" ||
     session.bypassSubscription ||
-    Date.now() < billingStartDate.getTime()
+    !isBillingActive()
 
   let subscriptionExpiresAt = session.subscriptionExpiresAt || ""
   let subscriptionStatus = session.subscriptionStatus || "active"

@@ -2,6 +2,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 import { getTenantContext } from "./tenant-context"
 import { db } from "./db"
+import { isBillingActive } from "./billing-config"
 
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const AGENCY_SHEET_NAME = "Agencies"
@@ -472,23 +473,27 @@ export async function triggerFirstDcUploadTrial(cccCode: string): Promise<string
 /**
  * Checks if a specific agency has an active subscription in the given CCC.
  * The agencies table is the single source of truth for subscriptions.
+ *
+ * SECURITY: Fails CLOSED — on any error or unknown agency, access is denied.
+ * The only fail-open path is the pre-billing trial period.
  */
 export async function isAgencySubscribed(
   cccCode: string,
   agencyNameOrVendor: string
 ): Promise<{ subscribed: boolean; reason?: string; expiresAt?: string; agencyName?: string }> {
-  const billingStartDate = new Date("2026-09-07T00:00:00")
-  if (Date.now() < billingStartDate.getTime()) {
+  // Pre-billing trial period: everyone is subscribed
+  if (!isBillingActive()) {
     return { subscribed: true, reason: "trial" }
   }
 
   const cleanName = String(agencyNameOrVendor || "").trim()
   if (!cleanName) {
-    return { subscribed: true }
+    // No agency name provided — fail closed
+    return { subscribed: false, reason: "no_agency" }
   }
 
   try {
-    const agencies = await getAgencies(cccCode)
+    const agencies = await getAgencies()
     const matched = agencies.find(
       (a) =>
         a.name.toUpperCase() === cleanName.toUpperCase() ||
@@ -496,7 +501,8 @@ export async function isAgencySubscribed(
     )
 
     if (!matched) {
-      return { subscribed: true }
+      // Agency not found in database — fail closed
+      return { subscribed: false, reason: "not_found" }
     }
 
     if (!matched.isActive) {
@@ -535,7 +541,8 @@ export async function isAgencySubscribed(
       expiresAt: matched.subscriptionExpiresAt,
     }
   } catch (err) {
-    console.warn("isAgencySubscribed check warning:", err)
-    return { subscribed: true }
+    // SECURITY: Fail CLOSED on any DB error — do NOT grant access
+    console.error("isAgencySubscribed check FAILED (denying access):", err)
+    return { subscribed: false, reason: "lookup_error" }
   }
 }
