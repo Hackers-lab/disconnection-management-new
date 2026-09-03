@@ -126,72 +126,7 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       mobileNumber: mobileNumber || undefined
     })
 
-    // Also update the linked user in users table if mobile or vendor code changes!
-    const newCleanMobile = mobileNumber ? mobileNumber.replace(/\D/g, '').slice(-10) : ""
-    const newVendorCode = vendorCode ? vendorCode.trim() : ""
-    const newAgencyName = name ? name.toUpperCase().trim() : ""
-
-    if (linkedUser) {
-      const userUpdates: Partial<Omit<MasterUser, "id">> = {}
-      if (newCleanMobile && linkedUser.username !== newCleanMobile) {
-        const existingWithNewMobile = await userStorage.getUserByUsername(newCleanMobile)
-        if (!existingWithNewMobile || existingWithNewMobile.id === linkedUser.id) {
-          userUpdates.username = newCleanMobile
-          userUpdates.mobileNumber = newCleanMobile
-        }
-      }
-      if (newVendorCode && (isOnTempCredentials || !linkedUser.password)) {
-        userUpdates.password = newVendorCode
-      }
-      if (newAgencyName && linkedUser.name !== newAgencyName) {
-        userUpdates.name = newAgencyName
-        userUpdates.agencies = [newAgencyName]
-      }
-      if (Object.keys(userUpdates).length > 0) {
-        await userStorage.updateUser(linkedUser.id, userUpdates)
-        console.log(`👤 [AUTO-PROVISION] Updated linked agency user for: ${newAgencyName || linkedUser.name}`)
-      }
-    } else if (newCleanMobile && newVendorCode) {
-      // Check for mobile number conflicts before auto-provisioning
-      const existingUser = await userStorage.getUserByUsername(newCleanMobile)
-      let mobileConflict = false
-      if (!existingUser) {
-        try {
-          const mobileCheck = await db.execute({
-            sql: `SELECT u.id FROM users u WHERE u.mobile_number = ? LIMIT 1`,
-            args: [newCleanMobile]
-          })
-          if (mobileCheck.rows && mobileCheck.rows.length > 0) mobileConflict = true
-        } catch {}
-        if (!mobileConflict) {
-          try {
-            const cccCheck = await db.execute({
-              sql: `SELECT c.id FROM ccc_registry c WHERE c.mobile_number = ? LIMIT 1`,
-              args: [newCleanMobile]
-            })
-            if (cccCheck.rows && cccCheck.rows.length > 0) mobileConflict = true
-          } catch {}
-        }
-      }
-      if (!existingUser && !mobileConflict) {
-        const trialExpiresAt = existingAgency.subscriptionExpiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-        await userStorage.addUser({
-          username: newCleanMobile,
-          password: newVendorCode,
-          name: newAgencyName || existingAgency.name.toUpperCase().trim(),
-          role: "agency",
-          cccCode: session.cccCode || "",
-          mobileNumber: newCleanMobile,
-          agencies: [newAgencyName || existingAgency.name.toUpperCase().trim()],
-          subscriptionStatus: existingAgency.subscriptionStatus || "active",
-          subscriptionExpiresAt: trialExpiresAt,
-          bypassSubscription: false,
-        })
-        console.log(`👤 [AUTO-PROVISION] Created missing agency user on update: ${newCleanMobile}`)
-      } else {
-        console.log(`⚠️ [AUTO-PROVISION SKIPPED] Mobile ${newCleanMobile} already in use — skipping user creation on update`)
-      }
-    }
+    console.log(`🏢 [AGENCY UPDATED] ${name.toUpperCase()} (Vendor Code: ${vendorCode || "N/A"}) in CCC ${session.cccCode}`)
 
     const tenantId = request.headers.get("x-tenant-id") || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
