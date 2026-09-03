@@ -322,11 +322,9 @@ export class UserStorage {
                      u.ccc_id as cccId
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              LEFT JOIN agencies a ON (u.ccc_id = a.ccc_id AND (a.name = u.name OR a.mobile_number = u.mobile_number OR instr(u.agencies, a.name) > 0))
               WHERE u.username = ? COLLATE NOCASE
                  OR u.mobile_number = ?
                  OR u.mobile_number = ?
-                 OR (a.vendor_code = ? AND u.role = 'agency')
               UNION ALL
               SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
@@ -337,7 +335,7 @@ export class UserStorage {
               WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ? OR c.mobile_number = ?)
                 AND u.role = 'admin'
                 AND u.username != ? COLLATE NOCASE`,
-        args: [rawInput, rawInput, normalizedMobile, rawInput, rawInput, rawInput, normalizedMobile, rawInput]
+        args: [rawInput, rawInput, normalizedMobile, rawInput, rawInput, normalizedMobile, rawInput]
       })
       const qDuration = (performance.now() - qStart).toFixed(1)
 
