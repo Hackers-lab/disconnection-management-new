@@ -1120,14 +1120,31 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       })
 
       if (response.ok) {
+        const result = await response.json()
         const addedName = newAgency.name.toUpperCase().trim()
         const addedMobile = newAgency.mobileNumber.trim()
+        const createdAgency: Agency = result.agency || {
+          id: String(Date.now()),
+          name: addedName,
+          description: newAgency.description || "",
+          isActive: newAgency.isActive,
+          vendorCode: newAgency.vendorCode ? newAgency.vendorCode.trim() : undefined,
+          mobileNumber: addedMobile || undefined,
+        }
+
+        // Immediately update local agencies state so it is instantly available across all views
+        setAgencies((prev) => {
+          const filtered = prev.filter((a) => a.name.toUpperCase().trim() !== addedName)
+          return [...filtered, createdAgency]
+        })
+
         setNewAgency({ name: "", description: "", vendorCode: "", mobileNumber: "", isActive: true })
         setShowAddAgency(false)
-        const agenciesResponse = await fetch("/api/admin/agencies")
-        setAgencies(await agenciesResponse.json())
-        const usersResponse = await fetch("/api/admin/users")
-        setUsers(await usersResponse.json())
+
+        // Background sync to ensure full parity with server
+        fetch("/api/admin/agencies").then((r) => r.ok && r.json()).then((data) => { if (data) setAgencies(data) }).catch(() => {})
+        fetch("/api/admin/users").then((r) => r.ok && r.json()).then((data) => { if (data) setUsers(data) }).catch(() => {})
+
         setAgencyCreatedPrompt({ name: addedName, mobileNumber: addedMobile })
         setMessage({ type: "success", text: `Agency '${addedName}' added successfully!` })
       } else {
@@ -1705,33 +1722,60 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   <Label>Assigned Agencies</Label>
                   <span className="text-[11px] text-muted-foreground">Bound to agency work scope & subscription</span>
                 </div>
-                {activeAgencies.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {activeAgencies.map((agency) => (
-                      <div key={agency.id} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`new-${agency.id}`}
-                          checked={newUser.agencies.includes(agency.name)}
-                          onChange={() =>
-                            setNewUser({
-                              ...newUser,
-                              agencies: newUser.agencies.includes(agency.name)
-                                ? newUser.agencies.filter(a => a !== agency.name)
-                                : [...newUser.agencies, agency.name],
-                            })
-                          }
-                          className="rounded"
-                        />
-                        <label htmlFor={`new-${agency.id}`} className="text-sm">
-                          {agency.name}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No active agencies available</p>
-                )}
+                {(() => {
+                  // Ensure any agency selected in newUser.agencies is present in the list even if background re-fetch is in flight
+                  const displayAgencies = [...activeAgencies]
+                  newUser.agencies.forEach((selectedName) => {
+                    if (
+                      selectedName &&
+                      !displayAgencies.some((a) => a.name.trim().toUpperCase() === selectedName.trim().toUpperCase())
+                    ) {
+                      displayAgencies.push({
+                        id: `auto-${selectedName}`,
+                        name: selectedName,
+                        isActive: true,
+                        description: "",
+                      } as Agency)
+                    }
+                  })
+
+                  if (displayAgencies.length === 0) {
+                    return <p className="text-sm text-gray-500">No active agencies available</p>
+                  }
+
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {displayAgencies.map((agency) => {
+                        const isChecked = newUser.agencies.some(
+                          (a) => a.trim().toUpperCase() === agency.name.trim().toUpperCase()
+                        )
+                        return (
+                          <div key={agency.id} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={`new-${agency.id}`}
+                              checked={isChecked}
+                              onChange={() =>
+                                setNewUser({
+                                  ...newUser,
+                                  agencies: isChecked
+                                    ? newUser.agencies.filter(
+                                        (a) => a.trim().toUpperCase() !== agency.name.trim().toUpperCase()
+                                      )
+                                    : [...newUser.agencies, agency.name],
+                                })
+                              }
+                              className="rounded"
+                            />
+                            <label htmlFor={`new-${agency.id}`} className="text-sm">
+                              {agency.name}
+                            </label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
             )}
 
@@ -2032,14 +2076,16 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   size="sm"
                   onClick={() => {
                     const targetAgency = agencyCreatedPrompt.name
+                    const targetMobile = agencyCreatedPrompt.mobileNumber || ""
                     setAgencyCreatedPrompt(null)
                     setView("users")
                     setShowAddUser(true)
                     setNewUser({
-                      username: "",
+                      username: targetMobile || targetAgency.toLowerCase().replace(/[^a-z0-9]/g, ''),
                       password: "",
                       role: "agency",
                       agencies: [targetAgency],
+                      mobileNumber: targetMobile,
                     })
                   }}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer"

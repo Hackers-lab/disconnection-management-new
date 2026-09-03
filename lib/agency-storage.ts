@@ -2,7 +2,7 @@ import { sheets as googleSheets } from "@googleapis/sheets"
 import { GoogleAuth } from "google-auth-library"
 import { getTenantContext } from "./tenant-context"
 import { db } from "./db"
-import { isBillingActive } from "./billing-config"
+import { isBillingActive, BILLING_START_DATE, BILLING_START_DATE_STR } from "./billing-config"
 
 const SHEET_ID = process.env.MASTER_CONFIG_SHEET!
 const AGENCY_SHEET_NAME = "Agencies"
@@ -16,6 +16,12 @@ export function invalidateAgencyCache(cccCode?: string) {
   if (cccCode) {
     delete agenciesCache[cccCode]
     delete agenciesCacheTimestamp[cccCode]
+    delete agenciesCache[cccCode.toLowerCase()]
+    delete agenciesCacheTimestamp[cccCode.toLowerCase()]
+    delete agenciesCache[cccCode.toUpperCase()]
+    delete agenciesCacheTimestamp[cccCode.toUpperCase()]
+    delete agenciesCache["SYSTEM"]
+    delete agenciesCacheTimestamp["SYSTEM"]
   } else {
     agenciesCache = {}
     agenciesCacheTimestamp = {}
@@ -220,12 +226,15 @@ export async function addAgency({
   const cccCode = context?.cccCode || "SYSTEM"
   let newId = String(Date.now())
 
+  // If subscriptionExpiresAt was not explicitly passed, inherit tenant expiry
+  const finalExpiresAt = subscriptionExpiresAt || (await resolveAgencyDefaultExpiry(cccCode))
+
   // 1. Insert into Turso DB
   try {
     let cccId: number | null = null
     if (cccCode && cccCode !== "SYSTEM") {
       const cccRes = await db.execute({
-        sql: "SELECT id FROM ccc_registry WHERE ccc_code = ? LIMIT 1",
+        sql: "SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1",
         args: [cccCode]
       })
       cccId = (cccRes.rows[0]?.id as number) || null
@@ -242,7 +251,7 @@ export async function addAgency({
           description || "",
           mobileNumber || null,
           isActive ? 1 : 0,
-          subscriptionExpiresAt || null
+          finalExpiresAt || null
         ]
       })
       newId = String(insertRes.lastInsertRowid || newId)
@@ -266,7 +275,17 @@ export async function addAgency({
   } catch (e) {}
   
   invalidateAgencyCache(cccCode)
-  return { id: newId, name, description, isActive, vendorCode, mobileNumber, subscriptionStatus: "active", subscriptionExpiresAt }
+  return { 
+    id: newId, 
+    name: name.toUpperCase().trim(), 
+    description: description || "", 
+    isActive, 
+    vendorCode: vendorCode || undefined, 
+    mobileNumber: mobileNumber || undefined, 
+    subscriptionStatus: "active", 
+    subscriptionExpiresAt: finalExpiresAt,
+    cccCode 
+  }
 }
 
 export async function updateAgency({ 
@@ -468,6 +487,56 @@ export async function triggerFirstDcUploadTrial(cccCode: string): Promise<string
     console.warn("triggerFirstDcUploadTrial error:", err)
     return null
   }
+}
+
+/**
+ * Resolves the initial subscription expiry date for a newly added agency in a given CCC.
+ * Inherits the CCC's current expiry date:
+ * 1. Checks existing agencies in this CCC (if they have an expiry date, inherits it, e.g. 2026-09-07 for Kushida).
+ * 2. Or checks ccc_registry.first_dc_upload_at: if first DC upload happened, trial is upload date + 90 days.
+ * 3. Fallback: BILLING_START_DATE (e.g. 2026-09-07).
+ * 
+ * Never blindly grants Date.now() + 90 days!
+ */
+export async function resolveAgencyDefaultExpiry(cccCode?: string): Promise<string> {
+  const fallback = BILLING_START_DATE_STR
+  if (!cccCode || cccCode === "SYSTEM") return fallback
+
+  try {
+    // 1. Look for existing agencies in this CCC to inherit their expiry date
+    const agRes = await db.execute({
+      sql: `SELECT a.subscription_expires_at 
+            FROM agencies a
+            JOIN ccc_registry c ON a.ccc_id = c.id
+            WHERE c.ccc_code = ? COLLATE NOCASE AND a.subscription_expires_at IS NOT NULL AND a.subscription_expires_at != ''
+            ORDER BY a.id ASC
+            LIMIT 1`,
+      args: [cccCode]
+    })
+    if (agRes.rows && agRes.rows.length > 0 && agRes.rows[0].subscription_expires_at) {
+      return String(agRes.rows[0].subscription_expires_at).trim()
+    }
+
+    // 2. Check if CCC has a recorded first DC upload timestamp (90-day trial from upload date)
+    const cccRes = await db.execute({
+      sql: `SELECT first_dc_upload_at FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
+      args: [cccCode]
+    })
+    if (cccRes.rows && cccRes.rows.length > 0 && cccRes.rows[0].first_dc_upload_at) {
+      const uploadDate = new Date(String(cccRes.rows[0].first_dc_upload_at))
+      if (!isNaN(uploadDate.getTime())) {
+        const exp = new Date(uploadDate.getTime() + 90 * 24 * 60 * 60 * 1000)
+        const y = exp.getFullYear()
+        const m = String(exp.getMonth() + 1).padStart(2, "0")
+        const d = String(exp.getDate()).padStart(2, "0")
+        return `${y}-${m}-${d}`
+      }
+    }
+  } catch (err) {
+    console.warn("resolveAgencyDefaultExpiry notice:", err)
+  }
+
+  return fallback
 }
 
 /**

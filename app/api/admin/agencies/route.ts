@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
-import { getAgencies, addAgency, updateAgency, deleteAgency } from "@/lib/agency-storage"
+import { getAgencies, addAgency, updateAgency, deleteAgency, resolveAgencyDefaultExpiry } from "@/lib/agency-storage"
 import { userStorage, type MasterUser } from "@/lib/user-storage"
 import { withTenant } from "@/lib/tenant-context"
 import { incrKV, getTenantKey } from "@/lib/kv-store"
@@ -36,10 +36,12 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
 
-    const trialExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    // Inherit the CCC's current expiry date rather than blindly adding 90 days from today
+    const cccCode = session.cccCode || "SYSTEM"
+    const trialExpiresAt = await resolveAgencyDefaultExpiry(cccCode)
 
-    await addAgency({ 
-      name: name.toUpperCase(), 
+    const createdAgency = await addAgency({ 
+      name: name.toUpperCase().trim(), 
       description: description || "", 
       isActive: isActive !== false,
       vendorCode: vendorCode || undefined,
@@ -47,18 +49,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       subscriptionExpiresAt: trialExpiresAt
     })
 
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantId = request.headers.get("x-tenant-id") || cccCode || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
 
     return NextResponse.json({
       success: true,
       message: "Agency added successfully",
-      agency: {
-        name: name.toUpperCase().trim(),
-        vendorCode: vendorCode ? vendorCode.trim() : undefined,
-        mobileNumber: mobileNumber ? mobileNumber.trim() : undefined,
-        expiresAt: trialExpiresAt
-      }
+      agency: createdAgency
     })
   } catch (error) {
     console.error("Error adding agency:", error)
