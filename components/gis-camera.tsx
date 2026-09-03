@@ -44,6 +44,7 @@ import {
   WatermarkDesignType
 } from "@/lib/gis-watermark"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
+import { GisPhotoViewer } from "@/components/gis-photo-viewer"
 
 interface GisCameraProps {
   userRole?: string
@@ -100,7 +101,7 @@ export function GisCamera({
   // Gallery states
   const [photos, setPhotos] = useState<GisPhotoRecord[]>([])
   const [galleryLoading, setGalleryLoading] = useState(false)
-  const [selectedPhoto, setSelectedPhoto] = useState<GisPhotoRecord | null>(null)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [galleryFilter, setGalleryFilter] = useState<"all" | "mine" | "cloud" | "local">("all")
   const [lastSavedPhoto, setLastSavedPhoto] = useState<GisPhotoRecord | null>(null)
@@ -491,7 +492,6 @@ export function GisCamera({
       // 2. Delete from local IndexedDB
       const updated = await deleteGisPhoto(photo.id)
       setPhotos(prev => prev.filter(p => p.id !== photo.id))
-      if (selectedPhoto?.id === photo.id) setSelectedPhoto(null)
       if (lastSavedPhoto?.id === photo.id) setLastSavedPhoto(null)
       setSelectedIds(prev => {
         const next = new Set(prev)
@@ -628,7 +628,9 @@ export function GisCamera({
   })
 
   return (
-    <div className="flex flex-col h-full max-h-[calc(100dvh-4.2rem)] max-w-lg mx-auto w-full px-2 sm:px-3 pt-1 overflow-hidden">
+    <div className={`flex flex-col h-full max-h-[calc(100dvh-4.2rem)] w-full mx-auto px-2 sm:px-4 md:px-6 pt-1 overflow-hidden transition-all duration-200 ${
+      activeTab === "gallery" ? "max-w-7xl" : "max-w-xl"
+    }`}>
       {/* 1. COMPACT HEADER */}
       <div className="flex items-center justify-between py-1 border-b border-slate-200/80 mb-1.5 shrink-0">
         <div className="flex items-center space-x-2 min-w-0">
@@ -842,7 +844,10 @@ export function GisCamera({
                   <span>WhatsApp</span>
                 </Button>
                 <button
-                  onClick={() => setSelectedPhoto(lastSavedPhoto)}
+                  onClick={() => {
+                    const idx = filteredPhotos.findIndex(p => p.id === lastSavedPhoto.id)
+                    setViewerIndex(idx !== -1 ? idx : 0)
+                  }}
                   className="h-6 px-1.5 text-[10px] font-semibold text-slate-300 hover:text-white"
                 >
                   View
@@ -969,109 +974,115 @@ export function GisCamera({
       {/* ========================================================================= */}
       {activeTab === "gallery" && (
         <div className="flex flex-col flex-1 min-h-0 w-full space-y-2 overflow-y-auto overscroll-contain pb-28 pr-0.5">
-          {/* Top Search & Actions Bar */}
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="relative flex-1">
+          {/* Top Search & Actions Bar (Responsive Desktop & Mobile) */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-slate-50/80 p-2 sm:p-2.5 rounded-2xl border border-slate-200/80">
+            {/* Search Input */}
+            <div className="relative flex-1 max-w-md">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
-                placeholder="Search note, user, location, date..."
+                placeholder="Search note, consumer ID, pole, location, date..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-xs rounded-xl bg-white border-slate-200"
+                className="pl-8 h-8 text-xs rounded-xl bg-white border-slate-200 focus-visible:ring-blue-500"
               />
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadGalleryPhotos}
-              disabled={galleryLoading}
-              className="h-8 px-2 text-xs text-slate-600 rounded-xl"
-              title="Refresh Gallery"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${galleryLoading ? "animate-spin text-blue-600" : ""}`} />
-            </Button>
-
-            {photos.length > 0 && (
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant={isSelectMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setIsSelectMode(!isSelectMode)
-                    setSelectedIds(new Set())
-                  }}
-                  className={`h-8 px-2.5 text-xs font-bold rounded-xl ${
-                    isSelectMode ? "bg-blue-600 text-white" : "text-slate-700 border-slate-200"
+            {/* Actions & Filters */}
+            <div className="flex items-center justify-between md:justify-end gap-2 flex-wrap">
+              {/* Filter Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                {isAdmin ? (
+                  <>
+                    <button
+                      onClick={() => setGalleryFilter("all")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                        galleryFilter === "all"
+                          ? "bg-blue-600 text-white shadow-2xs"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                      }`}
+                    >
+                      All Photos ({photos.length})
+                    </button>
+                    <button
+                      onClick={() => setGalleryFilter("mine")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                        galleryFilter === "mine"
+                          ? "bg-blue-600 text-white shadow-2xs"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                      }`}
+                    >
+                      My Uploads
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setGalleryFilter("all")}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                      galleryFilter === "all"
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                    }`}
+                  >
+                    My Captures ({photos.length})
+                  </button>
+                )}
+                <button
+                  onClick={() => setGalleryFilter("cloud")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
+                    galleryFilter === "cloud"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
                   }`}
                 >
-                  {isSelectMode ? "Done" : "Select"}
-                </Button>
+                  <Cloud className="h-3 w-3" />
+                  <span>Drive Synced</span>
+                </button>
+                <button
+                  onClick={() => setGalleryFilter("local")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
+                    galleryFilter === "local"
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                  }`}
+                >
+                  <CloudOff className="h-3 w-3" />
+                  <span>Local Only</span>
+                </button>
               </div>
-            )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadGalleryPhotos}
+                  disabled={galleryLoading}
+                  className="h-8 px-2.5 text-xs text-slate-600 rounded-xl bg-white border-slate-200 hover:bg-slate-100"
+                  title="Refresh Gallery"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${galleryLoading ? "animate-spin text-blue-600" : ""}`} />
+                </Button>
+
+                {photos.length > 0 && (
+                  <Button
+                    variant={isSelectMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setIsSelectMode(!isSelectMode)
+                      setSelectedIds(new Set())
+                    }}
+                    className={`h-8 px-3 text-xs font-bold rounded-xl ${
+                      isSelectMode ? "bg-blue-600 text-white" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {isSelectMode ? "Done" : "Select"}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
-            {isAdmin ? (
-              <>
-                <button
-                  onClick={() => setGalleryFilter("all")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                    galleryFilter === "all"
-                      ? "bg-blue-600 text-white shadow-2xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  All CCC Photos ({photos.length})
-                </button>
-                <button
-                  onClick={() => setGalleryFilter("mine")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                    galleryFilter === "mine"
-                      ? "bg-blue-600 text-white shadow-2xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  My Uploads
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setGalleryFilter("all")}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
-                  galleryFilter === "all"
-                    ? "bg-blue-600 text-white shadow-2xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                My Captures ({photos.length})
-              </button>
-            )}
-            <button
-              onClick={() => setGalleryFilter("cloud")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
-                galleryFilter === "cloud"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              <Cloud className="h-3 w-3" />
-              <span>Drive Synced</span>
-            </button>
-            <button
-              onClick={() => setGalleryFilter("local")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors flex items-center gap-1 ${
-                galleryFilter === "local"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              <CloudOff className="h-3 w-3" />
-              <span>Local Only</span>
-            </button>
-          </div>
 
           {/* Select Mode Sub-Bar */}
           {isSelectMode && (
@@ -1111,7 +1122,7 @@ export function GisCamera({
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 pb-16">
               {filteredPhotos.map(photo => {
                 const isSelected = selectedIds.has(photo.id)
                 const isCloud = Boolean(photo.cloudSynced || photo.driveUrl)
@@ -1122,12 +1133,15 @@ export function GisCamera({
                     key={photo.id}
                     onClick={() => {
                       if (isSelectMode) toggleSelectPhoto(photo.id)
-                      else setSelectedPhoto(photo)
+                      else {
+                        const idx = filteredPhotos.findIndex(p => p.id === photo.id)
+                        setViewerIndex(idx !== -1 ? idx : 0)
+                      }
                     }}
-                    className={`group relative bg-white rounded-xl overflow-hidden border shadow-2xs transition-all flex flex-col cursor-pointer ${
+                    className={`group relative bg-white rounded-2xl overflow-hidden border shadow-xs hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col cursor-pointer ${
                       isSelected
                         ? "ring-2 ring-blue-600 border-blue-600"
-                        : "border-slate-200 hover:shadow-md"
+                        : "border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {/* Thumbnail */}
@@ -1321,73 +1335,17 @@ export function GisCamera({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. FULLSCREEN PREVIEW & LIGHTBOX MODAL                                    */}
+      {/* 4. FULLSCREEN PREVIEW & SLIDING LIGHTBOX GALLERY                           */}
       {/* ========================================================================= */}
-      {selectedPhoto && (
-        <Dialog open={Boolean(selectedPhoto)} onOpenChange={() => setSelectedPhoto(null)}>
-          <DialogContent className="max-w-2xl w-[96vw] max-h-[92vh] p-2.5 sm:p-4 rounded-2xl flex flex-col bg-slate-950 text-white border-slate-800">
-            <DialogHeader className="flex flex-row items-center justify-between pb-1.5 border-b border-slate-800">
-              <div className="min-w-0 pr-2">
-                <DialogTitle className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 truncate">
-                  <span className="text-sky-400">📝 {selectedPhoto.note || "GIS Photo"}</span>
-                </DialogTitle>
-                <p className="text-[10px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                  <MapPin className="h-3 w-3 text-sky-400 shrink-0" />
-                  <span>{selectedPhoto.locationName}</span>
-                </p>
-                <p className="text-[9px] text-slate-400 truncate">
-                  By: @{selectedPhoto.uploadedBy || "user"} • {selectedPhoto.dateFormatted} {selectedPhoto.timeFormatted} • Lat: {selectedPhoto.lat.toFixed(6)}°, Long: {selectedPhoto.lng.toFixed(6)}°
-                </p>
-              </div>
-            </DialogHeader>
-
-            {/* Fullscreen Stamped Image View */}
-            <div className="relative flex-1 max-h-[64vh] overflow-auto flex items-center justify-center p-1 bg-black/50 rounded-xl">
-              <img
-                src={selectedPhoto.dataUrl}
-                alt="Stamped GIS Capture"
-                className="max-h-[62vh] w-auto object-contain rounded-lg shadow-2xl"
-              />
-            </div>
-
-            {/* Bottom Modal Actions */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-              <div className="flex items-center gap-1.5">
-                {selectedPhoto.driveUrl && (
-                  <a
-                    href={selectedPhoto.driveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="h-7 px-2.5 text-xs font-bold gap-1 rounded-xl bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center"
-                  >
-                    <Cloud className="h-3 w-3" />
-                    <span>Drive Link</span>
-                  </a>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-1.5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => shareGisPhotoRecord(selectedPhoto)}
-                  className="h-7 px-2.5 text-xs font-bold gap-1 rounded-xl bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 cursor-pointer"
-                >
-                  <Share2 className="h-3 w-3" />
-                  <span>WhatsApp</span>
-                </Button>
-                <a
-                  href={selectedPhoto.dataUrl}
-                  download={`GIS_${selectedPhoto.dateFormatted}.jpg`}
-                  className="h-7 px-2 text-xs font-bold gap-1 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 flex items-center justify-center"
-                >
-                  <Download className="h-3 w-3" />
-                  <span>Save</span>
-                </a>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+      {viewerIndex !== null && filteredPhotos.length > 0 && (
+        <GisPhotoViewer
+          photos={filteredPhotos}
+          currentIndex={viewerIndex}
+          isOpen={viewerIndex !== null && viewerIndex >= 0 && viewerIndex < filteredPhotos.length}
+          onClose={() => setViewerIndex(null)}
+          onIndexChange={(idx) => setViewerIndex(idx)}
+          onDeletePhoto={handleDeletePhoto}
+        />
       )}
 
       {/* 5. MANDATORY NOTE OVERLAY POPUP */}
