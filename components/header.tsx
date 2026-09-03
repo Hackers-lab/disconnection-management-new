@@ -190,8 +190,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   }
 
   const startEditProfile = () => {
-    setProfileEditMobile(profileData?.mobileNumber || "")
-    setProfileEditVendor(profileData?.vendorCode || "")
+    setProfileEditMobile(profileData?.userMobile || profileData?.mobileNumber || "")
     setProfileSaveError(null)
     setProfileSaveSuccess(false)
     setIsEditingProfile(true)
@@ -199,15 +198,9 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   const handleSaveProfileDetails = async () => {
     const cleanMob = profileEditMobile.trim()
-    const cleanVen = profileEditVendor.trim()
 
     if (cleanMob && !/^\d{10}$/.test(cleanMob)) {
-      setProfileSaveError("Mobile number must be exactly 10 digits")
-      return
-    }
-
-    if (cleanVen && !/^\d{6}$/.test(cleanVen)) {
-      setProfileSaveError("SAP Vendor code must be exactly 6 digits")
+      setProfileSaveError("Personal login mobile number must be exactly 10 digits")
       return
     }
 
@@ -220,8 +213,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mobileNumber: cleanMob || null,
-          vendorCode: cleanVen || null,
+          userMobile: cleanMob || null,
         }),
       })
 
@@ -2118,22 +2110,28 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               </div>
 
               {/* Mobile Number & Vendor Code Display or Edit Form */}
+              {/* Mobile Numbers & Vendor Code Display or Edit Form */}
               {!isEditingProfile ? (
                 <>
-                  {/* Mobile Number Row */}
+                  {/* Personal Login Mobile Number Row */}
                   <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
                     <span className="text-slate-400 font-medium flex items-center gap-1.5">
                       <Phone className="h-3.5 w-3.5 text-purple-400" />
-                      Mobile No:
+                      Login Mobile:
                     </span>
                     <div className="col-span-2 flex items-center justify-between gap-2">
-                      {profileData.mobileNumber && /^\d{10}$/.test(profileData.mobileNumber) ? (
-                        <span className="font-mono font-bold text-emerald-400 text-xs">
-                          +91 {profileData.mobileNumber}
-                        </span>
+                      {(profileData.userMobile || profileData.mobileNumber) && /^\d{10}$/.test(profileData.userMobile || profileData.mobileNumber) ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono font-bold text-emerald-400 text-xs">
+                            +91 {profileData.userMobile || profileData.mobileNumber}
+                          </span>
+                          <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
+                            OTP & Login
+                          </span>
+                        </div>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                          <AlertTriangle className="h-3 w-3" /> Not Tagged
+                          <AlertTriangle className="h-3 w-3" /> Not Set
                         </span>
                       )}
                       <Button
@@ -2142,47 +2140,71 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                         onClick={startEditProfile}
                         className="h-6 px-2 text-[11px] text-indigo-400 hover:text-indigo-300 hover:bg-slate-800"
                       >
-                        {profileData.mobileNumber ? "Change" : "Add Mobile"}
+                        {(profileData.userMobile || profileData.mobileNumber) ? "Change" : "Add Mobile"}
                       </Button>
                     </div>
                   </div>
 
-                  {/* Vendor Code Row */}
-                  <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
-                    <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                      <Hash className="h-3.5 w-3.5 text-blue-400" />
-                      Vendor Code:
-                    </span>
-                    <div className="col-span-2 flex items-center justify-between gap-2">
-                      {profileData.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
-                        <span className="font-mono font-bold text-cyan-400 text-xs bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800">
-                          {profileData.vendorCode}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                          <AlertTriangle className="h-3 w-3" /> Not Tagged
-                        </span>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={startEditProfile}
-                        className="h-6 px-2 text-[11px] text-indigo-400 hover:text-indigo-300 hover:bg-slate-800"
-                      >
-                        {profileData.vendorCode ? "Change" : "Add Vendor Code"}
-                      </Button>
+                  {/* Agency Official Phone (shown if agency user) */}
+                  {(profileData.hasAgency || profileData.agencyMobile) && (
+                    <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
+                      <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-emerald-400" />
+                        Agency Phone:
+                      </span>
+                      <div className="col-span-2 flex items-center justify-between gap-2">
+                        {profileData.agencyMobile && /^\d{10}$/.test(profileData.agencyMobile) ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-semibold text-slate-200 text-xs">
+                              +91 {profileData.agencyMobile}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                              Company Contact
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-500">Not recorded</span>
+                        )}
+                        <span className="text-[10px] text-slate-500 font-mono">🔒 Station Record</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Vendor Code Row (Read-Only) */}
+                  {(profileData.hasAgency || profileData.vendorCode) && (
+                    <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
+                      <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-blue-400" />
+                        Vendor Code:
+                      </span>
+                      <div className="col-span-2 flex items-center justify-between gap-2">
+                        {profileData.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
+                          <span className="font-mono font-bold text-cyan-400 text-xs bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800">
+                            {profileData.vendorCode}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            <AlertTriangle className="h-3 w-3" /> Not Tagged
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-500 font-mono">🔒 SAP Contract Code</span>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
-                /* Inline Edit Profile Section */
+                /* Inline Edit Profile Section (Personal Login Mobile Only) */
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
                       <Pencil className="h-3.5 w-3.5" />
-                      Update Contact & Vendor Details
+                      Update Personal Login Mobile Number
                     </span>
                   </div>
+
+                  <p className="text-[11px] text-slate-400">
+                    This phone number is used for logging into your user account and receiving password reset OTPs. It must be unique to you.
+                  </p>
 
                   {profileSaveError && (
                     <div className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/80 rounded-lg p-2 flex items-center gap-1.5">
@@ -2194,7 +2216,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   {profileSaveSuccess && (
                     <div className="text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/80 rounded-lg p-2 flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5 shrink-0" />
-                      <span>Details saved successfully!</span>
+                      <span>Mobile number updated successfully!</span>
                     </div>
                   )}
 
@@ -2203,34 +2225,23 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                       <Phone className="h-3 w-3 text-purple-400" />
                       10-Digit Mobile Number
                     </Label>
-                    <Input
-                      id="profile-mobile"
-                      type="tel"
-                      maxLength={10}
-                      placeholder="e.g. 9876543210"
-                      value={profileEditMobile}
-                      onChange={(e) => setProfileEditMobile(e.target.value.replace(/\D/g, ""))}
-                      className="h-8 text-xs bg-slate-900 border-slate-700 text-white font-mono"
-                    />
-                    <p className="text-[10px] text-slate-500">Required for SMS notifications and contact tagging</p>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">+91</span>
+                      <Input
+                        id="profile-mobile"
+                        type="tel"
+                        maxLength={10}
+                        placeholder="10-digit phone"
+                        value={profileEditMobile}
+                        onChange={(e) => setProfileEditMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        className="h-8 pl-9 text-xs bg-slate-900 border-slate-700 text-white font-mono"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="profile-vendor" className="text-xs text-slate-300 flex items-center gap-1">
-                      <Hash className="h-3 w-3 text-blue-400" />
-                      6-Digit SAP Vendor Code
-                    </Label>
-                    <Input
-                      id="profile-vendor"
-                      type="text"
-                      maxLength={6}
-                      placeholder="e.g. 104523"
-                      value={profileEditVendor}
-                      onChange={(e) => setProfileEditVendor(e.target.value.replace(/\D/g, ""))}
-                      className="h-8 text-xs bg-slate-900 border-slate-700 text-white font-mono"
-                    />
-                    <p className="text-[10px] text-slate-500">Official 6-digit contractor SAP code</p>
-                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Note: Vendor Code & Company Phone can only be modified by the Station Admin in the CCC Admin Panel.
+                  </p>
 
                   <div className="flex items-center justify-end gap-2 pt-1">
                     <Button
@@ -2244,7 +2255,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                     </Button>
                     <Button
                       size="sm"
-                      disabled={profileSaving}
+                      disabled={profileSaving || !profileEditMobile || profileEditMobile.length !== 10}
                       onClick={handleSaveProfileDetails}
                       className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
                     >
@@ -2256,7 +2267,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                       ) : (
                         <>
                           <Check className="h-3 w-3 mr-1" />
-                          Save Details
+                          Save Mobile
                         </>
                       )}
                     </Button>

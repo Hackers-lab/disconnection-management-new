@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
     const userRole = String(row.role || session.role || "viewer").toLowerCase()
     const username = String(row.username || session.username || "")
     let userMobile = String(row.mobile_number || "").trim()
+    let agencyMobile = ""
     let vendorCode = ""
 
     // Check if user is an agency or has assigned agencies to retrieve vendor_code and agency mobile if needed
@@ -55,11 +56,11 @@ export async function GET(req: NextRequest) {
         })
         if (agencyRes.rows && agencyRes.rows.length > 0) {
           const aRow: any = agencyRes.rows[0]
-          if (!vendorCode && aRow.vendor_code) {
+          if (aRow.vendor_code) {
             vendorCode = String(aRow.vendor_code).trim()
           }
-          if (!userMobile && aRow.mobile_number) {
-            userMobile = String(aRow.mobile_number).trim()
+          if (aRow.mobile_number) {
+            agencyMobile = String(aRow.mobile_number).trim()
           }
         }
       } catch (err) {
@@ -77,8 +78,11 @@ export async function GET(req: NextRequest) {
       cccCode: String(row.ccc_code || cccCode),
       cccName: String(row.ccc_name || cccCode),
       agencies: rawAgencies.length > 0 ? rawAgencies : (userRole === "agency" ? [username] : []),
-      mobileNumber: userMobile,
+      mobileNumber: userMobile || agencyMobile, // fallback for legacy callers
+      userMobile: userMobile,
+      agencyMobile: agencyMobile,
       vendorCode,
+      hasAgency: Boolean(agencyNameToCheck || userRole === "agency"),
       subscriptionStatus: String(row.subscription_status || session.subscriptionStatus || "active"),
       subscriptionExpiresAt: String(row.subscription_expires_at || session.subscriptionExpiresAt || ""),
       bypassSubscription: Boolean(row.bypass_subscription ?? session.bypassSubscription),
