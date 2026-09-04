@@ -72,6 +72,8 @@ import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/in
 import { generateAndShareAgencyUpdatesJPEG } from "@/lib/agency-update-image"
 import { unlockSpotAiSession } from "@/lib/spotai-guard"
 import { LanguageToggle } from "@/components/language-toggle"
+import { useModuleTheme, ModuleTheme } from "@/lib/module-theme"
+import { Palette } from "lucide-react"
 
 interface HeaderProps {
   userRole: string
@@ -144,6 +146,8 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [profileData, setProfileData] = useState<any>(null)
   const [clientCccCode, setClientCccCode] = useState<string>("")
   const [clientUsername, setClientUsername] = useState<string>("")
+  const { theme: currentModuleTheme, changeTheme: setModuleTheme, options: moduleThemeOptions } = useModuleTheme()
+  const [showThemeModal, setShowThemeModal] = useState(false)
 
   // Profile Edit Modal / Inline State
   const [isEditingProfile, setIsEditingProfile] = useState(false)
@@ -1488,6 +1492,19 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                  setShowThemeModal(true)
+                }}
+                title="Customize Home Card Theme"
+                className="text-slate-600 hover:text-indigo-600 hover:bg-slate-100"
+              >
+                <Palette className="h-4 w-4" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={openChangePwdDialog}
                 title="Change Password"
               >
@@ -1701,6 +1718,16 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                       </DropdownMenuItem>
                     }
                   />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                      setShowThemeModal(true)
+                    }}
+                  >
+                    <Palette className="mr-2 h-4 w-4 text-indigo-600" />
+                    <span className="font-medium text-slate-800">Home Card Theme</span>
+                  </DropdownMenuItem>
+
                   <DropdownMenuItem onClick={openChangePwdDialog}>
                     <KeyRound className="mr-2 h-4 w-4" />
                     <span>Change Password</span>
@@ -2369,6 +2396,90 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
         isSuperuser={false}
         currentCccCode={cccCode || "SYSTEM"}
       />
+
+      {/* Home Card Theme Selector Dialog */}
+      <Dialog open={showThemeModal} onOpenChange={setShowThemeModal}>
+        <DialogContent className="max-w-md w-[95vw] rounded-2xl p-5 sm:p-6">
+          <DialogHeader className="border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                <Palette className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-slate-900">
+                  Home Card Theme
+                </DialogTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Choose a visual style for the module cards & badges
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-2.5 py-4">
+            {moduleThemeOptions.map((opt) => {
+              const isSelected = currentModuleTheme === opt.id
+              return (
+                <div
+                  key={opt.id}
+                  onClick={() => {
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                    setModuleTheme(opt.id)
+                  }}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all duration-200 flex items-start justify-between gap-3 ${
+                    isSelected
+                      ? "border-indigo-600 bg-indigo-50/40 shadow-xs"
+                      : "border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/60"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className="mt-0.5 w-3.5 h-3.5 rounded-full shrink-0 shadow-2xs border border-white"
+                      style={{ backgroundColor: opt.accentColor }}
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {opt.label}
+                        </h4>
+                        {isSelected && (
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                        {opt.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 pt-0.5">
+                    <div
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                        isSelected
+                          ? "border-indigo-600 bg-indigo-600 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isSelected && <Check className="h-3 w-3" />}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl"
+              onClick={() => setShowThemeModal(false)}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   )
 }

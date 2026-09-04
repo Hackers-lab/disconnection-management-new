@@ -34,6 +34,7 @@ import { getFromCache, saveToCache, notifyCacheUpdate, getCccPrefix } from "@/li
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
 import { matchesAgency } from "@/lib/permission-utils"
+import { useModuleTheme, ModuleTheme } from "@/lib/module-theme"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -43,6 +44,7 @@ interface DashboardMenuProps {
 }
 
 export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissions }: DashboardMenuProps) {
+  const { theme } = useModuleTheme()
   const [latestUpdateDate, setLatestUpdateDate] = useState<string>("")
   const [pendingCount, setPendingCount] = useState<number>(0)
   const [ddPendingCount, setDdPendingCount] = useState<number>(0)
@@ -956,6 +958,99 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     (m) => !attentionModules.some((att) => att.id === m.id)
   )
 
+  // Style generator according to active theme: "slate" | "categorized" | "status" | "minimal-accent"
+  const getThemeStyles = (mod: any) => {
+    const isWarning = mod.count >= WARNING_THRESHOLD && mod.count < ATTENTION_THRESHOLD
+    const isDanger = mod.count >= ATTENTION_THRESHOLD
+
+    // Category mapping for "categorized" theme
+    const isOps = ["disconnection", "reconnection", "deemed", "permanent-disconnection"].includes(mod.id)
+    const isField = ["dtr", "dtr-painting", "safety", "misc-inspection"].includes(mod.id)
+    const isAsset = ["icds", "meter", "nsc", "consumer-master", "meter-replacement", "material"].includes(mod.id)
+
+    switch (theme) {
+      case "categorized": {
+        let iconBox = "bg-blue-50 text-blue-600 border-blue-200/80 group-hover:bg-blue-100/80"
+        let badge = "bg-blue-100/90 text-blue-800 border-blue-200/80"
+        let desktopWatermark = "text-blue-600"
+        let cardBorder = "hover:border-blue-300 hover:shadow-blue-500/10"
+
+        if (isField) {
+          iconBox = "bg-amber-50 text-amber-600 border-amber-200/80 group-hover:bg-amber-100/80"
+          badge = "bg-amber-100/90 text-amber-900 border-amber-200/80"
+          desktopWatermark = "text-amber-600"
+          cardBorder = "hover:border-amber-300 hover:shadow-amber-500/10"
+        } else if (isAsset) {
+          iconBox = "bg-emerald-50 text-emerald-600 border-emerald-200/80 group-hover:bg-emerald-100/80"
+          badge = "bg-emerald-100/90 text-emerald-800 border-emerald-200/80"
+          desktopWatermark = "text-emerald-600"
+          cardBorder = "hover:border-emerald-300 hover:shadow-emerald-500/10"
+        }
+
+        return {
+          iconContainer: `w-10 h-10 md:w-12 md:h-12 rounded-xl ${iconBox} border flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:scale-105`,
+          pillBadge: `notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] shadow-xs ${badge}`,
+          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
+            mod.isLoading ? "bg-slate-700 text-white animate-pulse" : badge
+          }`,
+          desktopWatermark: `h-20 w-20 md:h-24 md:w-24 ${desktopWatermark} transition-transform duration-500 group-hover:scale-110`,
+          watermarkOpacity: "opacity-[0.05] group-hover:opacity-[0.10]",
+          cardBorder,
+        }
+      }
+
+      case "status": {
+        const badgeClass = isDanger
+          ? "bg-red-100/95 text-red-800 border-red-200/90"
+          : isWarning
+          ? "bg-amber-100/95 text-amber-900 border-amber-200/90"
+          : "bg-slate-100/90 text-slate-700 border-slate-200/80"
+
+        const desktopBadgeClass = isDanger
+          ? "bg-red-600 text-white shadow-red-600/30"
+          : isWarning
+          ? "bg-amber-500 text-white shadow-amber-500/30"
+          : "bg-slate-800 text-white shadow-slate-800/20"
+
+        return {
+          iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
+          pillBadge: `notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] shadow-xs ${badgeClass}`,
+          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${desktopBadgeClass}`,
+          desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-700 transition-transform duration-500 group-hover:scale-110",
+          watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
+          cardBorder: "hover:border-slate-300",
+        }
+      }
+
+      case "minimal-accent": {
+        return {
+          iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:bg-indigo-100 group-hover:text-indigo-700 group-hover:scale-105",
+          pillBadge: "notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border border-indigo-200/80 bg-indigo-50 text-indigo-700 flex items-center justify-center min-w-[1.5rem] shadow-xs",
+          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
+            mod.isLoading ? "bg-indigo-400 text-white animate-pulse" : "bg-indigo-600 text-white shadow-indigo-600/20"
+          }`,
+          desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-indigo-600 transition-transform duration-500 group-hover:scale-110",
+          watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
+          cardBorder: "hover:border-indigo-300 hover:shadow-indigo-500/10",
+        }
+      }
+
+      case "slate":
+      default: {
+        return {
+          iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
+          pillBadge: "notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border border-slate-200/80 bg-slate-100/90 text-slate-800 flex items-center justify-center min-w-[1.5rem] shadow-xs",
+          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
+            mod.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
+          }`,
+          desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-800 transition-transform duration-500 group-hover:scale-110",
+          watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
+          cardBorder: "hover:border-slate-300",
+        }
+      }
+    }
+  }
+
   return (
     <>
       {/* ========================================================================= */}
@@ -1028,14 +1123,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
             <div className="grid grid-cols-2 gap-3">
               {gridModules.map((module) => {
                 const Icon = module.icon
-                const isWarning = module.count >= WARNING_THRESHOLD && module.count < ATTENTION_THRESHOLD
-                const isDanger = module.count >= ATTENTION_THRESHOLD
-
-                const pillStyleClass = isDanger
-                  ? "bg-red-100/90 text-red-800 border-red-200/80 shadow-xs"
-                  : isWarning
-                    ? "bg-amber-100/90 text-amber-900 border-amber-200/80 shadow-xs"
-                    : "bg-slate-100/90 text-slate-700 border-slate-200/80 shadow-xs"
+                const styles = getThemeStyles(module)
 
                 return (
                   <div
@@ -1044,16 +1132,16 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                       onSelect(module.id as ViewType)
                     }}
-                    className="group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.20] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] select-none"
+                    className={`group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] ${styles.cardBorder} shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] select-none`}
                   >
-                    {/* Top Row: Icon (Top-Left) + Shadowed Pill Count Badge (Top-Right) */}
+                    {/* Top Row: Icon (Top-Left) + Dynamic Pill Count Badge (Top-Right) */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className={`w-10 h-10 rounded-[10px] ${module.bgColor} border border-black/[0.04] flex items-center justify-center ${module.color} shrink-0 shadow-2xs`}>
+                      <div className={styles.iconContainer}>
                         <Icon className="h-5 w-5" />
                       </div>
 
                       {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
-                        <span className={`notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center justify-center min-w-[1.5rem] ${pillStyleClass}`}>
+                        <span className={styles.pillBadge}>
                           {module.isLoading ? (
                             <RefreshCw className="h-3 w-3 animate-spin" />
                           ) : (
@@ -1114,35 +1202,34 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
             {accessibleModulesWithCounts.map((module) => {
               const Icon = module.icon
+              const styles = getThemeStyles(module)
 
               return (
                 <Card
                   key={module.id}
-                  className="group relative cursor-pointer transition-all duration-300 hover:-translate-y-1.5 border border-black/[0.08] hover:border-black/[0.22] bg-white/85 backdrop-blur-xl rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden"
+                  className={`group relative cursor-pointer transition-all duration-300 hover:-translate-y-1.5 border border-black/[0.08] ${styles.cardBorder} bg-white/85 backdrop-blur-xl rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden`}
                   onClick={() => {
                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     onSelect(module.id as ViewType)
                   }}
                 >
-                  {/* Executive Dark Badge Counter */}
+                  {/* Dynamic Badge Counter */}
                   {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
-                    <div className={`notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
-                      module.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
-                    }`}>
+                    <div className={styles.desktopBadge}>
                       {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.id === "consumer-master" ? module.count.toLocaleString() : (module.count ?? 0)}
                     </div>
                   )}
 
                   {/* Faded Background Icon */}
-                  <div className="absolute top-0 right-0 p-2 md:p-3 opacity-5 group-hover:opacity-15 transition-opacity duration-300">
-                    <Icon className={`h-20 w-20 md:h-24 md:w-24 ${module.color} transition-transform duration-500 group-hover:scale-110`} />
+                  <div className={`absolute top-0 right-0 p-2 md:p-3 ${styles.watermarkOpacity} transition-opacity duration-300`}>
+                    <Icon className={styles.desktopWatermark} />
                   </div>
 
                   <CardHeader className="relative pb-2 p-3.5 md:p-5">
-                    <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl ${module.bgColor} flex items-center justify-center mb-2.5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-sm border border-slate-100`}>
-                      <Icon className={`h-5 w-5 md:h-6 md:w-6 ${module.color}`} />
+                    <div className={styles.iconContainer}>
+                      <Icon className="h-5 w-5 md:h-6 md:w-6" />
                     </div>
-                    <CardTitle className="text-sm md:text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors tracking-tight">
+                    <CardTitle className="text-sm md:text-lg font-bold text-slate-900 group-hover:text-slate-800 transition-colors tracking-tight">
                       {module.title}
                     </CardTitle>
                   </CardHeader>
