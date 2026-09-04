@@ -56,7 +56,7 @@ export async function fetchLiveOsdData(
     let pdfBuffer: Buffer | null = null
 
     // Step 1: Initial WebDynpro request
-    const firstRes = await fetch(wbsedclUrl, {
+    let firstRes = await fetch(wbsedclUrl, {
       method: "GET",
       headers: {
         "User-Agent": userAgent,
@@ -76,8 +76,39 @@ export async function fetchLiveOsdData(
       }
     }
 
-    const firstArrayBuffer = await firstRes.arrayBuffer()
-    const firstBuffer = Buffer.from(firstArrayBuffer)
+    let firstArrayBuffer = await firstRes.arrayBuffer()
+    let firstBuffer = Buffer.from(firstArrayBuffer)
+
+    // Handle case where portal returns empty 0-byte response on initial handshake to set cookies
+    if (firstBuffer.length === 0) {
+      const headersAny = firstRes.headers as any
+      const handshakeCookies: string[] = typeof headersAny.getSetCookie === "function"
+        ? headersAny.getSetCookie()
+        : [firstRes.headers.get("set-cookie")].filter(Boolean) as string[]
+
+      const cookieHeader = handshakeCookies
+        .map((c: string) => c.split(";")[0])
+        .filter(Boolean)
+        .join("; ")
+
+      firstRes = await fetch(wbsedclUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": userAgent,
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Accept-Language": "en-US,en;q=0.9",
+          ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      })
+
+      if (firstRes.ok) {
+        firstArrayBuffer = await firstRes.arrayBuffer()
+        firstBuffer = Buffer.from(firstArrayBuffer)
+      }
+    }
 
     // Check if initial response is directly a PDF
     if (firstBuffer.length >= 5 && firstBuffer.toString("utf-8", 0, 5) === "%PDF-") {
@@ -96,22 +127,28 @@ export async function fetchLiveOsdData(
 
       const html = firstBuffer.toString("utf-8")
 
-      // Match SAP WebDynpro openExternalWindow JS call in CDATA script
+      // Match SAP WebDynpro openExternalWindow JS call in CDATA script or direct PDF links
+      // Note: SAP WebDynpro openExternalWindow has 10 arguments:
+      // openExternalWindow('ctrlId', 'relative_url', 0, 0, 0, 0, true, true, true, true)
+      // Therefore, the regex must NOT expect ')' immediately after the URL parameter.
       const windowMatch =
-        html.match(/openExternalWindow\([^,]+,\s*'([^']+)'\)/i) ||
-        html.match(/openExternalWindow\([^,]+,\s*['"]([^'"]+)['"]\)/i) ||
-        html.match(/window\.open\(['"]([^'"]+)['"]\)/i) ||
-        html.match(/location\.href\s*=\s*['"]([^'"]+)['"]\)/i) ||
-        html.match(/href=['"]([^'"]+\.pdf[^'"]*)['"]\)/i)
+        html.match(/openExternalWindow\([^,]+,\s*['"]([^'"]+?)['"]/i) ||
+        html.match(/openExternalWindow\([^)]*?['"]([^'"]*?\.pdf[^'"]*?)['"]/i) ||
+        html.match(/['"]([^'"]*?\.pdf(?:\?[^'"]*)?)['"]/i) ||
+        html.match(/href=['"]([^'"]+\.pdf[^'"]*)['"]/i) ||
+        html.match(/window\.open\(['"]([^'"]+?)['"]/i) ||
+        html.match(/location\.href\s*=\s*['"]([^'"]+?)['"]/i)
 
       let redirectUrl: string | null = null
 
       if (windowMatch && windowMatch[1]) {
         const rawRelUrl = windowMatch[1]
-        // Decode hex sequences (e.g. \x2f -> /, \x3f -> ?, \x26 -> &)
-        const decodedRelUrl = rawRelUrl.replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) =>
-          String.fromCharCode(parseInt(hex, 16))
-        )
+        // Decode hex sequences (e.g. \x2f -> /, \x3f -> ?, \x26 -> &) and HTML entities
+        const decodedRelUrl = rawRelUrl
+          .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) =>
+            String.fromCharCode(parseInt(hex, 16))
+          )
+          .replace(/&amp;/g, "&")
 
         try {
           redirectUrl = new URL(decodedRelUrl, wbsedclUrl).toString()
@@ -140,8 +177,14 @@ export async function fetchLiveOsdData(
           const secondBuffer = Buffer.from(secondArrayBuffer)
           if (secondBuffer.length >= 5 && secondBuffer.toString("utf-8", 0, 5) === "%PDF-") {
             pdfBuffer = secondBuffer
+          } else {
+            console.warn("Second response was not a valid PDF buffer. Length:", secondBuffer.length)
           }
+        } else {
+          console.warn("Second response HTTP error:", secondRes.status)
         }
+      } else {
+        console.warn("Could not find PDF redirect URL in WebDynpro HTML response.")
       }
     }
 
@@ -153,8 +196,9 @@ export async function fetchLiveOsdData(
       }
     }
 
-    // Parse PDF text using pdf-parse
-    const pdfData = await pdf(pdfBuffer)
+    // Parse PDF text using pdf-parse safely across CJS/ESM modules
+    const pdfParser: any = typeof pdf === "function" ? pdf : (pdf as any)?.default || pdf
+    const pdfData = await pdfParser(pdfBuffer)
     const text = pdfData.text || ""
 
     // Extract fields via Regex
