@@ -12,8 +12,17 @@ import {
   Search, X, Plus, RefreshCw, Loader2, Check, AlertCircle,
   Printer, ChevronLeft, ChevronRight, RotateCcw, Package,
   ArrowLeft, Upload, ChevronDown, ChevronUp, FileDown, ClipboardCheck,
-  MapPin, Phone, Building2, FileSpreadsheet, Monitor, FileText, PackageCheck, Gauge, List
+  MapPin, Phone, Building2, FileSpreadsheet, Monitor, FileText, PackageCheck, Gauge, List,
+  Filter
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 import type { MeterStock, MeterIssue, StockSummary, MeterTypeLabel } from "@/lib/meter-types"
 import { METER_TYPES } from "@/lib/meter-types"
@@ -132,6 +141,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
   }
   const [search, setSearch]         = useState("")
   const [purposeFilter, setPurposeFilter] = useState<string>("all")
+  const [agencyFilter, setAgencyFilter]   = useState<string>("all")
   const [selected, setSelected] = useState<MeterIssue | null>(null)
   const [page, setPage]         = useState(1)
   const [selectedForSlip, setSelectedForSlip]         = useState<Set<string>>(new Set())
@@ -210,6 +220,83 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       return next
     })
   }
+
+  const availableAgencies = useMemo(() => {
+    const set = new Set<string>()
+    ;(agencies || []).forEach((a) => {
+      if (a && a.trim()) set.add(a.trim())
+    })
+    issues.forEach((i) => {
+      if (i.agency && i.agency.trim()) set.add(i.agency.trim())
+    })
+    replacements.forEach((r) => {
+      if (r.agency && r.agency.trim()) set.add(r.agency.trim())
+    })
+    nscApplications.forEach((n) => {
+      if (n.agency && n.agency.trim()) set.add(n.agency.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [agencies, issues, replacements, nscApplications])
+
+  const AgencyFilterDropdown = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="sm"
+          variant={agencyFilter !== "all" ? "default" : "outline"}
+          className={`shrink-0 rounded-xl h-9 w-9 p-0 relative transition-all ${
+            agencyFilter !== "all"
+              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+              : "text-gray-600 hover:bg-gray-100 border-gray-200"
+          }`}
+          title={agencyFilter !== "all" ? `Filtered by Agency: ${agencyFilter}` : "Filter by Agency"}
+        >
+          <Filter className="h-4 w-4" />
+          {agencyFilter !== "all" && (
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600 border border-white"></span>
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200 bg-white z-50">
+        <DropdownMenuLabel className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1">
+          Filter by Agency
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          onClick={() => setAgencyFilter("all")}
+          className={`text-xs cursor-pointer rounded-lg flex items-center justify-between px-2.5 py-1.5 font-medium ${
+            agencyFilter === "all" ? "bg-blue-50 text-blue-700 font-bold" : "text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          <span>All Agencies</span>
+          {agencyFilter === "all" && <Check className="h-3.5 w-3.5 text-blue-600" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="my-1" />
+        {availableAgencies.length === 0 ? (
+          <div className="text-[11px] text-gray-400 px-2 py-1.5 text-center">No agencies found</div>
+        ) : (
+          availableAgencies.map((ag) => (
+            <DropdownMenuItem
+              key={ag}
+              onClick={() => setAgencyFilter(ag)}
+              className={`text-xs cursor-pointer rounded-lg flex items-center justify-between px-2.5 py-1.5 font-medium ${
+                agencyFilter.toUpperCase() === ag.toUpperCase()
+                  ? "bg-blue-50 text-blue-700 font-bold"
+                  : "text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <span className="truncate">{ag}</span>
+              {agencyFilter.toUpperCase() === ag.toUpperCase() && (
+                <Check className="h-3.5 w-3.5 text-blue-600 shrink-0 ml-2" />
+              )}
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   useEffect(() => {
     async function loadMasterMap() {
@@ -459,6 +546,10 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       const upper = (userAgencies || []).map(a => String(a || "").trim().toUpperCase())
       data = data.filter(i => upper.includes((i.agency || "").trim().toUpperCase()))
     }
+    if (agencyFilter !== "all") {
+      const targetAgencyUpper = agencyFilter.trim().toUpperCase()
+      data = data.filter(i => (i.agency || "").trim().toUpperCase() === targetAgencyUpper)
+    }
     if (search) {
       const q = search.toLowerCase()
       data = data.filter(i =>
@@ -471,7 +562,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       )
     }
     return data
-  }, [issues, replacements, view, nscSubTab, checkSubTab, search, purposeFilter, isAdmin, userAgencies])
+  }, [issues, replacements, view, nscSubTab, checkSubTab, search, purposeFilter, agencyFilter, isAdmin, userAgencies])
 
   const combinedReplacements = useMemo(() => {
     const reps = replacements.filter(r => r.purpose !== "slow_fast")
@@ -517,6 +608,10 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       const upper = (userAgencies || []).map(a => String(a || "").trim().toUpperCase())
       data = data.filter(r => (r.status || "").toLowerCase() !== "proposed" && upper.includes((r.agency || "").trim().toUpperCase()))
     }
+    if (agencyFilter !== "all") {
+      const targetAgencyUpper = agencyFilter.trim().toUpperCase()
+      data = data.filter(r => (r.agency || "").trim().toUpperCase() === targetAgencyUpper)
+    }
     if (repSubTab === "pending" && isAdmin) {
       data = data.filter(r => (r.status || "").toLowerCase() === "proposed")
     } else if (repSubTab === "issued") {
@@ -544,11 +639,11 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
       )
     }
     return data
-  }, [combinedReplacements, repSubTab, search, isAdmin, userAgencies])
+  }, [combinedReplacements, repSubTab, search, agencyFilter, isAdmin, userAgencies])
 
   const totalPages = Math.ceil(filteredIssues.length / PAGE)
   const paginated  = useMemo(() => filteredIssues.slice((page - 1) * PAGE, page * PAGE), [filteredIssues, page])
-  useEffect(() => { setPage(1); setSelectedForFinalize(new Set()) }, [tab, search, purposeFilter])
+  useEffect(() => { setPage(1); setSelectedForFinalize(new Set()) }, [tab, search, purposeFilter, agencyFilter])
 
   // ── Slip selection ────────────────────────────────────────────────────────
   const toggleSlip = (targetIssue: MeterIssue) =>
@@ -826,157 +921,172 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
       {/* ── 1. SUBMODULES DASHBOARD MENU ── */}
       {view === "menu" && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
-          {/* Replacements Card */}
-          <Card
-            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-amber-300 overflow-hidden"
-            onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${
-              (isAdmin
-                ? (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length)
-                : (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length)
-              ) > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
-            }`}>
-              {isAdmin
-                ? `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated").length}`
-                : `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())).length}`
-              }
-            </div>
-            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-              <RotateCcw className="h-16 w-16 md:h-24 md:w-24 text-amber-600 transition-transform duration-500 group-hover:scale-110" />
-            </div>
-            <CardHeader className="relative pb-2 p-3 md:p-6">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-amber-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
-                <RotateCcw className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
-              </div>
-              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
-                Meter Replacements
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
-              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
-                Defective & burnt meter proposals, issuance, WOs & Note Sheets
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-1">
+            <div>
+              <h2 className="text-base md:text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Gauge className="h-5 w-5 text-blue-600" /> Meter Management
+              </h2>
+              <p className="text-xs text-gray-500">
+                Store inventory, NSC connections, meter replacements, and check meter testing.
               </p>
-            </CardContent>
-          </Card>
-
-          {/* NSC Meters Card */}
-          <Card
-            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-emerald-300 overflow-hidden"
-            onClick={() => { setView("nsc"); setTab("nsc") }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-emerald-500/10 transition-all duration-300 group-hover:scale-105 ${
-              (isAdmin
-                ? nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length + issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done")).length
-                : issues.filter(i => i.purpose === "nsc" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
-              ) > 0 ? "bg-emerald-600 shadow-emerald-500/20" : "bg-gray-400 shadow-gray-400/20"
-            }`}>
-              {isAdmin
-                ? nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length + issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done")).length
-                : issues.filter(i => i.purpose === "nsc" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length
-              }
             </div>
-            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-              <ClipboardCheck className="h-16 w-16 md:h-24 md:w-24 text-emerald-600 transition-transform duration-500 group-hover:scale-110" />
+            <div className="flex items-center gap-2">
+              {AgencyFilterDropdown}
             </div>
-            <CardHeader className="relative pb-2 p-3 md:p-6">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
-                <ClipboardCheck className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />
-              </div>
-              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                NSC Meters
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
-              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
-                New connection meter issuance & legacy entries
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Check Meters Card */}
-          <Card
-            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-purple-300 overflow-hidden"
-            onClick={() => { setView("check"); setTab("check") }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${
-              (isAdmin
-                ? (replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length + issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized").length)
-                : (issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length + issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length)
-              ) > 0 ? "bg-purple-600 shadow-purple-500/20" : "bg-gray-400 shadow-gray-400/20"
-            }`}>
-              {isAdmin
-                ? `${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length}/${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized").length}`
-                : `${issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length}/${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())).length}`
-              }
-            </div>
-            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-              <Gauge className="h-16 w-16 md:h-24 md:w-24 text-purple-600 transition-transform duration-500 group-hover:scale-110" />
-            </div>
-            <CardHeader className="relative pb-2 p-3 md:p-6">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
-                <Gauge className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
-              </div>
-              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
-                Check Meters
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
-              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
-                Slow/Fast testing & accuracy verification
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Stock Register Card */}
-          {(isAdmin || (permissions && (permissions.meter_stock || permissions.meter?.includes("read")))) && (
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
+            {/* Replacements Card */}
             <Card
-              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-blue-300 overflow-hidden"
-              onClick={() => { setView("stock"); setTab("stock") }}>
-              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${summary.reduce((acc, s) => acc + s.available, 0) > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
-                {summary.reduce((acc, s) => acc + s.available, 0)}
+              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-amber-300 overflow-hidden"
+              onClick={() => { setView("replacement"); setTab("replacement"); loadReplacements() }}>
+              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-amber-500/10 transition-all duration-300 group-hover:scale-105 ${
+                (isAdmin
+                  ? (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length)
+                  : (combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length + combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length)
+                ) > 0 ? "bg-amber-600 shadow-amber-500/20" : "bg-gray-400 shadow-gray-400/20"
+              }`}>
+                {isAdmin
+                  ? `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}`
+                  : `${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}/${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}`
+                }
               </div>
               <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-                <Package className="h-16 w-16 md:h-24 md:w-24 text-blue-600 transition-transform duration-500 group-hover:scale-110" />
+                <RotateCcw className="h-16 w-16 md:h-24 md:w-24 text-amber-600 transition-transform duration-500 group-hover:scale-110" />
               </div>
               <CardHeader className="relative pb-2 p-3 md:p-6">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
-                  <Package className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-amber-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                  <RotateCcw className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />
                 </div>
-                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                  Store Stock
+                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">
+                  Meter Replacements
                 </CardTitle>
               </CardHeader>
               <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
                 <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
-                  1P/3P/Smart meter balance & store ledgers
+                  Defective & burnt meter proposals, issuance, WOs & Note Sheets
                 </p>
               </CardContent>
             </Card>
-          )}
 
-          {/* History & Archives Card */}
-          <Card
-            className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-gray-300 overflow-hidden"
-            onClick={() => { setView("history"); setTab("history") }}>
-            <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-gray-500/10 transition-all duration-300 group-hover:scale-105 bg-gray-500 shadow-gray-500/20`}>
-              {issues.filter(i => (i.status === "installed" || i.status === "returned") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase()))).length}
-            </div>
-            <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
-              <FileText className="h-16 w-16 md:h-24 md:w-24 text-gray-600 transition-transform duration-500 group-hover:scale-110" />
-            </div>
-            <CardHeader className="relative pb-2 p-3 md:p-6">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
-                <FileText className="h-5 w-5 md:h-6 md:w-6 text-gray-600" />
+            {/* NSC Meters Card */}
+            <Card
+              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-emerald-300 overflow-hidden"
+              onClick={() => { setView("nsc"); setTab("nsc") }}>
+              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-emerald-500/10 transition-all duration-300 group-hover:scale-105 ${
+                (isAdmin
+                  ? nscApplications.filter(a => (a.status === "quotation_issued" || a.status === "project_done") && (agencyFilter === "all" || (a.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length + issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done") && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length
+                  : issues.filter(i => i.purpose === "nsc" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length
+                ) > 0 ? "bg-emerald-600 shadow-emerald-500/20" : "bg-gray-400 shadow-gray-400/20"
+              }`}>
+                {isAdmin
+                  ? nscApplications.filter(a => (a.status === "quotation_issued" || a.status === "project_done") && (agencyFilter === "all" || (a.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length + issues.filter(i => i.purpose === "nsc" && (i.status === "issued" || i.status === "installation_done") && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length
+                  : issues.filter(i => i.purpose === "nsc" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length
+                }
               </div>
-              <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-gray-700 transition-colors">
-                History & Archives
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
-              <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
-                All completed installations & returned meters
-              </p>
-            </CardContent>
-          </Card>
+              <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                <ClipboardCheck className="h-16 w-16 md:h-24 md:w-24 text-emerald-600 transition-transform duration-500 group-hover:scale-110" />
+              </div>
+              <CardHeader className="relative pb-2 p-3 md:p-6">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                  <ClipboardCheck className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />
+                </div>
+                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                  NSC Meters
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+                <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                  New connection meter issuance & legacy entries
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Check Meters Card */}
+            <Card
+              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-purple-300 overflow-hidden"
+              onClick={() => { setView("check"); setTab("check") }}>
+              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-purple-500/10 transition-all duration-300 group-hover:scale-105 ${
+                (isAdmin
+                  ? (replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length + issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length)
+                  : (issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length + issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length)
+                ) > 0 ? "bg-purple-600 shadow-purple-500/20" : "bg-gray-400 shadow-gray-400/20"
+              }`}>
+                {isAdmin
+                  ? `${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}/${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}`
+                  : `${issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}/${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}`
+                }
+              </div>
+              <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                <Gauge className="h-16 w-16 md:h-24 md:w-24 text-purple-600 transition-transform duration-500 group-hover:scale-110" />
+              </div>
+              <CardHeader className="relative pb-2 p-3 md:p-6">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                  <Gauge className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
+                </div>
+                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
+                  Check Meters
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+                <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                  Slow/Fast testing & accuracy verification
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Stock Register Card */}
+            {(isAdmin || (permissions && (permissions.meter_stock || permissions.meter?.includes("read")))) && (
+              <Card
+                className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-blue-300 overflow-hidden"
+                onClick={() => { setView("stock"); setTab("stock") }}>
+                <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-blue-500/10 transition-all duration-300 group-hover:scale-105 ${summary.reduce((acc, s) => acc + s.available, 0) > 0 ? "bg-blue-600 shadow-blue-500/20" : "bg-gray-400 shadow-gray-400/20"}`}>
+                  {summary.reduce((acc, s) => acc + s.available, 0)}
+                </div>
+                <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                  <Package className="h-16 w-16 md:h-24 md:w-24 text-blue-600 transition-transform duration-500 group-hover:scale-110" />
+                </div>
+                <CardHeader className="relative pb-2 p-3 md:p-6">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                    <Package className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
+                  </div>
+                  <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                    Store Stock
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+                  <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                    1P/3P/Smart meter balance & store ledgers
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* History & Archives Card */}
+            <Card
+              className="group relative cursor-pointer transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 border border-gray-200/80 bg-white/70 backdrop-blur-md rounded-2xl hover:border-gray-300 overflow-hidden"
+              onClick={() => { setView("history"); setTab("history") }}>
+              <div className={`absolute top-2 right-2 md:top-4 md:right-4 z-20 flex items-center justify-center text-white text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-8 md:px-2 rounded-full shadow-lg border-2 border-white ring-2 ring-gray-500/10 transition-all duration-300 group-hover:scale-105 bg-gray-500 shadow-gray-500/20`}>
+                {issues.filter(i => (i.status === "installed" || i.status === "returned") && (isAdmin || userAgencies.map((a: string) => a.toUpperCase()).includes((i.agency || "").toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length}
+              </div>
+              <div className="absolute top-0 right-0 p-2 md:p-4 opacity-5 group-hover:opacity-10 transition-opacity duration-500">
+                <FileText className="h-16 w-16 md:h-24 md:w-24 text-gray-600 transition-transform duration-500 group-hover:scale-110" />
+              </div>
+              <CardHeader className="relative pb-2 p-3 md:p-6">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center mb-2 md:mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-sm">
+                  <FileText className="h-5 w-5 md:h-6 md:w-6 text-gray-600" />
+                </div>
+                <CardTitle className="text-sm md:text-xl font-bold text-gray-900 group-hover:text-gray-700 transition-colors">
+                  History & Archives
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative p-3 pt-0 md:p-6 md:pt-0">
+                <p className="text-xs md:text-sm text-gray-500 line-clamp-2">
+                  All completed installations & returned meters
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -1045,6 +1155,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                 placeholder="Search issue ID, serial, consumer, agency..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
               {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
             </div>
+            {AgencyFilterDropdown}
             {isAdmin && (() => {
               const countInView = filteredIssues.filter(i => selectedForSlip.has(i.issueId)).length
               return countInView > 0 ? (
@@ -1065,12 +1176,12 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           {view === "nsc" && (
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
               {[
-                ...(isAdmin ? [{ value: "proposed",  label: `📋 Proposed (${nscApplications.filter(a => a.status === "quotation_issued" || a.status === "project_done").length})` }] : []),
-                { value: "issued",    label: `⚡ Issued (${issues.filter(i => i.purpose === "nsc" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "installed", label: `🔧 Installed (${issues.filter(i => i.purpose === "nsc" && i.status === "installation_done" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "completed", label: `✅ Connection Done (${issues.filter(i => i.purpose === "nsc" && i.status === "installed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "withheld",  label: `⚠️ Withheld (${issues.filter(i => i.purpose === "nsc" && (i.status === "returned" || i.status === "withheld") && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "all",       label: `All (${issues.filter(i => i.purpose === "nsc" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                ...(isAdmin ? [{ value: "proposed",  label: `📋 Proposed (${nscApplications.filter(a => (a.status === "quotation_issued" || a.status === "project_done") && (agencyFilter === "all" || (a.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` }] : []),
+                { value: "issued",    label: `⚡ Issued (${issues.filter(i => i.purpose === "nsc" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "installed", label: `🔧 Installed (${issues.filter(i => i.purpose === "nsc" && i.status === "installation_done" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "completed", label: `✅ Connection Done (${issues.filter(i => i.purpose === "nsc" && i.status === "installed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "withheld",  label: `⚠️ Withheld (${issues.filter(i => i.purpose === "nsc" && (i.status === "returned" || i.status === "withheld") && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "all",       label: `All (${issues.filter(i => i.purpose === "nsc" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
               ].map(sub => (
                 <button key={sub.value} onClick={() => setNscSubTab(sub.value as any)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
@@ -1086,13 +1197,13 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           {view === "check" && (
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
               {[
-                ...(isAdmin ? [{ value: "proposed",    label: `📋 Proposed (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed").length})` }] : []),
-                { value: "issued",      label: `⚡ Issued (${issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "installed",   label: `🔧 Installed (${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && !i.crossCheckDate1 && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "check1_done", label: `1st Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate1 && !i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "check2_done", label: `2nd Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "finalized",   label: `🏁 Finalized (${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus === "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
-                { value: "all",         label: `All Check Meters (${issues.filter(i => i.purpose === "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase()))).length})` },
+                ...(isAdmin ? [{ value: "proposed",    label: `📋 Proposed (${replacements.filter(r => r.purpose === "slow_fast" && (r.status || "").toLowerCase() === "proposed" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` }] : []),
+                { value: "issued",      label: `⚡ Issued (${issues.filter(i => i.purpose === "slow_fast" && i.status === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "installed",   label: `🔧 Installed (${issues.filter(i => i.purpose === "slow_fast" && (i.status === "installation_done" || i.status === "installed") && i.checkMeterStatus !== "finalized" && !i.crossCheckDate1 && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "check1_done", label: `1st Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate1 && !i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "check2_done", label: `2nd Check Done (${issues.filter(i => i.purpose === "slow_fast" && i.crossCheckDate2 && i.checkMeterStatus !== "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "finalized",   label: `🏁 Finalized (${issues.filter(i => i.purpose === "slow_fast" && i.checkMeterStatus === "finalized" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+                { value: "all",         label: `All Check Meters (${issues.filter(i => i.purpose === "slow_fast" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((i.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (i.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
               ].map(sub => (
                 <button key={sub.value} onClick={() => setCheckSubTab(sub.value as any)}
                   className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
@@ -1187,6 +1298,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                 placeholder="Search replacement ID, consumer, agency..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
               {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
             </div>
+            {AgencyFilterDropdown}
             {isAdmin && (() => {
               const selectedIssuedReps = filteredReplacements.filter(r => r.status === "issued" && (selectedForSlip.has(r.issueId) || selectedForSlip.has(r.replacementId)))
               return selectedIssuedReps.length > 0 ? (
@@ -1947,13 +2059,13 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           {/* Sub-tab Selector */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             {[
-              ...(isAdmin ? [{ value: "pending",   label: `Pending Issue (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed").length})` }] : []),
-              { value: "issued",    label: `Issued (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
-              { value: "installed", label: `Installed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
-              { value: "wo_done",   label: `WO Done (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
-              { value: "completed", label: `Completed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "replaced" && r.noteSheetNo && r.noteSheetNo.trim() && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
-              { value: "closed",    label: `Closed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "closed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
-              { value: "all",       label: `All (${combinedReplacements.filter(r => ((r.status || "").toLowerCase() !== "proposed" || isAdmin) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase()))).length})` },
+              ...(isAdmin ? [{ value: "pending",   label: `Pending Issue (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "proposed" && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` }] : []),
+              { value: "issued",    label: `Issued (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "issued" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+              { value: "installed", label: `Installed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "updated" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+              { value: "wo_done",   label: `WO Done (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim()) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+              { value: "completed", label: `Completed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "replaced" && r.noteSheetNo && r.noteSheetNo.trim() && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+              { value: "closed",    label: `Closed (${combinedReplacements.filter(r => (r.status || "").toLowerCase() === "closed" && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
+              { value: "all",       label: `All (${combinedReplacements.filter(r => ((r.status || "").toLowerCase() !== "proposed" || isAdmin) && (isAdmin || userAgencies.map(a => a.toUpperCase()).includes((r.agency || "").trim().toUpperCase())) && (agencyFilter === "all" || (r.agency || "").toUpperCase() === agencyFilter.toUpperCase())).length})` },
             ].map(sub => (
               <button key={sub.value} onClick={() => setRepSubTab(sub.value as any)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition ${
