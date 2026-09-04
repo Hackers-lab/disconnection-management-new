@@ -60,6 +60,28 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       }
     }
 
+    // Check for duplicate active proposal: Block if consumer already has an incomplete replacement
+    const cleanConsumerId = String(consumerId).trim()
+    if (cleanConsumerId && cleanConsumerId !== "000000000") {
+      const spreadsheetId = getSpreadsheetId()
+      const existingReplacements = await fetchReplacements(spreadsheetId)
+      const duplicateProposal = existingReplacements.find(r => 
+        String(r.consumerId).trim() === cleanConsumerId &&
+        r.status !== "closed" &&
+        r.status !== "completed" &&
+        !(r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim())
+      )
+
+      if (duplicateProposal) {
+        return NextResponse.json({
+          error: `Consumer ${cleanConsumerId} already has an active meter replacement in progress (${duplicateProposal.replacementId}, Status: ${duplicateProposal.status.toUpperCase()}). Duplicate entries are not allowed until completed or closed.`,
+          duplicate: true,
+          existingId: duplicateProposal.replacementId,
+          status: duplicateProposal.status
+        }, { status: 400 })
+      }
+    }
+
     const replacementId = await addReplacement({
       consumerId,
       consumerName,

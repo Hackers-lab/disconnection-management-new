@@ -12,8 +12,16 @@ import {
   Search, X, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Loader2, Download, RefreshCw, Check, ArrowLeft, RotateCcw, Package,
   MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet, AlertCircle,
-  IndianRupee, AlertTriangle, ShieldCheck
+  IndianRupee, AlertTriangle, ShieldCheck, Filter, ChevronDown
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { useHashState } from "@/hooks/use-hash-state"
@@ -84,6 +92,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   const [syncState, setSyncState] = useState<SyncState>("loading")
   const [tab, setTab] = useState<Tab>("all")
   const [search, setSearch] = useState("")
+  const [agencyFilter, setAgencyFilter] = useState<string>("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [view, setView] = useHashState<"list" | "create">("meter-replacement", "list")
 
@@ -326,6 +335,17 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   useEffect(() => { load() }, [])
 
+  const availableAgencies = useMemo(() => {
+    const set = new Set<string>()
+    if (Array.isArray(agencies)) {
+      agencies.forEach(a => { if (a && a.trim()) set.add(a.trim()) })
+    }
+    records.forEach(r => {
+      if (r.agency && r.agency.trim()) set.add(r.agency.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [agencies, records])
+
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let data = [...records]
@@ -339,6 +359,11 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     if (!isAdmin) {
       const upperAgencies = userAgencies.map(a => a.trim().toUpperCase())
       data = data.filter(r => tab === "proposed" ? true : upperAgencies.includes((r.agency || "").trim().toUpperCase()))
+    }
+
+    if (agencyFilter && agencyFilter !== "all") {
+      const targetAgency = agencyFilter.trim().toUpperCase()
+      data = data.filter(r => (r.agency || "").trim().toUpperCase() === targetAgency)
     }
 
     if (search) {
@@ -356,12 +381,12 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       )
     }
     return data
-  }, [records, tab, search, isAdmin, userAgencies])
+  }, [records, tab, search, agencyFilter, isAdmin, userAgencies])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
-  useEffect(() => setCurrentPage(1), [tab, search])
+  useEffect(() => setCurrentPage(1), [tab, search, agencyFilter])
 
   const downloadReport = async () => {
     const XLSX = await import("xlsx")
@@ -441,6 +466,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       <MeterReplacementCreateForm
         agencies={agencies}
         oldMeterMap={oldMeterMap}
+        existingRecords={records}
         downloadProposalTemplate={downloadProposalTemplate}
         onSave={(id) => {
           toast({ title: "Proposed replacement created", description: `ID: ${id}` })
@@ -478,6 +504,66 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               placeholder="Search ID, name, mobile, agency, serial..." className="pl-10 pr-8 rounded-xl h-9 text-sm" />
             {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
           </div>
+
+          {/* Agency Filter Button (Icon only) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant={agencyFilter !== "all" ? "default" : "outline"}
+                className={`shrink-0 rounded-xl h-9 w-9 p-0 relative transition-all ${
+                  agencyFilter !== "all"
+                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                    : "text-gray-600 hover:bg-gray-100 border-gray-200"
+                }`}
+                title={agencyFilter !== "all" ? `Filtered by Agency: ${agencyFilter}` : "Filter by Agency"}
+              >
+                <Filter className="h-4 w-4" />
+                {agencyFilter !== "all" && (
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600 border border-white"></span>
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-slate-200 bg-white z-50">
+              <DropdownMenuLabel className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-2 py-1">
+                Filter by Agency
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setAgencyFilter("all")}
+                className={`text-xs cursor-pointer rounded-lg flex items-center justify-between px-2.5 py-1.5 font-medium ${
+                  agencyFilter === "all" ? "bg-blue-50 text-blue-700 font-bold" : "text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <span>All Agencies</span>
+                {agencyFilter === "all" && <Check className="h-3.5 w-3.5 text-blue-600" />}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1" />
+              {availableAgencies.length === 0 ? (
+                <div className="text-[11px] text-gray-400 px-2 py-1.5 text-center">No agencies found</div>
+              ) : (
+                availableAgencies.map((ag) => (
+                  <DropdownMenuItem
+                    key={ag}
+                    onClick={() => setAgencyFilter(ag)}
+                    className={`text-xs cursor-pointer rounded-lg flex items-center justify-between px-2.5 py-1.5 font-medium ${
+                      agencyFilter.toUpperCase() === ag.toUpperCase()
+                        ? "bg-blue-50 text-blue-700 font-bold"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="truncate">{ag}</span>
+                    {agencyFilter.toUpperCase() === ag.toUpperCase() && (
+                      <Check className="h-3.5 w-3.5 text-blue-600 shrink-0 ml-2" />
+                    )}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {isAdmin && (
             <Button size="sm" variant="outline" onClick={downloadReport} className="shrink-0 rounded-xl" title="Export to Excel">
               <Download className="h-4 w-4" />
@@ -879,12 +965,20 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 interface FormProps {
   agencies: string[]
   oldMeterMap?: Record<string, string>
+  existingRecords?: MeterReplacement[]
   downloadProposalTemplate: () => void
   onSave: (requestId: string) => void
   onCancel: () => void
 }
 
-function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadProposalTemplate, onSave, onCancel }: FormProps) {
+function isReplacementIncomplete(r: MeterReplacement) {
+  if (r.status === "closed") return false
+  if (r.status === "completed") return false
+  if (r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim()) return false
+  return true
+}
+
+function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecords = [], downloadProposalTemplate, onSave, onCancel }: FormProps) {
   const [entryMode, setEntryMode] = useState<"single" | "excel">("single")
   const [consumerId, setConsumerId] = useState("")
   const [looking, setLooking] = useState(false)
@@ -893,6 +987,13 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
   const [submitting, setSubmitting] = useState(false)
   const [agencyList, setAgencyList] = useState<string[]>(agencies)
   const [lookupStatus, setLookupStatus] = useState("")
+
+  // Duplicate proposal detection for active/incomplete records
+  const activeExisting = useMemo(() => {
+    const cid = consumerId.trim()
+    if (!cid || cid === "000000000" || cid.length !== 9) return null
+    return existingRecords.find(r => r.consumerId === cid && isReplacementIncomplete(r)) || null
+  }, [consumerId, existingRecords])
 
   // Live OSD & Connection Status verification
   const [checkingLiveStatus, setCheckingLiveStatus] = useState(false)
@@ -1072,6 +1173,19 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
         const purposeVal = normalizePurpose(rawPurpose)
         const remarksVal = String(r["Remarks"] || r["remarks"] || "").trim()
 
+        const activeDuplicate = (cid && cid !== "000000000")
+          ? existingRecords.find(r => r.consumerId === cid && isReplacementIncomplete(r))
+          : null
+        const isDuplicate = !!activeDuplicate
+        const isValid = !!(cName && cAddr) && !isDeemedCached && !isDuplicate
+        const invalidReason = isDeemedCached
+          ? "Deemed Disconnected"
+          : isDuplicate
+          ? `Active proposal exists (${activeDuplicate?.replacementId} - ${activeDuplicate?.status})`
+          : !(cName && cAddr)
+          ? "Missing Name/Address"
+          : undefined
+
         return {
           consumerId: cid || "000000000",
           consumerName: cName,
@@ -1082,8 +1196,9 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
           oldMeterNo: cOldMeter,
           remarks: remarksVal,
           isDeemed: isDeemedCached,
-          isValid: !!(cName && cAddr) && !isDeemedCached,
-          invalidReason: isDeemedCached ? "Deemed Disconnected" : !(cName && cAddr) ? "Missing Name/Address" : undefined
+          isDuplicate,
+          isValid,
+          invalidReason
         }
       })
 
@@ -1096,9 +1211,9 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
   }
 
   const handleBulkSubmit = async () => {
-    const validItems = parsedExcelItems.filter(i => i.isValid && !i.isDeemed)
+    const validItems = parsedExcelItems.filter(i => i.isValid && !i.isDeemed && !i.isDuplicate)
     if (validItems.length === 0) {
-      alert("No valid proposal items to submit. Ensure Consumer Name and Address are present and connection is not deemed disconnected.")
+      alert("No valid proposal items to submit. Ensure required details are present, connection is not deemed, and there are no active duplicate proposals.")
       return
     }
 
@@ -1124,6 +1239,16 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
   const handleLookup = async () => {
     const id = consumerId.trim()
     if (id.length !== 9) { alert("Consumer ID must be 9 digits."); return }
+
+    const activeProposal = existingRecords.find(r => r.consumerId === id && isReplacementIncomplete(r))
+    if (activeProposal) {
+      toast({
+        title: "Active Proposal Exists",
+        description: `Consumer ${id} already has an active meter replacement in progress (${activeProposal.replacementId}, Status: ${activeProposal.status.toUpperCase()}). Duplicate entries are not allowed.`,
+        variant: "destructive"
+      })
+    }
+
     setLooking(true)
     setFound(null)
     setNotFound(false)
@@ -1275,6 +1400,12 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
     }
 
     const cid = consumerId.trim()
+    // Strict block if active duplicate exists
+    if (activeExisting) {
+      alert(`Cannot propose replacement: Consumer ${cid} already has an active meter replacement in progress (${activeExisting.replacementId}, Status: ${activeExisting.status.toUpperCase()}). Duplicate entries are not allowed until completed or closed.`)
+      return
+    }
+
     // Strict block if deemed
     if (liveOsdResult?.isDeemed) {
       alert(`Cannot propose replacement: Consumer connection is Deemed Disconnected (${liveOsdResult.connectionStatus}) on WBSEDCL portal.`)
@@ -1480,6 +1611,22 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
               {found && <p className="text-xs text-green-700 font-bold flex items-center gap-1">✓ Match Found: {found.name}</p>}
             </div>
 
+            {/* Active Duplicate Proposal Alert */}
+            {activeExisting && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl mb-4 flex items-start gap-2.5 text-xs animate-in fade-in duration-200">
+                <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold text-rose-900 block">Duplicate Proposal Blocked</span>
+                  <span>
+                    Consumer <span className="font-mono font-bold">{consumerId}</span> already has an active replacement in progress (ID: <span className="font-mono font-bold">{activeExisting.replacementId}</span>, Status: <Badge className="bg-rose-100 text-rose-800 border-rose-200 uppercase text-[10px] py-0 px-1 font-bold">{activeExisting.status}</Badge>).
+                  </span>
+                  <p className="text-[11px] text-rose-700">
+                    You cannot propose this consumer again until their previous replacement proposal is completed with a Note Sheet or closed.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Live Status and OSD Panel */}
             {checkingLiveStatus && (
               <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl mb-4 flex items-center gap-2 text-xs text-blue-800">
@@ -1678,16 +1825,18 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
                 <Button
                   type="submit"
                   className={`flex-[2] text-white transition ${
-                    liveOsdResult?.isDeemed
+                    liveOsdResult?.isDeemed || activeExisting
                       ? "bg-red-600 hover:bg-red-700 cursor-not-allowed"
                       : "bg-slate-950 hover:bg-slate-900"
                   }`}
-                  disabled={submitting || uploading || checkingLiveStatus || liveOsdResult?.isDeemed === true}
+                  disabled={submitting || uploading || checkingLiveStatus || liveOsdResult?.isDeemed === true || !!activeExisting}
                 >
                   {submitting ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : liveOsdResult?.isDeemed ? (
                     <AlertCircle className="h-4 w-4 mr-2" />
+                  ) : activeExisting ? (
+                    <AlertTriangle className="h-4 w-4 mr-2" />
                   ) : (
                     <Check className="h-4 w-4 mr-2" />
                   )}
@@ -1695,6 +1844,8 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, downloadPropos
                     ? "Submitting..."
                     : liveOsdResult?.isDeemed
                     ? "Blocked (Deemed Disconnected)"
+                    : activeExisting
+                    ? "Blocked (Duplicate Proposal)"
                     : "Save Proposal"}
                 </Button>
               </div>

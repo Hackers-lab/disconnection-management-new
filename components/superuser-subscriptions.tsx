@@ -26,7 +26,10 @@ import {
   HelpCircle,
   X,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -75,6 +78,24 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCcc, setSelectedCcc] = useState<string>("all")
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [subscriberViewMode, setSubscriberViewMode] = useState<"tenant" | "flat">("tenant")
+  const [collapsedTenants, setCollapsedTenants] = useState<Record<string, boolean>>({})
+
+  const toggleTenantCollapse = (cccCode: string) => {
+    setCollapsedTenants((prev) => ({
+      ...prev,
+      [cccCode]: !prev[cccCode],
+    }))
+  }
+
+  const expandAllTenants = () => setCollapsedTenants({})
+  const collapseAllTenants = () => {
+    const allCollapsed: Record<string, boolean> = {}
+    tenantGroups.forEach((g) => {
+      allCollapsed[g.cccCode] = true
+    })
+    setCollapsedTenants(allCollapsed)
+  }
 
   // Modals
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null)
@@ -263,6 +284,54 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
       return true
     })
   }, [data?.subscribers, selectedCcc, subscriberFilter, searchQuery])
+
+  // Tenant-wise grouped subscribers
+  const tenantGroups = useMemo(() => {
+    const map = new Map<string, {
+      cccCode: string
+      cccName: string
+      subscribers: SubscriberItem[]
+      agenciesCount: number
+      usersCount: number
+      totalRevenue: number
+      paidCount: number
+      trialCount: number
+      bypassedCount: number
+      expiredCount: number
+    }>()
+
+    filteredSubscribers.forEach((sub) => {
+      const code = sub.cccCode || "UNKNOWN"
+      if (!map.has(code)) {
+        map.set(code, {
+          cccCode: code,
+          cccName: sub.cccName || code,
+          subscribers: [],
+          agenciesCount: 0,
+          usersCount: 0,
+          totalRevenue: 0,
+          paidCount: 0,
+          trialCount: 0,
+          bypassedCount: 0,
+          expiredCount: 0,
+        })
+      }
+      const g = map.get(code)!
+      g.subscribers.push(sub)
+      if (sub.type === "agency") g.agenciesCount++
+      else g.usersCount++
+      g.totalRevenue += sub.totalPaidAmount || 0
+      if (sub.source === "razorpay_paid") g.paidCount++
+      else if (sub.source === "dc_upload_trial" || sub.source === "setup_window_trial") g.trialCount++
+      else if (sub.source === "admin_bypass") g.bypassedCount++
+      if (sub.isExpired) g.expiredCount++
+    })
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.totalRevenue !== a.totalRevenue) return b.totalRevenue - a.totalRevenue
+      return b.subscribers.length - a.subscribers.length
+    })
+  }, [filteredSubscribers])
 
   // Filtered transactions
   const filteredTransactions = useMemo(() => {
@@ -529,56 +598,338 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
 
         {/* --- VIEW 1: SUBSCRIBERS MATRIX --- */}
         {activeView === "subscribers" && (
-          <div className="space-y-3">
-            {/* Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-[11px] font-semibold text-slate-400 mr-1 flex items-center gap-1">
-                <Filter className="w-3 h-3" /> Filter:
-              </span>
-              {[
-                { id: "all", label: "All Subscribers" },
-                { id: "paid", label: "Paid (Razorpay)" },
-                { id: "db_active", label: "DB Active (No Razorpay)" },
-                { id: "trial", label: "Free Trial" },
-                { id: "bypassed", label: "Free Pass" },
-                { id: "expired", label: "Expired" },
-              ].map((pill) => (
-                <button
-                  key={pill.id}
-                  onClick={() => setSubscriberFilter(pill.id as any)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer select-none ${
-                    subscriberFilter === pill.id
-                      ? "bg-slate-900 text-white font-semibold shadow-2xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
-                  }`}
-                >
-                  {pill.label}
-                </button>
-              ))}
+          <div className="space-y-4">
+            {/* View Mode & Filter Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+              {/* Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-[11px] font-semibold text-slate-400 mr-1 flex items-center gap-1">
+                  <Filter className="w-3 h-3" /> Filter:
+                </span>
+                {[
+                  { id: "all", label: "All Subscribers" },
+                  { id: "paid", label: "Paid (Razorpay)" },
+                  { id: "db_active", label: "DB Active (No Razorpay)" },
+                  { id: "trial", label: "Free Trial" },
+                  { id: "bypassed", label: "Free Pass" },
+                  { id: "expired", label: "Expired" },
+                ].map((pill) => (
+                  <button
+                    key={pill.id}
+                    onClick={() => setSubscriberFilter(pill.id as any)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer select-none ${
+                      subscriberFilter === pill.id
+                        ? "bg-slate-900 text-white font-semibold shadow-2xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200/70"
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tenant-wise vs Flat Switcher & Controls */}
+              <div className="flex items-center gap-2 self-start lg:self-auto shrink-0 flex-wrap">
+                <div className="p-0.5 bg-slate-100 rounded-xl flex items-center gap-0.5 text-xs border border-slate-200/60">
+                  <button
+                    onClick={() => setSubscriberViewMode("tenant")}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      subscriberViewMode === "tenant"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                    title="Group subscribers by CCC tenant"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Tenant View ({tenantGroups.length})</span>
+                  </button>
+                  <button
+                    onClick={() => setSubscriberViewMode("flat")}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      subscriberViewMode === "flat"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                    title="Show flat table of all subscribers"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Flat Matrix ({filteredSubscribers.length})</span>
+                  </button>
+                </div>
+
+                {subscriberViewMode === "tenant" && tenantGroups.length > 0 && (
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={expandAllTenants}
+                      className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 rounded-xl border-slate-200"
+                    >
+                      Expand All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={collapseAllTenants}
+                      className="h-8 px-2.5 text-xs text-slate-600 hover:text-slate-900 rounded-xl border-slate-200"
+                    >
+                      Collapse All
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Subscribers Table */}
-            <div className="border border-slate-200 rounded-xl overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="py-3 px-3.5">Subscriber</th>
-                    <th className="py-3 px-3">Office (CCC)</th>
-                    <th className="py-3 px-3">Subscription Status & Source</th>
-                    <th className="py-3 px-3">Valid Till</th>
-                    <th className="py-3 px-3">Orders / Paid</th>
-                    <th className="py-3 px-3 text-right">Quick Management</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150">
-                  {filteredSubscribers.length === 0 ? (
+            {/* --- SUBSCRIBERS DISPLAY --- */}
+            {filteredSubscribers.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                <Building2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                <p className="font-semibold text-slate-600">No subscribers matched your filters</p>
+                <p className="text-[11px] text-slate-400 mt-1">Try resetting the CCC office filter or clearing your search term.</p>
+              </div>
+            ) : subscriberViewMode === "tenant" ? (
+              /* Tenant-wise Grouped View */
+              <div className="space-y-3">
+                {tenantGroups.map((group) => {
+                  const isCollapsed = !!collapsedTenants[group.cccCode]
+                  return (
+                    <div
+                      key={group.cccCode}
+                      className="border border-slate-200/90 rounded-2xl bg-white shadow-2xs overflow-hidden transition-all hover:border-slate-300"
+                    >
+                      {/* Tenant Header Bar */}
+                      <div
+                        onClick={() => toggleTenantCollapse(group.cccCode)}
+                        className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-50/90 via-slate-50/50 to-white hover:bg-slate-100/60 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 flex items-center justify-center shrink-0 shadow-2xs">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-extrabold text-slate-900 text-sm tracking-tight truncate">
+                                {group.cccName || "Office"}
+                              </h4>
+                              <Badge variant="outline" className="bg-white border-slate-200 text-slate-700 font-mono text-[10px] px-1.5 py-0">
+                                CCC: {group.cccCode}
+                              </Badge>
+                              {group.totalRevenue > 0 && (
+                                <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 font-bold text-[10px] px-2 py-0">
+                                  ₹{group.totalRevenue.toLocaleString("en-IN")} collected
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                              <span>
+                                {group.subscribers.length} total {group.subscribers.length === 1 ? "account" : "accounts"} ({group.agenciesCount} {group.agenciesCount === 1 ? "agency" : "agencies"}, {group.usersCount} {group.usersCount === 1 ? "user" : "users"})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status Badges & Chevron Toggle */}
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center flex-wrap">
+                          {group.paidCount > 0 && (
+                            <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[10px] font-semibold py-0.5 px-2">
+                              {group.paidCount} Paid
+                            </Badge>
+                          )}
+                          {group.trialCount > 0 && (
+                            <Badge className="bg-purple-50 text-purple-800 border-purple-200 text-[10px] font-semibold py-0.5 px-2">
+                              {group.trialCount} Trial
+                            </Badge>
+                          )}
+                          {group.bypassedCount > 0 && (
+                            <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] font-semibold py-0.5 px-2">
+                              {group.bypassedCount} Free Pass
+                            </Badge>
+                          )}
+                          {group.expiredCount > 0 && (
+                            <Badge className="bg-rose-50 text-rose-800 border-rose-200 text-[10px] font-semibold py-0.5 px-2">
+                              {group.expiredCount} Expired
+                            </Badge>
+                          )}
+
+                          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center ml-1">
+                            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Tenant Table Body */}
+                      {!isCollapsed && (
+                        <div className="border-t border-slate-150 overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                              <tr>
+                                <th className="py-2.5 px-3.5">Subscriber</th>
+                                <th className="py-2.5 px-3">Subscription Status & Source</th>
+                                <th className="py-2.5 px-3">Valid Till</th>
+                                <th className="py-2.5 px-3">Orders / Paid</th>
+                                <th className="py-2.5 px-3 text-right">Quick Management</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-150">
+                              {group.subscribers.map((sub) => (
+                                <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
+                                  {/* Subscriber Name & Role */}
+                                  <td className="py-2.5 px-3.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 font-bold text-xs uppercase">
+                                        {sub.type === "agency" ? (
+                                          <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                                        ) : (
+                                          <User className="w-3.5 h-3.5 text-blue-600" />
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="font-bold text-slate-900 truncate max-w-[180px] sm:max-w-xs">
+                                          {sub.name}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                                          {sub.username && <span>@{sub.username} • </span>}
+                                          <span className="capitalize">{sub.role}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Subscription Status & Source Badge */}
+                                  <td className="py-2.5 px-3">
+                                    <div className="space-y-1">
+                                      {sub.source === "razorpay_paid" ? (
+                                        <Badge className="bg-amber-50 text-amber-800 border-amber-300 font-bold text-[10px] gap-1 px-2 py-0.5">
+                                          <CheckCircle2 className="w-3 h-3 text-amber-600" />
+                                          Paid (Razorpay)
+                                        </Badge>
+                                      ) : sub.source === "admin_bypass" ? (
+                                        <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 font-bold text-[10px] gap-1 px-2 py-0.5">
+                                          <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                          Free Pass (Admin Bypass)
+                                        </Badge>
+                                      ) : sub.source === "dc_upload_trial" ? (
+                                        <Badge className="bg-purple-50 text-purple-800 border-purple-300 font-bold text-[10px] gap-1 px-2 py-0.5">
+                                          <Sparkles className="w-3 h-3 text-purple-600" />
+                                          Free Trial (DC Upload - 90 Days)
+                                        </Badge>
+                                      ) : sub.source === "setup_window_trial" ? (
+                                        <Badge className="bg-blue-50 text-blue-800 border-blue-300 font-bold text-[10px] gap-1 px-2 py-0.5">
+                                          <Clock className="w-3 h-3 text-blue-600" />
+                                          Free Trial (Setup Window)
+                                        </Badge>
+                                      ) : sub.source === "db_grant" ? (
+                                        <Badge className="bg-cyan-50 text-cyan-800 border-cyan-300 font-bold text-[10px] gap-1 px-2 py-0.5">
+                                          <Layers className="w-3 h-3 text-cyan-600" />
+                                          Direct DB Grant (No Razorpay)
+                                        </Badge>
+                                      ) : (
+                                        <Badge className="bg-rose-50 text-rose-800 border-rose-300 font-bold text-[10px] gap-1 px-2 py-0.5">
+                                          <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                          Expired
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* Validity & Expiry */}
+                                  <td className="py-2.5 px-3">
+                                    <div className="font-semibold text-slate-800 font-mono text-[11px]">
+                                      {sub.subscriptionExpiresAt || "—"}
+                                    </div>
+                                    <div
+                                      className={`text-[10px] font-medium ${
+                                        sub.isExpired
+                                          ? "text-rose-600"
+                                          : sub.daysRemaining <= 7
+                                          ? "text-amber-600 font-bold"
+                                          : "text-emerald-600"
+                                      }`}
+                                    >
+                                      {sub.source === "admin_bypass"
+                                        ? "Permanent (Bypassed)"
+                                        : sub.isExpired
+                                        ? `Expired ${Math.abs(sub.daysRemaining)} days ago`
+                                        : `${sub.daysRemaining} days remaining`}
+                                    </div>
+                                  </td>
+
+                                  {/* Orders & Total Paid */}
+                                  <td className="py-2.5 px-3">
+                                    <div className="font-bold text-slate-900">
+                                      {sub.totalPaidAmount > 0
+                                        ? `₹${sub.totalPaidAmount.toLocaleString("en-IN")}`
+                                        : "₹0 (Free / Trial)"}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400">
+                                      {sub.orderCount} {sub.orderCount === 1 ? "order" : "orders"}
+                                    </div>
+                                  </td>
+
+                                  {/* Quick Management Actions */}
+                                  <td className="py-2.5 px-3 text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setExtendTarget(sub)
+                                          setExtendDays(30)
+                                        }}
+                                        className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300 cursor-pointer"
+                                        title="Extend subscription validity by 30/60/90 days"
+                                      >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Extend
+                                      </Button>
+
+                                      {sub.type === "user" && (
+                                        <Button
+                                          variant={sub.bypassSubscription ? "destructive" : "outline"}
+                                          size="sm"
+                                          onClick={() => handleToggleBypass(sub)}
+                                          className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer ${
+                                            sub.bypassSubscription
+                                              ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                                              : "text-slate-700 hover:text-emerald-600 hover:border-emerald-300"
+                                          }`}
+                                          title={
+                                            sub.bypassSubscription
+                                              ? "Revoke Free Pass"
+                                              : "Grant Permanent Free Pass (Bypass Subscription)"
+                                          }
+                                        >
+                                          {sub.bypassSubscription ? "Revoke Pass" : "Free Pass"}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              /* Flat Matrix View */
+              <div className="border border-slate-200 rounded-2xl overflow-x-auto bg-white shadow-2xs">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-400 text-xs">
-                        No subscribers matched your filters.
-                      </td>
+                      <th className="py-3 px-3.5">Subscriber</th>
+                      <th className="py-3 px-3">Office (CCC)</th>
+                      <th className="py-3 px-3">Subscription Status & Source</th>
+                      <th className="py-3 px-3">Valid Till</th>
+                      <th className="py-3 px-3">Orders / Paid</th>
+                      <th className="py-3 px-3 text-right">Quick Management</th>
                     </tr>
-                  ) : (
-                    filteredSubscribers.map((sub) => (
+                  </thead>
+                  <tbody className="divide-y divide-slate-150">
+                    {filteredSubscribers.map((sub) => (
                       <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
                         {/* Subscriber Name & Role */}
                         <td className="py-3 px-3.5">
@@ -691,7 +1042,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                 setExtendTarget(sub)
                                 setExtendDays(30)
                               }}
-                              className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300"
+                              className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300 cursor-pointer"
                               title="Extend subscription validity by 30/60/90 days"
                             >
                               <Plus className="w-3 h-3 mr-1" />
@@ -703,7 +1054,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                 variant={sub.bypassSubscription ? "destructive" : "outline"}
                                 size="sm"
                                 onClick={() => handleToggleBypass(sub)}
-                                className={`h-7 text-[11px] font-semibold rounded-lg px-2 ${
+                                className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer ${
                                   sub.bypassSubscription
                                     ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
                                     : "text-slate-700 hover:text-emerald-600 hover:border-emerald-300"
@@ -720,11 +1071,11 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
