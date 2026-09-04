@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 
@@ -15,8 +15,8 @@ export const THEME_OPTIONS: ThemeOption[] = [
   {
     id: "slate",
     label: "Executive Slate",
-    description: "Monochrome, ultra-clean neutral cards and badges",
-    accentColor: "#475569",
+    description: "Neutral slate cards with sharp executive black badges",
+    accentColor: "#0f172a",
   },
   {
     id: "categorized",

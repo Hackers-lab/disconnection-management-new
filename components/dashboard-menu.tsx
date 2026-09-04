@@ -1039,9 +1039,9 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       default: {
         return {
           iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
-          pillBadge: "notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border border-slate-200/80 bg-slate-100/90 text-slate-800 flex items-center justify-center min-w-[1.5rem] shadow-xs",
+          pillBadge: "notranslate px-2.5 py-0.5 rounded-full text-xs font-bold border border-black/80 bg-slate-950 text-white flex items-center justify-center min-w-[1.5rem] shadow-xs",
           desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3.5 md:right-3.5 z-20 flex items-center justify-center text-[10px] md:text-xs font-bold min-w-[1.5rem] h-6 px-1.5 md:min-w-[2rem] md:h-7 md:px-2.5 rounded-full shadow-md border-2 border-white transition-all duration-300 group-hover:scale-105 ${
-            mod.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-slate-900 text-white shadow-slate-900/20"
+            mod.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-black text-white shadow-black/20"
           }`,
           desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-800 transition-transform duration-500 group-hover:scale-110",
           watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
