@@ -89,11 +89,14 @@ export async function fetchMasterData(spreadsheetId: string): Promise<ConsumerMa
     const context = getTenantContext()
     const cccCode = context?.cccCode || "6612107"
     const res = await db.execute({
-      sql: `SELECT consumer_id as consumerId, name, care_of as careOf, address, 
-                   base_class as baseClass, meter_no as meterNo, zone, mobile, 
-                   CAST(COALESCE(latitude, '') AS TEXT) as latitude, 
-                   CAST(COALESCE(longitude, '') AS TEXT) as longitude 
-            FROM master_consumers WHERE ccc_code = ?`,
+      sql: `SELECT m.con_id as consumerId, m.name, '' as careOf, m.address,
+                   m.base_class as baseClass, m.meter_no as meterNo, COALESCE(m.mru, '') as zone,
+                   COALESCE(m.reg_mob_no, '') as mobile,
+                   CAST(COALESCE(m.zlatitude, '') AS TEXT) as latitude,
+                   CAST(COALESCE(m.zlongitude, '') AS TEXT) as longitude
+            FROM master_consumers m
+            JOIN ccc_registry c ON m.ccc_id = c.id
+            WHERE c.ccc_code = ? COLLATE NOCASE`,
       args: [cccCode]
     })
 
@@ -141,7 +144,7 @@ export async function fetchMasterCount(spreadsheetId: string): Promise<number> {
     const context = getTenantContext()
     const cccCode = context?.cccCode || "6612107"
     const res = await db.execute({
-      sql: "SELECT COUNT(*) as count FROM master_consumers WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ?)",
+      sql: "SELECT COUNT(*) as count FROM master_consumers m JOIN ccc_registry c ON m.ccc_id = c.id WHERE c.ccc_code = ? COLLATE NOCASE",
       args: [cccCode]
     })
     if (res.rows && res.rows[0]) {

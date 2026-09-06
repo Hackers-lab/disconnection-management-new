@@ -30,13 +30,15 @@ export default async function DashboardPage() {
 
       if (cccCode && agencyName) {
         const agencyRes = await db.execute({
-          sql: `SELECT a.id, a.name, a.vendor_code, a.mobile_number, a.is_active
+          sql: `SELECT a.id, a.name, a.vendor_code, a.mobile_number, a.is_active,
+                       u.mobile_number as user_mobile
                 FROM agencies a
                 JOIN ccc_registry c ON a.ccc_id = c.id
+                LEFT JOIN users u ON u.id = ?
                 WHERE c.ccc_code = ? COLLATE NOCASE
                   AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
                 LIMIT 1`,
-          args: [cccCode, agencyName, session.username]
+          args: [session.userId, cccCode, agencyName, session.username]
         })
 
         let ag: any = (agencyRes.rows && agencyRes.rows.length > 0) ? agencyRes.rows[0] : null
@@ -44,16 +46,7 @@ export default async function DashboardPage() {
         const isMissingMobile = !ag?.mobile_number || !String(ag.mobile_number).trim()
 
         if (isMissingVendor || isMissingMobile) {
-          let userMobile = ""
-          try {
-            const uRes = await db.execute({
-              sql: `SELECT mobile_number FROM users WHERE id = ? LIMIT 1`,
-              args: [session.userId]
-            })
-            if (uRes.rows && uRes.rows.length > 0) {
-              userMobile = String((uRes.rows[0] as any).mobile_number || "")
-            }
-          } catch {}
+          const userMobile = String(ag?.user_mobile || "")
 
           return (
             <AgencyProfileIncomplete

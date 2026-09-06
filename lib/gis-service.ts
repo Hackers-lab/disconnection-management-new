@@ -91,7 +91,7 @@ export async function fetchGisCaptures(tenantId: string): Promise<GisPhotoRecord
     if (client) {
       await ensureGisCapturesTable()
       const res = await client.execute({
-        sql: `SELECT * FROM GIS_captures WHERE tenant_id = ? COLLATE NOCASE ORDER BY timestamp DESC`,
+        sql: `SELECT id, drive_file_id, timestamp, date_formatted, time_formatted, lat, lng, accuracy, location_name, note, uploaded_by, uploaded_by_name, user_role, office_code, agency FROM GIS_captures WHERE tenant_id = ? ORDER BY timestamp DESC`,
         args: [cleanTenant],
       })
 

@@ -58,8 +58,19 @@ export class UserStorage {
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
-                     u.ccc_id as cccId
-              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                     u.ccc_id as cccId,
+                     a.subscription_status as agencySubStatus,
+                     a.subscription_expires_at as agencySubExpiresAt
+              FROM users u
+              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              LEFT JOIN agencies a ON a.ccc_id = u.ccc_id AND (
+                a.name = u.full_name COLLATE NOCASE
+                OR a.vendor_code = u.full_name COLLATE NOCASE
+                OR a.name = u.username COLLATE NOCASE
+                OR a.vendor_code = u.username COLLATE NOCASE
+                OR INSTR(',' || u.agencies || ',', ',' || a.name || ',') > 0
+                OR INSTR(',' || u.agencies || ',', ',' || a.vendor_code || ',') > 0
+              )
               WHERE u.id = ?
               LIMIT 1`,
         args: [cleanId]
@@ -75,19 +86,22 @@ export class UserStorage {
         // For agency users, check agency-level subscription
         const roleLower = String(r.role || "viewer").toLowerCase()
         if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
-          try {
-            const agencyRes = await db.execute({
-              sql: `SELECT subscription_status, subscription_expires_at FROM agencies 
-                    WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE) LIMIT 1`,
-              args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
-            })
-            if (agencyRes.rows && agencyRes.rows.length > 0) {
-              const ag: any = agencyRes.rows[0]
-              if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
-              if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
-            }
-          } catch {
-            // fallback to user-level
+          if (r.agencySubStatus) {
+            finalSubStatus = String(r.agencySubStatus)
+            if (r.agencySubExpiresAt) finalSubExpiresAt = String(r.agencySubExpiresAt)
+          } else {
+            try {
+              const agencyRes = await db.execute({
+                sql: `SELECT subscription_status, subscription_expires_at FROM agencies
+                      WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE) LIMIT 1`,
+                args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
+              })
+              if (agencyRes.rows && agencyRes.rows.length > 0) {
+                const ag: any = agencyRes.rows[0]
+                if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
+                if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+              }
+            } catch {}
           }
         }
 
@@ -121,8 +135,19 @@ export class UserStorage {
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.mobile_number as mobileNumber, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
-                     u.ccc_id as cccId
-              FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                     u.ccc_id as cccId,
+                     a.subscription_status as agencySubStatus,
+                     a.subscription_expires_at as agencySubExpiresAt
+              FROM users u
+              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              LEFT JOIN agencies a ON a.ccc_id = u.ccc_id AND (
+                a.name = u.full_name COLLATE NOCASE
+                OR a.vendor_code = u.full_name COLLATE NOCASE
+                OR a.name = u.username COLLATE NOCASE
+                OR a.vendor_code = u.username COLLATE NOCASE
+                OR INSTR(',' || u.agencies || ',', ',' || a.name || ',') > 0
+                OR INSTR(',' || u.agencies || ',', ',' || a.vendor_code || ',') > 0
+              )
               WHERE u.username = ? COLLATE NOCASE
               LIMIT 1`,
         args: [cleanUser]
@@ -138,19 +163,22 @@ export class UserStorage {
         // For agency users, check agency-level subscription
         const roleLower = String(r.role || "viewer").toLowerCase()
         if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
-          try {
-            const agencyRes = await db.execute({
-              sql: `SELECT subscription_status, subscription_expires_at FROM agencies 
-                    WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE) LIMIT 1`,
-              args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
-            })
-            if (agencyRes.rows && agencyRes.rows.length > 0) {
-              const ag: any = agencyRes.rows[0]
-              if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
-              if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
-            }
-          } catch {
-            // fallback to user-level
+          if (r.agencySubStatus) {
+            finalSubStatus = String(r.agencySubStatus)
+            if (r.agencySubExpiresAt) finalSubExpiresAt = String(r.agencySubExpiresAt)
+          } else {
+            try {
+              const agencyRes = await db.execute({
+                sql: `SELECT subscription_status, subscription_expires_at FROM agencies
+                      WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE) LIMIT 1`,
+                args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
+              })
+              if (agencyRes.rows && agencyRes.rows.length > 0) {
+                const ag: any = agencyRes.rows[0]
+                if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
+                if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+              }
+            } catch {}
           }
         }
 
