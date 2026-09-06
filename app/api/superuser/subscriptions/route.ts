@@ -65,64 +65,61 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
-    // 1. Fetch DB transactions
+    // 1-4. Batch fetch transactions, ccc_registry, agencies, and users in 1 network roundtrip
     let dbTransactions: any[] = []
-    try {
-      const txRes = await db.execute(`
-        SELECT pt.*, u.username, u.full_name as user_full_name
-        FROM payment_transactions pt
-        LEFT JOIN users u ON pt.user_id = u.id
-        ORDER BY pt.created_at DESC
-      `)
-      dbTransactions = txRes.rows || []
-    } catch (e) {
-      console.warn("[Subscriptions API] payment_transactions query note:", e)
-    }
-
-    // 2. Fetch CCC Registry (for cccName and first_dc_upload_at)
     const cccMap = new Map<string, { name: string; firstDcUploadAt?: string | null }>()
-    try {
-      const cccRes = await db.execute(`SELECT ccc_code, ccc_name, first_dc_upload_at FROM ccc_registry`)
-      for (const row of cccRes.rows || []) {
-        const code = String(row.ccc_code || "").toUpperCase()
-        cccMap.set(code, {
-          name: String(row.ccc_name || code),
-          firstDcUploadAt: row.first_dc_upload_at ? String(row.first_dc_upload_at) : null,
-        })
-      }
-    } catch (e) {
-      console.warn("[Subscriptions API] ccc_registry query note:", e)
-    }
-
-    // 3. Fetch Agencies
     let agencies: any[] = []
-    try {
-      const agRes = await db.execute(`
-        SELECT a.id, a.name, a.vendor_code, a.subscription_status, a.subscription_expires_at, a.created_at,
-               c.ccc_code, c.ccc_name, c.first_dc_upload_at
-        FROM agencies a
-        JOIN ccc_registry c ON a.ccc_id = c.id
-        ORDER BY a.name ASC
-      `)
-      agencies = agRes.rows || []
-    } catch (e) {
-      console.warn("[Subscriptions API] agencies query note:", e)
-    }
-
-    // 4. Fetch Users
     let users: any[] = []
+
     try {
-      const uRes = await db.execute(`
-        SELECT u.id, u.username, u.full_name, u.role, u.agencies, u.subscription_status, 
-               u.subscription_expires_at, u.bypass_subscription, u.created_at,
-               c.ccc_code, c.ccc_name, c.first_dc_upload_at
-        FROM users u
-        LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-        ORDER BY u.created_at DESC
-      `)
-      users = uRes.rows || []
+      const batchResults = await db.batch(
+        [
+          {
+            sql: `SELECT pt.*, u.username, u.full_name as user_full_name
+                  FROM payment_transactions pt
+                  LEFT JOIN users u ON pt.user_id = u.id
+                  ORDER BY pt.created_at DESC`,
+            args: [],
+          },
+          {
+            sql: `SELECT ccc_code, ccc_name, first_dc_upload_at FROM ccc_registry`,
+            args: [],
+          },
+          {
+            sql: `SELECT a.id, a.name, a.vendor_code, a.subscription_status, a.subscription_expires_at, a.created_at,
+                         c.ccc_code, c.ccc_name, c.first_dc_upload_at
+                  FROM agencies a
+                  JOIN ccc_registry c ON a.ccc_id = c.id
+                  ORDER BY a.name ASC`,
+            args: [],
+          },
+          {
+            sql: `SELECT u.id, u.username, u.full_name, u.role, u.agencies, u.subscription_status,
+                         u.subscription_expires_at, u.bypass_subscription, u.created_at,
+                         c.ccc_code, c.ccc_name, c.first_dc_upload_at
+                  FROM users u
+                  LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                  ORDER BY u.created_at DESC`,
+            args: [],
+          },
+        ],
+        "read"
+      )
+
+      if (batchResults[0]?.rows) dbTransactions = batchResults[0].rows
+      if (batchResults[1]?.rows) {
+        for (const row of batchResults[1].rows) {
+          const code = String(row.ccc_code || "").toUpperCase()
+          cccMap.set(code, {
+            name: String(row.ccc_name || code),
+            firstDcUploadAt: row.first_dc_upload_at ? String(row.first_dc_upload_at) : null,
+          })
+        }
+      }
+      if (batchResults[2]?.rows) agencies = batchResults[2].rows
+      if (batchResults[3]?.rows) users = batchResults[3].rows
     } catch (e) {
-      console.warn("[Subscriptions API] users query note:", e)
+      console.warn("[Subscriptions API] Batch queries error:", e)
     }
 
     // 5. Try fetching live telemetry from Razorpay API

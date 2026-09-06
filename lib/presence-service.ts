@@ -289,7 +289,7 @@ export async function getOnlineUsersReport(forceRefresh = false): Promise<Online
     try {
       await ensurePresenceTable(turso)
       const res = await turso.execute({
-        sql: "SELECT * FROM user_presence ORDER BY last_seen DESC LIMIT 500",
+        sql: "SELECT user_id, username, name, role, ccc_code, agencies, active_module, last_action, device_type, browser_name, ip, last_seen, is_online FROM user_presence ORDER BY last_seen DESC LIMIT 500",
         args: []
       })
 
