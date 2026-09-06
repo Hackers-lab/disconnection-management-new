@@ -18,8 +18,8 @@ const OTP_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "dis
 export function generateOtp(mobileNumber: string): { otp: string; expiresAt: number } {
   const cleanMobile = mobileNumber.replace(/\D/g, "").slice(-10)
   
-  // Generate random 6-digit code
-  const code = Math.floor(100000 + Math.random() * 900000).toString()
+  // Generate cryptographically secure 6-digit code
+  const code = crypto.randomInt(100000, 1000000).toString()
   const expiresAt = Date.now() + OTP_TTL_MS
 
   otpStore.set(cleanMobile, {
