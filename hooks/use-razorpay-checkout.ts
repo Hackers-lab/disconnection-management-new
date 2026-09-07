@@ -102,6 +102,32 @@ export function useRazorpayCheckout() {
             email: prefill.email || "",
             contact: prefill.contact || "",
           },
+          config: {
+            display: {
+              sequence: ["block.upi", "block.other"],
+              preferences: {
+                show_default_blocks: true,
+              },
+              blocks: {
+                upi: {
+                  name: "Pay using UPI (PhonePe / Google Pay / Paytm / QR)",
+                  instruments: [
+                    {
+                      method: "upi",
+                    },
+                  ],
+                },
+                other: {
+                  name: "Cards, Netbanking & Wallets",
+                  instruments: [
+                    { method: "card" },
+                    { method: "netbanking" },
+                    { method: "wallet" },
+                  ],
+                },
+              },
+            },
+          },
           theme: {
             color: "#4f46e5",
           },

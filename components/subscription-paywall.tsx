@@ -135,6 +135,7 @@ export function SubscriptionPaywall({ session }: SubscriptionPaywallProps) {
             buttonText="Pay ₹99 with Razorpay & Activate"
             userPrefill={{
               name: session.name || session.username,
+              contact: session.username.replace(/\D/g, "").length >= 10 ? session.username.replace(/\D/g, "").slice(-10) : undefined,
             }}
             className="w-full h-12 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition-all duration-200 text-sm"
           />
