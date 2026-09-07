@@ -167,8 +167,8 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
       ],
     })
 
-    // 6. Update agency in agencies table
-    await db.execute({
+    // 6. Update agency in agencies table (upsert if not exists)
+    const updateRes = await db.execute({
       sql: `UPDATE agencies
             SET subscription_status = 'active',
                 subscription_expires_at = ?,
@@ -177,6 +177,26 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
               AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE OR name = ? COLLATE NOCASE)`,
       args: [expiresAt, cccCode, agencyName, agencyName, username],
     })
+
+    if (!updateRes.rowsAffected || updateRes.rowsAffected === 0) {
+      await db.execute({
+        sql: `INSERT INTO agencies (ccc_id, name, vendor_code, is_active, subscription_status, subscription_expires_at, created_at, updated_at)
+              VALUES ((SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1), ?, ?, 1, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        args: [cccCode, agencyName, vendorCode || null, expiresAt],
+      })
+    }
+
+    // Also update user directly in users table
+    if (userId || username) {
+      await db.execute({
+        sql: `UPDATE users
+              SET subscription_status = 'active',
+                  subscription_expires_at = ?,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE id = ? OR username = ? COLLATE NOCASE`,
+        args: [expiresAt, userId || username, username || userId],
+      })
+    }
 
     invalidateAgencyCache(cccCode)
 

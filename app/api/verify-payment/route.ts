@@ -170,7 +170,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     // Step 6: Update agency subscription (only reached if payment record was successfully created)
     if (cccCode && agencyName) {
       try {
-        await db.execute({
+        const updateRes = await db.execute({
           sql: `UPDATE agencies
                 SET subscription_status = 'active',
                     subscription_expires_at = ?,
@@ -179,6 +179,28 @@ export const POST = withTenant(async function POST(request: NextRequest) {
                   AND (name = ? COLLATE NOCASE OR name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
           args: [expiresAt, cccCode, agencyName, session.username, agencyName]
         })
+
+        // If no agency row existed to update, create it automatically so access is guaranteed
+        if (!updateRes.rowsAffected || updateRes.rowsAffected === 0) {
+          await db.execute({
+            sql: `INSERT INTO agencies (ccc_id, name, vendor_code, is_active, subscription_status, subscription_expires_at, created_at, updated_at)
+                  VALUES ((SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1), ?, ?, 1, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            args: [cccCode, agencyName, foundVendorCode || null, expiresAt]
+          })
+        }
+
+        // Also update the paying user directly in users table
+        if (session.userId) {
+          await db.execute({
+            sql: `UPDATE users
+                  SET subscription_status = 'active',
+                      subscription_expires_at = ?,
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE id = ?`,
+            args: [expiresAt, session.userId]
+          })
+        }
+
         invalidateAgencyCache(cccCode)
       } catch (agUpErr) {
         console.error("[Agency Subscription Update Error]:", agUpErr)
