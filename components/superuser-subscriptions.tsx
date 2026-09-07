@@ -849,7 +849,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                       {sub.source === "admin_bypass"
                                         ? "Permanent (Bypassed)"
                                         : sub.isExpired
-                                        ? `Expired ${Math.abs(sub.daysRemaining)} days ago`
+                                        ? Math.abs(sub.daysRemaining) <= 1
+                                          ? "Expired"
+                                          : `Expired ${Math.abs(sub.daysRemaining)} days ago`
                                         : `${sub.daysRemaining} days remaining`}
                                     </div>
                                   </td>
@@ -1012,11 +1014,13 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                 : "text-emerald-600"
                             }`}
                           >
-                            {sub.source === "admin_bypass"
-                              ? "Permanent (Bypassed)"
-                              : sub.isExpired
-                              ? `Expired ${Math.abs(sub.daysRemaining)} days ago`
-                              : `${sub.daysRemaining} days remaining`}
+                              {sub.source === "admin_bypass"
+                                ? "Permanent (Bypassed)"
+                                : sub.isExpired
+                                ? Math.abs(sub.daysRemaining) <= 1
+                                  ? "Expired"
+                                  : `Expired ${Math.abs(sub.daysRemaining)} days ago`
+                                : `${sub.daysRemaining} days remaining`}
                           </div>
                         </td>
 

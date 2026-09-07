@@ -625,7 +625,7 @@ export async function isAgencySubscribed(
     if (matched.subscriptionStatus !== "active") {
       return {
         subscribed: false,
-        reason: "unsubscribed",
+        reason: matched.subscriptionStatus === "expired" ? "expired" : "unsubscribed",
         agencyName: matched.name,
         expiresAt: matched.subscriptionExpiresAt,
       }

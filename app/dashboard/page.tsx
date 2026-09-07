@@ -16,6 +16,11 @@ export default async function DashboardPage() {
     redirect("/login")
   }
 
+  // Superuser has a dedicated dashboard — redirect them there
+  if (session.role === "superuser") {
+    redirect("/superuser")
+  }
+
   // Server-side subscription paywall: unsubscribed users NEVER see the dashboard
   if (!session.isSubscribed) {
     return <SubscriptionPaywall session={session} />

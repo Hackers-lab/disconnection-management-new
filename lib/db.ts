@@ -28,6 +28,27 @@ export function getDb(): Client {
 }
 
 function ensureIndexes(client: Client) {
+  // Ensure essential tables exist (idempotent, non-blocking)
+  client.execute(`
+    CREATE TABLE IF NOT EXISTS payment_transactions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      ccc_code TEXT,
+      agency_name TEXT,
+      vendor_code TEXT,
+      razorpay_order_id TEXT NOT NULL,
+      razorpay_payment_id TEXT NOT NULL UNIQUE,
+      amount INTEGER NOT NULL,
+      currency TEXT DEFAULT 'INR',
+      plan_id TEXT,
+      plan_name TEXT,
+      days_granted INTEGER,
+      subscription_expires_at TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `).catch(() => {})
+
   // Ensure performance-critical indexes exist (idempotent, non-blocking)
   const idxStatements = [
     `CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users (username COLLATE NOCASE);`,
@@ -55,6 +76,10 @@ function ensureIndexes(client: Client) {
     `CREATE INDEX IF NOT EXISTS idx_history_ccc_consumer ON field_history_logs (ccc_id, consumer_id);`,
     `CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions (user_id);`,
     `CREATE INDEX IF NOT EXISTS idx_push_sub_target ON push_subscriptions (ccc_code, role);`,
+    `CREATE INDEX IF NOT EXISTS idx_pt_user ON payment_transactions (user_id);`,
+    `CREATE INDEX IF NOT EXISTS idx_pt_ccc ON payment_transactions (ccc_code);`,
+    `CREATE INDEX IF NOT EXISTS idx_pt_agency ON payment_transactions (agency_name);`,
+    `CREATE INDEX IF NOT EXISTS idx_pt_rzp_order ON payment_transactions (razorpay_order_id);`,
   ]
   Promise.all(idxStatements.map(sql => client.execute(sql))).catch(() => {})
 }

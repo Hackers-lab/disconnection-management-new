@@ -72,15 +72,9 @@ export async function GET(request: NextRequest) {
     let users: any[] = []
 
     try {
-      const batchResults = await db.batch(
+      // Fetch core data (ccc_registry, agencies, users) in a batch — these tables always exist
+      const coreResults = await db.batch(
         [
-          {
-            sql: `SELECT pt.*, u.username, u.full_name as user_full_name
-                  FROM payment_transactions pt
-                  LEFT JOIN users u ON pt.user_id = u.id
-                  ORDER BY pt.created_at DESC`,
-            args: [],
-          },
           {
             sql: `SELECT ccc_code, ccc_name, first_dc_upload_at FROM ccc_registry`,
             args: [],
@@ -106,9 +100,8 @@ export async function GET(request: NextRequest) {
         "read"
       )
 
-      if (batchResults[0]?.rows) dbTransactions = batchResults[0].rows
-      if (batchResults[1]?.rows) {
-        for (const row of batchResults[1].rows) {
+      if (coreResults[0]?.rows) {
+        for (const row of coreResults[0].rows) {
           const code = String(row.ccc_code || "").toUpperCase()
           cccMap.set(code, {
             name: String(row.ccc_name || code),
@@ -116,10 +109,24 @@ export async function GET(request: NextRequest) {
           })
         }
       }
-      if (batchResults[2]?.rows) agencies = batchResults[2].rows
-      if (batchResults[3]?.rows) users = batchResults[3].rows
+      if (coreResults[1]?.rows) agencies = coreResults[1].rows
+      if (coreResults[2]?.rows) users = coreResults[2].rows
     } catch (e) {
-      console.warn("[Subscriptions API] Batch queries error:", e)
+      console.warn("[Subscriptions API] Core queries error:", e)
+    }
+
+    // Fetch payment transactions separately — table may not exist in all environments
+    try {
+      const txResult = await db.execute({
+        sql: `SELECT pt.*, u.username, u.full_name as user_full_name
+              FROM payment_transactions pt
+              LEFT JOIN users u ON pt.user_id = u.id
+              ORDER BY pt.created_at DESC`,
+        args: [],
+      })
+      if (txResult?.rows) dbTransactions = txResult.rows
+    } catch (e) {
+      console.warn("[Subscriptions API] payment_transactions query note:", (e as any)?.message || e)
     }
 
     // 5. Try fetching live telemetry from Razorpay API
@@ -257,7 +264,11 @@ export async function GET(request: NextRequest) {
         expDate = new Date(`${BILLING_START_DATE_STR}T23:59:59`)
       }
 
-      const diffMs = expDate.getTime() - now.getTime()
+      // Apply same end-of-day grace as isAgencySubscribed() for consistent display.
+      // Subscriptions are valid through 23:59:59.999 of the expiry date.
+      const graceDate = new Date(expDate)
+      graceDate.setHours(23, 59, 59, 999)
+      const diffMs = graceDate.getTime() - now.getTime()
       const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
       const isExpired = isBillingActive() && daysRemaining <= 0
 
@@ -340,11 +351,19 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Process Users (focus on agency & admin users)
+    // Process Users: Billing is strictly Per-Agency per CCC.
+    // Individual agency users/technicians inherit access from their agency.
+    // Only list users who have an explicit Admin Free Pass (bypass_subscription) or paid transaction.
     for (const u of users) {
-      const cccCode = String(u.ccc_code || "").toUpperCase()
       const paymentInfo = userPaymentsMap.get(String(u.id)) || { totalAmount: 0, count: 0, lastDate: null }
       const hasPaid = paymentInfo.count > 0
+
+      // Skip regular agency users and exempt roles — they are represented by their agency or role
+      if (!u.bypass_subscription && !hasPaid) {
+        continue
+      }
+
+      const cccCode = String(u.ccc_code || "").toUpperCase()
 
       const { isExpired, daysRemaining, source, sourceLabel } = evaluateSubscription(
         u.subscription_expires_at,
@@ -362,7 +381,7 @@ export async function GET(request: NextRequest) {
         cccCode,
         cccName: u.ccc_name || cccCode,
         subscriptionStatus: isExpired ? "expired" : "active",
-        subscriptionExpiresAt: u.subscription_expires_at || BILLING_START_DATE_STR,
+        subscriptionExpiresAt: u.subscription_expires_at || null,
         bypassSubscription: !!u.bypass_subscription,
         daysRemaining,
         isExpired,

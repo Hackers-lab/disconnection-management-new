@@ -3,7 +3,7 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
-  serverExternalPackages: ["pdf-parse", "razorpay"],
+  serverExternalPackages: ["pdf-parse"],
   eslint: {
     ignoreDuringBuilds: true,
   },
