@@ -2274,19 +2274,20 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
               })
               .map((agency: any) => {
                 const billingStartDate = new Date("2026-09-07T00:00:00").getTime()
-                const isPaidAgency = Boolean(
-                  Date.now() >= billingStartDate &&
-                  agency.subscriptionStatus === "paid" &&
-                  agency.subscriptionExpiresAt && 
-                  new Date(agency.subscriptionExpiresAt).getTime() > Date.now()
-                )
+                const isBillingStarted = Date.now() >= billingStartDate
                 const isAgencySubscribed = Boolean(
                   agency.subscriptionExpiresAt && 
                   new Date(agency.subscriptionExpiresAt).getTime() > Date.now() && 
                   (agency.subscriptionStatus === "active" || agency.subscriptionStatus === "paid")
                 )
+                const isExpiredAgency = Boolean(
+                  isBillingStarted &&
+                  (agency.subscriptionStatus === "expired" ||
+                   !agency.subscriptionExpiresAt ||
+                   new Date(agency.subscriptionExpiresAt).getTime() <= Date.now())
+                )
                 const hasExistingVendor = Boolean(agency.vendorCode && String(agency.vendorCode).trim().length >= 6)
-                const isVendorLocked = isPaidAgency && hasExistingVendor
+                const isVendorLocked = isAgencySubscribed && isBillingStarted && hasExistingVendor
                 const isIncomplete = !agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10
                 const initials = (agency.name || "AG").split(" ").filter(Boolean).slice(0, 2).map((s: string) => s[0]).join("").toUpperCase()
                 return (
@@ -2424,10 +2425,15 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                               Incomplete
                             </span>
                           ) : null}
-                          {isPaidAgency ? (
+                          {isExpiredAgency ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              Expired ({agency.subscriptionExpiresAt || "Subscription Due"})
+                            </span>
+                          ) : isAgencySubscribed ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Paid till {agency.subscriptionExpiresAt}
+                              Paid Active till {agency.subscriptionExpiresAt}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20">
