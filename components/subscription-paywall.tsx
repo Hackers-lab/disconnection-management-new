@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
 import { ShieldAlert, CheckCircle2, Lock, LogOut, RefreshCw } from "lucide-react"
