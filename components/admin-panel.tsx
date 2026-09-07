@@ -2287,6 +2287,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                    new Date(agency.subscriptionExpiresAt).getTime() <= Date.now())
                 )
                 const hasExistingVendor = Boolean(agency.vendorCode && String(agency.vendorCode).trim().length >= 6)
+                const isPaidAgency = isAgencySubscribed && isBillingStarted
                 const isVendorLocked = isAgencySubscribed && isBillingStarted && hasExistingVendor
                 const isIncomplete = !agency.vendorCode || agency.vendorCode.length < 6 || !agency.mobileNumber || agency.mobileNumber.length < 10
                 const initials = (agency.name || "AG").split(" ").filter(Boolean).slice(0, 2).map((s: string) => s[0]).join("").toUpperCase()
