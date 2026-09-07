@@ -167,7 +167,7 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
       ],
     })
 
-    // 6. Update agency in agencies table (upsert if not exists)
+    // 6. Update agency in agencies table if it exists in Manage Agencies (never create new agency)
     const updateRes = await db.execute({
       sql: `UPDATE agencies
             SET subscription_status = 'active',
@@ -178,12 +178,10 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
       args: [expiresAt, cccCode, agencyName, agencyName, username],
     })
 
-    if (!updateRes.rowsAffected || updateRes.rowsAffected === 0) {
-      await db.execute({
-        sql: `INSERT INTO agencies (ccc_id, name, vendor_code, is_active, subscription_status, subscription_expires_at, created_at, updated_at)
-              VALUES ((SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1), ?, ?, 1, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        args: [cccCode, agencyName, vendorCode || null, expiresAt],
-      })
+    if (updateRes.rowsAffected && updateRes.rowsAffected > 0) {
+      invalidateAgencyCache(cccCode)
+    } else {
+      console.log(`ℹ️ [Reconcile] Agency '${agencyName}' does not exist in Manage Agencies for CCC '${cccCode}' — skipped agency creation`)
     }
 
     // Also update user directly in users table
