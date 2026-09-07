@@ -596,17 +596,81 @@ export async function isAgencySubscribed(
   }
 
   const cleanName = String(agencyNameOrVendor || "").trim()
+  const cleanCcc = String(cccCode || "").trim()
   if (!cleanName) {
     // No agency name provided — fail closed
     return { subscribed: false, reason: "no_agency" }
   }
 
   try {
+    // 1. Direct indexed DB query scoped to CCC tenant — guarantees INSTANT real-time verification (0s lag)
+    // and prevents cross-CCC conflicts when the same agency name exists in multiple CCCs.
+    const res = await db.execute({
+      sql: cleanCcc
+        ? `SELECT a.id, a.name, a.vendor_code as vendorCode, a.is_active as isActive,
+                  a.subscription_status as subscriptionStatus,
+                  a.subscription_expires_at as subscriptionExpiresAt
+           FROM agencies a
+           JOIN ccc_registry c ON a.ccc_id = c.id
+           WHERE c.ccc_code = ? COLLATE NOCASE
+             AND (a.name = ? COLLATE NOCASE OR a.vendor_code = ? COLLATE NOCASE)
+           LIMIT 1`
+        : `SELECT a.id, a.name, a.vendor_code as vendorCode, a.is_active as isActive,
+                  a.subscription_status as subscriptionStatus,
+                  a.subscription_expires_at as subscriptionExpiresAt
+           FROM agencies a
+           WHERE a.name = ? COLLATE NOCASE OR a.vendor_code = ? COLLATE NOCASE
+           LIMIT 1`,
+      args: cleanCcc ? [cleanCcc, cleanName, cleanName] : [cleanName, cleanName]
+    })
+
+    if (res.rows && res.rows.length > 0) {
+      const matched: any = res.rows[0]
+
+      if (!Boolean(matched.isActive)) {
+        return {
+          subscribed: false,
+          reason: "inactive",
+          agencyName: String(matched.name || cleanName),
+        }
+      }
+
+      if (matched.subscriptionStatus !== "active") {
+        return {
+          subscribed: false,
+          reason: matched.subscriptionStatus === "expired" ? "expired" : "unsubscribed",
+          agencyName: String(matched.name || cleanName),
+          expiresAt: matched.subscriptionExpiresAt ? String(matched.subscriptionExpiresAt) : undefined,
+        }
+      }
+
+      if (matched.subscriptionExpiresAt) {
+        const expDate = new Date(String(matched.subscriptionExpiresAt))
+        expDate.setHours(23, 59, 59, 999)
+        if (Date.now() > expDate.getTime()) {
+          return {
+            subscribed: false,
+            reason: "expired",
+            agencyName: String(matched.name || cleanName),
+            expiresAt: String(matched.subscriptionExpiresAt),
+          }
+        }
+      }
+
+      return {
+        subscribed: true,
+        agencyName: String(matched.name || cleanName),
+        expiresAt: matched.subscriptionExpiresAt ? String(matched.subscriptionExpiresAt) : undefined,
+      }
+    }
+
+    // 2. Fallback: check in-memory list (if tenant registry is not linked yet)
     const agencies = await getAgencies()
     const matched = agencies.find(
       (a) =>
-        a.name.toUpperCase() === cleanName.toUpperCase() ||
-        (a.vendorCode && a.vendorCode.toUpperCase() === cleanName.toUpperCase())
+        (!cleanCcc || a.cccCode === cleanCcc || a.cccCode === "SYSTEM") &&
+        (a.name.toUpperCase() === cleanName.toUpperCase() ||
+          (a.vendorCode && a.vendorCode.toUpperCase() === cleanName.toUpperCase()))
     )
 
     if (!matched) {
