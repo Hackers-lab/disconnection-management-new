@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
-import { ShieldAlert, CheckCircle2, Lock, LogOut } from "lucide-react"
+import { ShieldAlert, CheckCircle2, Lock, LogOut, RefreshCw } from "lucide-react"
 import { logout } from "@/app/actions/auth"
 
 interface SubscriptionPaywallProps {
@@ -22,7 +22,35 @@ interface SubscriptionPaywallProps {
 
 export function SubscriptionPaywall({ session }: SubscriptionPaywallProps) {
   const [loggingOut, setLoggingOut] = useState(false)
+  const [checkingStatus, setCheckingStatus] = useState(false)
   const agencyName = (session.agencies && session.agencies.length > 0) ? session.agencies[0] : (session.name || session.username)
+
+  const checkPaymentStatus = async (silent = false) => {
+    if (!silent) setCheckingStatus(true)
+    try {
+      const res = await fetch("/api/billing/verify-status", { method: "POST" })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.subscribed) {
+          window.location.reload()
+          return
+        }
+      }
+    } catch {}
+    if (!silent) setCheckingStatus(false)
+  }
+
+  // Auto-check when returning to tab from UPI app
+  useEffect(() => {
+    const handleFocus = () => checkPaymentStatus(true)
+    window.addEventListener("focus", handleFocus)
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") checkPaymentStatus(true)
+    })
+    return () => {
+      window.removeEventListener("focus", handleFocus)
+    }
+  }, [])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -110,6 +138,16 @@ export function SubscriptionPaywall({ session }: SubscriptionPaywallProps) {
             }}
             className="w-full h-12 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition-all duration-200 text-sm"
           />
+
+          <Button 
+            onClick={() => checkPaymentStatus(false)}
+            disabled={checkingStatus}
+            variant="outline"
+            className="w-full h-10 bg-slate-900/60 border-slate-800 text-indigo-300 hover:bg-indigo-950/40 hover:text-white rounded-xl text-xs font-semibold cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-2 ${checkingStatus ? "animate-spin text-indigo-400" : ""}`} />
+            {checkingStatus ? "Checking Razorpay status..." : "Already Paid? Check Status & Refresh"}
+          </Button>
 
           <Button 
             onClick={handleLogout}

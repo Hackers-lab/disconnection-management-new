@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/session"
 import { db } from "@/lib/db"
 import { getRazorpayClient } from "@/lib/razorpay"
 import { BILLING_START_DATE_STR, isBillingActive } from "@/lib/billing-config"
+import { reconcileCapturedPayment } from "@/lib/billing-reconcile"
 
 export const dynamic = "force-dynamic"
 
@@ -137,8 +138,53 @@ export async function GET(request: NextRequest) {
       const rzPayments = await razorpay.payments.all({ count: 50 })
       if (rzPayments && Array.isArray(rzPayments.items)) {
         razorpayConnected = true
+        let hasNewReconciled = false
+
         for (const item of rzPayments.items) {
           livePaymentsMap.set(item.id, item)
+
+          // Auto-reconciliation: if a payment was captured in Razorpay but missing in DB, sync it now
+          if (item.status === "captured") {
+            const alreadyInDb = dbTransactions.some(
+              (tx: any) => tx.razorpay_payment_id === item.id
+            )
+            if (!alreadyInDb && item.notes && (item.notes.cccCode || item.notes.username)) {
+              try {
+                const rec = await reconcileCapturedPayment(item)
+                if (rec.reconciled && !rec.alreadyProcessed) {
+                  hasNewReconciled = true
+                }
+              } catch (recErr) {
+                console.warn("[Subscriptions Auto-Reconcile] Error:", recErr)
+              }
+            }
+          }
+        }
+
+        // If any payment was newly reconciled, re-fetch transactions & agencies so metrics are immediately updated
+        if (hasNewReconciled) {
+          try {
+            const txResult = await db.execute({
+              sql: `SELECT pt.*, u.username, u.full_name as user_full_name
+                    FROM payment_transactions pt
+                    LEFT JOIN users u ON pt.user_id = u.id
+                    ORDER BY pt.created_at DESC`,
+              args: [],
+            })
+            if (txResult?.rows) dbTransactions = txResult.rows
+
+            const agRes = await db.execute({
+              sql: `SELECT a.id, a.name, a.vendor_code, a.subscription_status, a.subscription_expires_at, a.created_at,
+                           c.ccc_code, c.ccc_name, c.first_dc_upload_at
+                    FROM agencies a
+                    JOIN ccc_registry c ON a.ccc_id = c.id
+                    ORDER BY a.name ASC`,
+              args: [],
+            })
+            if (agRes?.rows) agencies = agRes.rows
+          } catch (refErr) {
+            console.warn("[Subscriptions Refresh Error]:", refErr)
+          }
         }
       }
     } catch (rzErr: any) {
