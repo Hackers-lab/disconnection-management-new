@@ -44,6 +44,7 @@ import {
   Crown,
   Sparkles,
   ShieldCheck,
+  Receipt,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"

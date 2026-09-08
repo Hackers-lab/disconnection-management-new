@@ -366,8 +366,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           setIcdsPendingCount(count)
         }
 
-        // Fallback auto-fetch for Misc Inspection if local cache is empty
-        if (!miscCached || miscCached.length === 0) {
+        // Fallback auto-fetch for Misc Inspection if local cache is empty and user has read permission
+        if ((!miscCached || miscCached.length === 0) && hasReadPermission("misc_inspection")) {
           try {
             setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
             const res = await fetch("/api/misc-inspection")
@@ -385,10 +385,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           } finally {
             setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
           }
+        } else {
+          setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
         }
 
-        // Fallback auto-fetch for Safety Inspection if local cache is empty
-        if (!safetyCached || safetyCached.length === 0) {
+        // Fallback auto-fetch for Safety Inspection if local cache is empty and user has read permission
+        if ((!safetyCached || safetyCached.length === 0) && hasReadPermission("safety")) {
           try {
             setLoadingModules(prev => ({ ...prev, safety: true }))
             const res = await fetch("/api/safety/base")
@@ -406,6 +408,8 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           } finally {
             setLoadingModules(prev => ({ ...prev, safety: false }))
           }
+        } else {
+          setLoadingModules(prev => ({ ...prev, safety: false }))
         }
 
         if (miscCached && Array.isArray(miscCached)) {
