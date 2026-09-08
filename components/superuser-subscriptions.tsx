@@ -133,6 +133,20 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
       return { date: dateStr, time: "" }
     }
   }
+
+  // Parse any transaction timestamp string to UNIX timestamp for accurate sorting
+  const parseTxTimestamp = (dateStr?: string): number => {
+    if (!dateStr) return 0
+    try {
+      const iso = dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("-", 10)
+        ? dateStr
+        : dateStr.replace(" ", "T") + "Z"
+      const ms = new Date(iso).getTime()
+      return isNaN(ms) ? 0 : ms
+    } catch {
+      return 0
+    }
+  }
   const [isProcessingAction, setIsProcessingAction] = useState(false)
   const [refundTarget, setRefundTarget] = useState<TransactionItem | null>(null)
   const [refundAmount, setRefundAmount] = useState<string>("")
@@ -365,10 +379,10 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
     })
   }, [filteredSubscribers])
 
-  // Filtered transactions
+  // Filtered transactions — strictly sorted from newest to oldest
   const filteredTransactions = useMemo(() => {
     if (!data?.transactions) return []
-    return data.transactions.filter((tx) => {
+    const filtered = data.transactions.filter((tx) => {
       if (activeView === "refunds" && !tx.refund_status && (!tx.amount_refunded || tx.amount_refunded <= 0)) {
         return false
       }
@@ -389,6 +403,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
 
       return true
     })
+
+    // Strict chronological sort: Latest to Oldest
+    return [...filtered].sort((a, b) => parseTxTimestamp(b.created_at) - parseTxTimestamp(a.created_at))
   }, [data?.transactions, activeView, selectedCcc, searchQuery])
 
   if (loading) {
@@ -1118,152 +1135,227 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         {/* --- VIEW 2 & 3: ORDERS & PAYMENTS LEDGER / REFUNDS --- */}
         {(activeView === "transactions" || activeView === "refunds") && (
           <div className="space-y-3">
-            <div className="border border-slate-200 rounded-xl overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="py-3 px-3.5">Date & Time</th>
-                    <th className="py-3 px-3">Order & Payment IDs</th>
-                    <th className="py-3 px-3">Subscriber</th>
-                    <th className="py-3 px-3">Plan Details</th>
-                    <th className="py-3 px-3">Amount</th>
-                    <th className="py-3 px-3">Method</th>
-                    <th className="py-3 px-3">Status</th>
-                    <th className="py-3 px-3 text-right">Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-150">
-                  {filteredTransactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-12 text-slate-400 text-xs">
-                        <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                        No payment transactions recorded yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredTransactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
-                        {/* Timestamp in IST */}
-                        <td className="py-3 px-3.5 whitespace-nowrap">
-                          {(() => {
-                            const { date, time } = formatTxToIST(tx.created_at)
-                            return (
-                              <>
-                                <div className="font-semibold text-slate-900 text-[11px]">
-                                  {date}
-                                </div>
-                                <div className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
-                                  <Clock className="w-2.5 h-2.5" />
-                                  {time}
-                                </div>
-                              </>
-                            )
-                          })()}
-                        </td>
-
-                        {/* Order & Payment IDs */}
-                        <td className="py-3 px-3">
-                          <div className="space-y-1">
-                            {/* Payment ID */}
-                            <div className="flex items-center gap-1">
-                              <span className="font-mono text-[10px] font-bold text-slate-900 truncate max-w-[130px]">
-                                {tx.razorpay_payment_id}
-                              </span>
-                              <button
-                                onClick={() => copyToClipboard(tx.razorpay_payment_id, tx.razorpay_payment_id)}
-                                className="text-slate-400 hover:text-slate-700 p-0.5"
-                                title="Copy Payment ID"
-                              >
-                                {copiedId === tx.razorpay_payment_id ? (
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-
-                            {/* Order ID */}
-                            <div className="flex items-center gap-1">
-                              <span className="font-mono text-[9px] text-slate-400 truncate max-w-[130px]">
-                                {tx.razorpay_order_id}
-                              </span>
-                            </div>
+            {filteredTransactions.length === 0 ? (
+              <div className="border border-slate-200 rounded-2xl bg-white p-12 text-center text-slate-400 text-xs">
+                <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                No payment transactions recorded yet.
+              </div>
+            ) : (
+              <>
+                {/* Mobile View: Zero-horizontal-scroll compact cards with minimal row height */}
+                <div className="md:hidden space-y-2">
+                  {filteredTransactions.map((tx) => {
+                    const { date, time } = formatTxToIST(tx.created_at)
+                    const isRefund = tx.refund_status || (tx.amount_refunded && tx.amount_refunded > 0)
+                    return (
+                      <div
+                        key={tx.id}
+                        onClick={() => setSelectedTx(tx)}
+                        className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-2xs hover:border-blue-300 active:bg-slate-50/80 transition cursor-pointer"
+                      >
+                        {/* Header: Amount + Status Badge */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-sm">
+                              ₹{tx.amount.toLocaleString("en-IN")}
+                            </span>
+                            <Badge variant="outline" className="bg-slate-50 text-slate-600 text-[9px] uppercase px-1.5 py-0 font-medium">
+                              {tx.methodDetails || tx.method || "Razorpay"}
+                            </Badge>
                           </div>
-                        </td>
+                          <div>
+                            {isRefund ? (
+                              <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] font-bold px-1.5 py-0">
+                                Refunded (₹{tx.amount_refunded})
+                              </Badge>
+                            ) : tx.status === "captured" ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold px-1.5 py-0">
+                                Captured
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold px-1.5 py-0">
+                                {tx.status}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
 
-                        {/* Subscriber */}
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-slate-900 truncate max-w-[140px]">
+                        {/* Middle: Subscriber & CCC */}
+                        <div className="mt-1.5 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-900 truncate max-w-[210px]">
                             {tx.subscriberName}
-                          </div>
-                          <div className="text-[10px] text-slate-400 uppercase">
-                            CCC: <span className="font-semibold text-slate-700">{tx.ccc_code}</span>
-                          </div>
-                        </td>
+                          </span>
+                          <span className="text-[10px] text-slate-500 uppercase font-mono font-medium">
+                            CCC: <strong className="text-slate-700">{tx.ccc_code}</strong>
+                          </span>
+                        </div>
 
-                        {/* Plan Details */}
-                        <td className="py-3 px-3">
-                          <div className="font-semibold text-slate-800">
-                            {tx.plan_name || "Quarterly Subscription"}
+                        {/* Footer: Date/Time + Payment ID + Details link */}
+                        <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{date} {time ? `• ${time}` : ""}</span>
                           </div>
-                          <div className="text-[10px] text-slate-500">
-                            +{tx.days_granted || 90} Days Validity
+                          <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                            <span className="truncate max-w-[100px]">{tx.razorpay_payment_id}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                copyToClipboard(tx.razorpay_payment_id, tx.razorpay_payment_id)
+                              }}
+                              className="text-slate-400 hover:text-slate-700 p-0.5"
+                              title="Copy Payment ID"
+                            >
+                              {copiedId === tx.razorpay_payment_id ? (
+                                <Check className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
                           </div>
-                        </td>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
 
-                        {/* Amount */}
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <div className="font-bold text-slate-900 text-sm">
-                            ₹{tx.amount.toLocaleString("en-IN")}
-                          </div>
-                          {tx.fee !== undefined && (
-                            <div className="text-[9px] text-slate-400">
-                              Fee: ₹{tx.fee} • Net: ₹{tx.netAmount}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Payment Method */}
-                        <td className="py-3 px-3">
-                          <Badge variant="outline" className="bg-slate-50 text-slate-700 text-[10px] uppercase font-semibold">
-                            {tx.methodDetails || tx.method || "Razorpay"}
-                          </Badge>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-3">
-                          {tx.refund_status || (tx.amount_refunded && tx.amount_refunded > 0) ? (
-                            <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] font-bold">
-                              Refunded (₹{tx.amount_refunded})
-                            </Badge>
-                          ) : tx.status === "captured" ? (
-                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
-                              Captured
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
-                              {tx.status}
-                            </Badge>
-                          )}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3 px-3 text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedTx(tx)}
-                            className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg px-2"
-                          >
-                            Inspect Receipt
-                          </Button>
-                        </td>
+                {/* Desktop View: Full Data Table */}
+                <div className="hidden md:block border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-2xs">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                      <tr>
+                        <th className="py-3 px-3.5">Date & Time</th>
+                        <th className="py-3 px-3">Order & Payment IDs</th>
+                        <th className="py-3 px-3">Subscriber</th>
+                        <th className="py-3 px-3">Plan Details</th>
+                        <th className="py-3 px-3">Amount</th>
+                        <th className="py-3 px-3">Method</th>
+                        <th className="py-3 px-3">Status</th>
+                        <th className="py-3 px-3 text-right">Details</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-150">
+                      {filteredTransactions.map((tx) => {
+                        const { date, time } = formatTxToIST(tx.created_at)
+                        return (
+                          <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
+                            {/* Timestamp in IST */}
+                            <td className="py-3 px-3.5 whitespace-nowrap">
+                              <div className="font-semibold text-slate-900 text-[11px]">
+                                {date}
+                              </div>
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
+                                <Clock className="w-2.5 h-2.5" />
+                                {time}
+                              </div>
+                            </td>
+
+                            {/* Order & Payment IDs */}
+                            <td className="py-3 px-3">
+                              <div className="space-y-1">
+                                {/* Payment ID */}
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono text-[10px] font-bold text-slate-900 truncate max-w-[130px]">
+                                    {tx.razorpay_payment_id}
+                                  </span>
+                                  <button
+                                    onClick={() => copyToClipboard(tx.razorpay_payment_id, tx.razorpay_payment_id)}
+                                    className="text-slate-400 hover:text-slate-700 p-0.5"
+                                    title="Copy Payment ID"
+                                  >
+                                    {copiedId === tx.razorpay_payment_id ? (
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Order ID */}
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono text-[9px] text-slate-400 truncate max-w-[130px]">
+                                    {tx.razorpay_order_id}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Subscriber */}
+                            <td className="py-3 px-3">
+                              <div className="font-bold text-slate-900 truncate max-w-[140px]">
+                                {tx.subscriberName}
+                              </div>
+                              <div className="text-[10px] text-slate-400 uppercase">
+                                CCC: <span className="font-semibold text-slate-700">{tx.ccc_code}</span>
+                              </div>
+                            </td>
+
+                            {/* Plan Details */}
+                            <td className="py-3 px-3">
+                              <div className="font-semibold text-slate-800">
+                                {tx.plan_name || "Quarterly Subscription"}
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                +{tx.days_granted || 90} Days Validity
+                              </div>
+                            </td>
+
+                            {/* Amount */}
+                            <td className="py-3 px-3 whitespace-nowrap">
+                              <div className="font-bold text-slate-900 text-sm">
+                                ₹{tx.amount.toLocaleString("en-IN")}
+                              </div>
+                              {tx.fee !== undefined && (
+                                <div className="text-[9px] text-slate-400">
+                                  Fee: ₹{tx.fee} • Net: ₹{tx.netAmount}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Payment Method */}
+                            <td className="py-3 px-3">
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700 text-[10px] uppercase font-semibold">
+                                {tx.methodDetails || tx.method || "Razorpay"}
+                              </Badge>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-3">
+                              {tx.refund_status || (tx.amount_refunded && tx.amount_refunded > 0) ? (
+                                <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] font-bold">
+                                  Refunded (₹{tx.amount_refunded})
+                                </Badge>
+                              ) : tx.status === "captured" ? (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                  Captured
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
+                                  {tx.status}
+                                </Badge>
+                              )}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3 px-3 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedTx(tx)}
+                                className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg px-2"
+                              >
+                                Inspect Receipt
+                              </Button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
