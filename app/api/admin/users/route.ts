@@ -4,6 +4,8 @@ import { userStorage } from "@/lib/user-storage"
 import { checkApiPermission } from "@/lib/permissions"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
 
+import { isCccInTrialPeriod } from "@/lib/agency-storage"
+
 export const dynamic = "force-dynamic"
 
 export const GET = withTenant(async function GET(request: NextRequest) {
@@ -15,12 +17,18 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   const context = getTenantContext()
   const cccCode = context?.cccCode || ""
 
-  const tenantUsers = await userStorage.getUsersByCcc(cccCode)
+  const [tenantUsers, trialCheck] = await Promise.all([
+    userStorage.getUsersByCcc(cccCode),
+    isCccInTrialPeriod(cccCode)
+  ])
   
-  // Redact agency user passwords — vendors manage their own passwords via OTP
+  // If CCC is under trial period (90-day operational trial or setup window), admin can see user passwords
+  // Otherwise, redact agency user passwords (vendors manage their own passwords via OTP)
   const sanitizedUsers = tenantUsers.map(user => ({
     ...user,
-    password: user.role === "agency" ? "" : user.password,
+    password: (user.role === "agency" && !trialCheck.inTrial) ? "" : user.password,
+    isTrialPeriod: trialCheck.inTrial,
+    trialExpiresAt: trialCheck.expiresAt,
   }))
   
   return NextResponse.json(sanitizedUsers, {
@@ -115,12 +123,15 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "User not found in this tenant" }, { status: 404 })
     }
 
-    // Option B: Vendor Privacy Lock — prevent regular admins from overwriting agency/vendor passwords
+    // Option B: Vendor Privacy Lock — prevent regular admins from overwriting agency/vendor passwords AFTER trial period
     if (password && existingUser.role === "agency") {
-      return NextResponse.json(
-        { error: "Vendor passwords cannot be changed by Admins. The vendor must use the 'Forgot Password' option on the login page to reset their password via mobile OTP." },
-        { status: 403 }
-      )
+      const trialCheck = await isCccInTrialPeriod(cccCode)
+      if (!trialCheck.inTrial) {
+        return NextResponse.json(
+          { error: "Vendor passwords cannot be changed by Admins outside of trial period. The vendor must use the 'Forgot Password' option on the login page to reset their password via mobile OTP." },
+          { status: 403 }
+        )
+      }
     }
 
     // Check if new username conflicts with existing users

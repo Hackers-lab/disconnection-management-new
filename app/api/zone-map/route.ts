@@ -1,32 +1,42 @@
 import { NextRequest, NextResponse } from "next/server"
-import { sheets as googleSheets } from "@googleapis/sheets"
-import { auth } from "@/lib/google-drive"
-import { getSpreadsheetId } from "@/lib/google-sheets-api"
+import { sheets, getSpreadsheetId } from "@/lib/google-sheets-api"
 import { verifySession } from "@/lib/session"
 import { withTenant } from "@/lib/tenant-context"
 
 const TAB = "AgencyZoneMap"
 const HISTORY_TAB = "ZoneMapHistory"
-const sheets = googleSheets({ version: "v4", auth })
 
 const todayStr = () => {
   const d = new Date()
   return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`
 }
 
-async function ensureTab(spreadsheetId: string, title: string, headers: string[]) {
+async function ensureTabsExist(spreadsheetId: string, tabs: { title: string; headers: string[] }[]) {
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
-  const exists = meta.data.sheets?.some(s => s.properties?.title === title)
-  if (!exists) {
+  const existingTitles = new Set(meta.data.sheets?.map(s => s.properties?.title) || [])
+  const missingTabs = tabs.filter(t => !existingTitles.has(t.title))
+
+  if (missingTabs.length > 0) {
+    // 1. Create missing sheets in 1 batchUpdate
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      requestBody: { requests: [{ addSheet: { properties: { title } } }] },
+      requestBody: {
+        requests: missingTabs.map(t => ({
+          addSheet: { properties: { title: t.title } }
+        }))
+      },
     })
-    await sheets.spreadsheets.values.update({
-      spreadsheetId, range: `${title}!A1`,
-      valueInputOption: "RAW",
-      requestBody: { values: [headers] },
-    })
+    // 2. Set headers in parallel
+    await Promise.all(
+      missingTabs.map(t =>
+        sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${t.title}'!A1`,
+          valueInputOption: "RAW",
+          requestBody: { values: [t.headers] },
+        })
+      )
+    )
   }
 }
 
@@ -42,9 +52,8 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   }
   try {
     const id = getSpreadsheetId()
-    // Header uses "MRU" — full MRU stored, no truncation.
-    await ensureTab(id, TAB, ["MRU", "Agency", "Address", "Updated On"])
-    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `${TAB}!A:D` })
+    await ensureTabsExist(id, [{ title: TAB, headers: ["MRU", "Agency", "Address", "Updated On"] }])
+    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `'${TAB}'!A:D` })
     const rows = (resp.data.values || []).slice(1)
     const data: ZoneRow[] = rows
       .map(r => ({
@@ -69,12 +78,12 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const { rows } = await request.json() as { rows: ZoneRow[] }
     const id = getSpreadsheetId()
 
-    await Promise.all([
-      ensureTab(id, TAB, ["MRU", "Agency", "Address", "Updated On"]),
-      ensureTab(id, HISTORY_TAB, ["Date", "MRU", "Previous Agency", "New Agency", "Changed By"]),
+    await ensureTabsExist(id, [
+      { title: TAB, headers: ["MRU", "Agency", "Address", "Updated On"] },
+      { title: HISTORY_TAB, headers: ["Date", "MRU", "Previous Agency", "New Agency", "Changed By"] },
     ])
 
-    const existing = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `${TAB}!A:D` })
+    const existing = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `'${TAB}'!A:D` })
     const existingRows = (existing.data.values || []).slice(1)
     const existingMap = new Map<string, { agency: string; address: string }>()
     existingRows.forEach(r => {
@@ -98,31 +107,46 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       }
     })
 
-    await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `${TAB}!A2:D` })
+    // Prepare batch update
+    const batchUpdates: any[] = []
+
+    // 1. Clear existing rows
+    await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${TAB}'!A2:D` })
+
+    // 2. Write new mappings
     if (rows && rows.length > 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: id, range: `${TAB}!A2:D`,
-        valueInputOption: "RAW",
+      batchUpdates.push({
+        range: `'${TAB}'!A2:D`,
+        values: rows.map(r => [
+          normMru(r.zone    || ""),
+          normMru(r.agency  || ""),
+          (r.address || "").trim(),
+          date,
+        ]),
+      })
+    }
+
+    if (batchUpdates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: id,
         requestBody: {
-          values: rows.map(r => [
-            normMru(r.zone    || ""),
-            normMru(r.agency  || ""),
-            (r.address || "").trim(),
-            date,
-          ]),
+          valueInputOption: "RAW",
+          data: batchUpdates,
         },
       })
     }
 
+    // 3. Append history asynchronously without blocking the client response
     if (historyEntries.length > 0) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: id, range: `${HISTORY_TAB}!A:E`,
+      sheets.spreadsheets.values.append({
+        spreadsheetId: id,
+        range: `'${HISTORY_TAB}'!A:E`,
         valueInputOption: "RAW",
         requestBody: { values: historyEntries },
-      })
+      }).catch(err => console.warn("ZoneMapHistory append error:", err))
     }
 
-    return NextResponse.json({ success: true, historyEntries: historyEntries.length })
+    return NextResponse.json({ success: true, count: rows.length, historyEntries: historyEntries.length })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 })
   }

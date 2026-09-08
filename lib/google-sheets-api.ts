@@ -3,7 +3,7 @@ import { auth } from "./google-drive"
 import { EXPECTED_CONSUMER_HEADERS, type ConsumerData } from "./google-sheets"
 import { getTenantContext } from "./tenant-context"
 
-const sheets = googleSheets({ version: "v4", auth })
+export const sheets = googleSheets({ version: "v4", auth })
 
 // Loose name match (strips non-alphanumerics, lowercases).
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")

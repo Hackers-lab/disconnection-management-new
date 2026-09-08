@@ -177,6 +177,8 @@ interface User {
   bypassSubscription?: boolean
   mobileNumber?: string
   vendorCode?: string
+  isTrialPeriod?: boolean
+  trialExpiresAt?: string
 }
 
 interface Agency {
@@ -1848,7 +1850,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       </div>
                       <div className="space-y-2">
                         <Label>Password</Label>
-                        {editingUser.role === "agency" ? (
+                        {(editingUser.role === "agency" && !editingUser.isTrialPeriod && !editingUser.password) ? (
                           <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-input bg-muted/50">
                             <span className="text-sm text-muted-foreground font-mono">•••••••• (Vendor Private)</span>
                           </div>
@@ -1976,11 +1978,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
                       <div className="flex items-center gap-1 mt-1">
                         <span className="text-xs text-gray-500 font-mono">
-                          {user.role === "agency" 
+                          {user.role === "agency" && !user.isTrialPeriod && !user.password
                             ? "•••••••• (Vendor Private)"
                             : (visiblePasswordId === user.id ? user.password : "••••••••")}
                         </span>
-                        {user.role !== "agency" && (
+                        {!(user.role === "agency" && !user.isTrialPeriod && !user.password) && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -2001,10 +2003,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={user.role === "agency"}
-                        title={user.role === "agency" ? "Vendor passwords cannot be changed by Admins. Vendors manage their passwords via mobile OTP." : "Change Password"}
+                        disabled={user.role === "agency" && !user.isTrialPeriod}
+                        title={user.role === "agency" && !user.isTrialPeriod ? "Vendor passwords cannot be changed by Admins after trial. Vendors manage their passwords via mobile OTP." : "Change Password"}
                         onClick={() => {
-                          if (user.role === "agency") {
+                          if (user.role === "agency" && !user.isTrialPeriod) {
                             setMessage({
                               type: "error",
                               text: "🔒 Vendor passwords are encrypted and managed directly by the vendor via Mobile OTP (Forgot Password)."
@@ -2018,7 +2020,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                           setShowChangePwdConfirm(false)
                         }}
                       >
-                        <KeyRound className={`h-4 w-4 ${user.role === "agency" ? "text-slate-300" : ""}`} />
+                        <KeyRound className={`h-4 w-4 ${user.role === "agency" && !user.isTrialPeriod ? "text-slate-300" : ""}`} />
                       </Button>
                       <Button
                         variant="ghost"

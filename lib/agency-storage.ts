@@ -718,4 +718,80 @@ export async function isAgencySubscribed(
     console.error("isAgencySubscribed check FAILED (denying access):", err)
     return { subscribed: false, reason: "lookup_error" }
   }
+}
+
+/**
+ * Checks if the given CCC is currently under an active trial period (operational 90-day trial or setup window).
+ * Returns { inTrial: boolean, trialType?: string, expiresAt?: string }
+ */
+export async function isCccInTrialPeriod(cccCode: string): Promise<{ inTrial: boolean; trialType?: "90_day_trial" | "setup_window"; expiresAt?: string }> {
+  const cleanCcc = String(cccCode || "").trim()
+  if (!cleanCcc || cleanCcc === "SYSTEM") {
+    return { inTrial: false }
+  }
+
+  try {
+    const cccRes = await db.execute({
+      sql: `SELECT id, first_dc_upload_at, created_at FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
+      args: [cleanCcc]
+    })
+
+    if (cccRes.rows && cccRes.rows.length > 0) {
+      const cccRow: any = cccRes.rows[0]
+
+      // 1. Check 90-day operational trial if first_dc_upload_at exists
+      if (cccRow.first_dc_upload_at) {
+        const uploadDate = new Date(String(cccRow.first_dc_upload_at))
+        if (!isNaN(uploadDate.getTime())) {
+          const exp = new Date(uploadDate.getTime() + 90 * 24 * 60 * 60 * 1000)
+          exp.setHours(23, 59, 59, 999)
+          if (Date.now() <= exp.getTime()) {
+            const y = exp.getFullYear()
+            const m = String(exp.getMonth() + 1).padStart(2, "0")
+            const d = String(exp.getDate()).padStart(2, "0")
+            return { inTrial: true, trialType: "90_day_trial", expiresAt: `${y}-${m}-${d}` }
+          }
+        }
+      }
+
+      // 2. Check CCC admin user expiry or 14-day setup window
+      const userRes = await db.execute({
+        sql: `SELECT u.subscription_expires_at 
+              FROM users u 
+              WHERE u.ccc_id = ? AND u.role = 'admin' AND u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at != ''
+              ORDER BY u.created_at ASC 
+              LIMIT 1`,
+        args: [cccRow.id]
+      })
+
+      if (userRes.rows && userRes.rows.length > 0 && userRes.rows[0].subscription_expires_at) {
+        const adminExp = String(userRes.rows[0].subscription_expires_at).trim()
+        const expDate = new Date(adminExp)
+        expDate.setHours(23, 59, 59, 999)
+        if (!isNaN(expDate.getTime()) && Date.now() <= expDate.getTime()) {
+          return { inTrial: true, trialType: "setup_window", expiresAt: adminExp }
+        }
+      }
+
+      // Fallback: check if CCC was created within the last 90 days
+      if (cccRow.created_at) {
+        const regDate = new Date(String(cccRow.created_at))
+        if (!isNaN(regDate.getTime())) {
+          const baseTime = Math.max(regDate.getTime(), BILLING_START_DATE.getTime())
+          const trialEnd = new Date(baseTime + 90 * 24 * 60 * 60 * 1000)
+          trialEnd.setHours(23, 59, 59, 999)
+          if (Date.now() <= trialEnd.getTime()) {
+            const y = trialEnd.getFullYear()
+            const m = String(trialEnd.getMonth() + 1).padStart(2, "0")
+            const d = String(trialEnd.getDate()).padStart(2, "0")
+            return { inTrial: true, trialType: "90_day_trial", expiresAt: `${y}-${m}-${d}` }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("isCccInTrialPeriod error:", err)
+  }
+
+  return { inTrial: false }
 }
