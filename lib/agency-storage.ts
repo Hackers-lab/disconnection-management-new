@@ -597,6 +597,21 @@ export async function isAgencySubscribed(
 
   const cleanName = String(agencyNameOrVendor || "").trim()
   const cleanCcc = String(cccCode || "").trim()
+
+  // If the CCC is currently under its 90-day operational trial or onboarding setup window,
+  // grant trial access to its agencies automatically
+  if (cleanCcc) {
+    const cccTrial = await isCccInTrialPeriod(cleanCcc)
+    if (cccTrial.inTrial) {
+      return {
+        subscribed: true,
+        reason: "trial",
+        expiresAt: cccTrial.expiresAt,
+        agencyName: cleanName,
+      }
+    }
+  }
+
   if (!cleanName) {
     // No agency name provided — fail closed
     return { subscribed: false, reason: "no_agency" }

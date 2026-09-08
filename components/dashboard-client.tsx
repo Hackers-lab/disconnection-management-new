@@ -2268,8 +2268,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
           </DialogContent>
         </Dialog>
 
-        {/* Global Subscription Required Dialog Modal */}
-        <Dialog open={!isSubscribed && permsLoaded} onOpenChange={() => {}}>
+        {/* Global Subscription Required Dialog Modal (Strictly for Agency/Vendor accounts) */}
+        <Dialog open={role?.toLowerCase() === "agency" && !isSubscribed && permsLoaded} onOpenChange={() => {}}>
           <DialogContent className="sm:max-w-[425px] bg-slate-950 border-slate-800 text-slate-100 dark backdrop-blur-md" aria-describedby="subscription-description">
             <DialogHeader className="flex flex-col items-center justify-center text-center">
               <div className="h-14 w-14 bg-indigo-500/10 rounded-full flex items-center justify-center mb-4 mt-2 border border-indigo-500/20">

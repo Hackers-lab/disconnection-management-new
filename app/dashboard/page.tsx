@@ -21,8 +21,8 @@ export default async function DashboardPage() {
     redirect("/superuser")
   }
 
-  // Server-side subscription paywall: unsubscribed users NEVER see the dashboard
-  if (!session.isSubscribed) {
+  // Server-side subscription paywall: only agency/vendor users without active subscription are gated
+  if (session.role === "agency" && !session.isSubscribed) {
     return <SubscriptionPaywall session={session} />
   }
 

@@ -159,7 +159,7 @@ export async function verifySession() {
   let subscriptionStatus = session.subscriptionStatus || "active"
 
   if (!isExempt) {
-    if (roleLower === "agency" || (session.agencies && session.agencies.length > 0)) {
+    if (roleLower === "agency") {
       // Dynamic lookup from agencies table (Single Source of Truth)
       const rawAgencies = session.agencies || []
       const agencyCandidates = rawAgencies.length > 0 ? rawAgencies : [session.name || session.username]
@@ -193,7 +193,8 @@ export async function verifySession() {
         }
       }
     } else {
-      // Non-agency roles (station staff, executive, etc.) are allowed into their workspace.
+      // Non-agency roles (station staff, executive, store_keeper, reader, viewer, etc.)
+      // are office personnel and have unrestricted access to their workspace.
       // Their write/update actions are gated per agency on the mutation APIs.
       isSubscribed = true
     }
