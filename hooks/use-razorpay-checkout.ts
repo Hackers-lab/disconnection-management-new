@@ -18,7 +18,7 @@ export interface CheckoutOptions {
     email?: string
     contact?: string
   }
-  onSuccess?: (result: { expiresAt: string; paymentId: string }) => void
+  onSuccess?: (result: { expiresAt: string; paymentId: string; planName?: string; amount?: number }) => void
   onError?: (error: any) => void
 }
 
@@ -182,6 +182,8 @@ export function useRazorpayCheckout() {
                 onSuccess({
                   expiresAt: verifyData.expiresAt,
                   paymentId: response.razorpay_payment_id,
+                  planName: verifyData.planName || planName,
+                  amount: amount ? amount / 100 : 99,
                 })
               } else {
                 // Default action: refresh page to activate full access

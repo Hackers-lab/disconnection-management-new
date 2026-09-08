@@ -15,7 +15,7 @@ interface VendorSubscriptionCheckoutProps {
     email?: string
     contact?: string
   }
-  onSuccess?: (result: { expiresAt: string; paymentId: string }) => void
+  onSuccess?: (result: { expiresAt: string; paymentId: string; planName?: string; amount?: number }) => void
 }
 
 export function VendorSubscriptionCheckout({

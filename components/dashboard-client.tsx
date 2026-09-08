@@ -37,9 +37,10 @@ const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m =>
 const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
-import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck } from "lucide-react"
+import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck, Receipt } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
+import { PaymentCelebrationModal } from "@/components/payment-celebration-modal"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
 
 // UI Components for the Dialog
@@ -89,6 +90,37 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   const [bypassSubscription, setBypassSubscription] = useState(!!initialProfile?.bypassSubscription)
   const [profileCccCode, setProfileCccCode] = useState(initialProfile?.cccCode || "")
   const [profileCccName, setProfileCccName] = useState(initialProfile?.cccName || "")
+
+  const [showCelebrationModal, setShowCelebrationModal] = useState(false)
+  const [celebrationDetails, setCelebrationDetails] = useState<{
+    planName?: string
+    expiresAt?: string
+    paymentId?: string
+    amount?: number
+  }>({})
+
+  const handlePaymentSuccess = async (result: {
+    expiresAt: string
+    paymentId: string
+    planName?: string
+    amount?: number
+  }) => {
+    // 1. Immediately update access flags in state so paywall vanishes without hard reload
+    setIsSubscribed(true)
+    setSubscriptionExpiresAt(result.expiresAt)
+
+    // 2. Refresh full user profile to fetch fresh payment history
+    await fetchFullUserProfile()
+
+    // 3. Trigger enthusiastic celebration modal
+    setCelebrationDetails({
+      planName: result.planName || "1 Month Vendor Access",
+      expiresAt: result.expiresAt,
+      paymentId: result.paymentId,
+      amount: result.amount || 99,
+    })
+    setShowCelebrationModal(true)
+  }
 
   // Full User Profile & Edit State
   const [profileData, setProfileData] = useState<any>(null)
@@ -2089,6 +2121,44 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       }
                     })()}
                   </div>
+
+                  {/* Payment History inside Profile Card */}
+                  {profileData?.paymentHistory && profileData.paymentHistory.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Receipt className="h-3.5 w-3.5 text-blue-600" />
+                          Payment History
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {profileData.paymentHistory.length} record{profileData.paymentHistory.length > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-1.5 pr-0.5">
+                        {profileData.paymentHistory.map((tx: any) => (
+                          <div
+                            key={tx.id || tx.paymentId}
+                            className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs transition-colors hover:bg-slate-100/70"
+                          >
+                            <div className="space-y-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-800 truncate">{tx.planName}</span>
+                                <span className="font-mono text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                  {tx.paymentId.slice(0, 10)}...
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                Paid {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""} • Valid till {tx.expiresAt ? new Date(tx.expiresAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}
+                              </p>
+                            </div>
+                            <span className="font-mono font-extrabold text-emerald-700 text-xs shrink-0 ml-2 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              ₹{tx.amount}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Simulated Payment Action inside Profile */}
@@ -2109,6 +2179,9 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       userPrefill={{
                         name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                         contact: profileData?.mobileNumber || profileEditMobile || "",
+                      }}
+                      onSuccess={(res) => {
+                        handlePaymentSuccess(res)
                       }}
                       className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold py-2.5 rounded-xl shadow-xs"
                     />
@@ -2238,6 +2311,9 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                   name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                   contact: profileData?.mobileNumber || profileEditMobile || "",
                 }}
+                onSuccess={(res) => {
+                  handlePaymentSuccess(res)
+                }}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-lg shadow-md hover:shadow-indigo-500/10 transition-all duration-200"
               />
               <Button 
@@ -2266,6 +2342,16 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
         {/* New System Features / Update Announcement Popup */}
         <NewYearPopup />
+
+        {/* Enthusiastic Payment Celebration & Tremendous Job Modal */}
+        <PaymentCelebrationModal
+          open={showCelebrationModal}
+          onClose={() => setShowCelebrationModal(false)}
+          planName={celebrationDetails.planName}
+          expiresAt={celebrationDetails.expiresAt}
+          paymentId={celebrationDetails.paymentId}
+          amount={celebrationDetails.amount}
+        />
 
         {/* Floating Rating Pill (Only renders if user has not yet submitted feedback) */}
         <FloatingRatingPill initialHasFeedback={initialHasFeedback} />

@@ -68,20 +68,32 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Check if this user or agency has a verified paid transaction in payment_transactions
+    // Check if this user or agency has verified paid transactions in payment_transactions
     let isPaid = false
     let planName = ""
     let lastPaymentDate = ""
+    let paymentHistory: any[] = []
     try {
       const txCheck = await db.execute({
-        sql: `SELECT plan_name, created_at 
+        sql: `SELECT id, razorpay_payment_id, razorpay_order_id, amount, currency, plan_name, days_granted, subscription_expires_at, created_at 
               FROM payment_transactions 
               WHERE (user_id = ? OR ccc_code = ? COLLATE NOCASE AND agency_name = ? COLLATE NOCASE)
               ORDER BY created_at DESC 
-              LIMIT 1`,
+              LIMIT 15`,
         args: [String(row.id), cccCode, agencyNameToCheck || username],
       })
       if (txCheck.rows && txCheck.rows.length > 0) {
+        paymentHistory = txCheck.rows.map((r: any) => ({
+          id: String(r.id),
+          paymentId: String(r.razorpay_payment_id || ""),
+          orderId: String(r.razorpay_order_id || ""),
+          amount: Number(r.amount || 0) / 100,
+          currency: String(r.currency || "INR"),
+          planName: String(r.plan_name || "Vendor Access"),
+          daysGranted: Number(r.days_granted || 30),
+          expiresAt: String(r.subscription_expires_at || ""),
+          createdAt: String(r.created_at || ""),
+        }))
         const txRow: any = txCheck.rows[0]
         isPaid = true
         planName = String(txRow.plan_name || "Pro Vendor Access")
@@ -118,6 +130,7 @@ export async function GET(req: NextRequest) {
       isPaid,
       planName: planName || (isPaid ? "Pro Vendor Access" : ""),
       lastPaymentDate,
+      paymentHistory,
     })
   } catch (error: any) {
     console.error("Error fetching user profile:", error)

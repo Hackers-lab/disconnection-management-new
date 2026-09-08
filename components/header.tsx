@@ -2296,6 +2296,44 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                   )
                 })()}
               </div>
+
+              {/* Payment History Section */}
+              {profileData?.paymentHistory && profileData.paymentHistory.length > 0 && (
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Receipt className="h-3.5 w-3.5 text-indigo-400" />
+                      Payment History
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {profileData.paymentHistory.length} transaction{profileData.paymentHistory.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                    {profileData.paymentHistory.map((tx: any) => (
+                      <div
+                        key={tx.id || tx.paymentId}
+                        className="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-xs"
+                      >
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-200 truncate">{tx.planName}</span>
+                            <span className="font-mono text-[9px] text-indigo-300 bg-indigo-950/60 px-1.5 py-0.2 rounded border border-indigo-800">
+                              {tx.paymentId.slice(0, 10)}...
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500">
+                            {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}
+                          </p>
+                        </div>
+                        <span className="font-mono font-bold text-emerald-400 text-xs shrink-0 ml-2">
+                          ₹{tx.amount}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex justify-center items-center py-10">
