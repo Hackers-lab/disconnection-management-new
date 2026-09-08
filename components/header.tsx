@@ -132,15 +132,6 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [changePwdError, setChangePwdError] = useState<string | null>(null)
   const [changePwdSuccess, setChangePwdSuccess] = useState(false)
   const [changePwdLoading, setChangePwdLoading] = useState(false)
-  // OTP states for Change Password
-  const [changePwdOtp, setChangePwdOtp] = useState("")
-  const [changePwdOtpSent, setChangePwdOtpSent] = useState(false)
-  const [changePwdOtpSending, setChangePwdOtpSending] = useState(false)
-  const [changePwdOtpVerifying, setChangePwdOtpVerifying] = useState(false)
-  const [changePwdOtpVerified, setChangePwdOtpVerified] = useState(false)
-  const [changePwdVerificationToken, setChangePwdVerificationToken] = useState("")
-  const [changePwdUserMobile, setChangePwdUserMobile] = useState("")
-  const [changePwdCountdown, setChangePwdCountdown] = useState(0)
 
   const [showHistoryReportDialog, setShowHistoryReportDialog] = useState(false)
   const [showBroadcastPushModal, setShowBroadcastPushModal] = useState(false)
@@ -154,6 +145,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   // Profile Edit Modal / Inline State
   const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [profileEditName, setProfileEditName] = useState("")
   const [profileEditMobile, setProfileEditMobile] = useState("")
   const [profileEditVendor, setProfileEditVendor] = useState("")
   const [profileSaving, setProfileSaving] = useState(false)
@@ -178,17 +170,26 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       console.warn("Failed to fetch user profile, falling back to permissions", e)
     }
 
+    // Fallback: Use permissions endpoint if /api/user/profile fails
     try {
-      const permRes = await fetch("/api/auth/permissions")
-      if (permRes.ok) {
-        const pData = await permRes.json()
-        setProfileData(pData)
-        if (pData?.cccCode) {
-          setClientCccCode(pData.cccCode)
-          if (typeof window !== "undefined") {
-            localStorage.setItem("user_ccc_code", pData.cccCode)
-          }
-        }
+      const pRes = await fetch("/api/auth/permissions")
+      if (pRes.ok) {
+        const pData = await pRes.json()
+        setProfileData((prev: any) => ({
+          ...prev,
+          name: pData.name || pData.username,
+          username: pData.username,
+          cccCode: pData.cccCode,
+          cccName: pData.cccName,
+          role: pData.role,
+          agencies: pData.agencies,
+          subscriptionStatus: pData.subscriptionStatus,
+          subscriptionExpiresAt: pData.subscriptionExpiresAt,
+          bypassSubscription: pData.bypassSubscription,
+          mobileNumber: pData.mobileNumber,
+          userMobile: pData.mobileNumber,
+          vendorCode: pData.vendorCode,
+        }))
         return pData
       }
     } catch (err) {
@@ -197,6 +198,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   }
 
   const startEditProfile = () => {
+    setProfileEditName(profileData?.name || profileData?.fullName || "")
     setProfileEditMobile(profileData?.userMobile || profileData?.mobileNumber || "")
     setProfileSaveError(null)
     setProfileSaveSuccess(false)
@@ -205,6 +207,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   const handleSaveProfileDetails = async () => {
     const cleanMob = profileEditMobile.trim()
+    const cleanName = profileEditName.trim()
 
     if (cleanMob && !/^\d{10}$/.test(cleanMob)) {
       setProfileSaveError("Personal login mobile number must be exactly 10 digits")
@@ -220,6 +223,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          fullName: cleanName || null,
           userMobile: cleanMob || null,
         }),
       })
@@ -248,6 +252,14 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
       setClientUsername(localStorage.getItem("user_username") || "")
     }
     loadUserProfile()
+
+    const handleChangePwdEvent = () => {
+      openChangePwdDialog()
+    }
+    window.addEventListener("open-change-password", handleChangePwdEvent)
+    return () => {
+      window.removeEventListener("open-change-password", handleChangePwdEvent)
+    }
   }, [])
   const homeLongPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isLongPressRef = useRef(false)
@@ -294,16 +306,9 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
 
 
-  // Countdown timer for OTP resend
-  useEffect(() => {
-    if (changePwdCountdown <= 0) return
-    const timer = setInterval(() => {
-      setChangePwdCountdown((prev) => (prev <= 1 ? 0 : prev - 1))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [changePwdCountdown])
 
-  const openChangePwdDialog = async () => {
+
+  const openChangePwdDialog = () => {
     setChangePwdCurrent("")
     setChangePwdNew("")
     setChangePwdConfirm("")
@@ -312,88 +317,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     setShowPwdConfirm(false)
     setChangePwdError(null)
     setChangePwdSuccess(false)
-    setChangePwdOtp("")
-    setChangePwdOtpSent(false)
-    setChangePwdOtpSending(false)
-    setChangePwdOtpVerifying(false)
-    setChangePwdOtpVerified(false)
-    setChangePwdVerificationToken("")
-    setChangePwdCountdown(0)
-
-    let mob = profileData?.mobileNumber || ""
-    if (!mob) {
-      const data = await loadUserProfile()
-      mob = data?.mobileNumber || ""
-    }
-    setChangePwdUserMobile(mob)
     setShowChangePwdDialog(true)
   }
 
-  const handleSendChangePwdOtp = async () => {
-    if (!changePwdUserMobile || changePwdUserMobile.replace(/\D/g, "").length < 10) {
-      setChangePwdError("No valid 10-digit mobile number linked to this account. Please update mobile number in your profile first.")
-      return
-    }
-    const cleanMob = changePwdUserMobile.replace(/\D/g, "").slice(-10)
-    setChangePwdOtpSending(true)
-    setChangePwdError(null)
-    try {
-      const res = await fetch("/api/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", mobileNumber: cleanMob }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setChangePwdError(data.error || "Failed to send OTP.")
-      } else {
-        setChangePwdOtpSent(true)
-        setChangePwdCountdown(45)
-        if (data.devOtp) {
-          console.log("🔐 [DEV ONLY] Password change OTP:", data.devOtp)
-        }
-      }
-    } catch {
-      setChangePwdError("Failed to send OTP. Please check your connection.")
-    } finally {
-      setChangePwdOtpSending(false)
-    }
-  }
-
-  const handleVerifyChangePwdOtp = async () => {
-    const cleanMob = changePwdUserMobile.replace(/\D/g, "").slice(-10)
-    const cleanOtp = changePwdOtp.replace(/\D/g, "").slice(0, 6)
-    if (cleanOtp.length !== 6) {
-      setChangePwdError("Please enter the 6-digit OTP received on your mobile.")
-      return
-    }
-    setChangePwdOtpVerifying(true)
-    setChangePwdError(null)
-    try {
-      const res = await fetch("/api/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setChangePwdError(data.error || "Invalid or expired OTP.")
-      } else {
-        setChangePwdOtpVerified(true)
-        setChangePwdVerificationToken(data.verificationToken || "")
-      }
-    } catch {
-      setChangePwdError("Failed to verify OTP.")
-    } finally {
-      setChangePwdOtpVerifying(false)
-    }
-  }
-
   const handleChangePassword = async () => {
-    if (!changePwdOtpVerified || !changePwdVerificationToken) {
-      setChangePwdError("Please verify the mobile OTP first before saving new password.")
-      return
-    }
     if (!changePwdCurrent || !changePwdNew || !changePwdConfirm) {
       setChangePwdError("All fields are required")
       return
@@ -409,15 +336,12 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     setChangePwdLoading(true)
     setChangePwdError(null)
     try {
-      const cleanMob = changePwdUserMobile.replace(/\D/g, "").slice(-10)
       const res = await fetch("/api/user/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword: changePwdCurrent,
           newPassword: changePwdNew,
-          mobileNumber: cleanMob,
-          verificationToken: changePwdVerificationToken,
         }),
       })
       const data = await res.json()
@@ -1951,87 +1875,6 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               </div>
             ) : (
               <>
-                {/* Linked Mobile OTP Verification Section */}
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                      <Phone className="h-3.5 w-3.5 text-indigo-600" />
-                      Linked Mobile Verification (Mandatory)
-                    </Label>
-                    {changePwdOtpVerified && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                        <Check className="h-3 w-3" /> OTP Verified
-                      </span>
-                    )}
-                  </div>
-
-                  {changePwdUserMobile ? (
-                    <p className="text-xs text-slate-600">
-                      OTP will be sent to registered mobile: <span className="font-mono font-bold text-slate-900">+91 {changePwdUserMobile.slice(0, 3)}•••••{changePwdUserMobile.slice(-2)}</span>
-                    </p>
-                  ) : (
-                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 flex items-center gap-1.5">
-                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                      <span>No mobile number linked. Please update your mobile in <strong>My Profile</strong> first.</span>
-                    </div>
-                  )}
-
-                  {!changePwdOtpVerified && (
-                    <div className="space-y-2 pt-1">
-                      <div className="flex gap-2">
-                        <Input
-                          type="text"
-                          maxLength={6}
-                          placeholder="Enter 6-digit OTP"
-                          value={changePwdOtp}
-                          disabled={!changePwdOtpSent || changePwdOtpVerifying}
-                          onChange={(e) => setChangePwdOtp(e.target.value.replace(/\D/g, ""))}
-                          className="h-9 text-xs font-mono text-center tracking-widest bg-white"
-                        />
-                        {changePwdOtpSent ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={handleVerifyChangePwdOtp}
-                            disabled={changePwdOtpVerifying || changePwdOtp.length !== 6}
-                            className="h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 font-semibold"
-                          >
-                            {changePwdOtpVerifying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Verify OTP"}
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={handleSendChangePwdOtp}
-                            disabled={changePwdOtpSending || !changePwdUserMobile || changePwdUserMobile.length < 10}
-                            className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 font-semibold"
-                          >
-                            {changePwdOtpSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Send OTP"}
-                          </Button>
-                        )}
-                      </div>
-
-                      {changePwdOtpSent && (
-                        <div className="flex items-center justify-between text-[11px] text-slate-500">
-                          <span>OTP sent to your registered mobile</span>
-                          {changePwdCountdown > 0 ? (
-                            <span className="font-mono text-indigo-600 font-semibold">Resend in {changePwdCountdown}s</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={handleSendChangePwdOtp}
-                              disabled={changePwdOtpSending}
-                              className="text-indigo-600 hover:underline font-semibold"
-                            >
-                              Resend OTP
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
                 <div className="space-y-2">
                   <Label>Current Password</Label>
                   <div className="relative">
@@ -2059,7 +1902,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                       type={showPwdNew ? "text" : "password"}
                       value={changePwdNew}
                       onChange={(e) => setChangePwdNew(e.target.value)}
-                      placeholder="Enter new password"
+                      placeholder="Enter new password (min 4 characters)"
                       className="pr-10"
                     />
                     <button
@@ -2111,7 +1954,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               </Button>
               <Button
                 onClick={handleChangePassword}
-                disabled={changePwdLoading || !changePwdOtpVerified || !changePwdCurrent || !changePwdNew || !changePwdConfirm || changePwdNew !== changePwdConfirm}
+                disabled={changePwdLoading || !changePwdCurrent || !changePwdNew || !changePwdConfirm || changePwdNew !== changePwdConfirm}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
               >
                 {changePwdLoading ? "Saving..." : "Save Password"}
@@ -2138,43 +1981,37 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                 <User className="h-5 w-5 text-indigo-400" />
                 My Profile & Workspace Status
               </DialogTitle>
-              {!isEditingProfile && profileData && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={startEditProfile}
-                  className="h-7 px-2.5 text-xs bg-slate-800 border-slate-700 text-indigo-300 hover:bg-indigo-950/50 hover:text-indigo-200"
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Edit Details
-                </Button>
-              )}
             </div>
           </DialogHeader>
 
           {profileData ? (
             <div className="space-y-3.5 py-2 text-sm text-slate-300">
               {/* Basic Details */}
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
                 <span className="text-slate-400 font-medium">Name:</span>
-                <span className="col-span-2 font-semibold text-slate-100">{profileData.name || profileData.fullName || "N/A"}</span>
+                <div className="col-span-2 flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-100 truncate">{profileData.name || profileData.fullName || "N/A"}</span>
+                  {!isEditingProfile && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={startEditProfile}
+                      className="h-6 w-6 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full shrink-0"
+                      title="Edit Profile Details"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
-                <span className="text-slate-400 font-medium">Username:</span>
-                <span className="col-span-2 font-mono font-semibold text-slate-200">{profileData.username}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
-                <span className="text-slate-400 font-medium">Subdivision:</span>
+                <span className="text-slate-400 font-medium">Office:</span>
                 <span className="col-span-2 font-mono font-semibold text-blue-400">
                   {profileData.cccCode} {profileData.cccName && profileData.cccName !== profileData.cccCode ? `(${profileData.cccName})` : ""}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
-                <span className="text-slate-400 font-medium">Role:</span>
-                <span className="col-span-2 capitalize font-semibold text-slate-200">{profileData.role}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
-                <span className="text-slate-400 font-medium">Assigned:</span>
+                <span className="text-slate-400 font-medium">Agency:</span>
                 <span className="col-span-2 text-xs font-semibold text-slate-200">
                   {profileData.agencies && profileData.agencies.length > 0
                     ? profileData.agencies.join(", ")
@@ -2183,37 +2020,30 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               </div>
 
               {/* Mobile Number & Vendor Code Display or Edit Form */}
-              {/* Mobile Numbers & Vendor Code Display or Edit Form */}
               {!isEditingProfile ? (
                 <>
                   {/* Personal Login Mobile Number Row */}
                   <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
                     <span className="text-slate-400 font-medium flex items-center gap-1.5">
                       <Phone className="h-3.5 w-3.5 text-purple-400" />
-                      Login Mobile:
+                      User Ph:
                     </span>
                     <div className="col-span-2 flex items-center justify-between gap-2">
                       {(profileData.userMobile || profileData.mobileNumber) && /^\d{10}$/.test(profileData.userMobile || profileData.mobileNumber) ? (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono font-bold text-emerald-400 text-xs">
-                            +91 {profileData.userMobile || profileData.mobileNumber}
-                          </span>
-                          <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded border border-slate-700">
-                            OTP & Login
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                          <AlertTriangle className="h-3 w-3" /> Not Set
+                        <span className="font-mono font-bold text-emerald-400 text-xs">
+                          +91 {profileData.userMobile || profileData.mobileNumber}
                         </span>
+                      ) : (
+                        <span className="text-xs text-amber-400 font-medium">Not Set</span>
                       )}
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
                         onClick={startEditProfile}
-                        className="h-6 px-2 text-[11px] text-indigo-400 hover:text-indigo-300 hover:bg-slate-800"
+                        className="h-6 w-6 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full"
+                        title="Edit Personal Mobile"
                       >
-                        {(profileData.userMobile || profileData.mobileNumber) ? "Change" : "Add Mobile"}
+                        <Pencil className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -2223,22 +2053,16 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                     <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
                       <span className="text-slate-400 font-medium flex items-center gap-1.5">
                         <Building2 className="h-3.5 w-3.5 text-emerald-400" />
-                        Agency Phone:
+                        Agency Ph:
                       </span>
                       <div className="col-span-2 flex items-center justify-between gap-2">
                         {profileData.agencyMobile && /^\d{10}$/.test(profileData.agencyMobile) ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono font-semibold text-slate-200 text-xs">
-                              +91 {profileData.agencyMobile}
-                            </span>
-                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
-                              Company Contact
-                            </span>
-                          </div>
+                          <span className="font-mono font-semibold text-slate-200 text-xs">
+                            +91 {profileData.agencyMobile}
+                          </span>
                         ) : (
                           <span className="text-xs text-slate-500">Not recorded</span>
                         )}
-                        <span className="text-[10px] text-slate-500 font-mono">🔒 Station Record</span>
                       </div>
                     </div>
                   )}
@@ -2251,16 +2075,13 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                         Vendor Code:
                       </span>
                       <div className="col-span-2 flex items-center justify-between gap-2">
-                        {profileData.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
+                        {profileData.vendorCode ? (
                           <span className="font-mono font-bold text-cyan-400 text-xs bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800">
                             {profileData.vendorCode}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                            <AlertTriangle className="h-3 w-3" /> Not Tagged
-                          </span>
+                          <span className="text-xs text-slate-500">Not Tagged</span>
                         )}
-                        <span className="text-[10px] text-slate-500 font-mono">🔒 SAP Contract Code</span>
                       </div>
                     </div>
                   )}
@@ -2292,6 +2113,21 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                       <span>Mobile number updated successfully!</span>
                     </div>
                   )}
+
+                  <div className="space-y-1">
+                    <Label htmlFor="profile-header-name" className="text-xs text-slate-300 flex items-center gap-1">
+                      <User className="h-3 w-3 text-indigo-400" />
+                      Full Name
+                    </Label>
+                    <Input
+                      id="profile-header-name"
+                      type="text"
+                      placeholder="Your full name"
+                      value={profileEditName}
+                      onChange={(e) => setProfileEditName(e.target.value)}
+                      className="h-8 text-xs bg-slate-900 border-slate-700 text-white"
+                    />
+                  </div>
 
                   <div className="space-y-1">
                     <Label htmlFor="profile-mobile" className="text-xs text-slate-300 flex items-center gap-1">
@@ -2328,7 +2164,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                     </Button>
                     <Button
                       size="sm"
-                      disabled={profileSaving || !profileEditMobile || profileEditMobile.length !== 10}
+                      disabled={profileSaving || (profileEditMobile && profileEditMobile.length > 0 && profileEditMobile.length !== 10)}
                       onClick={handleSaveProfileDetails}
                       className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
                     >
@@ -2340,7 +2176,7 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                       ) : (
                         <>
                           <Check className="h-3 w-3 mr-1" />
-                          Save Mobile
+                          Save Details
                         </>
                       )}
                     </Button>
@@ -2466,8 +2302,19 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
             </div>
           )}
-          <DialogFooter>
-            <Button className="bg-slate-800 text-white hover:bg-slate-700 w-full font-semibold" onClick={() => setShowProfileDialog(false)}>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              className="bg-slate-800 text-indigo-300 hover:bg-slate-700 hover:text-indigo-200 border-slate-700 w-full sm:w-auto font-medium text-xs flex items-center justify-center gap-1.5"
+              onClick={() => {
+                setShowProfileDialog(false)
+                openChangePwdDialog()
+              }}
+            >
+              <KeyRound className="h-3.5 w-3.5 text-indigo-400" />
+              Change Password
+            </Button>
+            <Button className="bg-slate-800 text-white hover:bg-slate-700 w-full sm:w-auto font-semibold text-xs" onClick={() => setShowProfileDialog(false)}>
               Close Profile
             </Button>
           </DialogFooter>

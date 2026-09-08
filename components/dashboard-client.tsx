@@ -93,6 +93,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   // Full User Profile & Edit State
   const [profileData, setProfileData] = useState<any>(null)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [profileEditName, setProfileEditName] = useState("")
   const [profileEditMobile, setProfileEditMobile] = useState("")
   const [profileEditVendor, setProfileEditVendor] = useState("")
   const [profileSaving, setProfileSaving] = useState(false)
@@ -122,6 +123,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   }, [])
 
   const startEditProfile = () => {
+    setProfileEditName(profileData?.name || profileData?.fullName || profileName || "")
     setProfileEditMobile(profileData?.userMobile || profileData?.mobileNumber || "")
     setProfileSaveError(null)
     setProfileSaveSuccess(false)
@@ -130,6 +132,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
   const handleSaveProfileDetails = async () => {
     const cleanMob = profileEditMobile.trim()
+    const cleanName = profileEditName.trim()
 
     if (cleanMob && !/^\d{10}$/.test(cleanMob)) {
       setProfileSaveError("Personal login mobile number must be exactly 10 digits")
@@ -145,6 +148,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          fullName: cleanName || null,
           userMobile: cleanMob || null,
         }),
       })
@@ -1728,18 +1732,6 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                   </p>
                 </div>
               </div>
-
-              {!isEditingProfile && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={startEditProfile}
-                  className="h-8 px-2.5 sm:px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-semibold shrink-0"
-                >
-                  <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 text-slate-500" />
-                  <span>Edit Phone</span>
-                </Button>
-              )}
             </div>
 
             {/* Mobile-Friendly Profile Identity Banner */}
@@ -1801,6 +1793,21 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                 {/* Edit Form or Read-only Details */}
                 {isEditingProfile ? (
                   <div className="space-y-4 pt-1">
+                    {/* Full Name Input */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-blue-600" />
+                        Full Name
+                      </Label>
+                      <Input
+                        value={profileEditName}
+                        onChange={(e) => setProfileEditName(e.target.value)}
+                        placeholder="Enter your full name"
+                        className="text-sm bg-white border-slate-300 focus:border-blue-500 h-10"
+                      />
+                    </div>
+
+                    {/* Personal Login Phone Input */}
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                         <Phone className="h-3.5 w-3.5 text-blue-600" />
@@ -1819,16 +1826,6 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                         />
                       </div>
                       <p className="text-[11px] text-slate-500">Used for your personal login and password OTP verification.</p>
-                    </div>
-
-                    {/* Locked Station Records Notice */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 space-y-1">
-                      <div className="font-semibold text-slate-700 flex items-center gap-1">
-                        <Lock className="h-3.5 w-3.5 text-slate-400" /> SAP Vendor Code & Agency Phone
-                      </div>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">
-                        Contractor phones & 6-digit SAP Vendor Codes are station records managed by the Station Admin in the CCC Admin Panel.
-                      </p>
                     </div>
 
                     {profileSaveError && (
@@ -1858,7 +1855,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       <Button
                         size="sm"
                         onClick={handleSaveProfileDetails}
-                        disabled={profileSaving || !profileEditMobile || profileEditMobile.length !== 10}
+                        disabled={profileSaving || (profileEditMobile && profileEditMobile.length !== 10)}
                         className="h-9 px-4 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold w-full sm:w-auto"
                       >
                         {profileSaving ? (
@@ -1867,107 +1864,118 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           </>
                         ) : (
                           <>
-                            <Check className="h-3.5 w-3.5 mr-1.5" /> Save Mobile
+                            <Check className="h-3.5 w-3.5 mr-1.5" /> Save Profile
                           </>
                         )}
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3 sm:space-y-3.5">
-                    {/* Full Name */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-slate-100">
-                      <span className="text-xs sm:text-sm text-slate-500 font-medium">Full Name</span>
-                      <span className="text-xs sm:text-sm font-semibold text-slate-900">{profileData?.name || profileName || "N/A"}</span>
+                  <div className="divide-y divide-slate-100 text-xs sm:text-sm">
+                    {/* Name */}
+                    <div className="flex items-center justify-between py-2 gap-2">
+                      <span className="text-slate-500 font-medium shrink-0">Name:</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-semibold text-slate-900 truncate">{profileData?.name || profileName || "N/A"}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={startEditProfile}
+                          className="h-6 w-6 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full shrink-0"
+                          title="Edit Profile"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
 
-                    {/* Subdivision Office */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-slate-100">
-                      <span className="text-xs sm:text-sm text-slate-500 font-medium">Subdivision</span>
-                      <span className="font-mono text-xs sm:text-sm font-bold text-blue-700">
+                    {/* Office */}
+                    <div className="flex items-center justify-between py-2.5 gap-2">
+                      <span className="text-slate-500 font-medium shrink-0">Office:</span>
+                      <span className="font-mono font-semibold text-blue-700 text-right truncate">
                         {profileData?.cccCode || profileCccCode || "SYSTEM"} {profileData?.cccName && profileData.cccName !== (profileData?.cccCode || profileCccCode) ? `(${profileData.cccName})` : ""}
                       </span>
                     </div>
 
-                    {/* Assigned Scope */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-slate-100">
-                      <span className="text-xs sm:text-sm text-slate-500 font-medium">Assigned Agency Scope</span>
-                      <span className="text-xs font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-fit">
+                    {/* Agency */}
+                    <div className="flex items-center justify-between py-2.5 gap-2">
+                      <span className="text-slate-500 font-medium shrink-0">Agency:</span>
+                      <span className="font-semibold text-slate-800 text-right truncate">
                         {(profileData?.agencies && profileData.agencies.length > 0)
                           ? profileData.agencies.join(", ")
                           : (agencies && agencies.length > 0 ? agencies.join(", ") : "All Agencies")}
                       </span>
                     </div>
 
-                    {/* Personal Login Mobile Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-slate-100">
-                      <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1.5">
+                    {/* User Phone */}
+                    <div className="flex items-center justify-between py-2 gap-2">
+                      <span className="text-slate-500 font-medium shrink-0 flex items-center gap-1.5">
                         <Phone className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                        Login Phone (OTP):
+                        User Ph:
                       </span>
-                      <div className="flex items-center gap-2 justify-between sm:justify-end">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {profileData?.userMobile || profileData?.mobileNumber ? (
-                          <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-xs">
+                          <span className="font-mono font-bold text-slate-900">
                             +91 {profileData.userMobile || profileData.mobileNumber}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            <AlertTriangle className="h-3 w-3" /> Not Set
-                          </span>
+                          <span className="text-amber-600 font-medium">Not Set</span>
                         )}
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
                           onClick={startEditProfile}
-                          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
+                          className="h-6 w-6 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full"
+                          title="Edit Personal Mobile"
                         >
-                          {profileData?.userMobile || profileData?.mobileNumber ? "Change" : "+ Add"}
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
 
-                    {/* Agency Official Mobile Row */}
+                    {/* Agency Phone */}
                     {(profileData?.hasAgency || profileData?.agencyMobile) && (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-slate-100">
-                        <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1.5">
+                      <div className="flex items-center justify-between py-2.5 gap-2">
+                        <span className="text-slate-500 font-medium shrink-0 flex items-center gap-1.5">
                           <Building2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                          Agency Official Phone:
+                          Agency Ph:
                         </span>
-                        <div className="flex items-center gap-2 justify-between sm:justify-end">
-                          {profileData?.agencyMobile ? (
-                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 text-xs">
-                              +91 {profileData.agencyMobile}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 italic">Not set in master</span>
-                          )}
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                            <Lock className="h-3 w-3" /> Locked
-                          </span>
-                        </div>
+                        <span className="font-mono font-semibold text-slate-800 text-right">
+                          {profileData?.agencyMobile ? `+91 ${profileData.agencyMobile}` : "Not set"}
+                        </span>
                       </div>
                     )}
 
-                    {/* SAP Vendor Code Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 items-center">
-                      <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1.5">
+                    {/* Vendor Code */}
+                    <div className="flex items-center justify-between py-2.5 gap-2">
+                      <span className="text-slate-500 font-medium shrink-0 flex items-center gap-1.5">
                         <Hash className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                        SAP Vendor Code:
+                        Vendor Code:
                       </span>
-                      <div className="flex items-center gap-2 justify-between sm:justify-end w-full sm:w-auto">
-                        {profileData?.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
-                          <span className="font-mono font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-xs">
-                            {profileData.vendorCode}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            <AlertTriangle className="h-3 w-3" /> Not Tagged
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                          <Lock className="h-3 w-3" /> SAP
-                        </span>
-                      </div>
+                      <span className="font-mono font-bold text-blue-800 text-right">
+                        {profileData?.vendorCode || "Not Tagged"}
+                      </span>
+                    </div>
+
+                    {/* Security & Password */}
+                    <div className="flex items-center justify-between pt-3 pb-1 gap-2">
+                      <span className="text-slate-500 font-medium shrink-0 flex items-center gap-1.5">
+                        <KeyRound className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                        Password:
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("open-change-password"))
+                          }
+                        }}
+                        className="h-7 px-2.5 text-xs text-indigo-700 bg-indigo-50/70 border-indigo-200 hover:bg-indigo-100 hover:text-indigo-800 font-semibold flex items-center gap-1"
+                      >
+                        <KeyRound className="h-3 w-3" />
+                        Change Password
+                      </Button>
                     </div>
                   </div>
                 )}
