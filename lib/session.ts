@@ -119,6 +119,32 @@ export async function verifySession() {
     return null
   }
 
+  // Security check: Verify that the user still exists in the database and was not deleted or deactivated.
+  // Special exception: virtual division viewer accounts (div-*)
+  if (!session.userId.startsWith("div-")) {
+    try {
+      const { db } = await import("./db")
+      const userRes = await db.execute({
+        sql: `SELECT id, status FROM users WHERE id = ? LIMIT 1`,
+        args: [session.userId]
+      })
+      if (!userRes.rows || userRes.rows.length === 0) {
+        console.warn(`[Session Revoked] User ${session.username} (${session.userId}) was deleted from DB.`)
+        await deleteSession()
+        return null
+      }
+      const uRow: any = userRes.rows[0]
+      if (uRow.status && String(uRow.status).toUpperCase() === "INACTIVE") {
+        console.warn(`[Session Revoked] User ${session.username} (${session.userId}) is marked INACTIVE.`)
+        await deleteSession()
+        return null
+      }
+    } catch (userCheckErr) {
+      // If DB is temporarily unreachable, fall back to JWT signature
+      console.warn("[Session Verification] DB existence check warning:", userCheckErr)
+    }
+  }
+
   let isSubscribed = true
   const roleLower = (session.role || "").toLowerCase()
   

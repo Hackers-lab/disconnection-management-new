@@ -4,6 +4,8 @@ import { withTenant } from "@/lib/tenant-context"
 import { createSubscriptionOrder } from "@/lib/razorpay"
 import { getPlanByAmount, SUBSCRIPTION_PLANS } from "@/lib/subscription-plans"
 
+import { db } from "@/lib/db"
+
 export const dynamic = "force-dynamic"
 
 /**
@@ -16,8 +18,71 @@ export const dynamic = "force-dynamic"
 export const POST = withTenant(async function POST(request: NextRequest) {
   try {
     const session = await verifySession()
-    if (!session) {
+    if (!session || !session.userId) {
       return NextResponse.json({ error: "Unauthorized: Please log in to continue" }, { status: 401 })
+    }
+
+    // Security check: Verify that the user still exists in the database and was not deleted
+    try {
+      const userCheck = await db.execute({
+        sql: `SELECT u.id, u.status, u.role, u.ccc_id, c.ccc_code 
+              FROM users u
+              LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+              WHERE u.id = ? OR (u.username = ? COLLATE NOCASE AND c.ccc_code = ? COLLATE NOCASE)
+              LIMIT 1`,
+        args: [session.userId, session.username, session.cccCode || ""]
+      })
+
+      if (!userCheck.rows || userCheck.rows.length === 0) {
+        console.warn(`⚠️ [Order Blocked] User '${session.username}' (${session.userId}) was deleted or does not exist in DB.`)
+        return NextResponse.json(
+          { error: "Your user account is no longer active or was removed by the office administrator. Please contact your office." },
+          { status: 403 }
+        )
+      }
+
+      const activeUser: any = userCheck.rows[0]
+      if (activeUser.status && String(activeUser.status).toUpperCase() === "INACTIVE") {
+        return NextResponse.json(
+          { error: "Your user account has been deactivated. Please contact your office administrator." },
+          { status: 403 }
+        )
+      }
+
+      // If user is an agency, check that their agency still exists in Manage Agencies for this CCC
+      if (session.role === "agency" || (session.agencies && session.agencies.length > 0)) {
+        const agencyName = (session.agencies && session.agencies.length > 0) ? session.agencies[0] : session.username
+        const cccCode = session.cccCode || activeUser.ccc_code
+        if (cccCode && agencyName) {
+          const agencyCheck = await db.execute({
+            sql: `SELECT a.id, a.name, a.is_active 
+                  FROM agencies a
+                  JOIN ccc_registry c ON a.ccc_id = c.id
+                  WHERE c.ccc_code = ? COLLATE NOCASE
+                    AND (a.name = ? COLLATE NOCASE OR a.vendor_code = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
+                  LIMIT 1`,
+            args: [cccCode, agencyName, agencyName, session.username]
+          })
+
+          if (!agencyCheck.rows || agencyCheck.rows.length === 0) {
+            console.warn(`⚠️ [Order Blocked] Agency '${agencyName}' is no longer registered under CCC '${cccCode}'.`)
+            return NextResponse.json(
+              { error: `Agency '${agencyName}' is not registered under your office. Please contact your office administrator.` },
+              { status: 403 }
+            )
+          }
+
+          const agencyRow: any = agencyCheck.rows[0]
+          if (agencyRow.is_active === 0 || agencyRow.is_active === false) {
+            return NextResponse.json(
+              { error: `Agency '${agencyName}' is currently marked inactive by the office administrator.` },
+              { status: 403 }
+            )
+          }
+        }
+      }
+    } catch (dbErr: any) {
+      console.warn("Database verification check warning during order creation:", dbErr)
     }
 
     const body = await request.json().catch(() => ({}))
