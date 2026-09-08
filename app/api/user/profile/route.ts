@@ -68,6 +68,34 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Check if this user or agency has a verified paid transaction in payment_transactions
+    let isPaid = false
+    let planName = ""
+    let lastPaymentDate = ""
+    try {
+      const txCheck = await db.execute({
+        sql: `SELECT plan_name, created_at 
+              FROM payment_transactions 
+              WHERE (user_id = ? OR ccc_code = ? COLLATE NOCASE AND agency_name = ? COLLATE NOCASE)
+              ORDER BY created_at DESC 
+              LIMIT 1`,
+        args: [String(row.id), cccCode, agencyNameToCheck || username],
+      })
+      if (txCheck.rows && txCheck.rows.length > 0) {
+        const txRow: any = txCheck.rows[0]
+        isPaid = true
+        planName = String(txRow.plan_name || "Pro Vendor Access")
+        lastPaymentDate = String(txRow.created_at || "")
+      }
+    } catch (txErr) {
+      console.warn("payment_transactions check warning in profile:", txErr)
+    }
+
+    const currentSubStatus = String(row.subscription_status || session.subscriptionStatus || "active")
+    if (currentSubStatus === "paid") {
+      isPaid = true
+    }
+
     return NextResponse.json({
       id: String(row.id),
       username,
@@ -83,10 +111,13 @@ export async function GET(req: NextRequest) {
       agencyMobile: agencyMobile,
       vendorCode,
       hasAgency: Boolean(agencyNameToCheck || userRole === "agency"),
-      subscriptionStatus: String(row.subscription_status || session.subscriptionStatus || "active"),
+      subscriptionStatus: currentSubStatus,
       subscriptionExpiresAt: String(row.subscription_expires_at || session.subscriptionExpiresAt || ""),
       bypassSubscription: Boolean(row.bypass_subscription ?? session.bypassSubscription),
-      isSubscribed: session.isSubscribed
+      isSubscribed: session.isSubscribed,
+      isPaid,
+      planName: planName || (isPaid ? "Pro Vendor Access" : ""),
+      lastPaymentDate,
     })
   } catch (error: any) {
     console.error("Error fetching user profile:", error)

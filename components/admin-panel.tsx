@@ -382,7 +382,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
     const [fileName, setFileName] = useState<string>("");
     const [dcUploadResult, setDcUploadResult] = useState<{ total: number; inserted: number; updated: number; protectedStatusSkipped: number; autoAssigned: number; deletedNotInUpload: number } | null>(null);
-    const [isAppendMode, setIsAppendMode] = useState(true);
+    const [isAppendMode, setIsAppendMode] = useState(false);
     const [showDuplicatesList, setShowDuplicatesList] = useState(false);
     const [backupDownloading, setBackupDownloading] = useState(false);
     const [latLongRefreshing, setLatLongRefreshing] = useState(false);

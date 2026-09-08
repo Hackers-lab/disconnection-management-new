@@ -308,7 +308,7 @@ export function SuperuserDashboard() {
     ])
   }
 
-  const handleTabChange = (tab: "overview" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage") => {
+  const handleTabChange = (tab: "overview" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions") => {
     setActiveTab(tab)
     if (!hasLoadedData && (tab === "overview" || tab === "registrations")) {
       loadDashboardData()

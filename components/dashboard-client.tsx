@@ -37,7 +37,7 @@ const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m =>
 const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 
-import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock } from "lucide-react"
+import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
@@ -1706,42 +1706,96 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         )}
 
         {activeView === "profile" && (
-          <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-            <div className="flex items-center space-x-3 border-b border-slate-200 pb-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setActiveView("home")} 
-                className="h-9 w-9 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-full"
-                title="Back to Dashboard"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">User Profile</h1>
-                <p className="text-sm text-slate-500">Manage account credentials and billing subscriptions.</p>
+          <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6">
+            {/* Top Navigation & Header */}
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-3 sm:pb-4">
+              <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setActiveView("home")} 
+                  className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-full"
+                  title="Back to Dashboard"
+                >
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+                <div className="min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                    Account Profile
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-500 truncate">
+                    Workspace identity, access role & subscription
+                  </p>
+                </div>
+              </div>
+
+              {!isEditingProfile && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={startEditProfile}
+                  className="h-8 px-2.5 sm:px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-semibold shrink-0"
+                >
+                  <Pencil className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1 text-slate-500" />
+                  <span>Edit Phone</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Mobile-Friendly Profile Identity Banner */}
+            <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+              Boolean(profileData?.isPaid || profileData?.subscriptionStatus === "paid")
+                ? "bg-gradient-to-br from-amber-500/15 via-yellow-500/5 to-amber-500/10 border-amber-300/80 shadow-xs"
+                : "bg-white border-slate-200/90 shadow-2xs"
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ring-2 ${
+                    Boolean(profileData?.isPaid || profileData?.subscriptionStatus === "paid")
+                      ? "bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 ring-amber-300/80"
+                      : "bg-blue-100 text-blue-700 ring-blue-200/70"
+                  }`}>
+                    {Boolean(profileData?.isPaid || profileData?.subscriptionStatus === "paid") ? (
+                      <Crown className="w-6 h-6 sm:w-7 sm:h-7 fill-slate-950 drop-shadow-xs" />
+                    ) : (
+                      <User className="w-6 h-6 sm:w-7 sm:h-7" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate">
+                        {profileData?.name || profileName || "N/A"}
+                      </h2>
+                      {Boolean(profileData?.isPaid || profileData?.subscriptionStatus === "paid") && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-950 text-amber-300 border border-amber-400 shadow-2xs">
+                          <Crown className="w-2.5 h-2.5 fill-amber-300" />
+                          PRO
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">
+                      @{profileData?.username || "user"} • <span className="capitalize font-sans font-semibold text-slate-700">{profileData?.role || role}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center sm:flex-col sm:items-end justify-between border-t sm:border-t-0 pt-2.5 sm:pt-0 border-amber-200/50">
+                  <span className="text-[11px] uppercase tracking-wider text-slate-500 font-medium">CCC Subdivision</span>
+                  <span className="font-mono font-bold text-blue-700 text-xs sm:text-sm bg-white/80 sm:bg-transparent px-2 py-0.5 rounded border sm:border-0 border-slate-200">
+                    {profileData?.cccCode || profileCccCode || "SYSTEM"}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               {/* Profile Details Card */}
-              <div className="md:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-5">
+              <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-6 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Account & Agency Details
-                  </h2>
-                  {!isEditingProfile && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={startEditProfile}
-                      className="h-8 px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-medium"
-                    >
-                      <Pencil className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                      Edit Details
-                    </Button>
-                  )}
+                  <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2">
+                    <User className="h-4 w-4 text-blue-600" />
+                    Account & Scope Information
+                  </h3>
                 </div>
 
                 {/* Edit Form or Read-only Details */}
@@ -1761,19 +1815,19 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           onChange={(e) => setProfileEditMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                           placeholder="e.g. 9876543210"
                           maxLength={10}
-                          className="font-mono text-sm bg-white border-slate-300 focus:border-blue-500"
+                          className="font-mono text-sm bg-white border-slate-300 focus:border-blue-500 h-10"
                         />
                       </div>
-                      <p className="text-[11px] text-slate-500">Used for your personal dashboard login, SMS alerts, and OTP verification.</p>
+                      <p className="text-[11px] text-slate-500">Used for your personal login and password OTP verification.</p>
                     </div>
 
                     {/* Locked Station Records Notice */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 space-y-1">
                       <div className="font-semibold text-slate-700 flex items-center gap-1">
                         <Lock className="h-3.5 w-3.5 text-slate-400" /> SAP Vendor Code & Agency Phone
                       </div>
-                      <p className="text-[11px] text-slate-500">
-                        Official contractor phone numbers and 6-digit SAP Vendor Codes are station records managed exclusively by the Station Admin in the CCC Admin Panel.
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Contractor phones & 6-digit SAP Vendor Codes are station records managed by the Station Admin in the CCC Admin Panel.
                       </p>
                     </div>
 
@@ -1797,15 +1851,15 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                         variant="outline"
                         onClick={() => setIsEditingProfile(false)}
                         disabled={profileSaving}
-                        className="h-8 text-xs"
+                        className="h-9 px-3 text-xs w-full sm:w-auto"
                       >
                         Cancel
                       </Button>
                       <Button
                         size="sm"
                         onClick={handleSaveProfileDetails}
-                        disabled={profileSaving}
-                        className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                        disabled={profileSaving || !profileEditMobile || profileEditMobile.length !== 10}
+                        className="h-9 px-4 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold w-full sm:w-auto"
                       >
                         {profileSaving ? (
                           <>
@@ -1813,55 +1867,52 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           </>
                         ) : (
                           <>
-                            <Check className="h-3.5 w-3.5 mr-1.5" /> Save Changes
+                            <Check className="h-3.5 w-3.5 mr-1.5" /> Save Mobile
                           </>
                         )}
                       </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <span className="text-slate-500 font-medium">Full Name:</span>
-                      <span className="col-span-2 font-semibold text-slate-900">{profileData?.name || profileName || "N/A"}</span>
+                  <div className="space-y-3 sm:space-y-3.5">
+                    {/* Full Name */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-slate-100">
+                      <span className="text-xs sm:text-sm text-slate-500 font-medium">Full Name</span>
+                      <span className="text-xs sm:text-sm font-semibold text-slate-900">{profileData?.name || profileName || "N/A"}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                      <span className="text-slate-500 font-medium">Username:</span>
-                      <span className="col-span-2 font-mono font-semibold text-slate-700">{profileData?.username || "N/A"}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                      <span className="text-slate-500 font-medium">Subdivision:</span>
-                      <span className="col-span-2 font-mono font-semibold text-blue-600">
-                        {profileData?.cccCode || profileCccCode || "SYSTEM"} {profileData?.cccName && profileData.cccName !== (profileData?.cccCode || profileCccCode) ? `(${profileData.cccName})` : (profileCccName && profileCccName !== profileCccCode ? `(${profileCccName})` : "")}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                      <span className="text-slate-500 font-medium">Access Role:</span>
-                      <span className="col-span-2 capitalize font-semibold text-slate-800">{profileData?.role || role}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3">
-                      <span className="text-slate-500 font-medium">Assigned Scope:</span>
-                      <span className="col-span-2 text-xs font-semibold text-slate-700">
-                        {(profileData?.agencies && profileData.agencies.length > 0)
-                          ? profileData.agencies.join(", ")
-                          : (agencies && agencies.length > 0 ? agencies.join(", ") : "None (All Access)")}
+
+                    {/* Subdivision Office */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-slate-100">
+                      <span className="text-xs sm:text-sm text-slate-500 font-medium">Subdivision</span>
+                      <span className="font-mono text-xs sm:text-sm font-bold text-blue-700">
+                        {profileData?.cccCode || profileCccCode || "SYSTEM"} {profileData?.cccName && profileData.cccName !== (profileData?.cccCode || profileCccCode) ? `(${profileData.cccName})` : ""}
                       </span>
                     </div>
 
-                    {/* Personal Login Mobile Number Row */}
-                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
-                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-blue-600" />
-                        Login Mobile (OTP):
+                    {/* Assigned Scope */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 py-1.5 border-b border-slate-100">
+                      <span className="text-xs sm:text-sm text-slate-500 font-medium">Assigned Agency Scope</span>
+                      <span className="text-xs font-semibold text-slate-800 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 w-fit">
+                        {(profileData?.agencies && profileData.agencies.length > 0)
+                          ? profileData.agencies.join(", ")
+                          : (agencies && agencies.length > 0 ? agencies.join(", ") : "All Agencies")}
                       </span>
-                      <div className="col-span-2 flex items-center justify-between gap-2">
+                    </div>
+
+                    {/* Personal Login Mobile Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-slate-100">
+                      <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                        Login Phone (OTP):
+                      </span>
+                      <div className="flex items-center gap-2 justify-between sm:justify-end">
                         {profileData?.userMobile || profileData?.mobileNumber ? (
                           <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-xs">
                             +91 {profileData.userMobile || profileData.mobileNumber}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            <AlertTriangle className="h-3 w-3" /> Not Tagged
+                            <AlertTriangle className="h-3 w-3" /> Not Set
                           </span>
                         )}
                         <Button
@@ -1870,40 +1921,40 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           onClick={startEditProfile}
                           className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
                         >
-                          {profileData?.userMobile || profileData?.mobileNumber ? "Change" : "+ Add Mobile"}
+                          {profileData?.userMobile || profileData?.mobileNumber ? "Change" : "+ Add"}
                         </Button>
                       </div>
                     </div>
 
-                    {/* Agency Official Mobile Row (if user belongs to an agency) */}
+                    {/* Agency Official Mobile Row */}
                     {(profileData?.hasAgency || profileData?.agencyMobile) && (
-                      <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
-                        <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                          <Building2 className="h-3.5 w-3.5 text-purple-600" />
-                          Agency Phone:
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 border-b border-slate-100">
+                        <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                          Agency Official Phone:
                         </span>
-                        <div className="col-span-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 justify-between sm:justify-end">
                           {profileData?.agencyMobile ? (
-                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 text-xs flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 text-xs">
                               +91 {profileData.agencyMobile}
                             </span>
                           ) : (
-                            <span className="text-[11px] text-slate-400 italic">Not specified in agency master</span>
+                            <span className="text-[11px] text-slate-400 italic">Not set in master</span>
                           )}
                           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                            <Lock className="h-3 w-3" /> Station Record
+                            <Lock className="h-3 w-3" /> Locked
                           </span>
                         </div>
                       </div>
                     )}
 
-                    {/* Locked SAP Vendor Code Row */}
-                    <div className="grid grid-cols-3 gap-2 text-sm border-t border-slate-100 pt-3 items-center">
-                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
-                        <Hash className="h-3.5 w-3.5 text-blue-600" />
-                        Vendor Code:
+                    {/* SAP Vendor Code Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2 items-center">
+                      <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                        SAP Vendor Code:
                       </span>
-                      <div className="col-span-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 justify-between sm:justify-end w-full sm:w-auto">
                         {profileData?.vendorCode && /^\d{6}$/.test(profileData.vendorCode) ? (
                           <span className="font-mono font-bold text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 text-xs">
                             {profileData.vendorCode}
@@ -1914,7 +1965,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                           </span>
                         )}
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                          <Lock className="h-3 w-3" /> SAP Contract Code
+                          <Lock className="h-3 w-3" /> SAP
                         </span>
                       </div>
                     </div>
@@ -1923,11 +1974,16 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
               </div>
 
               {/* Billing / Subscription Info Card */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between h-full min-h-[300px]">
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-6 shadow-2xs flex flex-col justify-between h-full min-h-[260px]">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">
-                    Subscription Status
-                  </h2>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-800 border-b border-slate-100 pb-3 mb-3 sm:mb-4 flex items-center justify-between">
+                    <span>Subscription Plan</span>
+                    {Boolean(profileData?.isPaid || profileData?.subscriptionStatus === "paid") && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 border border-amber-300/80 px-2 py-0.5 rounded-full">
+                        PRO
+                      </span>
+                    )}
+                  </h3>
                   <div className="space-y-3">
                     {(() => {
                       const roleLower = role.toLowerCase()
@@ -1936,7 +1992,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       if (isExempt) {
                         return (
                           <div className="space-y-2">
-                            <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                               Bypassed / Free Access
                             </span>
                             <p className="text-xs text-slate-500 leading-relaxed">Your role or user account has been exempted from billing.</p>
@@ -1945,42 +2002,59 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       }
 
                       const rawExp = subscriptionExpiresAt || profileData?.subscriptionExpiresAt
+                      const isPaid = Boolean(profileData?.isPaid || profileData?.subscriptionStatus === "paid")
+
                       if (rawExp) {
                         const expDate = new Date(rawExp)
                         const isExpired = expDate.getTime() < Date.now()
-                        const expFormatted = isNaN(expDate.getTime()) ? rawExp : expDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
-                        const isPaid = profileData?.subscriptionStatus === "paid"
+                        const expFormatted = isNaN(expDate.getTime()) ? rawExp : expDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
                         if (isExpired) {
                           return (
-                            <div className="space-y-2">
-                              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-red-50 text-red-700 border border-red-100">
+                            <div className="p-3.5 rounded-xl bg-red-50/80 border border-red-200 space-y-1.5">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-red-100 text-red-700 border border-red-200">
+                                <AlertCircle className="w-3.5 h-3.5 text-red-600" />
                                 Subscription Expired
                               </span>
-                              <p className="text-xs text-slate-500 leading-relaxed">
-                                Access expired on <strong>{expFormatted}</strong>. Please subscribe below to restore full access.
+                              <p className="text-xs text-red-700/90 leading-relaxed">
+                                Access expired on <strong>{expFormatted}</strong>. Please renew below to restore operations.
                               </p>
                             </div>
                           )
                         } else if (isPaid) {
                           return (
-                            <div className="space-y-2">
-                              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                Paid Active
-                              </span>
-                              <p className="text-xs text-slate-500 leading-relaxed">
-                                Paid subscription valid until <strong>{expFormatted}</strong>.
-                              </p>
+                            <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-xl bg-gradient-to-br from-amber-500/15 via-yellow-500/10 to-amber-500/5 border border-amber-300/80 shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 text-slate-950 shadow-xs">
+                                  <Crown className="w-3 h-3 fill-slate-950" />
+                                  PRO ACTIVE
+                                </span>
+                                <span className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 text-amber-500" />
+                                  Verified
+                                </span>
+                              </div>
+                              <div className="space-y-1 pt-0.5">
+                                <p className="text-xs sm:text-sm font-bold text-slate-900">
+                                  {profileData?.planName || "Quarterly Vendor Access"}
+                                </p>
+                                <p className="text-xs text-slate-600 leading-relaxed">
+                                  Valid until <strong className="text-slate-900 font-semibold">{expFormatted}</strong>.
+                                </p>
+                              </div>
                             </div>
                           )
                         } else {
                           return (
-                            <div className="space-y-2">
-                              <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 animate-pulse">
-                                Free Trial Active
-                              </span>
+                            <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                  Free Trial
+                                </span>
+                                <span className="text-xs font-mono text-indigo-600 font-semibold">Till {expFormatted}</span>
+                              </div>
                               <p className="text-xs text-slate-500 leading-relaxed">
-                                Free trial valid until <strong>{expFormatted}</strong>. Billing starts after this date.
+                                Free operational trial valid until <strong>{expFormatted}</strong>.
                               </p>
                             </div>
                           )
@@ -2011,11 +2085,11 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
                 {/* Simulated Payment Action inside Profile */}
                 {!(role === "admin" || role === "superuser" || role === "monitor" || bypassSubscription) && (
-                  <div className="mt-6 pt-4 border-t border-slate-100 space-y-3">
-                    <div className="p-3 rounded-lg border border-indigo-100 bg-indigo-50/20 flex items-center justify-between">
+                  <div className="mt-5 pt-4 border-t border-slate-100 space-y-3">
+                    <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/30 flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Promo Offer</span>
-                        <span className="text-lg font-bold text-slate-800">₹99 <span className="text-xs text-slate-400 line-through">₹199</span></span>
+                        <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Plan Extension</span>
+                        <span className="text-base sm:text-lg font-bold text-slate-800">₹99 <span className="text-xs text-slate-400 line-through">₹199</span></span>
                       </div>
                       <span className="text-[10px] font-semibold text-slate-400">/ month</span>
                     </div>
@@ -2028,7 +2102,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                         name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                         contact: profileData?.mobileNumber || profileEditMobile || "",
                       }}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold py-2.5 rounded-lg shadow-md"
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold py-2.5 rounded-xl shadow-xs"
                     />
                   </div>
                 )}

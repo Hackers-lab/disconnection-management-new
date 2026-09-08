@@ -41,6 +41,9 @@ import {
   Check,
   AlertCircle,
   AlertTriangle,
+  Crown,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
@@ -1195,21 +1198,64 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 setActiveView("profile")
               }}
-              className="flex items-center gap-2 text-right hover:bg-slate-100/80 px-2 py-1 rounded-xl cursor-pointer transition-all select-none"
-              title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}`}
+              className={`relative rounded-xl cursor-pointer select-none p-[1.5px] overflow-hidden group transition-all duration-300 ${
+                profileData?.isPaid ? "shadow-xs shadow-amber-500/15 hover:shadow-amber-500/25" : ""
+              }`}
+              title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}${profileData?.isPaid ? " | 👑 PRO SUBSCRIBER" : ""}`}
             >
-              <div className="flex flex-col justify-center items-end text-right min-w-0">
-                <span className="text-[11px] font-bold text-slate-900 capitalize truncate max-w-[105px] sm:max-w-[140px] leading-tight">
-                  {loginDisplayName}
-                </span>
-                {cccCode && (
-                  <span className="text-[9px] font-semibold text-blue-700/90 uppercase tracking-wider leading-tight mt-0.5">
-                    {cccCode}
-                  </span>
-                )}
-              </div>
-              <div className="w-7 h-7 rounded-full bg-blue-100/90 flex items-center justify-center text-blue-600 shrink-0">
-                <User className="h-4 w-4 text-blue-600" />
+              {profileData?.isPaid ? (
+                <>
+                  {/* Circulating perimeter beam: Spinning conic gradient with radiant comet head */}
+                  <span
+                    className="absolute -inset-[100%] m-auto aspect-square w-[250%] animate-spin opacity-100 transition-opacity"
+                    style={{
+                      background: "conic-gradient(from 0deg, transparent 0deg, transparent 250deg, rgba(245, 158, 11, 0.25) 280deg, rgba(245, 158, 11, 0.8) 315deg, #fef08a 345deg, #ffffff 358deg, #f59e0b 360deg)",
+                      animationDuration: "2.8s",
+                      animationTimingFunction: "linear",
+                    }}
+                  />
+                  {/* Subtle static gold base border track */}
+                  <span className="absolute inset-0 rounded-xl border border-amber-300/40 pointer-events-none" />
+                </>
+              ) : null}
+
+              <div className={`relative flex items-center gap-2 text-right px-2.5 py-1 rounded-[10.5px] transition-colors ${
+                profileData?.isPaid
+                  ? "bg-gradient-to-r from-amber-100/95 via-yellow-100/90 to-amber-100/95 hover:from-amber-200/90 hover:to-yellow-200/85 text-slate-900 border border-amber-300/70"
+                  : "hover:bg-slate-100/80 bg-transparent text-slate-900"
+              }`}>
+                <div className="flex flex-col justify-center items-end text-right min-w-0">
+                  <div className="flex items-center gap-1 justify-end">
+                    <span className="text-[11px] font-bold text-amber-950 capitalize truncate max-w-[90px] sm:max-w-[125px] leading-tight">
+                      {loginDisplayName}
+                    </span>
+                  </div>
+                  {cccCode && (
+                    <span className="text-[9px] font-semibold text-blue-700/90 uppercase tracking-wider leading-none mt-0.5">
+                      {cccCode}
+                    </span>
+                  )}
+                </div>
+
+                {/* Avatar with PRO badge */}
+                <div className="relative flex flex-col items-center justify-center shrink-0">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                    profileData?.isPaid
+                      ? "bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 shadow-xs ring-1 ring-amber-300/90"
+                      : "bg-blue-100/90 text-blue-600"
+                  }`}>
+                    {profileData?.isPaid ? (
+                      <Crown className="h-3.5 w-3.5 fill-slate-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]" />
+                    ) : (
+                      <User className="h-4 w-4 text-blue-600" />
+                    )}
+                  </div>
+                  {profileData?.isPaid && (
+                    <span className="absolute -bottom-1 px-1 py-[0.5px] rounded-full text-[7.5px] font-black uppercase tracking-wider bg-slate-950 text-amber-300 border border-amber-400/80 leading-none shadow-xs group-hover:border-amber-300 transition-colors">
+                      PRO
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -2303,69 +2349,116 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
               )}
 
               {/* Subscription Status Section */}
-              <div className="grid grid-cols-3 gap-2 pb-1 pt-1 border-t border-slate-800">
-                <span className="text-slate-400 font-medium">Subscription:</span>
-                <span className="col-span-2">
-                  {(() => {
-                    const roleLower = (profileData.role || "").toLowerCase()
-                    const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || profileData.bypassSubscription
+              <div className="pt-2 border-t border-slate-800">
+                {(() => {
+                  const roleLower = (profileData.role || "").toLowerCase()
+                  const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || profileData.bypassSubscription
 
-                    if (isExempt) {
-                      return (
-                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                          Free Pass / Bypassed
-                        </span>
-                      )
-                    } else if (profileData.subscriptionExpiresAt) {
-                      const expDate = new Date(profileData.subscriptionExpiresAt)
-                      const isExpired = expDate.getTime() < Date.now()
-                      const expFormatted = isNaN(expDate.getTime()) ? profileData.subscriptionExpiresAt : expDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')
-                      const isPaid = profileData.subscriptionStatus === "paid"
-
-                      if (isExpired) {
-                        return (
-                          <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-red-500/10 text-red-400 border border-red-500/20">
-                            Expired ({expFormatted})
+                  if (isExempt) {
+                    return (
+                      <div className="grid grid-cols-3 gap-2 items-center">
+                        <span className="text-slate-400 font-medium">Subscription:</span>
+                        <div className="col-span-2">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                            Free Pass / Bypassed
                           </span>
-                        )
-                      } else if (isPaid) {
-                        return (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              Paid Active
-                            </span>
-                            <span className="text-[10px] text-emerald-400/80 font-medium">
-                              Valid till {expFormatted}
-                            </span>
-                          </div>
-                        )
-                      } else {
-                        return (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse">
-                              Free Trial
-                            </span>
-                            <span className="text-[10px] text-indigo-400/80 font-medium">
-                              Valid till {expFormatted}
-                            </span>
-                          </div>
-                        )
-                      }
-                    } else if (profileData.subscriptionStatus === "active") {
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  const rawExp = profileData.subscriptionExpiresAt
+                  const isPaid = Boolean(profileData.isPaid || profileData.subscriptionStatus === "paid")
+
+                  if (rawExp) {
+                    const expDate = new Date(rawExp)
+                    const isExpired = expDate.getTime() < Date.now()
+                    const expFormatted = isNaN(expDate.getTime())
+                      ? rawExp
+                      : expDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+
+                    if (isExpired) {
                       return (
-                        <span className="inline-flex w-fit px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          Active
-                        </span>
-                      )
-                    } else {
-                      return (
-                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-red-500/10 text-red-400 border border-red-500/20">
-                          Expired / Inactive
-                        </span>
+                        <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-800/60 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                              <AlertCircle className="w-3 h-3 text-rose-400" />
+                              Subscription Expired
+                            </span>
+                            <span className="text-[10px] text-rose-400/80 font-mono">Expired {expFormatted}</span>
+                          </div>
+                          <p className="text-xs text-rose-300/80">
+                            Your billing term has ended. Please subscribe to restore full sync & operations.
+                          </p>
+                        </div>
                       )
                     }
-                  })()}
-                </span>
+
+                    if (isPaid) {
+                      return (
+                        <div className="relative overflow-hidden p-3.5 rounded-xl bg-gradient-to-br from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-400/40 shadow-sm space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 text-slate-950 shadow-xs">
+                              <Crown className="w-3 h-3 fill-slate-950" />
+                              PRO SUBSCRIBER
+                            </span>
+                            <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-amber-400" />
+                              Active Plan
+                            </span>
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-semibold text-slate-100">
+                              {profileData.planName || "Quarterly Vendor Access"}
+                            </p>
+                            <p className="text-[11px] text-amber-200/80">
+                              Subscribed & Verified online • Full validity till <strong className="text-white font-mono">{expFormatted}</strong>
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-800/60 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            Free Trial Active
+                          </span>
+                          <span className="text-[10px] text-indigo-300 font-mono">Till {expFormatted}</span>
+                        </div>
+                        <p className="text-xs text-indigo-200/80">
+                          Operational trial window active. Regular billing commences after {expFormatted}.
+                        </p>
+                      </div>
+                    )
+                  }
+
+                  if (profileData.subscriptionStatus === "active") {
+                    return (
+                      <div className="grid grid-cols-3 gap-2 items-center">
+                        <span className="text-slate-400 font-medium">Subscription:</span>
+                        <div className="col-span-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <Check className="w-3 h-3" /> Active
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="grid grid-cols-3 gap-2 items-center">
+                      <span className="text-slate-400 font-medium">Subscription:</span>
+                      <div className="col-span-2">
+                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                          Inactive / Due
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           ) : (

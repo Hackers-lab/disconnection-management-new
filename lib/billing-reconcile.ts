@@ -141,8 +141,8 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
     // 5. Insert transaction into payment_transactions
     const txId = randomUUID()
     const createdAtStr = payment.created_at
-      ? new Date(payment.created_at * 1000).toISOString().replace("T", " ").replace("Z", "")
-      : new Date().toISOString().replace("T", " ").replace("Z", "")
+      ? new Date(payment.created_at * 1000).toISOString()
+      : new Date().toISOString()
 
     await db.execute({
       sql: `INSERT INTO payment_transactions (

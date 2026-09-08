@@ -101,6 +101,38 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null)
   const [extendTarget, setExtendTarget] = useState<SubscriberItem | null>(null)
   const [extendDays, setExtendDays] = useState<number>(30)
+
+  // Helper to safely parse and display date/time in IST (Indian Standard Time)
+  const formatTxToIST = (dateStr?: string) => {
+    if (!dateStr) return { date: "—", time: "" }
+    try {
+      // Ensure ISO string ends with Z if timezone offset is not specified, so it's parsed as UTC
+      const iso = dateStr.includes("Z") || dateStr.includes("+") || dateStr.includes("-", 10)
+        ? dateStr
+        : dateStr.replace(" ", "T") + "Z"
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return { date: dateStr, time: "" }
+
+      const date = d.toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+
+      const time = d.toLocaleTimeString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }) + " IST"
+
+      return { date, time }
+    } catch {
+      return { date: dateStr, time: "" }
+    }
+  }
   const [isProcessingAction, setIsProcessingAction] = useState(false)
   const [refundTarget, setRefundTarget] = useState<TransactionItem | null>(null)
   const [refundAmount, setRefundAmount] = useState<string>("")
@@ -1111,22 +1143,22 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                   ) : (
                     filteredTransactions.map((tx) => (
                       <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
-                        {/* Timestamp */}
+                        {/* Timestamp in IST */}
                         <td className="py-3 px-3.5 whitespace-nowrap">
-                          <div className="font-semibold text-slate-900 text-[11px]">
-                            {new Date(tx.created_at).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" />
-                            {new Date(tx.created_at).toLocaleTimeString("en-IN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </div>
+                          {(() => {
+                            const { date, time } = formatTxToIST(tx.created_at)
+                            return (
+                              <>
+                                <div className="font-semibold text-slate-900 text-[11px]">
+                                  {date}
+                                </div>
+                                <div className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  {time}
+                                </div>
+                              </>
+                            )
+                          })()}
                         </td>
 
                         {/* Order & Payment IDs */}
@@ -1294,9 +1326,12 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Transaction Time</span>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Transaction Time (IST)</span>
                     <span className="text-slate-800 font-medium">
-                      {new Date(selectedTx.created_at).toLocaleString("en-IN")}
+                      {(() => {
+                        const { date, time } = formatTxToIST(selectedTx.created_at)
+                        return date !== "—" ? `${date}, ${time}` : "—"
+                      })()}
                     </span>
                   </div>
                 </div>
