@@ -73,6 +73,39 @@ export async function ensureHeaders(
     matchedSheet = meta.data.sheets[0]
   }
 
+  // If the sheet does not exist at all, create it now before reading headers
+  if (!matchedSheet) {
+    const targetTitle = sheetName.trim() || "Sheet1"
+    const addResp = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: targetTitle,
+                gridProperties: {
+                  rowCount: 1000,
+                  columnCount: Math.max(expected.length + 15, 45),
+                },
+              },
+            },
+          },
+        ],
+      },
+    })
+    const newSheetProps = addResp.data.replies?.[0]?.addSheet?.properties
+    matchedSheet = {
+      properties: {
+        title: targetTitle,
+        sheetId: newSheetProps?.sheetId ?? 0,
+        gridProperties: {
+          columnCount: newSheetProps?.gridProperties?.columnCount ?? Math.max(expected.length + 15, 45),
+        },
+      },
+    } as any
+  }
+
   const actualSheetTitle = matchedSheet?.properties?.title || sheetName
   const sheetId = matchedSheet?.properties?.sheetId ?? 0
 

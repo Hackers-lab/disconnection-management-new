@@ -814,14 +814,22 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
       })
-      if (resp.ok) {
+      const data = await resp.json().catch(() => ({}))
+      if (resp.ok && data.success !== false) {
         const updated = rows.map(r => ({ ...r, updatedOn: new Date().toLocaleDateString("en-IN") }))
         setZoneMapRows(updated)
         // Update cache immediately with new data so next open is instant.
         await saveToCache(ZONE_MAP_CACHE_KEY, updated)
+        setMessage({ type: "success", text: `Zone map saved successfully (${rows.length} mappings).` })
+      } else {
+        setMessage({ type: "error", text: data?.error || "Failed to save zone map" })
       }
-    } catch { /* silent */ }
-    finally { setZoneMapSaving(false) }
+    } catch (err: any) {
+      console.error("Zone map save error:", err)
+      setMessage({ type: "error", text: err?.message || "Failed to communicate with server to save zone map" })
+    } finally {
+      setZoneMapSaving(false)
+    }
   }
 
   // Re-apply the current zone map to existing consumers without a DC re-upload.
@@ -3329,12 +3337,27 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                             setZoneUploadRows([]); setZoneUploadFileName("")
                           }}
                         >
-                          <Upload className="h-4 w-4 mr-1" /> Apply {zoneUploadRows.length} mappings
+                          {zoneMapSaving ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              Saving {zoneUploadRows.length} mappings...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-1" />
+                              Apply {zoneUploadRows.length} mappings
+                            </>
+                          )}
                         </Button>
                       )}
                     </div>
                   )}
-                  {zoneMapSaving && <p className="text-xs text-blue-600">Saving…</p>}
+                  {zoneMapSaving && (
+                    <div className="flex items-center gap-2 text-xs text-blue-600 font-medium">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Saving and synchronizing zone mappings with Google Sheets, please wait...
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>
