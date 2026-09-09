@@ -563,12 +563,13 @@ export async function resolveAgencyDefaultExpiry(cccCode?: string): Promise<stri
       if (cccRow.created_at) {
         const regDate = new Date(String(cccRow.created_at))
         if (!isNaN(regDate.getTime())) {
-          const baseTime = Math.max(regDate.getTime(), BILLING_START_DATE.getTime())
-          const setupExp = new Date(baseTime + 14 * 24 * 60 * 60 * 1000)
-          const y = setupExp.getFullYear()
-          const m = String(setupExp.getMonth() + 1).padStart(2, "0")
-          const d = String(setupExp.getDate()).padStart(2, "0")
-          return `${y}-${m}-${d}`
+          const setupExp = new Date(regDate.getTime() + 14 * 24 * 60 * 60 * 1000)
+          if (Date.now() <= setupExp.getTime()) {
+            const y = setupExp.getFullYear()
+            const m = String(setupExp.getMonth() + 1).padStart(2, "0")
+            const d = String(setupExp.getDate()).padStart(2, "0")
+            return `${y}-${m}-${d}`
+          }
         }
       }
     }
@@ -737,6 +738,7 @@ export async function isAgencySubscribed(
 
 /**
  * Checks if the given CCC is currently under an active trial period (operational 90-day trial or setup window).
+ * If the CCC is new (< 90 days from first DC upload or registration), agencies in this CCC get trial access.
  * Returns { inTrial: boolean, trialType?: string, expiresAt?: string }
  */
 export async function isCccInTrialPeriod(cccCode: string): Promise<{ inTrial: boolean; trialType?: "90_day_trial" | "setup_window"; expiresAt?: string }> {
@@ -755,6 +757,7 @@ export async function isCccInTrialPeriod(cccCode: string): Promise<{ inTrial: bo
       const cccRow: any = cccRes.rows[0]
 
       // 1. Check 90-day operational trial if first_dc_upload_at exists
+      // If a CCC uploaded DC lists, the 90-day trial begins strictly on that date.
       if (cccRow.first_dc_upload_at) {
         const uploadDate = new Date(String(cccRow.first_dc_upload_at))
         if (!isNaN(uploadDate.getTime())) {
@@ -766,10 +769,12 @@ export async function isCccInTrialPeriod(cccCode: string): Promise<{ inTrial: bo
             const d = String(exp.getDate()).padStart(2, "0")
             return { inTrial: true, trialType: "90_day_trial", expiresAt: `${y}-${m}-${d}` }
           }
+          // The 90-day trial from first upload has expired: do NOT fall back to created_at
+          return { inTrial: false }
         }
       }
 
-      // 2. Check CCC admin user expiry or 14-day setup window
+      // 2. Check CCC admin user expiry or explicit setup window
       const userRes = await db.execute({
         sql: `SELECT u.subscription_expires_at 
               FROM users u 
@@ -788,12 +793,11 @@ export async function isCccInTrialPeriod(cccCode: string): Promise<{ inTrial: bo
         }
       }
 
-      // Fallback: check if CCC was created within the last 90 days
+      // 3. Fallback for newly created CCC that hasn't uploaded DC yet: 90 days from registration
       if (cccRow.created_at) {
         const regDate = new Date(String(cccRow.created_at))
         if (!isNaN(regDate.getTime())) {
-          const baseTime = Math.max(regDate.getTime(), BILLING_START_DATE.getTime())
-          const trialEnd = new Date(baseTime + 90 * 24 * 60 * 60 * 1000)
+          const trialEnd = new Date(regDate.getTime() + 90 * 24 * 60 * 60 * 1000)
           trialEnd.setHours(23, 59, 59, 999)
           if (Date.now() <= trialEnd.getTime()) {
             const y = trialEnd.getFullYear()
