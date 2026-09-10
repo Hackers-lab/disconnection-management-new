@@ -1098,9 +1098,6 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                           <h3 className="text-base font-bold text-slate-900 leading-tight">
                             {module.title}
                           </h3>
-                          <p className="text-xs text-slate-500 mt-0.5 truncate">
-                            {module.description}
-                          </p>
                         </div>
                       </div>
                       <div className="notranslate px-3 py-1 rounded-full bg-red-100/90 text-red-800 border border-red-200/80 text-xs font-bold shrink-0 ml-2 shadow-xs">
