@@ -36,6 +36,7 @@ const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").the
 const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m => ({ default: m.OsdPageView })), { ssr: false })
 const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
+const SubscriptionExpiryAlertModal = dynamic(() => import("@/components/subscription-expiry-alert-modal").then(m => ({ default: m.SubscriptionExpiryAlertModal })), { ssr: false })
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck, Receipt } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
@@ -2342,6 +2343,16 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
         {/* New System Features / Update Announcement Popup */}
         <NewYearPopup />
+
+        {/* Proactive Subscription & Trial Expiry Warning (3-day countdown, once per day on first open) */}
+        <SubscriptionExpiryAlertModal
+          userId={initialProfile?.username}
+          username={initialProfile?.username}
+          role={role}
+          agencyName={agencies && agencies.length > 0 ? agencies[0] : (profileName || initialProfile?.username)}
+          subscriptionExpiresAt={subscriptionExpiresAt}
+          onSubscriptionRenewed={handlePaymentSuccess}
+        />
 
         {/* Enthusiastic Payment Celebration & Tremendous Job Modal */}
         <PaymentCelebrationModal

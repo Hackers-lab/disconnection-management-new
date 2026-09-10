@@ -200,6 +200,19 @@ export async function verifySession() {
     }
   }
 
+  // If role is admin or CCC staff, dynamically populate CCC trial expiry date if not already populated
+  if ((roleLower === "admin" || !subscriptionExpiresAt) && session.cccCode) {
+    try {
+      const { isCccInTrialPeriod, resolveAgencyDefaultExpiry } = await import("./agency-storage")
+      const trial = await isCccInTrialPeriod(session.cccCode)
+      if (trial.expiresAt) {
+        subscriptionExpiresAt = trial.expiresAt
+      } else if (!subscriptionExpiresAt) {
+        subscriptionExpiresAt = await resolveAgencyDefaultExpiry(session.cccCode)
+      }
+    } catch (e) {}
+  }
+
   return {
     userId: session.userId,
     username: session.username,
