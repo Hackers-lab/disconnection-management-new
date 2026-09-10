@@ -205,11 +205,11 @@ export async function POST(req: NextRequest) {
       UserStorage.getInstance().invalidateCache()
     }
 
-    // 2. Update agencies table (Only admin/superuser can update official agency vendor_code / agency mobile!)
+    // 2. Update agencies table: Admin/Superuser or Agency updating their own assigned agency details
     const userRole = (session.role || "").toLowerCase()
-    const isAdmin = userRole === "admin" || userRole === "superuser"
+    const canUpdateAgency = userRole === "admin" || userRole === "superuser" || userRole === "agency"
 
-    if (isAdmin && (cleanVendor !== null || cleanAgencyMobile !== null)) {
+    if (canUpdateAgency && (cleanVendor !== null || cleanAgencyMobile !== null)) {
       const username = session.username
       const rawAgencies = session.agencies || []
       const agencyCandidates = Array.from(new Set([
@@ -220,15 +220,33 @@ export async function POST(req: NextRequest) {
 
       for (const agName of agencyCandidates) {
         try {
-          await db.execute({
+          // First try to update matching agency
+          const updateRes = await db.execute({
             sql: `UPDATE agencies
                   SET vendor_code = COALESCE(?, vendor_code),
                       mobile_number = COALESCE(?, mobile_number),
+                      is_active = 1,
                       updated_at = CURRENT_TIMESTAMP
                   WHERE ccc_id = (SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1)
                     AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
             args: [cleanVendor || null, cleanAgencyMobile || null, cccCode, agName, agName]
           })
+
+          // If no existing agency row was updated and user is an agency, insert/reactivate an agency row
+          if ((!updateRes.rowsAffected || updateRes.rowsAffected === 0) && userRole === "agency") {
+            const cccRes = await db.execute({
+              sql: `SELECT id FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
+              args: [cccCode]
+            })
+            if (cccRes.rows && cccRes.rows.length > 0) {
+              const cccId = cccRes.rows[0].id
+              await db.execute({
+                sql: `INSERT INTO agencies (vendor_code, ccc_id, name, mobile_number, is_active, subscription_status)
+                      VALUES (?, ?, ?, ?, 1, 'active')`,
+                args: [cleanVendor || null, cccId, agName.toUpperCase().trim(), cleanAgencyMobile || null]
+              }).catch(() => {})
+            }
+          }
         } catch (err) {
           console.warn("Agency profile candidate update warning:", err)
         }

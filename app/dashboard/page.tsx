@@ -37,20 +37,21 @@ export default async function DashboardPage() {
         const agencyRes = await db.execute({
           sql: `SELECT a.id, a.name, a.vendor_code, a.mobile_number, a.is_active,
                        u.mobile_number as user_mobile
-                FROM agencies a
-                JOIN ccc_registry c ON a.ccc_id = c.id
-                LEFT JOIN users u ON u.id = ?
-                WHERE c.ccc_code = ? COLLATE NOCASE
-                  AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
+                FROM users u
+                LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                LEFT JOIN agencies a ON a.ccc_id = c.id AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
+                WHERE u.id = ? AND c.ccc_code = ? COLLATE NOCASE
+                ORDER BY a.is_active DESC, a.id DESC
                 LIMIT 1`,
-          args: [session.userId, cccCode, agencyName, session.username]
+          args: [agencyName, session.username, session.userId, cccCode]
         })
 
         let ag: any = (agencyRes.rows && agencyRes.rows.length > 0) ? agencyRes.rows[0] : null
         const isMissingVendor = !ag?.vendor_code || !String(ag.vendor_code).trim()
         const isMissingMobile = !ag?.mobile_number || !String(ag.mobile_number).trim()
+        const isMissingUserMobile = !ag?.user_mobile || !String(ag.user_mobile).trim()
 
-        if (isMissingVendor || isMissingMobile) {
+        if (isMissingVendor || isMissingMobile || isMissingUserMobile) {
           const userMobile = String(ag?.user_mobile || "")
 
           return (

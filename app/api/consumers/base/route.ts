@@ -19,10 +19,14 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       const cccCode = session.cccCode || ""
       if (cccCode && agencyName) {
         const agencyRes = await db.execute({
-          sql: `SELECT a.vendor_code, a.mobile_number, a.is_active FROM agencies a
-                JOIN ccc_registry c ON a.ccc_id = c.id
-                WHERE c.ccc_code = ? COLLATE NOCASE AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE) LIMIT 1`,
-          args: [cccCode, agencyName, session.username]
+          sql: `SELECT a.vendor_code, a.mobile_number, a.is_active, u.mobile_number as user_mobile 
+                FROM users u
+                LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                LEFT JOIN agencies a ON a.ccc_id = c.id AND (a.name = ? COLLATE NOCASE OR a.name = ? COLLATE NOCASE)
+                WHERE u.id = ? AND c.ccc_code = ? COLLATE NOCASE
+                ORDER BY a.is_active DESC, a.id DESC 
+                LIMIT 1`,
+          args: [agencyName, session.username, session.userId, cccCode]
         })
         const ag: any = (agencyRes.rows && agencyRes.rows.length > 0) ? agencyRes.rows[0] : null
         if (!ag || !ag.vendor_code || !String(ag.vendor_code).trim() || !ag.mobile_number || !String(ag.mobile_number).trim()) {
