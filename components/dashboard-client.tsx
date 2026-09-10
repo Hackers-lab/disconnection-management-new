@@ -243,9 +243,36 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     if (role === "admin") {
       const checkOnboardingGuide = async () => {
         try {
+          if (typeof window !== "undefined") {
+            const seen = sessionStorage.getItem("setup_guide_dismissed")
+            const completed = sessionStorage.getItem("admin_onboarding_completed")
+            if (completed === "true" || seen) return
+
+            const cached = sessionStorage.getItem("admin_onboarding_data")
+            if (cached) {
+              try {
+                const data = JSON.parse(cached)
+                if (data.isLinked && !data.allCompleted) {
+                  setShowGuideModal(true)
+                }
+                return
+              } catch {
+                sessionStorage.removeItem("admin_onboarding_data")
+              }
+            }
+          }
+
           const res = await fetch("/api/admin/onboarding-checklist")
           if (res.ok) {
             const data = await res.json()
+            if (typeof window !== "undefined") {
+              if (data.allCompleted) {
+                sessionStorage.setItem("admin_onboarding_completed", "true")
+                sessionStorage.removeItem("admin_onboarding_data")
+              } else {
+                sessionStorage.setItem("admin_onboarding_data", JSON.stringify(data))
+              }
+            }
             if (data.isLinked && !data.allCompleted) {
               const seen = sessionStorage.getItem("setup_guide_dismissed")
               if (!seen) {

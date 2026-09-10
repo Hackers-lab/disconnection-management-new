@@ -79,14 +79,23 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       }
     }
 
+    const assignedRole = role || "agency"
+    const assignedAgencies = Array.isArray(agencies) ? agencies.map((a: any) => String(a).trim()).filter(Boolean) : []
+
+    if (assignedRole === "agency" && assignedAgencies.length > 1) {
+      return NextResponse.json({
+        error: "Users with the Agency role can only be assigned to a single agency.",
+      }, { status: 400 })
+    }
+
     const newUser = await userStorage.addUser({
       username,
       password,
-      role: role || "agency",
+      role: assignedRole,
       cccCode,
       name: name || username,
       mobileNumber: cleanMobile || undefined,
-      agencies: agencies || [],
+      agencies: assignedAgencies,
       subscriptionStatus: "active",
       subscriptionExpiresAt: "",
       bypassSubscription: false,
@@ -162,14 +171,25 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       }
     }
 
+    const targetRole = role || existingUser.role
+    const assignedAgencies = Array.isArray(agencies) 
+      ? agencies.map((a: any) => String(a).trim()).filter(Boolean)
+      : (existingUser.agencies || [])
+
+    if (targetRole === "agency" && assignedAgencies.length > 1) {
+      return NextResponse.json({
+        error: "Users with the Agency role can only be assigned to a single agency.",
+      }, { status: 400 })
+    }
+
     const updatedUser = await userStorage.updateUser(id, {
       username,
       password: password || existingUser.password,
       name: name || existingUser.name,
-      role,
+      role: targetRole,
       cccCode,
       mobileNumber: cleanMobile || undefined,
-      agencies: agencies || [],
+      agencies: assignedAgencies,
       subscriptionStatus: existingUser.subscriptionStatus,
       subscriptionExpiresAt: existingUser.subscriptionExpiresAt,
       bypassSubscription: existingUser.bypassSubscription,

@@ -1145,11 +1145,6 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       {/* ========================================================================= */}
       <div className="block md:hidden relative p-2 sm:p-4 max-w-xl mx-auto flex flex-col justify-between min-h-[calc(100vh-100px)]">
         <div className="flex-grow space-y-4">
-          {/* Admin Mobile & Agency Mapping Interactive Setup Banner */}
-          {((userRole || "").toLowerCase() === "admin" || (userRole || "").toLowerCase() === "superuser") && (
-            <AdminSetupGuideBanner />
-          )}
-
           {/* Global Fast IndexedDB Consumer Search */}
           <GlobalConsumerSearch
             onSelectModule={onSelect}

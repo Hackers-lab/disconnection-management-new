@@ -52,8 +52,28 @@ export function OnboardingGuideDialog({
   const [data, setData] = useState<OnboardingData | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const fetchChecklist = useCallback(async () => {
+  const fetchChecklist = useCallback(async (force = false) => {
     if (role !== "admin") return
+
+    if (!force && typeof window !== "undefined") {
+      const completed = sessionStorage.getItem("admin_onboarding_completed")
+      if (completed === "true") {
+        setLoading(false)
+        return
+      }
+      const cached = sessionStorage.getItem("admin_onboarding_data")
+      if (cached) {
+        try {
+          const json = JSON.parse(cached)
+          setData(json)
+          setLoading(false)
+          return
+        } catch {
+          sessionStorage.removeItem("admin_onboarding_data")
+        }
+      }
+    }
+
     try {
       setLoading(true)
       const res = await fetch("/api/admin/onboarding-checklist", {
@@ -62,6 +82,14 @@ export function OnboardingGuideDialog({
       if (res.ok) {
         const json = await res.json()
         setData(json)
+        if (typeof window !== "undefined") {
+          if (json.allCompleted) {
+            sessionStorage.setItem("admin_onboarding_completed", "true")
+            sessionStorage.removeItem("admin_onboarding_data")
+          } else {
+            sessionStorage.setItem("admin_onboarding_data", JSON.stringify(json))
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to fetch onboarding checklist:", err)
@@ -71,14 +99,10 @@ export function OnboardingGuideDialog({
   }, [role])
 
   useEffect(() => {
-    if (role === "admin") {
-      fetchChecklist()
-    }
-  }, [role, fetchChecklist])
-
-  useEffect(() => {
-    if (open && role === "admin") {
-      fetchChecklist()
+    if (role === "admin" && open) {
+      fetchChecklist(true)
+    } else if (role === "admin") {
+      fetchChecklist(false)
     }
   }, [open, role, fetchChecklist])
 
@@ -186,7 +210,7 @@ export function OnboardingGuideDialog({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={fetchChecklist}
+                onClick={() => fetchChecklist(true)}
                 disabled={loading}
                 title="Refresh status"
                 className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full"

@@ -1702,7 +1702,13 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
               <Label htmlFor="role">Role</Label>
               <Select
                 value={newUser.role}
-                onValueChange={(value) => setNewUser({ ...newUser, role: value })}
+                onValueChange={(value) =>
+                  setNewUser({
+                    ...newUser,
+                    role: value,
+                    agencies: value === "agency" ? newUser.agencies.slice(0, 1) : newUser.agencies,
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -1730,7 +1736,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Assigned Agencies</Label>
-                  <span className="text-[11px] text-muted-foreground">Bound to agency work scope & subscription</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {newUser.role === "agency"
+                      ? "⚠️ Agency role is limited to exactly one agency"
+                      : "Bound to agency work scope & subscription"}
+                  </span>
                 </div>
                 {(() => {
                   // Ensure any agency selected in newUser.agencies is present in the list even if background re-fetch is in flight
@@ -1753,6 +1763,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                     return <p className="text-sm text-gray-500">No active agencies available</p>
                   }
 
+                  const isAgencyRole = newUser.role === "agency"
+
                   return (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {displayAgencies.map((agency) => {
@@ -1762,22 +1774,31 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         return (
                           <div key={agency.id} className="flex items-center space-x-2">
                             <input
-                              type="checkbox"
+                              type={isAgencyRole ? "radio" : "checkbox"}
+                              name="newUserAgencySelection"
                               id={`new-${agency.id}`}
                               checked={isChecked}
-                              onChange={() =>
-                                setNewUser({
-                                  ...newUser,
-                                  agencies: isChecked
-                                    ? newUser.agencies.filter(
-                                        (a) => a.trim().toUpperCase() !== agency.name.trim().toUpperCase()
-                                      )
-                                    : [...newUser.agencies, agency.name],
-                                })
-                              }
-                              className="rounded"
+                              onChange={() => {
+                                if (isAgencyRole) {
+                                  // Radio behavior: if clicked, select only this agency (or deselect if clicked again)
+                                  setNewUser({
+                                    ...newUser,
+                                    agencies: isChecked ? [] : [agency.name],
+                                  })
+                                } else {
+                                  setNewUser({
+                                    ...newUser,
+                                    agencies: isChecked
+                                      ? newUser.agencies.filter(
+                                          (a) => a.trim().toUpperCase() !== agency.name.trim().toUpperCase()
+                                        )
+                                      : [...newUser.agencies, agency.name],
+                                  })
+                                }
+                              }}
+                              className={isAgencyRole ? "accent-blue-600" : "rounded"}
                             />
-                            <label htmlFor={`new-${agency.id}`} className="text-sm">
+                            <label htmlFor={`new-${agency.id}`} className="text-sm cursor-pointer">
                               {agency.name}
                             </label>
                           </div>
@@ -1795,6 +1816,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 disabled={
                   !newUser.username || 
                   !newUser.password ||
+                  (newUser.role === "agency" && newUser.agencies.length > 1) ||
                   (Boolean(newUser.mobileNumber) && newUser.mobileNumber.length !== 10) ||
                   Boolean(newUser.mobileNumber && users.some(u => u.mobileNumber === newUser.mobileNumber.replace(/\D/g, '').slice(-10) || u.username === newUser.mobileNumber.replace(/\D/g, '').slice(-10)))
                 }
@@ -1880,7 +1902,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         <Select
                           value={editingUser.role}
                           onValueChange={(value) =>
-                            setEditingUser({ ...editingUser, role: value })
+                            setEditingUser({
+                              ...editingUser,
+                              role: value,
+                              agencies: value === "agency" ? editingUser.agencies.slice(0, 1) : editingUser.agencies,
+                            })
                           }
                         >
                           <SelectTrigger>
@@ -1910,28 +1936,44 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label>Assigned Agencies</Label>
-                          <span className="text-[11px] text-muted-foreground">Bound to agency work scope & subscription</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {editingUser.role === "agency"
+                              ? "⚠️ Agency role is limited to exactly one agency"
+                              : "Bound to agency work scope & subscription"}
+                          </span>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                          {activeAgencies.map((agency) => (
-                            <div key={agency.id} className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                id={`edit-${user.id}-${agency.id}`}
-                                checked={editingUser.agencies.includes(agency.name)}
-                                onChange={() =>
-                                  setEditingUser({
-                                    ...editingUser,
-                                    agencies: toggleAgency(editingUser.agencies, agency.name),
-                                  })
-                                }
-                                className="rounded"
-                              />
-                              <label htmlFor={`edit-${user.id}-${agency.id}`} className="text-sm">
-                                {agency.name}
-                              </label>
-                            </div>
-                          ))}
+                          {activeAgencies.map((agency) => {
+                            const isAgencyRole = editingUser.role === "agency"
+                            const isChecked = editingUser.agencies.includes(agency.name)
+                            return (
+                              <div key={agency.id} className="flex items-center space-x-2">
+                                <input
+                                  type={isAgencyRole ? "radio" : "checkbox"}
+                                  name={`editUserAgencySelection-${editingUser.id}`}
+                                  id={`edit-${user.id}-${agency.id}`}
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isAgencyRole) {
+                                      setEditingUser({
+                                        ...editingUser,
+                                        agencies: isChecked ? [] : [agency.name],
+                                      })
+                                    } else {
+                                      setEditingUser({
+                                        ...editingUser,
+                                        agencies: toggleAgency(editingUser.agencies, agency.name),
+                                      })
+                                    }
+                                  }}
+                                  className={isAgencyRole ? "accent-blue-600" : "rounded"}
+                                />
+                                <label htmlFor={`edit-${user.id}-${agency.id}`} className="text-sm cursor-pointer">
+                                  {agency.name}
+                                </label>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
@@ -1941,6 +1983,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         onClick={() => updateUser(editingUser)}
                         disabled={
                           !editingUser.username ||
+                          (editingUser.role === "agency" && editingUser.agencies.length > 1) ||
                           (Boolean(editingUser.mobileNumber) && editingUser.mobileNumber.length !== 10) ||
                           Boolean(editingUser.mobileNumber && users.some(u => u.id !== editingUser.id && (u.mobileNumber === editingUser.mobileNumber?.replace(/\D/g, '').slice(-10) || u.username === editingUser.mobileNumber?.replace(/\D/g, '').slice(-10))))
                         }

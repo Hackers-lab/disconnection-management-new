@@ -211,21 +211,23 @@ export function IcdsList({
     }
   }, [])
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    let isMounted = true
+    getFromCache<IcdsRecord[]>(CACHE_KEY).then(cached => {
+      if (isMounted && cached && Array.isArray(cached) && cached.length > 0) {
+        setRecords(cached)
+        setLoading(false)
+      }
+    }).catch(() => {})
+    return () => { isMounted = false }
+  }, [])
+
   // Delta Patch & Base Version Synchronization (<15ms instant cache load)
   const { checkVersion } = useModuleVersionSync<IcdsRecord>("icds", CACHE_KEY, "id", (updated) => {
     setRecords(updated)
     setLoading(false)
   })
-
-  // Fast initial cache hydration directly on mount (<10ms first paint)
-  useEffect(() => {
-    getFromCache<IcdsRecord[]>(CACHE_KEY).then(cached => {
-      if (cached && Array.isArray(cached) && cached.length > 0) {
-        setRecords(cached)
-        setLoading(false)
-      }
-    }).catch(() => {})
-  }, [])
 
   // Manual reload function when user clicks Refresh
   const loadRecords = useCallback(async (forceReload = false) => {

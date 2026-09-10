@@ -211,6 +211,18 @@ export function PermanentDisconnectionList({
     setSearchQuery(val.trim())
   }
 
+  // Fast initial cache hydration directly on mount (<10ms first paint)
+  useEffect(() => {
+    let isMounted = true
+    getFromCache<PermanentDisconnection[]>(CACHE_KEY).then(cached => {
+      if (isMounted && cached && Array.isArray(cached) && cached.length > 0) {
+        setRecords(cached)
+        setLoading(false)
+      }
+    }).catch(() => {})
+    return () => { isMounted = false }
+  }, [])
+
   const { syncState, checkVersion } = useModuleVersionSync<PermanentDisconnection>(
     "permanent-disconnection",
     CACHE_KEY,
@@ -223,9 +235,9 @@ export function PermanentDisconnectionList({
   )
 
   const loadData = useCallback(async (bypassCache = false) => {
-    setLoading(true)
     try {
       if (bypassCache) {
+        setLoading(true)
         const res = await fetch(`/api/permanent-disconnection?bypassCache=true`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" }

@@ -40,7 +40,12 @@ export function AdminSetupGuideBanner() {
   const [isOpen, setIsOpen] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [savingAll, setSavingAll] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("admin_setup_guide_dismissed") === "true"
+    }
+    return false
+  })
   const [activeTab, setActiveTab] = useState<"agencies" | "users">("agencies")
   const [searchQuery, setSearchQuery] = useState("")
   const [savedSuccessIds, setSavedSuccessIds] = useState<Set<string>>(new Set())
@@ -49,7 +54,62 @@ export function AdminSetupGuideBanner() {
   const [usersForm, setUsersForm] = useState<Record<string, { fullName: string; mobileNumber: string; email: string; username: string }>>({})
   const [agenciesForm, setAgenciesForm] = useState<Record<string, { vendorCode: string; contactPerson: string; mobileNumber: string; email: string }>>({})
 
-  const fetchCheck = useCallback(async () => {
+  const populateFormsFromData = (data: SetupData) => {
+    if (data.incompleteUsers) {
+      const userObj: Record<string, any> = {}
+      data.incompleteUsers.forEach(u => {
+        userObj[u.id] = {
+          username: u.username || "",
+          fullName: u.fullName || "",
+          mobileNumber: u.mobileNumber || "",
+          email: u.email || "",
+        }
+      })
+      setUsersForm(userObj)
+    }
+
+    if (data.incompleteAgencies) {
+      const agencyObj: Record<string, any> = {}
+      data.incompleteAgencies.forEach(a => {
+        agencyObj[a.id] = {
+          vendorCode: a.vendorCode || "",
+          contactPerson: a.contactPerson || "",
+          mobileNumber: a.mobileNumber || "",
+          email: a.email || "",
+        }
+      })
+      setAgenciesForm(agencyObj)
+    }
+  }
+
+  const fetchCheck = useCallback(async (force = false) => {
+    if (typeof window !== "undefined") {
+      // Check if already completed or dismissed in this session
+      if (!force) {
+        if (sessionStorage.getItem("admin_setup_guide_dismissed") === "true") {
+          setDismissed(true)
+          setLoading(false)
+          return
+        }
+        if (sessionStorage.getItem("profile_completion_completed") === "true") {
+          setLoading(false)
+          return
+        }
+        const cached = sessionStorage.getItem("profile_completion_data")
+        if (cached) {
+          try {
+            const data: SetupData = JSON.parse(cached)
+            setSetupData(data)
+            populateFormsFromData(data)
+            setLoading(false)
+            return
+          } catch {
+            sessionStorage.removeItem("profile_completion_data")
+          }
+        }
+      }
+    }
+
     try {
       setLoading(true)
       const res = await fetch("/api/admin/profile-completion-check")
@@ -57,31 +117,17 @@ export function AdminSetupGuideBanner() {
       const data: SetupData = await res.json()
       setSetupData(data)
 
-      if (data.incompleteUsers) {
-        const userObj: Record<string, any> = {}
-        data.incompleteUsers.forEach(u => {
-          userObj[u.id] = {
-            username: u.username || "",
-            fullName: u.fullName || "",
-            mobileNumber: u.mobileNumber || "",
-            email: u.email || "",
-          }
-        })
-        setUsersForm(userObj)
+      if (typeof window !== "undefined") {
+        if (!data.hasIncompleteDetails) {
+          sessionStorage.setItem("profile_completion_completed", "true")
+          sessionStorage.removeItem("profile_completion_data")
+        } else {
+          sessionStorage.setItem("profile_completion_data", JSON.stringify(data))
+          sessionStorage.removeItem("profile_completion_completed")
+        }
       }
 
-      if (data.incompleteAgencies) {
-        const agencyObj: Record<string, any> = {}
-        data.incompleteAgencies.forEach(a => {
-          agencyObj[a.id] = {
-            vendorCode: a.vendorCode || "",
-            contactPerson: a.contactPerson || "",
-            mobileNumber: a.mobileNumber || "",
-            email: a.email || "",
-          }
-        })
-        setAgenciesForm(agencyObj)
-      }
+      populateFormsFromData(data)
     } catch (err) {
       console.warn("Failed to load setup check:", err)
     } finally {
@@ -145,7 +191,7 @@ export function AdminSetupGuideBanner() {
       if (!res.ok) throw new Error("Save agency failed")
 
       setSavedSuccessIds(prev => new Set(prev).add(agencyId))
-      await fetchCheck()
+      await fetchCheck(true)
     } catch (err) {
       console.error("Failed to save agency:", err)
     } finally {
@@ -174,7 +220,7 @@ export function AdminSetupGuideBanner() {
       if (!res.ok) throw new Error("Save user failed")
 
       setSavedSuccessIds(prev => new Set(prev).add(userId))
-      await fetchCheck()
+      await fetchCheck(true)
     } catch (err) {
       console.error("Failed to save user:", err)
     } finally {
@@ -216,7 +262,7 @@ export function AdminSetupGuideBanner() {
 
       if (!res.ok) throw new Error("Batch save failed")
 
-      await fetchCheck()
+      await fetchCheck(true)
       setIsOpen(false)
     } catch (err) {
       console.error("Failed to batch save:", err)
@@ -262,7 +308,12 @@ export function AdminSetupGuideBanner() {
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={() => setDismissed(true)}
+              onClick={() => {
+                setDismissed(true)
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("admin_setup_guide_dismissed", "true")
+                }
+              }}
               className="rounded-lg p-2 text-gray-400 hover:bg-gray-200/50 hover:text-gray-600 dark:hover:bg-gray-800/50 dark:hover:text-gray-300"
               title="Dismiss for now"
             >
