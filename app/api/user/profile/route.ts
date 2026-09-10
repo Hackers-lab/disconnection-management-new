@@ -131,6 +131,10 @@ export async function GET(req: NextRequest) {
       planName: planName || (isPaid ? "Pro Vendor Access" : ""),
       lastPaymentDate,
       paymentHistory,
+    }, {
+      headers: {
+        "Cache-Control": "private, max-age=60, s-maxage=60, stale-while-revalidate=300",
+      },
     })
   } catch (error: any) {
     console.error("Error fetching user profile:", error)

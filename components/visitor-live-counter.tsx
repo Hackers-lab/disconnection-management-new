@@ -68,30 +68,12 @@ export function VisitorLiveCounter({ className = "", activeModule, action, showU
       isNewVisit = false
     }
 
-    // Fire initial presence ping
+    // Fire initial presence ping once on mount/session visit
     sendPresencePing(isNewVisit)
 
-    // 2. Gentle periodic heartbeat every 4 minutes while tab is active
-    // With 10-minute server presence window, 4 minutes ensures continuous live status
-    // while reducing Vercel invocations by 75-80%!
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        sendPresencePing(false)
-      }
-    }, 240_000)
-
-    // 3. Heartbeat when user switches back to tab (debounced to at most once per 2 minutes)
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible" && Date.now() - lastPingRef.current > 120_000) {
-        sendPresencePing(false)
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibility)
-
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener("visibilitychange", handleVisibility)
-    }
+    // Periodic heartbeat intervals and visibilitychange pings have been disabled
+    // to eliminate hundreds of thousands of redundant serverless function invocations.
+    // Superadmin on-demand view reads active sessions directly without background ping loops.
   }, [sendPresencePing])
 
   if (!showUi) return null
