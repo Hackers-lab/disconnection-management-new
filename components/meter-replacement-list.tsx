@@ -526,7 +526,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
     if (!silent && records.length === 0) setSyncState("loading")
     try {
       if (force) {
-        await fetch("/api/system/reset-base?moduleKey=meter-replacement", { method: "POST" }).catch(() => {})
+        const res = await fetch("/api/system/reset-base?moduleKey=meter-replacement", { method: "POST" }).catch(() => null)
+        if (res && res.status === 429) {
+          const json = await res.json().catch(() => ({}))
+          toast({
+            title: "CDN Refresh Locked",
+            description: json.error || "Manual cache refresh is locked for 1 hour. Admin can refresh only once per hour.",
+            variant: "destructive"
+          })
+        }
       }
       // 1. Instant render from local IndexedDB cache for 0ms initial display
       const cached = await getFromCache<MeterReplacement[]>(CACHE_KEY)

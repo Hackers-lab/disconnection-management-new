@@ -34,6 +34,28 @@ export const POST = withTenant(async function POST(req: NextRequest) {
     const context = getTenantContext()
     const tenantId = context?.cccCode || req.headers.get("x-tenant-id") || "default"
 
+    // 1-hour rate limiting lock: Admin can refresh/clear CDN cache only once per hour
+    const { getKV, setKV, getTenantKey } = await import("@/lib/kv-store")
+    const lockKey = getTenantKey(tenantId, "cdn_cache_reset_last_time")
+    const lastResetTime = await getKV<number>(lockKey)
+    const ONE_HOUR_MS = 60 * 60 * 1000
+
+    if (lastResetTime && Date.now() - lastResetTime < ONE_HOUR_MS) {
+      const remainingMs = ONE_HOUR_MS - (Date.now() - lastResetTime)
+      const remainingMinutes = Math.ceil(remainingMs / (60 * 1000))
+      return NextResponse.json(
+        {
+          error: `Manual CDN cache refresh is locked for 1 hour. Please wait ${remainingMinutes} more minute${remainingMinutes > 1 ? "s" : ""} before resetting again.`,
+          locked: true,
+          remainingMinutes,
+        },
+        { status: 429 }
+      )
+    }
+
+    // Set 1-hour lock (3600 seconds TTL in KV store)
+    await setKV(lockKey, Date.now(), 3600)
+
     // Clear server in-memory sheet cache so next base read pulls fresh Google Sheet
     invalidateConsumerCache()
     invalidateDDCache()

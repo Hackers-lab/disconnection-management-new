@@ -341,7 +341,15 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     setError(null)
     try {
       if (force && (userRole === "admin" || userRole === "executive")) {
-        await fetch("/api/system/reset-base?moduleKey=consumer", { method: "POST" }).catch(() => {})
+        const res = await fetch("/api/system/reset-base?moduleKey=consumer", { method: "POST" }).catch(() => null)
+        if (res && res.status === 429) {
+          const json = await res.json().catch(() => ({}))
+          toast({
+            title: "CDN Refresh Locked",
+            description: json.error || "Manual cache refresh is locked for 1 hour. Admin can refresh only once per hour.",
+            variant: "destructive"
+          })
+        }
       }
       await checkVersion(force)
     } catch (err: any) {

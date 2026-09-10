@@ -662,9 +662,17 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   const handleGlobalRefresh = async () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-    if (confirm("Sync fresh data from server? This will reload the page.")) {
+    if (confirm("Sync fresh data from server? This will clear cache and reload.")) {
       if (userRole === "admin" || userRole === "executive" || isAdminUser) {
-        await fetch("/api/system/reset-base?moduleKey=all", { method: "POST" }).catch(() => {})
+        try {
+          const res = await fetch("/api/system/reset-base?moduleKey=all", { method: "POST" })
+          if (res.status === 429) {
+            const json = await res.json().catch(() => ({}))
+            const msg = json.error || "Manual CDN cache refresh is locked. You can refresh only once per hour."
+            alert(`⚠️ Refresh Locked:\n\n${msg}`)
+            return
+          }
+        } catch {}
       }
       await clearAllCache()
       
