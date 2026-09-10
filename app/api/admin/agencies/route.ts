@@ -14,10 +14,7 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const agencies = await getAgencies()
   return NextResponse.json(agencies, {
-    // no-store: browser never caches — every user always hits the server.
-    // The server holds agencies in memory (write-invalidated) so this is
-    // near-zero cost and guarantees instant propagation to ALL users.
-    headers: { 'Cache-Control': 'no-store' },
+    headers: { 'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=900, max-age=60' },
   })
 })
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { sheets, getSpreadsheetId } from "@/lib/google-sheets-api"
 import { verifySession } from "@/lib/session"
-import { withTenant } from "@/lib/tenant-context"
+import { withTenant, getTenantContext } from "@/lib/tenant-context"
+import { compactBaseVersion } from "@/lib/version-engine"
 
 const TAB = "AgencyZoneMap"
 const HISTORY_TAB = "ZoneMapHistory"
@@ -63,7 +64,11 @@ export const GET = withTenant(async function GET(request: NextRequest) {
         updatedOn: String(r[3] || "").trim(),
       }))
       .filter(r => r.zone && r.agency)
-    return NextResponse.json(data)
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "private, s-maxage=120, stale-while-revalidate=600",
+      },
+    })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 })
   }
@@ -145,6 +150,13 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         requestBody: { values: historyEntries },
       }).catch(err => console.warn("ZoneMapHistory append error:", err))
     }
+
+    // 4. Invalidate and bump base version for zone-map across all clients
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || session.cccCode || "default"
+    compactBaseVersion(tenantId, "zone-map").catch(err =>
+      console.warn("compactBaseVersion error for zone-map:", err)
+    )
 
     return NextResponse.json({ success: true, count: rows.length, historyEntries: historyEntries.length })
   } catch (e: any) {

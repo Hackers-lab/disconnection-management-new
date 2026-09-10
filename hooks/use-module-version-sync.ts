@@ -28,7 +28,13 @@ const MODULE_ENDPOINT_MAP: Record<string, string> = {
   "permanent-disconnection": "/api/permanent-disconnection",
   permanent_disconnection: "/api/permanent-disconnection",
   pd: "/api/permanent-disconnection",
+  "zone-map": "/api/zone-map",
+  zone_map: "/api/zone-map",
 }
+
+// In-memory version check throttle map to eliminate excessive repeat requests on quick tab switches
+const lastVersionCheckTimes = new Map<string, number>()
+const VERSION_CHECK_THROTTLE_MS = 30_000 // 30 seconds throttle per module per browser session
 
 export function useModuleVersionSync<T extends Record<string, any>>(
   moduleKey: string,
@@ -87,6 +93,15 @@ export function useModuleVersionSync<T extends Record<string, any>>(
         // Immediately ensure component has cached data before network query
         if (cached.length > 0 && !forceBypass && callbackRef.current) {
           callbackRef.current(cached)
+        }
+
+        // 30s session throttle: If we already checked this module within the last 30s and have cache, skip network roundtrip
+        const throttleKey = `${moduleKey}_${cacheKey}`
+        const lastChecked = lastVersionCheckTimes.get(throttleKey) || 0
+        const now = Date.now()
+        if (!forceBypass && cached.length > 0 && (now - lastChecked < VERSION_CHECK_THROTTLE_MS)) {
+          setSyncState("idle")
+          return
         }
 
         // If local cache is completely empty, start version check from 0 to guarantee base download
@@ -187,6 +202,8 @@ export function useModuleVersionSync<T extends Record<string, any>>(
             setSyncState("idle")
           }
         }
+        // Record successful version-check time for throttling
+        lastVersionCheckTimes.set(throttleKey, Date.now())
       } catch (err) {
         console.warn(`[useModuleVersionSync] Error syncing module "${moduleKey}":`, err)
         setSyncState("error")

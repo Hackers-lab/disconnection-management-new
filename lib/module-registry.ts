@@ -142,5 +142,13 @@ export const MODULE_REGISTRY: Record<string, PlatformModuleManifest> = {
     permissions: ["read", "create", "issue", "install", "return", "finalize", "update"],
     badgeRule: { targetStatus: ["issued"], agencyScoped: true },
   },
+  "zone-map": {
+    id: "zone-map",
+    title: "Agency Zone Mapping",
+    sheetTab: "AgencyZoneMap",
+    primaryKey: "zone",
+    cacheKey: "zone_map_cache",
+    permissions: ["read", "create", "update"],
+  },
 }
 

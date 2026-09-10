@@ -22,10 +22,19 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         return false
       }
       return true
+    }).map(r => {
+      const clean: Record<string, any> = {}
+      for (const k in r) {
+        const val = (r as any)[k]
+        if (val !== "" && val !== null && val !== undefined) {
+          clean[k] = val
+        }
+      }
+      return clean
     })
 
     return NextResponse.json(filtered, {
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      headers: { "Cache-Control": "private, s-maxage=60, stale-while-revalidate=300, max-age=0, must-revalidate" },
     })
   } catch (error: any) {
     console.error("GET /api/icds/base error:", error)

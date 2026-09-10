@@ -55,19 +55,22 @@ export const GET = withTenant(async function GET(req: NextRequest) {
         headers: { 'Cache-Control': 'no-store' },
       })
     }
-    const lastRow = data[data.length - 1]
+    // Strip empty/null/undefined string properties to drastically shrink payload and Fast Origin Transfer
+    const trimmedData = data.map((c: any) => {
+      const clean: Record<string, any> = {}
+      for (const k in c) {
+        const val = c[k]
+        if (val !== "" && val !== null && val !== undefined) {
+          clean[k] = val
+        }
+      }
+      return clean
+    })
 
-    if (lastRow && lastRow.consumerId && !lastRow.agency) {
-      return NextResponse.json(data, {
-        status: 200,
-        headers: { 'Cache-Control': 'no-store' },
-      })
-    }
-
-    return NextResponse.json(data, {
+    return NextResponse.json(trimmedData, {
       status: 200,
       headers: {
-        'Cache-Control': 'private, no-cache, no-store, max-age=0, must-revalidate',
+        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300, max-age=0, must-revalidate',
         'Vary': 'Cookie, Authorization',
       },
     })

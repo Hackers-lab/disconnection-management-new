@@ -780,32 +780,43 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
   // Zone map load/save — with IndexedDB cache for instant loading.
   // Cache is invalidated only when admin explicitly saves changes.
-  const loadZoneMap = async () => {
+  const loadZoneMap = async (force = false) => {
     setZoneMapLoading(true)
 
-    // 1. Show cached data immediately (zero server cost, instant display).
+    // 1. Derive MRUs directly from local consumers cache (eliminates /api/zone-map/mrus serverless execution)
+    try {
+      const cachedConsumers = await getFromCache<any[]>("consumers_data_cache")
+      if (cachedConsumers && Array.isArray(cachedConsumers) && cachedConsumers.length > 0) {
+        const mruSet = new Set<string>()
+        cachedConsumers.forEach(c => { if (c.mru) mruSet.add(String(c.mru).trim().toUpperCase()) })
+        const sorted = Array.from(mruSet).sort()
+        if (sorted.length > 0) setAvailableMrus(sorted)
+      }
+    } catch { /* ignore */ }
+
+    // 2. Show cached data immediately (zero server cost, instant display).
+    let hasLocalData = false
     try {
       const cached = await getFromCache<typeof zoneMapRows>(ZONE_MAP_CACHE_KEY)
       if (cached && cached.length > 0) {
         setZoneMapRows(cached)
-        setZoneMapLoading(false) // stop spinner so user sees data right away
+        setZoneMapLoading(false)
+        hasLocalData = true
       }
     } catch { /* ignore cache errors */ }
 
-    // 2. Refresh from server in background (always keep map + MRUs fresh).
-    try {
-      const [mapResp, mruResp] = await Promise.all([
-        fetch("/api/zone-map"),
-        fetch("/api/zone-map/mrus"),
-      ])
-      if (mapResp.ok) {
-        const fresh = await mapResp.json()
-        setZoneMapRows(fresh)
-        await saveToCache(ZONE_MAP_CACHE_KEY, fresh)
-      }
-      if (mruResp.ok) setAvailableMrus(await mruResp.json())
-    } catch { /* silent — cached data still shown */ }
-    finally { setZoneMapLoading(false) }
+    // 3. Only fetch from server if local cache is completely empty or forced
+    if (!hasLocalData || force) {
+      try {
+        const mapResp = await fetch("/api/zone-map")
+        if (mapResp.ok) {
+          const fresh = await mapResp.json()
+          setZoneMapRows(fresh)
+          await saveToCache(ZONE_MAP_CACHE_KEY, fresh)
+        }
+      } catch { /* silent — cached data still shown */ }
+      finally { setZoneMapLoading(false) }
+    }
   }
 
   const saveZoneMap = async (rows: { zone: string; agency: string; address?: string }[]) => {

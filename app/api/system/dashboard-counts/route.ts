@@ -71,7 +71,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       },
       {
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Cache-Control": "private, s-maxage=60, stale-while-revalidate=180, max-age=30",
         },
       }
     )
