@@ -1448,6 +1448,9 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
       <DashboardShell
         role={role}
         agencies={agencies}
+        userName={profileName || initialProfile?.name || initialProfile?.username}
+        userCccCode={profileCccCode || initialProfile?.cccCode}
+        initialProfile={profileData || initialProfile}
         showAdminPanel={showAdminPanel}
         openAdmin={() => setShowAdminPanel(true)}
         closeAdmin={handleAdminClose}
@@ -2319,6 +2322,13 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
               />
               <Button 
                 onClick={async () => {
+                  try {
+                    sessionStorage.clear()
+                    localStorage.removeItem("user_ccc_code")
+                    localStorage.removeItem("user_username")
+                    localStorage.removeItem("user_role")
+                    localStorage.removeItem("user_permissions")
+                  } catch (e) {}
                   await logout()
                   window.location.href = "/"
                 }} 

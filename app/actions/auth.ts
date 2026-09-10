@@ -56,32 +56,29 @@ export async function login(formData: FormData) {
   )
   const sessionTime = (performance.now() - sessionStart).toFixed(1)
 
-  // Explicitly record user in dedicated user_presence table on login
-  let presenceTime = "0.0"
-  try {
-    const pStart = performance.now()
-    const { trackUserPresence } = await import("@/lib/presence-service")
-    await trackUserPresence({
-      userId: user.id,
-      username,
-      name: user.name || username,
-      role: user.role,
-      cccCode: user.cccCode || "",
-      agencies: user.agencies || [],
-      activeModule: user.role === "superuser" ? "superuser" : "dashboard",
-      lastAction: "Logged In",
-      lastSeen: Date.now(),
+  // Record user presence asynchronously so user login is not delayed by an extra network round-trip
+  import("@/lib/presence-service")
+    .then(({ trackUserPresence }) => {
+      trackUserPresence({
+        userId: user.id,
+        username,
+        name: user.name || username,
+        role: user.role,
+        cccCode: user.cccCode || "",
+        agencies: user.agencies || [],
+        activeModule: user.role === "superuser" ? "superuser" : "dashboard",
+        lastAction: "Logged In",
+        lastSeen: Date.now(),
+      }).catch((presenceErr) => {
+        console.warn("Could not log user presence:", presenceErr)
+      })
     })
-    presenceTime = (performance.now() - pStart).toFixed(1)
-  } catch (presenceErr) {
-    console.warn("Could not log user presence:", presenceErr)
-  }
+    .catch(() => {})
 
   const totalLoginTime = (performance.now() - overallStart).toFixed(1)
   console.log(`⏱️ ─── [LOGIN BENCHMARK BREAKDOWN] ───`)
   console.log(`├── 1. User DB Lookup:     ${lookupTime}ms`)
   console.log(`├── 2. JWT Cookie Session: ${sessionTime}ms`)
-  console.log(`├── 3. Presence Tracking:  ${presenceTime}ms`)
   console.log(`└── 🚀 Total Server Login Time: ${totalLoginTime}ms (Role: ${user.role}, CCC: ${user.cccCode || "N/A"})\n`)
 
   const redirectTo = user.role === "superuser" ? "/superuser" : "/dashboard"
@@ -102,11 +99,18 @@ export async function login(formData: FormData) {
 
 export async function logout() {
   try {
-    const { verifySession } = await import("@/lib/session")
-    const session = await verifySession()
-    if (session?.userId) {
-      const { removeUserPresence } = await import("@/lib/presence-service")
-      await removeUserPresence(session.userId)
+    const { cookies } = await import("next/headers")
+    const { decrypt } = await import("@/lib/session")
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("session")?.value
+    if (sessionCookie) {
+      const payload = await decrypt(sessionCookie)
+      if (payload?.userId) {
+        // Fire-and-forget presence cleanup so it doesn't block logout redirect
+        import("@/lib/presence-service")
+          .then(({ removeUserPresence }) => removeUserPresence(payload.userId))
+          .catch(() => {})
+      }
     }
   } catch {}
 

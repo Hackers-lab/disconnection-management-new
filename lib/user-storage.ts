@@ -383,35 +383,70 @@ export class UserStorage {
 
     try {
       const qStart = performance.now()
-      const res = await db.execute({
+      const isMobile = Boolean(normalizedMobile && /^\d{10}$/.test(normalizedMobile))
+
+      // Direct indexed query by username OR mobile number with agency join to avoid secondary round-trips
+      let res = await db.execute({
         sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
                      u.full_name as name, u.agencies, u.subscription_status as subStatus, 
                      u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
-                     u.ccc_id as cccId
+                     u.ccc_id as cccId,
+                     a.subscription_status as agencySubStatus,
+                     a.subscription_expires_at as agencySubExpiresAt
               FROM users u 
               LEFT JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE u.username = ? COLLATE NOCASE
-                 OR u.mobile_number = ?
-                 OR u.mobile_number = ?
-              UNION ALL
-              SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
-                     u.full_name as name, u.agencies, u.subscription_status as subStatus, 
-                     u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
-                     u.ccc_id as cccId
-              FROM users u 
-              JOIN ccc_registry c ON u.ccc_id = c.id
-              WHERE (c.ccc_code = ? COLLATE NOCASE OR c.mobile_number = ? OR c.mobile_number = ?)
-                AND u.role = 'admin'
-                AND u.username != ? COLLATE NOCASE`,
-        args: [rawInput, rawInput, normalizedMobile, rawInput, rawInput, normalizedMobile, rawInput]
+              LEFT JOIN agencies a ON a.ccc_id = u.ccc_id AND u.role = 'agency' AND (
+                a.name = u.full_name COLLATE NOCASE
+                OR a.vendor_code = u.full_name COLLATE NOCASE
+                OR a.name = u.username COLLATE NOCASE
+                OR a.vendor_code = u.username COLLATE NOCASE
+              )
+              WHERE ${isMobile ? "u.mobile_number = ?" : "u.username = ? COLLATE NOCASE"}
+              LIMIT 1`,
+        args: [isMobile ? normalizedMobile : rawInput]
       })
+
+      // Fallback 1: If input was alphanumeric username and not found, check if it matches mobile_number
+      if ((!res.rows || res.rows.length === 0) && !isMobile && digitsOnly.length === 10) {
+        res = await db.execute({
+          sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                       u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                       u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                       u.ccc_id as cccId,
+                       a.subscription_status as agencySubStatus,
+                       a.subscription_expires_at as agencySubExpiresAt
+                FROM users u 
+                LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                LEFT JOIN agencies a ON a.ccc_id = u.ccc_id AND u.role = 'agency' AND (
+                  a.name = u.full_name COLLATE NOCASE
+                  OR a.vendor_code = u.full_name COLLATE NOCASE
+                )
+                WHERE u.mobile_number = ?
+                LIMIT 1`,
+          args: [digitsOnly]
+        })
+      }
+
+      // Fallback 2: If not found, check if logging in via CCC code directly for admin
+      if ((!res.rows || res.rows.length === 0) && !isMobile) {
+        res = await db.execute({
+          sql: `SELECT u.id, u.username, u.password_hash as password, u.role, c.ccc_code as cccCode, 
+                       u.full_name as name, u.agencies, u.subscription_status as subStatus, 
+                       u.subscription_expires_at as subExpiresAt, u.bypass_subscription as bypassSub,
+                       u.ccc_id as cccId,
+                       NULL as agencySubStatus,
+                       NULL as agencySubExpiresAt
+                FROM ccc_registry c
+                JOIN users u ON u.ccc_id = c.id AND u.role = 'admin'
+                WHERE c.ccc_code = ? COLLATE NOCASE
+                LIMIT 1`,
+          args: [rawInput]
+        })
+      }
       const qDuration = (performance.now() - qStart).toFixed(1)
 
       if (res.rows && res.rows.length > 0) {
         const matchingRow = res.rows.find((r: any) => 
-          String(r.password || "").trim() === cleanPassword && 
-          (String(r.username || "").trim().toLowerCase() === rawInput.toLowerCase() || String(r.username || "").trim() === normalizedMobile)
-        ) || res.rows.find((r: any) => 
           String(r.password || "").trim() === cleanPassword
         )
 
@@ -422,27 +457,8 @@ export class UserStorage {
           const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
           const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
           
-          let finalSubStatus = String(r.subStatus || "active")
-          let finalSubExpiresAt = String(r.subExpiresAt || "")
-
-          // For agency users, try to resolve subscription from agencies table (if columns exist)
-          const roleLower = String(r.role || "viewer").toLowerCase()
-          if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
-            try {
-              const agencyRes = await db.execute({
-                sql: `SELECT subscription_status, subscription_expires_at FROM agencies 
-                      WHERE ccc_id = ? AND (name = ? OR vendor_code = ?) LIMIT 1`,
-                args: [r.cccId, fallbackAgencies[0], fallbackAgencies[0]]
-              })
-              if (agencyRes.rows && agencyRes.rows.length > 0) {
-                const ag: any = agencyRes.rows[0]
-                if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
-                if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
-              }
-            } catch {
-              // Agency subscription columns may not exist yet — silently fall back to user-level subscription
-            }
-          }
+          let finalSubStatus = String(r.agencySubStatus || r.subStatus || "active")
+          let finalSubExpiresAt = String(r.agencySubExpiresAt || r.subExpiresAt || "")
 
           console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${rawInput}' authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
           user = {

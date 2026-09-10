@@ -4,7 +4,7 @@ import { roleStorage } from "@/lib/role-storage"
 import { withTenant } from "@/lib/tenant-context"
 
 import { expandRolePermissions } from "@/lib/permissions"
-import { getTenantRegistry } from "@/lib/tenant-resolver"
+import { getTenantConfig } from "@/lib/tenant-resolver"
 import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
@@ -46,9 +46,8 @@ export const GET = withTenant(async function GET(req: NextRequest) {
     let cccName = ""
     if (session.cccCode) {
       try {
-        const registry = await getTenantRegistry()
-        const tenant = registry[session.cccCode] || registry[session.cccCode.toUpperCase()]
-        if (tenant) {
+        const tenant = await getTenantConfig(session.cccCode)
+        if (tenant?.cccName) {
           cccName = tenant.cccName
         }
       } catch (err) {
@@ -122,7 +121,7 @@ export const GET = withTenant(async function GET(req: NextRequest) {
       vendorCode,
     }, {
       headers: {
-        "Cache-Control": "private, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": "private, no-store, no-cache, must-revalidate",
       },
     })
   } catch (error) {

@@ -6,7 +6,7 @@ import { AgencyProfileIncomplete } from "@/components/agency-profile-incomplete"
 import { db } from "@/lib/db"
 import { roleStorage } from "@/lib/role-storage"
 import { expandRolePermissions } from "@/lib/permissions"
-import { getTenantRegistry } from "@/lib/tenant-resolver"
+import { getTenantConfig } from "@/lib/tenant-resolver"
 import { getUserFeedback } from "@/lib/feedback-service"
 
 export default async function DashboardPage() {
@@ -74,30 +74,27 @@ export default async function DashboardPage() {
     }
   }
 
+  // Fetch permissions, tenant config, and user feedback concurrently in parallel
+  const [permsResult, tenantResult, feedbackResult] = await Promise.allSettled([
+    roleStorage.getPermissionsForRole(session.role, session.cccCode || "").catch(() => null),
+    session.cccCode ? getTenantConfig(session.cccCode).catch(() => null) : Promise.resolve(null),
+    getUserFeedback(session.username, session.cccCode).catch(() => null),
+  ])
+
   let permissions: Record<string, string[]> = {}
-  try {
-    const raw = await roleStorage.getPermissionsForRole(session.role, session.cccCode || "")
-    permissions = expandRolePermissions(session.role, raw) || {}
-  } catch (e) {
-    // fallback
+  if (permsResult.status === "fulfilled" && permsResult.value) {
+    permissions = expandRolePermissions(session.role, permsResult.value) || {}
   }
 
   let cccName = ""
-  if (session.cccCode) {
-    try {
-      const registry = await getTenantRegistry()
-      const tenant = registry[session.cccCode] || registry[session.cccCode.toUpperCase()]
-      if (tenant) {
-        cccName = tenant.cccName
-      }
-    } catch (e) {}
+  if (tenantResult.status === "fulfilled" && tenantResult.value?.cccName) {
+    cccName = tenantResult.value.cccName
   }
 
   let hasFeedback = false
-  try {
-    const fb = await getUserFeedback(session.username, session.cccCode)
-    hasFeedback = !!(fb && fb.comment && fb.comment.trim().length > 0)
-  } catch (e) {}
+  if (feedbackResult.status === "fulfilled" && feedbackResult.value?.comment) {
+    hasFeedback = feedbackResult.value.comment.trim().length > 0
+  }
 
   return (
     <DashboardClient 

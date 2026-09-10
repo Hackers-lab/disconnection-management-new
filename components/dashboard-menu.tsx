@@ -317,23 +317,68 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
 
   useEffect(() => {
     async function loadPendingCount() {
-      let hasLocalSafety = false
-      let hasLocalMisc = false
+      const upperAgencies = (userAgencies || []).map((a) => a.trim().toUpperCase()).filter(Boolean)
+      const isAgency = userRole === "agency"
 
-      // Read local IndexedDB caches first for instant 0ms counts
+      // -------------------------------------------------------------------------
+      // PHASE 1: Instant Local Cache Resolution (0ms)
+      // Read all module caches concurrently from IndexedDB and set counts immediately.
+      // -------------------------------------------------------------------------
+      let cachedConsumers: any[] | null = null
+      let cachedSafety: any[] | null = null
+      let cachedMisc: any[] | null = null
+      let cachedDd: any[] | null = null
+      let cachedRc: any[] | null = null
+      let cachedMeter: any = null
+      let cachedNsc: any[] | null = null
+      let cachedMr: any[] | null = null
+      let cachedDtr: any[] | null = null
+      let cachedMaterial: any = null
+
       try {
-        let [miscCached, safetyCached, icdsCached, pdCached] = await Promise.all([
-          getFromCache<any[]>("misc_inspection_cache"),
+        const meterCacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
+        const [
+          cConsumers,
+          cSafety,
+          cMisc,
+          cIcds,
+          cPd,
+          cDd,
+          cRc,
+          cMeter,
+          cNsc,
+          cMr,
+          cDtr,
+          cMaterial
+        ] = await Promise.all([
+          getFromCache<any[]>("consumers_data_cache"),
           getFromCache<any[]>("safety_data_cache"),
+          getFromCache<any[]>("misc_inspection_cache"),
           getFromCache<any[]>("icds_data_cache"),
           getFromCache<any[]>("pd_data_cache"),
+          getFromCache<any[]>("dd_data_cache"),
+          getFromCache<any[]>("reconnection_data_cache"),
+          getFromCache<any>(meterCacheKey),
+          getFromCache<any[]>("nsc_data_cache"),
+          getFromCache<any[]>("meter_replacement_data_cache"),
+          getFromCache<any[]>("dtr_data_cache"),
+          getFromCache<any>("material_stock_cache"),
         ])
 
-        const upperAgencies = (userAgencies || []).map((a) => a.trim().toUpperCase()).filter(Boolean)
+        cachedConsumers = cConsumers
+        cachedSafety = cSafety
+        cachedMisc = cMisc
+        cachedDd = cDd
+        cachedRc = cRc
+        cachedMeter = cMeter
+        cachedNsc = cNsc
+        cachedMr = cMr
+        cachedDtr = cDtr
+        cachedMaterial = cMaterial
 
-        if (pdCached && Array.isArray(pdCached)) {
-          const isAgency = userRole === "agency"
-          const count = pdCached.filter((r) => {
+        // 1. Permanent Disconnection
+        if (cPd && Array.isArray(cPd)) {
+          const count = cPd.filter((r) => {
             if (isAgency) {
               if (r.status !== "issued") return false
               const recAgency = String(r.agency || "").trim()
@@ -347,14 +392,9 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           setPdPendingCount(count)
         }
 
-        // Do NOT fallback to API fetch for ICDS if cache is empty.
-        // The count will populate when the user visits the ICDS module.
-        // This prevents redundant serverless function invocations on dashboard load.
-        setLoadingModules((prev) => ({ ...prev, icds: false }))
-
-        if (icdsCached && Array.isArray(icdsCached)) {
-          const isAgency = userRole === "agency"
-          const count = icdsCached.filter((r) => {
+        // 2. ICDS
+        if (cIcds && Array.isArray(cIcds)) {
+          const count = cIcds.filter((r) => {
             if (isAgency && r.assignedAgency) {
               const recAgency = String(r.assignedAgency || "").trim()
               if (userAgencies.length > 0 && !userAgencies.some((ua) => matchesAgency(recAgency, ua))) {
@@ -366,55 +406,9 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           setIcdsPendingCount(count)
         }
 
-        // Fallback auto-fetch for Misc Inspection if local cache is empty and user has read permission
-        if ((!miscCached || miscCached.length === 0) && hasReadPermission("misc_inspection")) {
-          try {
-            setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
-            const res = await fetch("/api/misc-inspection")
-            if (res.ok) {
-              const freshData = await res.json()
-              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
-              if (items && Array.isArray(items)) {
-                miscCached = items
-                await saveToCache("misc_inspection_cache", items)
-                notifyCacheUpdate("misc_inspection_cache")
-              }
-            }
-          } catch (err) {
-            console.error("Auto-fetch misc inspection failed", err)
-          } finally {
-            setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
-          }
-        } else {
-          setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
-        }
-
-        // Fallback auto-fetch for Safety Inspection if local cache is empty and user has read permission
-        if ((!safetyCached || safetyCached.length === 0) && hasReadPermission("safety")) {
-          try {
-            setLoadingModules(prev => ({ ...prev, safety: true }))
-            const res = await fetch("/api/safety/base")
-            if (res.ok) {
-              const freshData = await res.json()
-              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
-              if (items && Array.isArray(items)) {
-                safetyCached = items
-                await saveToCache("safety_data_cache", items)
-                notifyCacheUpdate("safety_data_cache")
-              }
-            }
-          } catch (err) {
-            console.error("Auto-fetch safety inspection failed", err)
-          } finally {
-            setLoadingModules(prev => ({ ...prev, safety: false }))
-          }
-        } else {
-          setLoadingModules(prev => ({ ...prev, safety: false }))
-        }
-
-        if (miscCached && Array.isArray(miscCached)) {
-          hasLocalMisc = true
-          const count = miscCached.filter(r => {
+        // 3. Misc Inspection
+        if (cMisc && Array.isArray(cMisc)) {
+          const count = cMisc.filter(r => {
             if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive" && r.agency) {
               if (!upperAgencies.includes((r.agency || "").trim().toUpperCase())) return false
             }
@@ -423,10 +417,9 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           setMiscPendingCount(count)
         }
 
-        if (safetyCached && Array.isArray(safetyCached)) {
-          hasLocalSafety = true
-          const isAgency = userRole === "agency"
-          const count = safetyCached.filter(t => {
+        // 4. Safety Inspection
+        if (cSafety && Array.isArray(cSafety)) {
+          const count = cSafety.filter(t => {
             if (isAgency) {
               return t.physicalStatus === "pending" && upperAgencies.includes((t.agency || "").trim().toUpperCase())
             }
@@ -434,353 +427,443 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
           }).length
           setSafetyPendingCount(count)
         }
-      } catch (e) {
-        console.error("Local cache count calculation failed", e)
-      }
 
-      // Loading complete
-      setLoadingModules(prev => ({
-        ...prev,
-        safety: false,
-        "misc-inspection": false,
-        "meter-replacement": false,
-        dtr: false,
-        "dtr-painting": false,
-      }))
-
-      // Disconnection
-      if (hasReadPermission("disconnection")) {
-        try {
-          let data = await getFromCache<ConsumerData[]>("consumers_data_cache")
-          if (!data || data.length === 0) {
-            setLoadingModules(prev => ({ ...prev, disconnection: true }))
-            try {
-              const res = await fetch("/api/consumers/base")
-              if (res.ok) {
-                data = await res.json()
-                if (data) await saveToCache("consumers_data_cache", data)
-              }
-            } catch (err) { console.error("Auto-fetch consumers failed", err) }
-          }
-
-          if (!data) data = []
-
-          // Compute most recent update date
-          if (data.length > 0) {
-            let maxTs = 0
-            let maxDateStr = ""
-            for (const c of data) {
-              const dStr = c.disconDate || c.uploadDate || c.lastUpdated
-              if (dStr && typeof dStr === "string") {
-                const ts = parseTs(dStr)
-                if (ts > maxTs) {
-                  maxTs = ts
-                  maxDateStr = dStr
-                }
-              }
-            }
-            if (maxDateStr) {
-              setLatestUpdateDate(maxDateStr)
-            }
-          }
-
-          const count = data.filter(c => {
+        // 5. Disconnection
+        if (cConsumers && Array.isArray(cConsumers)) {
+          const count = cConsumers.filter(c => {
             const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
             if (!isConnected) return false
             if (userRole === "admin" || userRole === "viewer") return true
-            const consumerAgency = (c.agency || "").trim().toUpperCase()
-            const safeAgencies = userAgencies || []
-            const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
-            return userAgenciesUpper.includes(consumerAgency)
+            return upperAgencies.includes((c.agency || "").trim().toUpperCase())
           }).length
           setPendingCount(count)
-        } catch (e) {
-          console.error(e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, disconnection: false }))
         }
+
+        // 6. Deemed Visit
+        if (cDd && Array.isArray(cDd)) {
+          const ddCount = cDd.filter(d => {
+            const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
+            if (!isPending) return false
+            if (userRole === "admin" || userRole === "viewer") return true
+            return upperAgencies.includes((d.agency || "").trim().toUpperCase())
+          }).length
+          setDdPendingCount(ddCount)
+        }
+
+        // 7. Reconnection
+        if (cRc && Array.isArray(cRc)) {
+          const now = Date.now()
+          const count = cRc.filter((r: any) => {
+            let effectiveStatus = r.status
+            if (r.status === "door_locked") {
+              const updatedTime = parseTs(r.updatedAt || r.createdAt || "")
+              const hrsLocked = Math.floor((now - updatedTime) / (1000 * 60 * 60))
+              if (hrsLocked >= 72) {
+                effectiveStatus = "pending"
+              }
+            }
+            if (effectiveStatus !== "pending") return false
+            if (userRole === "admin" || userRole === "viewer" || userRole === "executive") return true
+            return upperAgencies.includes((r.agency || "").toUpperCase())
+          }).length
+          setReconnectionPendingCount(count)
+        }
+
+        // 8. Meter
+        if (cMeter) {
+          const meterIssues: any[] = isAgency ? (Array.isArray(cMeter) ? cMeter : []) : (cMeter.issues || [])
+          const count = meterIssues.filter((i: any) => {
+            if (isAgency) {
+              if (i.status !== "issued") return false
+              return upperAgencies.includes((i.agency || "").toUpperCase())
+            } else {
+              return i.status === "installation_done"
+            }
+          }).length
+          setMeterPendingCount(count)
+        }
+
+        // 9. NSC
+        if (cNsc && Array.isArray(cNsc)) {
+          const count = cNsc.filter((a: any) => {
+            if (userRole === "agency") {
+              return a.status === "pending" && upperAgencies.includes((a.agency || "").toUpperCase())
+            }
+            return a.status === "inspected"
+          }).length
+          setNscPendingCount(count)
+        }
+
+        // 10. Meter Replacement
+        if (cMr && Array.isArray(cMr)) {
+          const count = cMr.filter((r: any) => {
+            if ((r.status || "").toLowerCase() !== "proposed") return false
+            if ((r.purpose || "") === "slow_fast") return false
+            if (userRole === "admin" || userRole === "executive") return true
+            return upperAgencies.includes((r.agency || "").toUpperCase())
+          }).length
+          setReplacementPendingCount(count)
+        }
+
+        // 11. DTR & Painting
+        if (cDtr && Array.isArray(cDtr)) {
+          const count = cDtr.filter(r => (r.status || "").toUpperCase() !== "EXIST").length
+          setDtrPendingCount(count)
+
+          const paintingPending = cDtr.filter(r => {
+            const isAssigned = userRole === "admin" || userRole === "viewer" || userRole === "executive" || 
+              (r.paintingAgency && upperAgencies.includes(r.paintingAgency.trim().toUpperCase()))
+            return isAssigned && (r.painting || "").toLowerCase() !== "done"
+          }).length
+          setDtrPaintingPendingCount(paintingPending)
+        }
+
+        // 12. Material Stock
+        if (cMaterial && cMaterial.stock) {
+          const stock = cMaterial.stock || []
+          const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
+          setMaterialPendingCount(belowThresholdCount)
+        }
+
+        // 13. Consumer Master from localStorage
+        const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+        const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
+        if (cachedMaster) {
+          setMasterCount(parseInt(cachedMaster, 10))
+        }
+      } catch (e) {
+        console.error("Instant cache read error:", e)
       }
 
-      // Deemed
-      if (hasReadPermission("deemed")) {
-        try {
-          let ddData = await getFromCache<DeemedVisitData[]>("dd_data_cache")
-          if (!ddData || ddData.length === 0) {
-            setLoadingModules(prev => ({ ...prev, deemed: true }))
-            try {
-              const res = await fetch("/api/dd/base")
-              if (res.ok) {
-                ddData = await res.json()
-                if (ddData) await saveToCache("dd_data_cache", ddData)
-              }
-            } catch (err) { console.error("Auto-fetch DD failed", err) }
-          }
+      // -------------------------------------------------------------------------
+      // PHASE 2: Parallel Independent Network Tasks for Any Missing Caches
+      // Every task runs concurrently without blocking other cards.
+      // -------------------------------------------------------------------------
+      const networkTasks: Promise<void>[] = []
 
-          if (ddData) {
-            const ddCount = ddData.filter(d => {
-              const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
-              if (!isPending) return false
-              if (userRole === "admin" || userRole === "viewer") return true
-              const agency = (d.agency || "").trim().toUpperCase()
-              const safeAgencies = userAgencies || []
-              const userAgenciesUpper = safeAgencies.map(a => a.trim().toUpperCase())
-              return userAgenciesUpper.includes(agency)
-            }).length
-            setDdPendingCount(ddCount)
-          }
-        } catch (e) {
-          console.error(e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, deemed: false }))
-        }
-      }
-
-      // Reconnection
-      if (hasReadPermission("reconnection")) {
-        try {
-          // Show cached count immediately if available
-          let rcCached = await getFromCache<any[]>("reconnection_data_cache")
-          
-          if (!rcCached || rcCached.length === 0) {
-            setLoadingModules(prev => ({ ...prev, reconnection: true }))
-            try {
-              const res = await fetch("/api/reconnection")
-              if (res.ok) {
-                const freshData = await res.json()
-                if (freshData && Array.isArray(freshData)) {
-                  rcCached = freshData
-                  await saveToCache("reconnection_data_cache", freshData)
-                }
-              }
-            } catch (err) { console.error("Auto-fetch reconnection failed", err) }
-          }
-
-          const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-          const calculatePending = (list: any[]) => {
-            const now = Date.now()
-            return list.filter((r: any) => {
-              let effectiveStatus = r.status
-              if (r.status === "door_locked") {
-                const updatedTime = parseTs(r.updatedAt || r.createdAt || "")
-                const hrsLocked = Math.floor((now - updatedTime) / (1000 * 60 * 60))
-                if (hrsLocked >= 72) {
-                  effectiveStatus = "pending"
-                }
-              }
-              if (effectiveStatus !== "pending") return false
-              if (userRole === "admin" || userRole === "viewer" || userRole === "executive") return true
-              return upper.includes((r.agency || "").toUpperCase())
-            }).length
-          }
-
-          if (rcCached && rcCached.length > 0) {
-            setReconnectionPendingCount(calculatePending(rcCached))
-          }
-        } catch (e) {
-          console.error("Local cache reconnection pending calculation failed", e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, reconnection: false }))
-        }
-      }
-
-      // Meter
-      if (hasReadPermission("meter")) {
-        try {
-          const isAgency = userRole === "agency"
-          const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
-          let meterCached = await getFromCache<any>(cacheKey)
-          if (!meterCached || (isAgency && meterCached.length === 0) || (!isAgency && (!meterCached.issues || meterCached.issues.length === 0))) {
-            setLoadingModules(prev => ({ ...prev, meter: true }))
-            try {
-              const url = isAgency ? "/api/meters/issue" : "/api/meters/stock"
-              const res = await fetch(url)
-              if (res.ok) {
-                const freshData = await res.json()
-                if (freshData) {
-                  if (isAgency) {
-                    meterCached = [...freshData].reverse()
-                  } else {
-                    const sorted = [...(freshData.issues || [])].reverse()
-                    meterCached = { summary: freshData.summary || [], stock: freshData.stock || [], issues: sorted }
+      // Task: Misc Inspection
+      if ((!cachedMisc || cachedMisc.length === 0) && hasReadPermission("misc_inspection")) {
+        networkTasks.push((async () => {
+          try {
+            setLoadingModules(prev => ({ ...prev, "misc-inspection": true }))
+            const res = await fetch("/api/misc-inspection")
+            if (res.ok) {
+              const freshData = await res.json()
+              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
+              if (items && Array.isArray(items)) {
+                await saveToCache("misc_inspection_cache", items)
+                notifyCacheUpdate("misc_inspection_cache")
+                const count = items.filter(r => {
+                  if (userRole !== "admin" && userRole !== "viewer" && userRole !== "executive" && r.agency) {
+                    if (!upperAgencies.includes((r.agency || "").trim().toUpperCase())) return false
                   }
-                  await saveToCache(cacheKey, meterCached)
-                }
+                  return r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS"
+                }).length
+                setMiscPendingCount(count)
               }
-            } catch (err) { console.error("Auto-fetch meters failed", err) }
+            }
+          } catch (err) {
+            console.error("Fetch misc inspection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, "misc-inspection": false }))
           }
-          if (meterCached) {
-            const meterIssues: any[] = isAgency ? meterCached : (meterCached.issues || [])
-            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-            const count = meterIssues.filter((i: any) => {
-              if (isAgency) {
-                if (i.status !== "issued") return false
-                return upper.includes((i.agency || "").toUpperCase())
-              } else {
-                return i.status === "installation_done"
-              }
-            }).length
-            setMeterPendingCount(count)
-          }
-        } catch (e) {
-          console.error(e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, meter: false }))
-        }
+        })())
       }
 
-      // NSC
-      if (hasReadPermission("nsc")) {
-        try {
-          let nscCached = await getFromCache<any[]>("nsc_data_cache")
-          const hasUncompleted = nscCached && nscCached.some((a: any) => {
-            const s = (a.status || "").toLowerCase()
-            return s === "pending" || s === "inspected"
-          })
-          if (!nscCached || nscCached.length === 0 || !hasUncompleted) {
+      // Task: Safety Inspection
+      if ((!cachedSafety || cachedSafety.length === 0) && hasReadPermission("safety")) {
+        networkTasks.push((async () => {
+          try {
+            setLoadingModules(prev => ({ ...prev, safety: true }))
+            const res = await fetch("/api/safety/base")
+            if (res.ok) {
+              const freshData = await res.json()
+              const items = Array.isArray(freshData) ? freshData : (freshData.patchData || [])
+              if (items && Array.isArray(items)) {
+                await saveToCache("safety_data_cache", items)
+                notifyCacheUpdate("safety_data_cache")
+                const count = items.filter(t => {
+                  if (isAgency) {
+                    return t.physicalStatus === "pending" && upperAgencies.includes((t.agency || "").trim().toUpperCase())
+                  }
+                  return t.physicalStatus === "pending" || (t.physicalStatus === "rectified" && t.adminStatus !== "po_done" && t.adminStatus !== "not_required")
+                }).length
+                setSafetyPendingCount(count)
+              }
+            }
+          } catch (err) {
+            console.error("Fetch safety inspection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, safety: false }))
+          }
+        })())
+      }
+
+      // Task: Disconnection
+      if ((!cachedConsumers || cachedConsumers.length === 0) && hasReadPermission("disconnection")) {
+        networkTasks.push((async () => {
+          try {
+            setLoadingModules(prev => ({ ...prev, disconnection: true }))
+            const res = await fetch("/api/consumers/base")
+            if (res.ok) {
+              const data = await res.json()
+              if (data && Array.isArray(data)) {
+                await saveToCache("consumers_data_cache", data)
+                const count = data.filter(c => {
+                  const isConnected = (c.disconStatus || "").toLowerCase() === "connected"
+                  if (!isConnected) return false
+                  if (userRole === "admin" || userRole === "viewer") return true
+                  return upperAgencies.includes((c.agency || "").trim().toUpperCase())
+                }).length
+                setPendingCount(count)
+              }
+            }
+          } catch (err) {
+            console.error("Fetch disconnection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, disconnection: false }))
+          }
+        })())
+      }
+
+      // Task: Deemed Visit
+      if ((!cachedDd || cachedDd.length === 0) && hasReadPermission("deemed")) {
+        networkTasks.push((async () => {
+          try {
+            setLoadingModules(prev => ({ ...prev, deemed: true }))
+            const res = await fetch("/api/dd/base")
+            if (res.ok) {
+              const ddData = await res.json()
+              if (ddData && Array.isArray(ddData)) {
+                await saveToCache("dd_data_cache", ddData)
+                const ddCount = ddData.filter(d => {
+                  const isPending = (d.disconStatus || "").toLowerCase() === "deemed disconnected"
+                  if (!isPending) return false
+                  if (userRole === "admin" || userRole === "viewer") return true
+                  return upperAgencies.includes((d.agency || "").trim().toUpperCase())
+                }).length
+                setDdPendingCount(ddCount)
+              }
+            }
+          } catch (err) {
+            console.error("Fetch deemed failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, deemed: false }))
+          }
+        })())
+      }
+
+      // Task: Reconnection
+      if ((!cachedRc || cachedRc.length === 0) && hasReadPermission("reconnection")) {
+        networkTasks.push((async () => {
+          try {
+            setLoadingModules(prev => ({ ...prev, reconnection: true }))
+            const res = await fetch("/api/reconnection")
+            if (res.ok) {
+              const freshData = await res.json()
+              if (freshData && Array.isArray(freshData)) {
+                await saveToCache("reconnection_data_cache", freshData)
+                const now = Date.now()
+                const count = freshData.filter((r: any) => {
+                  let effectiveStatus = r.status
+                  if (r.status === "door_locked") {
+                    const updatedTime = parseTs(r.updatedAt || r.createdAt || "")
+                    const hrsLocked = Math.floor((now - updatedTime) / (1000 * 60 * 60))
+                    if (hrsLocked >= 72) {
+                      effectiveStatus = "pending"
+                    }
+                  }
+                  if (effectiveStatus !== "pending") return false
+                  if (userRole === "admin" || userRole === "viewer" || userRole === "executive") return true
+                  return upperAgencies.includes((r.agency || "").toUpperCase())
+                }).length
+                setReconnectionPendingCount(count)
+              }
+            }
+          } catch (err) {
+            console.error("Fetch reconnection failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, reconnection: false }))
+          }
+        })())
+      }
+
+      // Task: Meter
+      const meterNeedsFetch = !cachedMeter || (isAgency && cachedMeter.length === 0) || (!isAgency && (!cachedMeter.issues || cachedMeter.issues.length === 0))
+      if (meterNeedsFetch && hasReadPermission("meter")) {
+        networkTasks.push((async () => {
+          try {
+            setLoadingModules(prev => ({ ...prev, meter: true }))
+            const url = isAgency ? "/api/meters/issue" : "/api/meters/stock"
+            const res = await fetch(url)
+            if (res.ok) {
+              const freshData = await res.json()
+              if (freshData) {
+                let savedMeter: any
+                if (isAgency) {
+                  savedMeter = [...freshData].reverse()
+                } else {
+                  const sorted = [...(freshData.issues || [])].reverse()
+                  savedMeter = { summary: freshData.summary || [], stock: freshData.stock || [], issues: sorted }
+                }
+                const cacheKey = isAgency ? "meter_issues_cache" : "meter_stock_cache"
+                await saveToCache(cacheKey, savedMeter)
+                const meterIssues: any[] = isAgency ? savedMeter : (savedMeter.issues || [])
+                const count = meterIssues.filter((i: any) => {
+                  if (isAgency) {
+                    if (i.status !== "issued") return false
+                    return upperAgencies.includes((i.agency || "").toUpperCase())
+                  } else {
+                    return i.status === "installation_done"
+                  }
+                }).length
+                setMeterPendingCount(count)
+              }
+            }
+          } catch (err) {
+            console.error("Fetch meters failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, meter: false }))
+          }
+        })())
+      }
+
+      // Task: NSC
+      const nscNeedsFetch = !cachedNsc || cachedNsc.length === 0 || !cachedNsc.some((a: any) => {
+        const s = (a.status || "").toLowerCase()
+        return s === "pending" || s === "inspected"
+      })
+      if (nscNeedsFetch && hasReadPermission("nsc")) {
+        networkTasks.push((async () => {
+          try {
             setLoadingModules(prev => ({ ...prev, nsc: true }))
-            try {
-              const res = await fetch("/api/nsc")
-              if (res.ok) {
-                nscCached = await res.json()
-                if (nscCached) await saveToCache("nsc_data_cache", nscCached)
+            const res = await fetch("/api/nsc")
+            if (res.ok) {
+              const freshData = await res.json()
+              if (freshData && Array.isArray(freshData)) {
+                await saveToCache("nsc_data_cache", freshData)
+                const nscCount = freshData.filter((a: any) => {
+                  if (userRole === "agency") {
+                    return a.status === "pending" && upperAgencies.includes((a.agency || "").toUpperCase())
+                  }
+                  return a.status === "inspected"
+                }).length
+                setNscPendingCount(nscCount)
               }
-            } catch (err) { console.error("Auto-fetch NSC failed", err) }
+            }
+          } catch (err) {
+            console.error("Fetch NSC failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, nsc: false }))
           }
-          if (nscCached) {
-            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-            const nscCount = nscCached.filter((a: any) => {
-              if (userRole === "agency") {
-                return a.status === "pending" && upper.includes((a.agency || "").toUpperCase())
-              }
-              return a.status === "inspected"
-            }).length
-            setNscPendingCount(nscCount)
-          }
-        } catch (e) {
-          console.error(e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, nsc: false }))
-        }
+        })())
       }
 
-      // Meter Replacement
-      if (hasReadPermission("meter_replacement")) {
-        try {
-          let mrCached = await getFromCache<any[]>("meter_replacement_data_cache")
-          if (!mrCached || mrCached.length === 0) {
+      // Task: Meter Replacement
+      if ((!cachedMr || cachedMr.length === 0) && hasReadPermission("meter_replacement")) {
+        networkTasks.push((async () => {
+          try {
             setLoadingModules(prev => ({ ...prev, "meter-replacement": true }))
-            try {
-              const res = await fetch("/api/meters/replacement")
-              if (res.ok) {
-                mrCached = await res.json()
-                if (mrCached) await saveToCache("meter_replacement_data_cache", mrCached)
+            const res = await fetch("/api/meters/replacement")
+            if (res.ok) {
+              const freshData = await res.json()
+              if (freshData && Array.isArray(freshData)) {
+                await saveToCache("meter_replacement_data_cache", freshData)
+                const count = freshData.filter((r: any) => {
+                  if ((r.status || "").toLowerCase() !== "proposed") return false
+                  if ((r.purpose || "") === "slow_fast") return false
+                  if (userRole === "admin" || userRole === "executive") return true
+                  return upperAgencies.includes((r.agency || "").toUpperCase())
+                }).length
+                setReplacementPendingCount(count)
               }
-            } catch (err) { console.error("Auto-fetch meter replacement failed", err) }
+            }
+          } catch (err) {
+            console.error("Fetch meter replacement failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, "meter-replacement": false }))
           }
-          if (mrCached) {
-            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-            const count = mrCached.filter((r: any) => {
-              if ((r.status || "").toLowerCase() !== "proposed") return false
-              if ((r.purpose || "") === "slow_fast") return false
-              if (userRole === "admin" || userRole === "executive") return true
-              return upper.includes((r.agency || "").toUpperCase())
-            }).length
-            setReplacementPendingCount(count)
-          }
-        } catch (e) {
-          console.error(e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, "meter-replacement": false }))
-        }
+        })())
       }
 
-      // DTR
-      if (hasReadPermission("dtr") || hasReadPermission("dtr_painting")) {
-        try {
-          let dtrCached = await getFromCache<any[]>("dtr_data_cache")
-          if (!dtrCached || dtrCached.length === 0) {
+      // Task: DTR & Painting
+      if ((!cachedDtr || cachedDtr.length === 0) && (hasReadPermission("dtr") || hasReadPermission("dtr_painting"))) {
+        networkTasks.push((async () => {
+          try {
             setLoadingModules(prev => ({ ...prev, dtr: true, "dtr-painting": true }))
-            try {
-              const res = await fetch("/api/dtr")
-              if (res.ok) {
-                dtrCached = await res.json()
-                if (dtrCached) await saveToCache("dtr_data_cache", dtrCached)
+            const res = await fetch("/api/dtr")
+            if (res.ok) {
+              const freshData = await res.json()
+              if (freshData && Array.isArray(freshData)) {
+                await saveToCache("dtr_data_cache", freshData)
+                const count = freshData.filter(r => (r.status || "").toUpperCase() !== "EXIST").length
+                setDtrPendingCount(count)
+                const paintingPending = freshData.filter(r => {
+                  const isAssigned = userRole === "admin" || userRole === "viewer" || userRole === "executive" || 
+                    (r.paintingAgency && upperAgencies.includes(r.paintingAgency.trim().toUpperCase()))
+                  return isAssigned && (r.painting || "").toLowerCase() !== "done"
+                }).length
+                setDtrPaintingPendingCount(paintingPending)
               }
-            } catch (err) { console.error("Auto-fetch DTR failed", err) }
+            }
+          } catch (err) {
+            console.error("Fetch DTR failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, dtr: false, "dtr-painting": false }))
           }
-          if (dtrCached) {
-            const count = dtrCached.filter(r => (r.status || "").toUpperCase() !== "EXIST").length
-            setDtrPendingCount(count)
-
-            const upper = (userAgencies || []).map((a: string) => a.toUpperCase())
-            const paintingPending = dtrCached.filter(r => {
-              const isAssigned = userRole === "admin" || userRole === "viewer" || userRole === "executive" || 
-                (r.paintingAgency && upper.includes(r.paintingAgency.trim().toUpperCase()))
-              return isAssigned && (r.painting || "").toLowerCase() !== "done"
-            }).length
-            setDtrPaintingPendingCount(paintingPending)
-          }
-        } catch (e) {
-          console.error(e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, dtr: false, "dtr-painting": false }))
-        }
+        })())
       }
 
-      // Material Stock
-      if (hasReadPermission("material")) {
-        try {
-          let cached = await getFromCache<any>("material_stock_cache")
-          if (!cached || !cached.stock) {
+      // Task: Material Stock
+      if ((!cachedMaterial || !cachedMaterial.stock) && hasReadPermission("material")) {
+        networkTasks.push((async () => {
+          try {
             setLoadingModules(prev => ({ ...prev, material: true }))
-            try {
-              const res = await fetch("/api/material")
-              if (res.ok) {
-                const freshData = await res.json()
-                if (freshData && freshData.stock) {
-                  cached = freshData
-                  await saveToCache("material_stock_cache", cached)
-                }
+            const res = await fetch("/api/material")
+            if (res.ok) {
+              const freshData = await res.json()
+              if (freshData && freshData.stock) {
+                await saveToCache("material_stock_cache", freshData)
+                const stock = freshData.stock || []
+                const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
+                setMaterialPendingCount(belowThresholdCount)
               }
-            } catch (err) { console.error("Auto-fetch material failed", err) }
+            }
+          } catch (err) {
+            console.error("Fetch material failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, material: false }))
           }
-          if (cached) {
-            const stock = cached.stock || []
-            const belowThresholdCount = stock.filter((s: any) => s.currentStock < (s.threshold || 0)).length
-            setMaterialPendingCount(belowThresholdCount)
-          }
-        } catch (e) {
-          console.error("Local cache material pending calculation failed", e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, material: false }))
-        }
+        })())
       }
 
-      // Consumer Master count
+      // Task: Consumer Master Row Count
       if (hasReadPermission("consumer_master")) {
-        try {
-          const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
-          const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
-          let hasCache = false
-          if (cachedMaster) {
-            setMasterCount(parseInt(cachedMaster, 10))
-            hasCache = true
+        networkTasks.push((async () => {
+          try {
+            const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+            const cachedMaster = localStorage.getItem(`${prefix}consumer_master_row_count`)
+            if (!cachedMaster) {
+              setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
+            }
+            const res = await fetch("/api/system/row-count?type=master")
+            if (res.ok) {
+              const data = await res.json()
+              setMasterCount(data.count)
+              localStorage.setItem(`${prefix}consumer_master_row_count`, String(data.count))
+            }
+          } catch (err) {
+            console.error("Fetch master count failed", err)
+          } finally {
+            setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
           }
-          if (!hasCache) {
-            setLoadingModules(prev => ({ ...prev, "consumer-master": true }))
-          }
-          const res = await fetch("/api/system/row-count?type=master")
-          if (res.ok) {
-            const data = await res.json()
-            setMasterCount(data.count)
-            localStorage.setItem(`${prefix}consumer_master_row_count`, String(data.count))
-          }
-        } catch (e) {
-          console.error("Auto-fetch master count failed", e)
-        } finally {
-          setLoadingModules(prev => ({ ...prev, "consumer-master": false }))
-        }
+        })())
       }
+
+      // Run all network tasks concurrently in the background without blocking the UI
+      Promise.allSettled(networkTasks).then(() => {
+        refreshGlobalLatestDate()
+      })
 
       // Listener for module-specific badge cache updates
       const handleCacheUpdate = async (e: Event) => {

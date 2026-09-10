@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
       paymentHistory,
     }, {
       headers: {
-        "Cache-Control": "private, max-age=60, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": "private, no-store, no-cache, must-revalidate",
       },
     })
   } catch (error: any) {

@@ -8,6 +8,9 @@ import { PushNotificationManager } from "@/components/push-notification-manager"
 interface DashboardShellProps {
   role: string
   agencies: string[]
+  userName?: string
+  userCccCode?: string
+  initialProfile?: any
   showAdminPanel: boolean
   openAdmin: () => void
   closeAdmin: () => void
@@ -23,6 +26,9 @@ interface DashboardShellProps {
 export function DashboardShell({ 
   role, 
   agencies, 
+  userName,
+  userCccCode,
+  initialProfile,
   showAdminPanel, 
   openAdmin, 
   closeAdmin, 
@@ -47,6 +53,9 @@ export function DashboardShell({
       <Header 
         userRole={role} 
         userAgencies={agencies}
+        userName={userName}
+        userCccCode={userCccCode}
+        initialProfile={initialProfile}
         onAdminClick={(role === "admin" || permissions?.admin?.includes("read")) ? openAdmin : undefined} 
         onDownload={onDownload} 
         onDownloadExcel={onDownloadExcel}

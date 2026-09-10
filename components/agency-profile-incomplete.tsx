@@ -47,6 +47,9 @@ export function AgencyProfileIncomplete({
   const handleLogout = async () => {
     setLoggingOut(true)
     try {
+      try {
+        sessionStorage.clear()
+      } catch {}
       await logout()
     } catch {
       window.location.href = "/login"

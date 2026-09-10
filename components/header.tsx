@@ -82,6 +82,17 @@ import { Palette } from "lucide-react"
 interface HeaderProps {
   userRole: string
   userAgencies?: string[]
+  userName?: string
+  userCccCode?: string
+  initialProfile?: {
+    name?: string
+    username?: string
+    cccCode?: string
+    cccName?: string
+    isSubscribed?: boolean
+    subscriptionExpiresAt?: string
+    bypassSubscription?: boolean
+  }
   onAdminClick?: () => void
   onDownload?: () => void
   onDownloadExcel?: () => void
@@ -91,7 +102,20 @@ interface HeaderProps {
   permissions?: Record<string, string[]>
 }
 
-export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, onDownloadExcel, onDownloadDefaulters, activeView: propsActiveView, setActiveView: propsSetActiveView, permissions }: HeaderProps) {
+export function Header({
+  userRole,
+  userAgencies = [],
+  userName,
+  userCccCode,
+  initialProfile,
+  onAdminClick,
+  onDownload,
+  onDownloadExcel,
+  onDownloadDefaulters,
+  activeView: propsActiveView,
+  setActiveView: propsSetActiveView,
+  permissions
+}: HeaderProps) {
   const dashboard = useDashboard()
   const setActiveView = dashboard?.setActiveView || propsSetActiveView || (() => {})
   const activeView = dashboard?.activeView || propsActiveView
@@ -138,9 +162,9 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
   const [showBroadcastPushModal, setShowBroadcastPushModal] = useState(false)
   const [showProfileDialog, setShowProfileDialog] = useState(false)
   const [showOsdDialog, setShowOsdDialog] = useState(false)
-  const [profileData, setProfileData] = useState<any>(null)
-  const [clientCccCode, setClientCccCode] = useState<string>("")
-  const [clientUsername, setClientUsername] = useState<string>("")
+  const [profileData, setProfileData] = useState<any>(initialProfile || null)
+  const [clientCccCode, setClientCccCode] = useState<string>(userCccCode || initialProfile?.cccCode || "")
+  const [clientUsername, setClientUsername] = useState<string>(userName || initialProfile?.username || "")
   const { theme: currentModuleTheme, changeTheme: setModuleTheme, options: moduleThemeOptions } = useModuleTheme()
   const [showThemeModal, setShowThemeModal] = useState(false)
 
@@ -163,6 +187,12 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
           setClientCccCode(data.cccCode)
           if (typeof window !== "undefined") {
             localStorage.setItem("user_ccc_code", data.cccCode)
+          }
+        }
+        if (data?.username) {
+          setClientUsername(data.username)
+          if (typeof window !== "undefined") {
+            localStorage.setItem("user_username", data.username)
           }
         }
         return data
@@ -191,6 +221,8 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
           userMobile: pData.mobileNumber,
           vendorCode: pData.vendorCode,
         }))
+        if (pData?.cccCode) setClientCccCode(pData.cccCode)
+        if (pData?.username) setClientUsername(pData.username)
         return pData
       }
     } catch (err) {
@@ -249,8 +281,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setClientCccCode(localStorage.getItem("user_ccc_code") || "")
-      setClientUsername(localStorage.getItem("user_username") || "")
+      const storedCcc = localStorage.getItem("user_ccc_code")
+      const storedUser = localStorage.getItem("user_username")
+      if (!clientCccCode && storedCcc) setClientCccCode(storedCcc)
+      if (!clientUsername && storedUser) setClientUsername(storedUser)
     }
     loadUserProfile()
 
@@ -646,11 +680,13 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     try {
       setLoggingOut(true);
       try {
-        sessionStorage.clear()
-        localStorage.removeItem("user_ccc_code")
-        localStorage.removeItem("user_username")
-        localStorage.removeItem("user_permissions")
-        localStorage.removeItem("_hb_date")
+        sessionStorage.clear();
+        localStorage.removeItem("user_ccc_code");
+        localStorage.removeItem("user_username");
+        localStorage.removeItem("user_role");
+        localStorage.removeItem("user_permissions");
+        localStorage.removeItem("user_ccc_name");
+        localStorage.removeItem("_hb_date");
       } catch (e) {
         // ignore storage errors
       }
@@ -1087,7 +1123,10 @@ export function Header({ userRole, userAgencies = [], onAdminClick, onDownload, 
     ? (userAgencies.length === 1 ? userAgencies[0] : `${userAgencies[0]} (+${userAgencies.length - 1})`)
     : null;
   const cccCode = profileData?.cccCode || clientCccCode || "";
-  const loginDisplayName = profileData?.name || profileData?.username || displayAgencyName || clientUsername || userRole;
+  const isAgencyRole = userRole === "agency";
+  const loginDisplayName = isAgencyRole
+    ? (displayAgencyName || profileData?.name || profileData?.username || clientUsername || userRole)
+    : (profileData?.name || profileData?.fullName || userName || profileData?.username || clientUsername || userRole);
 
   return (
     <header className="bg-white shadow sticky top-0 z-50">

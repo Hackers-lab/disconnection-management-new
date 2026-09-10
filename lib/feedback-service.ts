@@ -20,7 +20,12 @@ const sheets = googleSheets({ version: "v4", auth })
 
 let memoryFeedbacksCache: FeedbackItem[] | null = null
 let lastFetchTime = 0
-const CACHE_TTL_MS = 300_000 // 5 minutes memory cache
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days in-memory cache (invalidated on feedback add/update)
+
+export function invalidateFeedbackCache() {
+  memoryFeedbacksCache = null
+  lastFetchTime = 0
+}
 
 export function getFeedbackMasterSheetId(): string {
   return process.env.MASTER_CONFIG_SHEET?.trim() || getSpreadsheetId()

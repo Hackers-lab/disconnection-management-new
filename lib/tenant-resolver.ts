@@ -37,11 +37,11 @@ type CachedRegistry = {
 }
 
 let registryCache: CachedRegistry | null = null
-const CACHE_TTL_MS = 60 * 1000 // 60 seconds cache
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days in-memory cache (invalidated on CCC add/update)
 
 let cachedTenantCount: number | null = null
 let lastTenantCountFetch = 0
-const TENANT_COUNT_TTL = 3600_000 // 1 hour in-memory cache to prevent DB row read usage
+const TENANT_COUNT_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days in-memory cache (invalidated on CCC add/update)
 
 export function invalidateTenantCache() {
   registryCache = null
