@@ -275,30 +275,240 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(new Set())
 
+  // Bulk operation dialogs
+  const [bulkCloseDialogOpen, setBulkCloseDialogOpen] = useState(false)
+  const [bulkCloseRemarks, setBulkCloseRemarks] = useState("")
+  const [bulkClosing, setBulkClosing] = useState(false)
+
+  const [bulkPurposeDialogOpen, setBulkPurposeDialogOpen] = useState(false)
+  const [bulkNewPurpose, setBulkNewPurpose] = useState<string>("faulty_replacement")
+  const [bulkUpdatingPurpose, setBulkUpdatingPurpose] = useState(false)
+
+  const [bulkCompleteDialogOpen, setBulkCompleteDialogOpen] = useState(false)
+  const [bulkCompleting, setBulkCompleting] = useState(false)
+  const bulkExcelFileInputRef = useRef<HTMLInputElement>(null)
+
   const toggleBulkSelect = (r: MeterReplacement) => {
     setSelectedForBulk(prev => {
       const next = new Set(prev)
       if (next.has(r.replacementId)) {
         next.delete(r.replacementId)
       } else {
-        // Enforce same agency rule for bulk selection
-        const selectedItems = Array.from(prev).map(id => records.find(item => item.replacementId === id)).filter(Boolean) as MeterReplacement[]
-        if (selectedItems.length > 0) {
-          const firstAgency = (selectedItems[0].agency || "").trim().toUpperCase()
-          const currentAgency = (r.agency || "").trim().toUpperCase()
-          if (firstAgency && currentAgency && firstAgency !== currentAgency) {
-            toast({
-              title: "Same Agency Required",
-              description: `All selected meters must belong to the same agency (${selectedItems[0].agency}).`,
-              variant: "destructive"
-            })
-            return prev
+        // Enforce same agency rule only for Work Order / WO Finalize actions on 'updated' tab
+        if (tab === "updated") {
+          const selectedItems = Array.from(prev).map(id => records.find(item => item.replacementId === id)).filter(Boolean) as MeterReplacement[]
+          if (selectedItems.length > 0) {
+            const firstAgency = (selectedItems[0].agency || "").trim().toUpperCase()
+            const currentAgency = (r.agency || "").trim().toUpperCase()
+            if (firstAgency && currentAgency && firstAgency !== currentAgency) {
+              toast({
+                title: "Same Agency Required",
+                description: `All selected meters must belong to the same agency (${selectedItems[0].agency}).`,
+                variant: "destructive"
+              })
+              return prev
+            }
           }
         }
         next.add(r.replacementId)
       }
       return next
     })
+  }
+
+  const handleSelectAllVisible = () => {
+    const selectable = paginated.filter(r => r.status !== "closed")
+    const allSelected = selectable.length > 0 && selectable.every(r => selectedForBulk.has(r.replacementId))
+    setSelectedForBulk(prev => {
+      const next = new Set(prev)
+      if (allSelected) {
+        selectable.forEach(r => next.delete(r.replacementId))
+      } else {
+        selectable.forEach(r => next.add(r.replacementId))
+      }
+      return next
+    })
+  }
+
+  const handleBulkClose = async () => {
+    if (selectedForBulk.size === 0 || !bulkCloseRemarks.trim()) {
+      toast({ title: "Please enter remarks for closing", variant: "destructive" })
+      return
+    }
+    const ids = Array.from(selectedForBulk)
+    const remarks = bulkCloseRemarks.trim()
+    setBulkClosing(true)
+
+    // Optimistic UI update
+    setRecords(prev => {
+      const idSet = new Set(ids)
+      const updated = prev.map(r => idSet.has(r.replacementId) ? { ...r, status: "closed" as const, remarks } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setBulkCloseDialogOpen(false)
+    setBulkCloseRemarks("")
+
+    try {
+      const res = await fetch("/api/meters/replacement", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulk_close",
+          replacementIds: ids,
+          remarks
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to close proposals in bulk")
+      toast({ title: `Successfully closed ${data.closedCount || ids.length} proposals` })
+      setSelectedForBulk(new Set())
+      load(true, true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to close proposals", variant: "destructive" })
+      load(true, true)
+    } finally {
+      setBulkClosing(false)
+    }
+  }
+
+  const handleBulkPurposeChange = async () => {
+    if (selectedForBulk.size === 0) return
+    const ids = Array.from(selectedForBulk)
+    setBulkUpdatingPurpose(true)
+
+    // Optimistic UI update
+    setRecords(prev => {
+      const idSet = new Set(ids)
+      const updated = prev.map(r => idSet.has(r.replacementId) ? { ...r, purpose: bulkNewPurpose as any } : r)
+      saveToCache(CACHE_KEY, updated)
+      return updated
+    })
+    setBulkPurposeDialogOpen(false)
+
+    try {
+      const res = await fetch("/api/meters/replacement", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulk_purpose",
+          replacementIds: ids,
+          purpose: bulkNewPurpose
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to update purpose")
+      toast({ title: `Updated purpose for ${data.updatedCount || ids.length} proposals` })
+      setSelectedForBulk(new Set())
+      load(true, true)
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to update purpose", variant: "destructive" })
+      load(true, true)
+    } finally {
+      setBulkUpdatingPurpose(false)
+    }
+  }
+
+  const downloadCompletionExcelTemplate = async () => {
+    const XLSX = await import("xlsx")
+    // Use selected cards if any, else currently filtered items that are proposed or issued
+    const targetItems = selectedForBulk.size > 0
+      ? Array.from(selectedForBulk).map(id => records.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
+      : filtered.filter(r => r.status === "proposed" || r.status === "issued" || r.status === "updated")
+
+    if (targetItems.length === 0) {
+      toast({ title: "No proposals to export", description: "Select records or filter proposed/issued/installed cards.", variant: "destructive" })
+      return
+    }
+
+    const rows = targetItems.map(r => ({
+      "Replacement ID": r.replacementId,
+      "Consumer ID": r.consumerId,
+      "Consumer Name": r.consumerName,
+      "Address": r.address,
+      "Agency": r.agency,
+      "Purpose": r.purpose,
+      "New Meter Serial*": r.serialNo || "",
+      "Installation Date (DD.MM.YYYY)": new Date().toLocaleDateString("en-GB").replace(/\//g, "."),
+      "Last Reading": "",
+      "New Reading": "0",
+      "Work Order No": r.workOrderNo || "",
+      "Note Sheet No": r.noteSheetNo || "",
+      "Remarks": r.remarks || "Installed"
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Bulk Completion")
+    XLSX.writeFile(wb, `Meter_Completion_Template_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+  const handleBulkExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBulkCompleting(true)
+    try {
+      const XLSX = await import("xlsx")
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: "array" })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows: any[] = XLSX.utils.sheet_to_json(ws)
+
+      if (!rows || rows.length === 0) {
+        toast({ title: "Excel file is empty", variant: "destructive" })
+        return
+      }
+
+      const payloadRows = rows.map((r: any) => ({
+        replacementId: String(r["Replacement ID"] || r["replacement_id"] || r["ReplacementId"] || "").trim(),
+        consumerId: String(r["Consumer ID"] || r["consumer_id"] || r["ConsumerId"] || "").trim(),
+        serialNo: String(r["New Meter Serial*"] || r["New Meter Serial"] || r["Serial No"] || r["serial_no"] || "").trim(),
+        installationDate: String(r["Installation Date (DD.MM.YYYY)"] || r["Installation Date"] || r["installation_date"] || "").trim(),
+        lastReading: String(r["Last Reading"] ?? "").trim(),
+        newReading: String(r["New Reading"] ?? "").trim(),
+        workOrderNo: String(r["Work Order No"] || r["work_order_no"] || "").trim(),
+        noteSheetNo: String(r["Note Sheet No"] || r["note_sheet_no"] || "").trim(),
+        remarks: String(r["Remarks"] || r["remarks"] || "").trim(),
+      })).filter(r => r.replacementId || r.consumerId)
+
+      if (payloadRows.length === 0) {
+        toast({ title: "No valid rows found", description: "Each row must have Replacement ID or Consumer ID.", variant: "destructive" })
+        return
+      }
+
+      const res = await fetch("/api/meters/replacement", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "bulk_complete",
+          rows: payloadRows
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to process bulk completion")
+
+      const failCount = data.failed?.length || 0
+      if (failCount > 0) {
+        toast({
+          title: `Completed ${data.succeeded} meter(s)`,
+          description: `${failCount} failed: ${data.failed.slice(0, 2).map((f: any) => `${f.identifier}: ${f.reason}`).join(", ")}`,
+          variant: "destructive"
+        })
+      } else {
+        toast({
+          title: "Bulk Completion Successful",
+          description: `Successfully completed all ${data.succeeded} meter installation(s)!`
+        })
+      }
+      setBulkCompleteDialogOpen(false)
+      setSelectedForBulk(new Set())
+      load(true, true)
+    } catch (err: any) {
+      toast({ title: err.message || "Failed to process file", variant: "destructive" })
+    } finally {
+      setBulkCompleting(false)
+      if (bulkExcelFileInputRef.current) bulkExcelFileInputRef.current.value = ""
+    }
   }
 
   const { checkVersion } = useModuleVersionSync<MeterReplacement>(
@@ -575,20 +785,45 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         </div>
 
         {/* Tab Filters */}
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {(["all", "proposed", "issued", "updated", "replaced", "completed", "closed"] as Tab[]).map(t => {
-            const valid = records
-            const count = t === "all" ? valid.length
-              : t === "replaced" ? valid.filter(r => r.status === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim())).length
-              : t === "completed" ? valid.filter(r => r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim()).length
-              : valid.filter(r => r.status === t).length
-            return (
-              <button key={t} onClick={() => setTab(t)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                {`${STATUS_LABELS[t]} (${count})`}
-              </button>
-            )
-          })}
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {(["all", "proposed", "issued", "updated", "replaced", "completed", "closed"] as Tab[]).map(t => {
+              const valid = records
+              const count = t === "all" ? valid.length
+                : t === "replaced" ? valid.filter(r => r.status === "replaced" && (!r.noteSheetNo || !r.noteSheetNo.trim())).length
+                : t === "completed" ? valid.filter(r => r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim()).length
+                : valid.filter(r => r.status === t).length
+              return (
+                <button key={t} onClick={() => setTab(t)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  {`${STATUS_LABELS[t]} (${count})`}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSelectAllVisible}
+              className="text-xs h-7 px-2 border-dashed border-slate-300 text-slate-700 hover:bg-slate-50"
+              title="Select / Unselect all visible cards"
+            >
+              <Check className="h-3.5 w-3.5 mr-1" />
+              {paginated.filter(r => r.status !== "closed").length > 0 && paginated.filter(r => r.status !== "closed").every(r => selectedForBulk.has(r.replacementId)) ? "Deselect Page" : "Select Page"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setBulkCompleteDialogOpen(true)}
+              className="text-xs h-7 px-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+              title="Bulk Complete via Excel"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
+              Bulk Excel
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -604,7 +839,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
-                  {tab !== "all" && (tab === "updated" || tab === "completed") && (
+                  {r.status !== "closed" && (
                     <input
                       type="checkbox"
                       className="h-4 w-4 mt-1 accent-blue-600 cursor-pointer shrink-0"
@@ -736,18 +971,44 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       </div>
 
       {/* Floating Bulk Action Bar */}
-      {tab !== "all" && selectedForBulk.size > 0 && (() => {
+      {selectedForBulk.size > 0 && (() => {
         const selectedReps = Array.from(selectedForBulk).map(id => records.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
-        const agencyName = selectedReps[0]?.agency || "Selected"
+        const firstAgency = selectedReps[0]?.agency || "Selected"
+        const hasMultipleAgencies = selectedReps.some(r => (r.agency || "").trim().toUpperCase() !== (firstAgency || "").trim().toUpperCase())
+        const agencyLabel = hasMultipleAgencies ? "Multiple Agencies" : firstAgency
+
         return (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 flex-wrap justify-center">
-            <span className="text-xs font-bold text-blue-400 pl-2">
-              {selectedForBulk.size} selected ({agencyName})
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-slate-700 flex-wrap justify-center max-w-[95vw]">
+            <span className="text-xs font-bold text-blue-400 pl-1 shrink-0">
+              {selectedForBulk.size} selected ({agencyLabel})
             </span>
-            {tab === "updated" && (
-              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold h-8"
+
+            {/* Bulk Close / Cancel (Available for all tabs if admin or permitted) */}
+            {(isAdmin || !!(permissions && (permissions.meter_replacement?.includes("delete") || permissions.meter_replacement?.includes("write")))) && (
+              <Button size="sm" variant="destructive" className="h-8 text-xs font-semibold px-2.5 bg-red-600 hover:bg-red-700"
+                onClick={() => { setBulkCloseRemarks(""); setBulkCloseDialogOpen(true) }}>
+                <X className="h-3.5 w-3.5 mr-1" /> Bulk Close ({selectedForBulk.size})
+              </Button>
+            )}
+
+            {/* Bulk Purpose Update (Change between faulty, burnt, slow_fast) */}
+            {(isAdmin || !!(permissions && (permissions.meter_replacement?.includes("write") || permissions.meter_replacement?.includes("update")))) && (
+              <Button size="sm" className="h-8 text-xs font-semibold px-2.5 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => { setBulkNewPurpose("faulty_replacement"); setBulkPurposeDialogOpen(true) }}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" /> Change Purpose ({selectedForBulk.size})
+              </Button>
+            )}
+
+            {/* Bulk Complete via Excel */}
+            <Button size="sm" className="h-8 text-xs font-semibold px-2.5 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => setBulkCompleteDialogOpen(true)}>
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Complete via Excel ({selectedForBulk.size})
+            </Button>
+
+            {tab === "updated" && !hasMultipleAgencies && (
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold h-8 px-2.5"
                 onClick={async () => {
-                  const wo = prompt(`Enter Work Order Number for ${selectedForBulk.size} selected records of ${agencyName}:`)
+                  const wo = prompt(`Enter Work Order Number for ${selectedForBulk.size} selected records of ${firstAgency}:`)
                   if (!wo || !wo.trim()) return
                   try {
                     const res = await fetch("/api/meters/finalize", {
@@ -769,11 +1030,12 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                     toast({ title: err.message || "Failed to update work order", variant: "destructive" })
                   }
                 }}>
-                Add Work Order Number to Selected ({selectedForBulk.size})
+                Add WO ({selectedForBulk.size})
               </Button>
             )}
+
             {tab === "completed" && (
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8"
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8 px-2.5"
                 onClick={async () => {
                   const remarks = prompt(`Enter Bulk Return remarks for ${selectedForBulk.size} selected completed meters:`)
                   if (!remarks || !remarks.trim()) return
@@ -796,11 +1058,12 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                     toast({ title: err.message || "Failed to process bulk return", variant: "destructive" })
                   }
                 }}>
-                Bulk Meter Return ({selectedForBulk.size})
+                Bulk Return ({selectedForBulk.size})
               </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulk(new Set())} className="text-xs text-gray-300 hover:text-white h-8">
-              Clear Selection
+
+            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulk(new Set())} className="text-xs text-gray-300 hover:text-white h-8 px-2">
+              Clear
             </Button>
           </div>
         )
@@ -958,6 +1221,141 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
           onSuccess={() => { toast({ title: "Note Sheet updated" }); load(true, true) }}
         />
       )}
+
+      {/* Bulk Close Proposal Modal */}
+      <Dialog open={bulkCloseDialogOpen} onOpenChange={open => !open && setBulkCloseDialogOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 font-bold flex items-center gap-1.5">
+              <X className="h-5 w-5" /> Bulk Close / Cancel Proposals
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 my-2">
+            <div className="bg-red-50 p-3 rounded-lg text-xs space-y-1 border border-red-200">
+              <p className="font-bold text-red-800">
+                You are about to close {selectedForBulk.size} selected replacement proposals.
+              </p>
+              <p className="text-red-700">
+                Any meters currently issued for these proposals will automatically be released back to <span className="font-bold">Available Stock</span>.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Cancellation Reason / Remarks *</Label>
+              <Textarea
+                value={bulkCloseRemarks}
+                onChange={e => setBulkCloseRemarks(e.target.value)}
+                placeholder="Reason for closing these proposals in bulk (e.g., Bulk cancelled by office, Tested OK)..."
+                rows={3}
+                className="text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setBulkCloseDialogOpen(false)} disabled={bulkClosing}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="destructive" onClick={handleBulkClose} disabled={bulkClosing || !bulkCloseRemarks.trim()}>
+              {bulkClosing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Confirm Bulk Close ({selectedForBulk.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Change Purpose Modal */}
+      <Dialog open={bulkPurposeDialogOpen} onOpenChange={open => !open && setBulkPurposeDialogOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-700 font-bold flex items-center gap-1.5">
+              <RefreshCw className="h-5 w-5" /> Change Purpose in Bulk
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 my-2">
+            <div className="bg-amber-50 p-3 rounded-lg text-xs space-y-1 border border-amber-200">
+              <p className="font-semibold text-amber-900">
+                Updating purpose for {selectedForBulk.size} selected proposals.
+              </p>
+              <p className="text-amber-700">
+                If meters are already issued, their linked issue purpose will also be synced automatically.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Select New Replacement Purpose</Label>
+              <Select value={bulkNewPurpose} onValueChange={setBulkNewPurpose}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Select Purpose" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="faulty_replacement">Faulty Replacement (DEF)</SelectItem>
+                  <SelectItem value="burnt_replacement">Burnt Replacement (BURNT)</SelectItem>
+                  <SelectItem value="slow_fast">Check Meter / Slow-Fast (CHECK)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setBulkPurposeDialogOpen(false)} disabled={bulkUpdatingPurpose}>
+              Cancel
+            </Button>
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white font-semibold" onClick={handleBulkPurposeChange} disabled={bulkUpdatingPurpose}>
+              {bulkUpdatingPurpose ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Save Purpose Change ({selectedForBulk.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Complete via Excel Modal */}
+      <Dialog open={bulkCompleteDialogOpen} onOpenChange={open => !open && setBulkCompleteDialogOpen(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-blue-700 font-bold flex items-center gap-1.5">
+              <FileSpreadsheet className="h-5 w-5" /> Bulk Installation Completion via Excel
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 my-2 text-xs">
+            <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200 space-y-2">
+              <p className="font-bold text-blue-900 text-sm">Step 1: Download Pre-filled Template</p>
+              <p className="text-blue-800">
+                Download an Excel sheet containing your {selectedForBulk.size > 0 ? `${selectedForBulk.size} selected` : "filtered"} proposals.
+                Consumer ID, Name, Address, and Agency are non-editable reference columns.
+              </p>
+              <Button size="sm" variant="outline" className="bg-white hover:bg-blue-100 text-blue-700 font-semibold border-blue-300"
+                onClick={downloadCompletionExcelTemplate}>
+                <Download className="h-4 w-4 mr-1.5" /> Download Completion Template (.xlsx)
+              </Button>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+              <p className="font-bold text-slate-900 text-sm">Step 2: Upload Filled File</p>
+              <p className="text-slate-600">
+                Fill in <span className="font-semibold text-slate-800">New Meter Serial</span>, <span className="font-semibold text-slate-800">Installation Date</span>, <span className="font-semibold text-slate-800">Last/New Readings</span>, and optional <span className="font-semibold text-slate-800">Work Order No</span>.
+              </p>
+              <div className="flex items-center gap-3 pt-1">
+                <input
+                  ref={bulkExcelFileInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleBulkExcelUpload}
+                  disabled={bulkCompleting}
+                  className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+                />
+              </div>
+              {bulkCompleting && (
+                <div className="flex items-center gap-2 text-blue-700 font-semibold pt-1">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Processing installations in Google Sheets...</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setBulkCompleteDialogOpen(false)} disabled={bulkCompleting}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -973,12 +1371,12 @@ interface FormProps {
 
 function isReplacementIncomplete(r: MeterReplacement) {
   if (r.status === "closed") return false
-  if (r.status === "completed") return false
   if (r.status === "replaced" && r.noteSheetNo && r.noteSheetNo.trim()) return false
   return true
 }
 
 function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecords = [], downloadProposalTemplate, onSave, onCancel }: FormProps) {
+  const { toast } = useToast()
   const [entryMode, setEntryMode] = useState<"single" | "excel">("single")
   const [consumerId, setConsumerId] = useState("")
   const [looking, setLooking] = useState(false)
@@ -1165,7 +1563,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
           if (!cAgency) cAgency = matchConsumer?.agency || ""
           if (!cOldMeter) cOldMeter = matchConsumer?.device || matchMaster?.meterNo || ""
 
-          isDeemedCached = (matchConsumer?.status || "").toLowerCase().includes("deemed") ||
+          isDeemedCached = ((matchConsumer as any)?.status || "").toLowerCase().includes("deemed") ||
                            String((matchMaster as any)?.status || "").toLowerCase().includes("deemed")
         }
 

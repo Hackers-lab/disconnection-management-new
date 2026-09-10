@@ -352,19 +352,349 @@ export async function closeReplacement(replacementId: string, remarks: string): 
   const all = await _fetchReplacementsRaw(id)
   const idx = all.findIndex(r => r.replacementId === replacementId)
   if (idx === -1) throw new Error("Replacement record not found")
+  const rec = all[idx]
   const rowNum = idx + 2
+  const now = nowDate()
+
+  const updates: Array<{ range: string; values: any[][] }> = [
+    { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [["closed"]] },
+    { range: `${REPLACEMENT_TAB}!Q${rowNum}`, values: [[remarks]] },
+  ]
+
+  // If a meter was issued to this replacement, free it in stock and mark issue returned
+  if (rec.serialNo || rec.issueId) {
+    try {
+      const { STOCK_TAB, ISSUES_TAB, _fetchStockRaw, _fetchIssuesRaw, invalidateMeterCache } = await import("./meter-service")
+      const [stock, issues] = await Promise.all([_fetchStockRaw(id), _fetchIssuesRaw(id)])
+
+      // 1. Release Stock to "available"
+      if (rec.serialNo) {
+        const si = stock.findIndex(m => m.serialNo.toUpperCase() === rec.serialNo.toUpperCase())
+        if (si !== -1) {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: id,
+            requestBody: {
+              valueInputOption: "RAW",
+              data: [
+                { range: `${STOCK_TAB}!F${si + 2}`, values: [["available"]] },
+                { range: `${STOCK_TAB}!H${si + 2}`, values: [[`Freed upon cancellation of proposal ${replacementId}: ${remarks}`]] },
+                { range: `${STOCK_TAB}!I${si + 2}`, values: [[now]] },
+              ]
+            }
+          })
+        }
+      }
+
+      // 2. Mark issue record as returned / cancelled
+      if (rec.issueId) {
+        const ii = issues.findIndex(i => i.issueId === rec.issueId)
+        if (ii !== -1) {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: id,
+            requestBody: {
+              valueInputOption: "RAW",
+              data: [
+                { range: `${ISSUES_TAB}!J${ii + 2}`, values: [["returned"]] },
+                { range: `${ISSUES_TAB}!R${ii + 2}`, values: [[`Proposal ${replacementId} closed/cancelled: ${remarks}`]] },
+                { range: `${ISSUES_TAB}!P${ii + 2}`, values: [[now]] },
+              ]
+            }
+          })
+        }
+      }
+
+      invalidateMeterCache()
+    } catch (stockErr) {
+      console.error("Error freeing meter in stock on closeReplacement:", stockErr)
+    }
+  }
 
   await sheets.spreadsheets.values.batchUpdate({
     spreadsheetId: id,
     requestBody: {
       valueInputOption: "RAW",
-      data: [
-        { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [["closed"]] },
-        { range: `${REPLACEMENT_TAB}!Q${rowNum}`, values: [[remarks]] },
-      ]
+      data: updates
     }
   })
   invalidateReplacementCache()
+}
+
+export async function closeBulkReplacements(
+  replacementIds: string[],
+  remarks: string
+): Promise<{ closedCount: number; freedMetersCount: number }> {
+  if (replacementIds.length === 0) return { closedCount: 0, freedMetersCount: 0 }
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+  const now = nowDate()
+
+  const repUpdates: Array<{ range: string; values: any[][] }> = []
+  const serialsToFree = new Set<string>()
+  const issueIdsToReturn = new Set<string>()
+  let closedCount = 0
+
+  for (const repId of replacementIds) {
+    const idx = all.findIndex(r => r.replacementId === repId)
+    if (idx === -1) continue
+    const rec = all[idx]
+    const rowNum = idx + 2
+    repUpdates.push(
+      { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [["closed"]] },
+      { range: `${REPLACEMENT_TAB}!Q${rowNum}`, values: [[remarks]] }
+    )
+    closedCount++
+
+    if (rec.serialNo) serialsToFree.add(rec.serialNo.toUpperCase().trim())
+    if (rec.issueId) issueIdsToReturn.add(rec.issueId.trim())
+  }
+
+  if (repUpdates.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: id,
+      requestBody: { valueInputOption: "RAW", data: repUpdates }
+    })
+    invalidateReplacementCache()
+  }
+
+  // Free meters in stock
+  let freedMetersCount = 0
+  if (serialsToFree.size > 0 || issueIdsToReturn.size > 0) {
+    try {
+      const { STOCK_TAB, ISSUES_TAB, _fetchStockRaw, _fetchIssuesRaw, invalidateMeterCache } = await import("./meter-service")
+      const [stock, issues] = await Promise.all([_fetchStockRaw(id), _fetchIssuesRaw(id)])
+
+      const stockUpdates: Array<{ range: string; values: any[][] }> = []
+      for (const serial of serialsToFree) {
+        const si = stock.findIndex(m => m.serialNo.toUpperCase().trim() === serial)
+        if (si !== -1) {
+          stockUpdates.push(
+            { range: `${STOCK_TAB}!F${si + 2}`, values: [["available"]] },
+            { range: `${STOCK_TAB}!H${si + 2}`, values: [[`Freed via bulk cancellation: ${remarks}`]] },
+            { range: `${STOCK_TAB}!I${si + 2}`, values: [[now]] }
+          )
+          freedMetersCount++
+        }
+      }
+
+      const issueUpdates: Array<{ range: string; values: any[][] }> = []
+      for (const issueId of issueIdsToReturn) {
+        const ii = issues.findIndex(i => i.issueId.trim() === issueId)
+        if (ii !== -1) {
+          issueUpdates.push(
+            { range: `${ISSUES_TAB}!J${ii + 2}`, values: [["returned"]] },
+            { range: `${ISSUES_TAB}!R${ii + 2}`, values: [[`Bulk proposal closed/cancelled: ${remarks}`]] },
+            { range: `${ISSUES_TAB}!P${ii + 2}`, values: [[now]] }
+          )
+        }
+      }
+
+      if (stockUpdates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: id,
+          requestBody: { valueInputOption: "RAW", data: stockUpdates }
+        })
+      }
+      if (issueUpdates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: id,
+          requestBody: { valueInputOption: "RAW", data: issueUpdates }
+        })
+      }
+      invalidateMeterCache()
+    } catch (err) {
+      console.error("Error freeing bulk meters in stock:", err)
+    }
+  }
+
+  return { closedCount, freedMetersCount }
+}
+
+export async function updateBulkPurpose(
+  replacementIds: string[],
+  newPurpose: "faulty_replacement" | "burnt_replacement" | "slow_fast"
+): Promise<{ updatedCount: number }> {
+  if (replacementIds.length === 0) return { updatedCount: 0 }
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+
+  const updates: Array<{ range: string; values: any[][] }> = []
+  const linkedIssueIds: string[] = []
+  let updatedCount = 0
+
+  for (const repId of replacementIds) {
+    const idx = all.findIndex(r => r.replacementId === repId)
+    if (idx === -1) continue
+    const rec = all[idx]
+    const rowNum = idx + 2
+    updates.push({ range: `${REPLACEMENT_TAB}!G${rowNum}`, values: [[newPurpose]] })
+    updatedCount++
+    if (rec.issueId) {
+      linkedIssueIds.push(rec.issueId)
+    }
+  }
+
+  if (updates.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: id,
+      requestBody: { valueInputOption: "RAW", data: updates }
+    })
+    invalidateReplacementCache()
+  }
+
+  // Also update linked Meter_Issues purpose if already issued
+  if (linkedIssueIds.length > 0) {
+    try {
+      const { ISSUES_TAB, _fetchIssuesRaw, invalidateMeterCache } = await import("./meter-service")
+      const issues = await _fetchIssuesRaw(id)
+      const issueUpdates: Array<{ range: string; values: any[][] }> = []
+      for (const issId of linkedIssueIds) {
+        const ii = issues.findIndex(i => i.issueId === issId)
+        if (ii !== -1) {
+          issueUpdates.push({ range: `${ISSUES_TAB}!C${ii + 2}`, values: [[newPurpose]] })
+        }
+      }
+      if (issueUpdates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: id,
+          requestBody: { valueInputOption: "RAW", data: issueUpdates }
+        })
+        invalidateMeterCache()
+      }
+    } catch (err) {
+      console.error("Error syncing purpose to Meter_Issues:", err)
+    }
+  }
+
+  return { updatedCount }
+}
+
+export async function completeBulkReplacementsFromExcel(rows: Array<{
+  replacementId?: string
+  consumerId?: string
+  serialNo?: string
+  lastReading?: string
+  newReading?: string
+  installationDate?: string
+  workOrderNo?: string
+  noteSheetNo?: string
+  remarks?: string
+  completedBy: string
+}>): Promise<{ succeeded: number; failed: Array<{ identifier: string; reason: string }> }> {
+  const id = getSpreadsheetId()
+  await ensureReplacementTab(id)
+  const all = await _fetchReplacementsRaw(id)
+  const { STOCK_TAB, ISSUES_TAB, _fetchStockRaw, _fetchIssuesRaw, issueMeter, completeMeterInstallation, finalizeMeterInstallation, invalidateMeterCache } = await import("./meter-service")
+  
+  const [stock, issues] = await Promise.all([_fetchStockRaw(id), _fetchIssuesRaw(id)])
+  const today = nowDate()
+  let succeeded = 0
+  const failed: Array<{ identifier: string; reason: string }> = []
+
+  for (const row of rows) {
+    const repId = (row.replacementId || "").trim()
+    const consId = (row.consumerId || "").trim()
+    const serial = (row.serialNo || "").trim()
+
+    // Find proposal by Replacement ID or Consumer ID
+    const idx = all.findIndex(r => (repId && r.replacementId === repId) || (consId && r.consumerId === consId))
+    if (idx === -1) {
+      failed.push({ identifier: repId || consId, reason: "Proposal record not found" })
+      continue
+    }
+
+    const rec = all[idx]
+    const rowNum = idx + 2
+    const targetSerial = serial || rec.serialNo
+    if (!targetSerial) {
+      failed.push({ identifier: rec.replacementId, reason: "New meter serial number is missing" })
+      continue
+    }
+
+    try {
+      let activeIssueId = rec.issueId
+
+      // Case A: Proposal is still 'proposed' (meter was not yet issued through UI)
+      if (rec.status === "proposed" || !activeIssueId) {
+        // Find meter in stock
+        const sIdx = stock.findIndex(m => m.serialNo.toUpperCase() === targetSerial.toUpperCase())
+        if (sIdx === -1) {
+          failed.push({ identifier: rec.replacementId, reason: `Serial ${targetSerial} not found in Meter Stock` })
+          continue
+        }
+        if (stock[sIdx].condition !== "available" && stock[sIdx].condition !== "issued") {
+          failed.push({ identifier: rec.replacementId, reason: `Serial ${targetSerial} is ${stock[sIdx].condition} in Stock` })
+          continue
+        }
+
+        activeIssueId = await issueMeter({
+          serialNo: targetSerial,
+          purpose: (rec.purpose as any) || "faulty_replacement",
+          consumerId: rec.consumerId,
+          consumerName: rec.consumerName,
+          agency: rec.agency,
+          remarks: row.remarks || rec.remarks || "Bulk completed via Excel",
+          address: rec.address,
+          mobile: rec.mobile,
+          replacementId: rec.replacementId,
+          workOrderNo: row.workOrderNo || rec.workOrderNo,
+          existingMeterNo: rec.oldMeterNo,
+        })
+      }
+
+      // Case B: Mark installation done
+      const installDate = row.installationDate || today
+      await completeMeterInstallation({
+        issueId: activeIssueId,
+        afterImage: "",
+        beforeImage: "",
+        lastReading: row.lastReading || "",
+        newReading: row.newReading || "",
+        completedBy: row.completedBy,
+        remarks: row.remarks || "Bulk completed via Excel",
+        installationDate: installDate,
+      })
+
+      // Case C: If work order or note sheet is provided, finalize installation directly
+      if (row.workOrderNo || row.noteSheetNo) {
+        await finalizeMeterInstallation({
+          issueId: activeIssueId,
+          completionRef: row.workOrderNo || "",
+          finalizedBy: row.completedBy,
+        })
+      }
+
+      // Update Meter_Replacement sheet row
+      const repUpdates: Array<{ range: string; values: any[][] }> = [
+        { range: `${REPLACEMENT_TAB}!I${rowNum}`, values: [[row.workOrderNo ? "replaced" : "updated"]] },
+        { range: `${REPLACEMENT_TAB}!J${rowNum}`, values: [[targetSerial]] },
+        { range: `${REPLACEMENT_TAB}!K${rowNum}`, values: [[activeIssueId]] },
+      ]
+      if (row.workOrderNo) {
+        repUpdates.push({ range: `${REPLACEMENT_TAB}!O${rowNum}`, values: [[row.workOrderNo]] })
+      }
+      if (row.noteSheetNo) {
+        repUpdates.push({ range: `${REPLACEMENT_TAB}!P${rowNum}`, values: [[row.noteSheetNo]] })
+      }
+      if (row.remarks) {
+        repUpdates.push({ range: `${REPLACEMENT_TAB}!L${rowNum}`, values: [[row.remarks]] })
+      }
+
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: id,
+        requestBody: { valueInputOption: "RAW", data: repUpdates }
+      })
+
+      succeeded++
+    } catch (err: any) {
+      failed.push({ identifier: rec.replacementId, reason: err.message || "Failed to complete" })
+    }
+  }
+
+  invalidateReplacementCache()
+  invalidateMeterCache()
+  return { succeeded, failed }
 }
 
 export async function updateReplacementNoteSheet(replacementId: string, noteSheetNo: string): Promise<void> {

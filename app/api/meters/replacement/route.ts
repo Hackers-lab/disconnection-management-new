@@ -148,6 +148,75 @@ export const PATCH = withTenant(async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
+    if (action === "bulk_close" || action === "bulk_cancel") {
+      const { closeBulkReplacements } = await import("@/lib/meter-replacement-service")
+      const { replacementIds } = body
+      if (!Array.isArray(replacementIds) || replacementIds.length === 0 || !remarks) {
+        return NextResponse.json({ error: "replacementIds array and remarks are required" }, { status: 400 })
+      }
+      const result = await closeBulkReplacements(replacementIds, remarks)
+
+      const tenantContext = getTenantContext()
+      const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+      for (const rId of replacementIds) {
+        await appendDeltaPatch(tenantId, "meter-replacement", {
+          action: "UPDATE",
+          recordId: String(rId),
+          changes: { status: "closed", remarks },
+        }).catch(() => {})
+      }
+      await updateBadgeCounts(tenantId, "meter-replacement", undefined, -replacementIds.length).catch(() => {})
+
+      return NextResponse.json({ success: true, ...result })
+    }
+
+    if (action === "bulk_purpose") {
+      const { updateBulkPurpose } = await import("@/lib/meter-replacement-service")
+      const { replacementIds, purpose } = body
+      if (!Array.isArray(replacementIds) || replacementIds.length === 0 || !purpose) {
+        return NextResponse.json({ error: "replacementIds array and purpose are required" }, { status: 400 })
+      }
+      const result = await updateBulkPurpose(replacementIds, purpose)
+
+      const tenantContext = getTenantContext()
+      const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+      for (const rId of replacementIds) {
+        await appendDeltaPatch(tenantId, "meter-replacement", {
+          action: "UPDATE",
+          recordId: String(rId),
+          changes: { purpose },
+        }).catch(() => {})
+      }
+
+      return NextResponse.json({ success: true, ...result })
+    }
+
+    if (action === "bulk_complete") {
+      const { completeBulkReplacementsFromExcel } = await import("@/lib/meter-replacement-service")
+      const { rows } = body
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return NextResponse.json({ error: "rows array is required for bulk completion" }, { status: 400 })
+      }
+      const completedBy = session.username || session.name || "admin"
+      const mappedRows = rows.map((r: any) => ({ ...r, completedBy }))
+      const result = await completeBulkReplacementsFromExcel(mappedRows)
+
+      const tenantContext = getTenantContext()
+      const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+      for (const r of rows) {
+        const rId = r.replacementId || r.consumerId
+        if (rId) {
+          await appendDeltaPatch(tenantId, "meter-replacement", {
+            action: "UPDATE",
+            recordId: String(rId),
+            changes: { status: r.workOrderNo ? "replaced" : "updated", serialNo: r.serialNo },
+          }).catch(() => {})
+        }
+      }
+
+      return NextResponse.json({ success: true, ...result })
+    }
+
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (e: any) {
     console.error("Update replacement error:", e)
