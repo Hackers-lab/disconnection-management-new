@@ -456,7 +456,7 @@ export function GlobalConsumerSearch({ onSelectModule, userRole, permissions }: 
               setIsOpen(true)
             }}
             placeholder="Global Search (ID, Name, Phone, Meter)..."
-            className="w-full pl-10 pr-9 py-2.5 sm:py-3 bg-white/95 backdrop-blur-md border border-black/[0.08] hover:border-black/[0.15] rounded-2xl text-xs sm:text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 shadow-[0_4px_16px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] focus:shadow-[0_8px_24px_rgba(0,0,0,0.10)] transition-all"
+            className="w-full pl-10 pr-9 py-2.5 sm:py-3 bg-white/95 backdrop-blur-md border-2 border-black hover:border-black rounded-2xl text-xs sm:text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black shadow-[0_4px_16px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.04)] focus:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all"
           />
           {query && (
             <button
