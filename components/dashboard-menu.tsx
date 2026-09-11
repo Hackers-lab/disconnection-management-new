@@ -1077,7 +1077,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         return {
           iconContainer: `w-10 h-10 md:w-12 md:h-12 rounded-xl ${iconBox} border flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:scale-105`,
           pillBadge: `notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border flex items-center justify-center min-w-[1.25rem] shadow-xs ${badge}`,
-          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3 md:right-3 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
+          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
             mod.isLoading ? "bg-slate-700 text-white animate-pulse" : badge
           }`,
           desktopWatermark: `h-20 w-20 md:h-24 md:w-24 ${desktopWatermark} transition-transform duration-500 group-hover:scale-110`,
@@ -1102,7 +1102,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         return {
           iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
           pillBadge: `notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border flex items-center justify-center min-w-[1.25rem] shadow-xs ${badgeClass}`,
-          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3 md:right-3 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${desktopBadgeClass}`,
+          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${desktopBadgeClass}`,
           desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-700 transition-transform duration-500 group-hover:scale-110",
           watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
           cardBorder: "hover:border-slate-300",
@@ -1113,7 +1113,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         return {
           iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:bg-indigo-100 group-hover:text-indigo-700 group-hover:scale-105",
           pillBadge: "notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border border-indigo-200/80 bg-indigo-50 text-indigo-700 flex items-center justify-center min-w-[1.25rem] shadow-xs",
-          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3 md:right-3 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
+          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
             mod.isLoading ? "bg-indigo-400 text-white animate-pulse" : "bg-indigo-600 text-white shadow-indigo-600/20"
           }`,
           desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-indigo-600 transition-transform duration-500 group-hover:scale-110",
@@ -1127,7 +1127,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
         return {
           iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
           pillBadge: "notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border border-black/80 bg-slate-950 text-white flex items-center justify-center min-w-[1.25rem] shadow-xs",
-          desktopBadge: `notranslate absolute top-2.5 right-2.5 md:top-3 md:right-3 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
+          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
             mod.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-black text-white shadow-black/20"
           }`,
           desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-800 transition-transform duration-500 group-hover:scale-110",

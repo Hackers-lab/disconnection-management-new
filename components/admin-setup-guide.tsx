@@ -42,7 +42,11 @@ export function AdminSetupGuideBanner() {
   const [savingAll, setSavingAll] = useState(false)
   const [dismissed, setDismissed] = useState(() => {
     if (typeof window !== "undefined") {
-      return sessionStorage.getItem("admin_setup_guide_dismissed") === "true"
+      return (
+        localStorage.getItem("admin_setup_guide_dismissed") === "true" ||
+        sessionStorage.getItem("admin_setup_guide_dismissed") === "true" ||
+        localStorage.getItem("profile_completion_completed") === "true"
+      )
     }
     return false
   })
@@ -84,14 +88,21 @@ export function AdminSetupGuideBanner() {
 
   const fetchCheck = useCallback(async (force = false) => {
     if (typeof window !== "undefined") {
-      // Check if already completed or dismissed in this session
+      // Check if already completed or dismissed
       if (!force) {
-        if (sessionStorage.getItem("admin_setup_guide_dismissed") === "true") {
+        if (
+          localStorage.getItem("admin_setup_guide_dismissed") === "true" ||
+          sessionStorage.getItem("admin_setup_guide_dismissed") === "true"
+        ) {
           setDismissed(true)
           setLoading(false)
           return
         }
-        if (sessionStorage.getItem("profile_completion_completed") === "true") {
+        if (
+          localStorage.getItem("profile_completion_completed") === "true" ||
+          sessionStorage.getItem("profile_completion_completed") === "true"
+        ) {
+          setDismissed(true)
           setLoading(false)
           return
         }
@@ -119,10 +130,13 @@ export function AdminSetupGuideBanner() {
 
       if (typeof window !== "undefined") {
         if (!data.hasIncompleteDetails) {
+          localStorage.setItem("profile_completion_completed", "true")
           sessionStorage.setItem("profile_completion_completed", "true")
           sessionStorage.removeItem("profile_completion_data")
+          setDismissed(true)
         } else {
           sessionStorage.setItem("profile_completion_data", JSON.stringify(data))
+          localStorage.removeItem("profile_completion_completed")
           sessionStorage.removeItem("profile_completion_completed")
         }
       }
@@ -311,11 +325,12 @@ export function AdminSetupGuideBanner() {
               onClick={() => {
                 setDismissed(true)
                 if (typeof window !== "undefined") {
+                  localStorage.setItem("admin_setup_guide_dismissed", "true")
                   sessionStorage.setItem("admin_setup_guide_dismissed", "true")
                 }
               }}
               className="rounded-lg p-2 text-gray-400 hover:bg-gray-200/50 hover:text-gray-600 dark:hover:bg-gray-800/50 dark:hover:text-gray-300"
-              title="Dismiss for now"
+              title="Dismiss"
             >
               <X className="h-4 w-4" />
             </button>
