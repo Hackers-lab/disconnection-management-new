@@ -49,6 +49,15 @@ function ensureIndexes(client: Client) {
     )
   `).catch(() => {})
 
+  client.execute(`
+    CREATE TABLE IF NOT EXISTS deleted_payment_transactions (
+      razorpay_payment_id TEXT PRIMARY KEY,
+      deleted_by TEXT,
+      reason TEXT,
+      deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).catch(() => {})
+
   // Ensure performance-critical indexes exist (idempotent, non-blocking)
   const idxStatements = [
     `CREATE INDEX IF NOT EXISTS idx_users_username_nocase ON users (username COLLATE NOCASE);`,

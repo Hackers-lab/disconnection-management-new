@@ -117,6 +117,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch payment transactions separately — table may not exist in all environments
+    let deletedPaymentIds = new Set<string>()
+    try {
+      const delResult = await db.execute({
+        sql: `SELECT razorpay_payment_id FROM deleted_payment_transactions`,
+        args: [],
+      })
+      if (delResult?.rows) {
+        delResult.rows.forEach((r: any) => {
+          if (r.razorpay_payment_id) deletedPaymentIds.add(String(r.razorpay_payment_id))
+        })
+      }
+    } catch {}
+
     try {
       const txResult = await db.execute({
         sql: `SELECT pt.*, u.username, u.full_name as user_full_name
@@ -125,7 +138,11 @@ export async function GET(request: NextRequest) {
               ORDER BY pt.created_at DESC`,
         args: [],
       })
-      if (txResult?.rows) dbTransactions = txResult.rows
+      if (txResult?.rows) {
+        dbTransactions = txResult.rows.filter(
+          (tx: any) => !deletedPaymentIds.has(String(tx.razorpay_payment_id))
+        )
+      }
     } catch (e) {
       console.warn("[Subscriptions API] payment_transactions query note:", (e as any)?.message || e)
     }
@@ -141,6 +158,7 @@ export async function GET(request: NextRequest) {
         let hasNewReconciled = false
 
         for (const item of rzPayments.items) {
+          if (deletedPaymentIds.has(String(item.id))) continue
           livePaymentsMap.set(item.id, item)
 
           // Auto-reconciliation: if a payment was captured in Razorpay but missing in DB, sync it now
@@ -171,7 +189,11 @@ export async function GET(request: NextRequest) {
                     ORDER BY pt.created_at DESC`,
               args: [],
             })
-            if (txResult?.rows) dbTransactions = txResult.rows
+            if (txResult?.rows) {
+              dbTransactions = txResult.rows.filter(
+                (tx: any) => !deletedPaymentIds.has(String(tx.razorpay_payment_id))
+              )
+            }
 
             const agRes = await db.execute({
               sql: `SELECT a.id, a.name, a.vendor_code, a.subscription_status, a.subscription_expires_at, a.created_at,

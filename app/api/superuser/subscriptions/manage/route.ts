@@ -114,6 +114,31 @@ export async function POST(request: NextRequest) {
         message: `Refund of ₹${refund.amount / 100} initiated successfully (Refund ID: ${refund.id})`,
         refund,
       })
+    } else if (action === "delete_payment") {
+      if (!paymentId) {
+        return NextResponse.json({ error: "Payment ID is required to remove transaction" }, { status: 400 })
+      }
+
+      // Record in deleted_payment_transactions so auto-reconciliation ignores it permanently
+      try {
+        await db.execute({
+          sql: `INSERT OR REPLACE INTO deleted_payment_transactions (razorpay_payment_id, deleted_by, reason) VALUES (?, ?, ?)`,
+          args: [paymentId, session.username || "superadmin", "Removed test payment"],
+        })
+      } catch (delLogErr) {
+        console.warn("[Subscriptions Manage] Note logging deleted payment:", delLogErr)
+      }
+
+      // Delete from payment_transactions
+      await db.execute({
+        sql: `DELETE FROM payment_transactions WHERE razorpay_payment_id = ? OR id = ?`,
+        args: [paymentId, paymentId],
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: `Payment ${paymentId} removed successfully`,
+      })
     }
 
     return NextResponse.json({ error: "Unsupported action" }, { status: 400 })

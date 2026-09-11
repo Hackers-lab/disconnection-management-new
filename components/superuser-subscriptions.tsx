@@ -29,7 +29,8 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Trash2
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -150,6 +151,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
   const [isProcessingAction, setIsProcessingAction] = useState(false)
   const [refundTarget, setRefundTarget] = useState<TransactionItem | null>(null)
   const [refundAmount, setRefundAmount] = useState<string>("")
+  const [deleteTarget, setDeleteTarget] = useState<TransactionItem | null>(null)
 
   const { toast } = useToast()
 
@@ -284,6 +286,39 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
     } catch (e: any) {
       toast({
         title: "Refund Error",
+        description: e.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessingAction(false)
+    }
+  }
+
+  const handleDeletePayment = async () => {
+    if (!deleteTarget) return
+    setIsProcessingAction(true)
+    try {
+      const res = await fetch("/api/superuser/subscriptions/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_payment",
+          paymentId: deleteTarget.razorpay_payment_id,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || "Failed to delete payment")
+
+      toast({
+        title: "Payment Removed",
+        description: result.message || "Transaction deleted and excluded from dashboard.",
+      })
+      setDeleteTarget(null)
+      setSelectedTx(null)
+      fetchData()
+    } catch (e: any) {
+      toast({
+        title: "Delete Error",
         description: e.message,
         variant: "destructive",
       })
@@ -1339,14 +1374,25 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
 
                             {/* Actions */}
                             <td className="py-3 px-3 text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedTx(tx)}
-                                className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg px-2"
-                              >
-                                Inspect Receipt
-                              </Button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setSelectedTx(tx)}
+                                  className="h-7 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg px-2"
+                                >
+                                  Inspect Receipt
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeleteTarget(tx)}
+                                  title="Delete transaction record"
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -1450,6 +1496,17 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                 </a>
 
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDeleteTarget(selectedTx)
+                    }}
+                    className="text-rose-600 border-rose-200 hover:bg-rose-50 text-xs font-semibold h-8"
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Delete
+                  </Button>
                   {selectedTx.status === "captured" && !selectedTx.refund_status && (
                     <Button
                       variant="outline"
@@ -1615,6 +1672,67 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                     </>
                   ) : (
                     `Confirm Refund ₹${refundAmount}`
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* --- MODAL 4: DELETE / REMOVE TEST TRANSACTION --- */}
+      {deleteTarget && (
+        <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+          <DialogContent className="max-w-md w-[92vw] p-0 overflow-hidden bg-white border border-slate-200/90 rounded-2xl shadow-2xl text-slate-900">
+            <div className="h-1.5 w-full bg-rose-600" />
+            <div className="p-5 space-y-4">
+              <DialogHeader className="text-left space-y-1">
+                <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  Remove Transaction
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500">
+                  Are you sure you want to permanently remove this transaction from the database and prevent auto-reconciliation?
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Payment ID:</span>
+                  <span className="font-mono font-bold text-slate-800">{deleteTarget.razorpay_payment_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Subscriber / Agency:</span>
+                  <span className="font-semibold text-slate-800">{deleteTarget.subscriberName} ({deleteTarget.agency_name || deleteTarget.username})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Amount:</span>
+                  <span className="font-bold text-emerald-700">₹{deleteTarget.amount}</span>
+                </div>
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeleteTarget(null)}
+                  className="text-xs text-slate-600 hover:bg-slate-100 h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={isProcessingAction}
+                  onClick={handleDeletePayment}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 px-4 rounded-xl shadow-xs"
+                >
+                  {isProcessingAction ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                      Removing...
+                    </>
+                  ) : (
+                    "Remove Transaction"
                   )}
                 </Button>
               </DialogFooter>
