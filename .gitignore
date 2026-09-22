@@ -62,3 +62,10 @@ cookie.txt
 *.db
 *.db-journal
 .turso/
+
+# Android package & secret keys
+*.keystore
+signing-key-info.txt
+*.aab
+*.apk
+*.zip

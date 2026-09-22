@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.vercel.disconnection.twa",
+    "sha256_cert_fingerprints": [
+      "06:11:6B:6A:4B:13:C2:EA:10:85:E1:7C:49:78:11:DA:11:B2:6C:74:B8:06:6B:92:BB:45:75:25:94:F7:F9:AD"
+    ]
+  }
+}]
