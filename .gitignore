@@ -69,3 +69,6 @@ signing-key-info.txt
 *.aab
 *.apk
 *.zip
+
+# Raw unmasked screenshots folder
+/images/
