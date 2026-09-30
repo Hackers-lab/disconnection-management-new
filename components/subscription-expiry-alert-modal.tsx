@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -45,6 +45,13 @@ export function SubscriptionExpiryAlertModal({
   const [isOpen, setIsOpen] = useState(false)
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null)
   const [formattedExpiryDate, setFormattedExpiryDate] = useState("")
+
+  const plans = [
+    { id: "monthly_79", amount: 7900, name: "1 Month Vendor Access", days: 30, label: "1 Mo", price: "₹79", badge: "60% OFF" },
+    { id: "quarterly_199", amount: 19900, name: "3 Month Vendor Access", days: 90, label: "3 Mo", price: "₹199", badge: "67% OFF", popular: true },
+    { id: "half_yearly_349", amount: 34900, name: "6 Month Vendor Access", days: 180, label: "6 Mo", price: "₹349", badge: "71% OFF" },
+  ]
+  const [selectedPlan, setSelectedPlan] = useState(plans[0])
 
   useEffect(() => {
     if (!subscriptionExpiresAt) return
@@ -141,22 +148,22 @@ export function SubscriptionExpiryAlertModal({
         </div>
 
         {/* --- BODY --- */}
-        <div className="px-6 py-5 space-y-3.5 bg-slate-50/50">
-          <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex items-start gap-3 text-left">
+        <div className="px-6 py-4 space-y-3 bg-slate-50/50">
+          <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-3 text-left">
             <Clock className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-950 space-y-1">
+            <div className="text-xs text-amber-950 space-y-0.5">
               <p className="font-bold text-sm text-amber-900">
                 Subscription Required After {formattedExpiryDate}
               </p>
-              <p className="text-amber-800/90 leading-relaxed">
+              <p className="text-amber-800/90 leading-relaxed text-[11px]">
                 {isAdmin
-                  ? "Contractor agencies will need an active subscription (₹99/month) after this date to continue executing disconnections and field updates."
+                  ? "Contractor agencies will need an active subscription (starting at ₹79/month) after this date to continue executing disconnections and field updates."
                   : "To prevent interruption to your disconnection lists and field work, renew your subscription before access closes."}
               </p>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-3 space-y-1.5">
             <div className="flex items-center justify-between text-xs text-slate-600">
               <span className="flex items-center gap-1.5 font-medium">
                 <Calendar className="h-4 w-4 text-slate-400" /> Expiry Date:
@@ -175,16 +182,43 @@ export function SubscriptionExpiryAlertModal({
               </span>
             </div>
           </div>
+
+          {!isAdmin && (
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[11px] font-bold text-slate-700 block text-left">Select Renewal Plan:</span>
+              <div className="grid grid-cols-3 gap-2">
+                {plans.map((p) => {
+                  const isSel = selectedPlan.id === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelectedPlan(p)}
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                        isSel
+                          ? "border-amber-600 bg-amber-500/10 ring-1 ring-amber-600 shadow-xs"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="text-[9px] font-bold uppercase tracking-wider block text-amber-700">{p.badge}</span>
+                      <span className="text-xs font-bold text-slate-800 block">{p.label}</span>
+                      <span className="text-sm font-extrabold text-amber-600 block">{p.price}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* --- ACTIONS --- */}
         <div className="px-6 pb-6 pt-3 bg-white border-t border-slate-100 space-y-2.5">
           {!isAdmin && (
             <VendorSubscriptionCheckout
-              amount={9900}
-              planName="1 Month Vendor Access"
-              days={30}
-              buttonText="Renew Subscription Now (₹99)"
+              amount={selectedPlan.amount}
+              planName={selectedPlan.name}
+              days={selectedPlan.days}
+              buttonText={`Renew Now (${selectedPlan.price})`}
               className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-amber-600/25 justify-center"
               userPrefill={{
                 name: agencyName || username,

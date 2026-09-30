@@ -17,25 +17,33 @@ export interface SubscriptionPlan {
  */
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
-    id: "monthly_99",
+    id: "monthly_79",
     name: "1 Month Vendor Access",
+    amount: 7900,
+    days: 30,
+    description: "30 days of full vendor access (60% OFF)",
+  },
+  {
+    id: "quarterly_199",
+    name: "3 Month Vendor Access",
+    amount: 19900,
+    days: 90,
+    description: "90 days of full vendor access (67% OFF - Save ₹398)",
+  },
+  {
+    id: "half_yearly_349",
+    name: "6 Month Vendor Access",
+    amount: 34900,
+    days: 180,
+    description: "180 days of full vendor access (71% OFF - Save ₹845)",
+  },
+  // Legacy plan retained for verification/webhook backwards-compatibility
+  {
+    id: "monthly_99",
+    name: "1 Month Vendor Access (Legacy)",
     amount: 9900,
     days: 30,
     description: "30 days of full vendor access",
-  },
-  {
-    id: "quarterly_249",
-    name: "3 Month Vendor Access",
-    amount: 24900,
-    days: 90,
-    description: "90 days of full vendor access",
-  },
-  {
-    id: "yearly_899",
-    name: "1 Year Vendor Access",
-    amount: 89900,
-    days: 365,
-    description: "365 days of full vendor access",
   },
 ]
 

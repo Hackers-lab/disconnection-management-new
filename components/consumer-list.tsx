@@ -68,6 +68,7 @@ import {
   Navigation,
   Zap,
   Upload,
+  Share2,
 } from "lucide-react"
 import { DashboardStats } from "./dashboard-stats"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -77,6 +78,7 @@ import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs, getPaymentDuesBreakdown } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { OsdDetailsDialog } from "@/components/osd-details-dialog"
+import { shareConsumerStatusCard } from "@/lib/agency-update-image"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
   loading: () => <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
@@ -216,6 +218,33 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const [showNearbyMap, setShowNearbyMap] = useState(false)
   const [showOsdModal, setShowOsdModal] = useState(false)
   const [osdTargetId, setOsdTargetId] = useState("")
+  const [sharingConsumerId, setSharingConsumerId] = useState<string | null>(null)
+
+  const handleShareConsumer = async (consumer: ConsumerData, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (sharingConsumerId) return
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+
+    setSharingConsumerId(consumer.consumerId)
+    try {
+      const res = await shareConsumerStatusCard(consumer, getCccPrefix() || undefined)
+      if (!res.success && res.message) {
+        toast({
+          title: "Share status",
+          description: res.message,
+          variant: "destructive",
+        })
+      }
+    } catch (err: any) {
+      toast({
+        title: "Could not share",
+        description: err?.message || "Failed to generate status card",
+        variant: "destructive",
+      })
+    } finally {
+      setSharingConsumerId(null)
+    }
+  }
 
   // Handle back button navigation for modals/overlays
   useBackNavigation(isFilterOpen, () => setIsFilterOpen(false))
@@ -1430,6 +1459,19 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       >
                         <History className="h-3.5 w-3.5" />
                       </button>
+                      <button
+                        onClick={(e) => handleShareConsumer(consumer, e)}
+                        disabled={sharingConsumerId === consumer.consumerId}
+                        className="text-emerald-600 hover:text-emerald-800 transition-colors p-1 rounded hover:bg-emerald-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold disabled:opacity-50"
+                        title="Share Status Card"
+                      >
+                        {sharingConsumerId === consumer.consumerId ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
+                        ) : (
+                          <Share2 className="h-3 w-3" />
+                        )}
+                        <span>Share</span>
+                      </button>
                     </div>
                     {consumer.mru ? (
                       <Badge variant="outline" className="mt-2 text-[10px] uppercase tracking-[0.08em]">
@@ -1636,6 +1678,18 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                           >
                             <History className="h-3.5 w-3.5" />
                           </button>
+                          <button
+                            onClick={(e) => handleShareConsumer(consumer, e)}
+                            disabled={sharingConsumerId === consumer.consumerId}
+                            className="text-gray-400 hover:text-emerald-600 transition-colors p-1 rounded hover:bg-emerald-50 cursor-pointer"
+                            title="Share status card"
+                          >
+                            {sharingConsumerId === consumer.consumerId ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+                            ) : (
+                              <Share2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
                           {(consumer.priority || "").toLowerCase() === "urgent" && (
                             <span className="text-[9px] font-bold uppercase tracking-wide bg-red-600 text-white px-1 py-0.5 rounded">URGENT</span>
                           )}
@@ -1769,6 +1823,20 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                           <Phone className="h-4 w-4" />
                        </a>
                     )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-emerald-600 shrink-0 mr-1"
+                      onClick={(e) => handleShareConsumer(consumer, e)}
+                      disabled={sharingConsumerId === consumer.consumerId}
+                      title="Share status card"
+                    >
+                      {sharingConsumerId === consumer.consumerId ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Share2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
                     <Button 
                       size="icon" 
                       variant="ghost" 
@@ -1971,20 +2039,36 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   </div>
                 )}
 
-                <Button 
-                  className="w-full" 
-                  onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                    setPreviewConsumer(null);
-                    if (!((!["connected", "visited", "not found"].includes(previewConsumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer")) {
-                      setSelectedConsumer(previewConsumer);
-                    }
-                  }}
-                  disabled={(!["connected", "visited", "not found"].includes(previewConsumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer"}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Update Status
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 font-semibold"
+                    onClick={(e) => handleShareConsumer(previewConsumer, e)}
+                    disabled={sharingConsumerId === previewConsumer.consumerId}
+                  >
+                    {sharingConsumerId === previewConsumer.consumerId ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-emerald-600" />
+                    ) : (
+                      <Share2 className="h-4 w-4 mr-2 text-emerald-600" />
+                    )}
+                    Share Status
+                  </Button>
+                  <Button 
+                    className="flex-1" 
+                    onClick={() => {
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                      setPreviewConsumer(null);
+                      if (!((!["connected", "visited", "not found"].includes(previewConsumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer")) {
+                        setSelectedConsumer(previewConsumer);
+                      }
+                    }}
+                    disabled={(!["connected", "visited", "not found"].includes(previewConsumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer"}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Update Status
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

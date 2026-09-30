@@ -1,4 +1,4 @@
-﻿export interface AgencyUpdateItem {
+export interface AgencyUpdateItem {
   name: string
   lastUpdate: string
   lastUpdateCount: number
@@ -334,3 +334,358 @@ export async function generateAndShareAgencyUpdatesJPEG(
     }, "image/jpeg", 0.96)
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Premium Consumer Status Card (No WBSEDCL branding, quick view + photo)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ShareConsumerResult {
+  success: boolean
+  method: "share" | "download"
+  message?: string
+}
+
+function loadImageSafely(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    if (!src || src === "#") {
+      resolve(null)
+      return
+    }
+
+    // Google Drive direct export link
+    let cleanSrc = src.trim()
+    const dMatch = cleanSrc.match(/\/d\/([a-zA-Z0-9_-]{20,})/) || cleanSrc.match(/[?&]id=([a-zA-Z0-9_-]{20,})/)
+    if (dMatch && dMatch[1]) {
+      cleanSrc = `https://lh3.googleusercontent.com/d/${dMatch[1]}=s1000`
+    }
+
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    let retried = false
+
+    img.onload = () => resolve(img)
+    img.onerror = () => {
+      if (!retried && !cleanSrc.includes("/api/image-proxy")) {
+        retried = true
+        img.src = `/api/image-proxy?url=${encodeURIComponent(cleanSrc)}`
+      } else {
+        resolve(null)
+      }
+    }
+
+    img.src = cleanSrc
+  })
+}
+
+function getStatusTheme(status: string) {
+  const s = (status || "").toLowerCase()
+  if (s === "disconnected" || s.includes("disconnect")) {
+    return { bg: "#fee2e2", text: "#b91c1c", border: "#fca5a5", label: (status || "DISCONNECTED").toUpperCase() }
+  }
+  if (s === "paid" || s === "agency paid") {
+    return { bg: "#dcfce7", text: "#15803d", border: "#86efac", label: (status || "PAID").toUpperCase() }
+  }
+  if (s === "reconnected" || s.includes("reconnect")) {
+    return { bg: "#ecfdf5", text: "#047857", border: "#6ee7b7", label: (status || "RECONNECTED").toUpperCase() }
+  }
+  if (s === "visited" || s === "door locked" || s === "not found" || s.includes("lock")) {
+    return { bg: "#fef3c7", text: "#b45309", border: "#fcd34d", label: (status || "VISITED").toUpperCase() }
+  }
+  if (s === "connected") {
+    return { bg: "#eff6ff", text: "#1d4ed8", border: "#93c5fd", label: "CONNECTED" }
+  }
+  return { bg: "#f1f5f9", text: "#334155", border: "#cbd5e1", label: (status || "UPDATED").toUpperCase() }
+}
+
+export async function shareConsumerStatusCard(
+  consumer: any,
+  officeCode?: string
+): Promise<ShareConsumerResult> {
+  if (typeof window === "undefined" || !consumer) {
+    return { success: false, method: "download", message: "No consumer data" }
+  }
+
+  const rawImgUrl = consumer.imageUrl || consumer.image
+  const photoImg = rawImgUrl ? await loadImageSafely(rawImgUrl) : null
+
+  const scale = 2
+  const width = 560
+  const padX = 26
+  const padY = 24
+
+  const hasPhoto = Boolean(photoImg)
+  const photoHeight = hasPhoto ? 340 : 0
+  const photoGap = hasPhoto ? 18 : 0
+
+  let totalHeight = padY * 2 + 104 // Header + Identity
+  totalHeight += 78 // Metric cards row
+  if (hasPhoto) {
+    totalHeight += photoHeight + photoGap
+  }
+  totalHeight += 38 // Footer
+
+  const canvas = document.createElement("canvas")
+  canvas.width = width * scale
+  canvas.height = totalHeight * scale
+  const ctx = canvas.getContext("2d")
+
+  if (!ctx) {
+    return { success: false, method: "download", message: "Canvas context not available" }
+  }
+
+  ctx.scale(scale, scale)
+
+  // 1. Dark Modern Studio Gradient Background
+  const gradientBg = ctx.createLinearGradient(0, 0, width, totalHeight)
+  gradientBg.addColorStop(0, "#090d16")
+  gradientBg.addColorStop(1, "#0f172a")
+  ctx.fillStyle = gradientBg
+  ctx.fillRect(0, 0, width, totalHeight)
+
+  // Subtle radial glow
+  const glow = ctx.createRadialGradient(width * 0.82, 36, 0, width * 0.82, 36, 220)
+  glow.addColorStop(0, "rgba(59, 130, 246, 0.16)")
+  glow.addColorStop(1, "rgba(59, 130, 246, 0)")
+  ctx.fillStyle = glow
+  ctx.fillRect(0, 0, width, totalHeight)
+
+  // 2. Glassmorphic Main Card Container
+  const cardX = 14
+  const cardY = 14
+  const cardW = width - 28
+  const cardH = totalHeight - 28
+
+  ctx.fillStyle = "rgba(15, 23, 42, 0.88)"
+  ctx.beginPath()
+  ctx.roundRect(cardX, cardY, cardW, cardH, 20)
+  ctx.fill()
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.10)"
+  ctx.lineWidth = 1.2
+  ctx.beginPath()
+  ctx.roundRect(cardX, cardY, cardW, cardH, 20)
+  ctx.stroke()
+
+  const contentX = cardX + padX
+  const contentW = cardW - (padX * 2)
+  let curY = cardY + padY
+
+  // 3. Header: Status Tag Pill & Date
+  const statusTheme = getStatusTheme(consumer.disconStatus)
+  const officeText = (officeCode || consumer.offCode || "").trim()
+
+  ctx.font = "bold 11px system-ui, -apple-system, sans-serif"
+  const statusText = statusTheme.label
+  const badgeW = ctx.measureText(statusText).width + 20
+  const badgeH = 26
+  
+  ctx.fillStyle = statusTheme.bg
+  ctx.beginPath()
+  ctx.roundRect(contentX, curY, badgeW, badgeH, 13)
+  ctx.fill()
+
+  ctx.strokeStyle = statusTheme.border
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.roundRect(contentX, curY, badgeW, badgeH, 13)
+  ctx.stroke()
+
+  ctx.fillStyle = statusTheme.text
+  ctx.textAlign = "center"
+  ctx.fillText(statusText, contentX + (badgeW / 2), curY + 17)
+  ctx.textAlign = "left"
+
+  // Right-aligned Date
+  const dateStr = consumer.disconDate || consumer.lastUpdated || new Date().toISOString().split("T")[0]
+  ctx.fillStyle = "#94a3b8"
+  ctx.font = "500 11px system-ui, -apple-system, sans-serif"
+  ctx.textAlign = "right"
+  ctx.fillText(dateStr, contentX + contentW, curY + 17)
+  ctx.textAlign = "left"
+
+  curY += badgeH + 18
+
+  // 4. Consumer Identity (Name & Consumer ID)
+  ctx.fillStyle = "#ffffff"
+  ctx.font = "bold 20px system-ui, -apple-system, sans-serif"
+  
+  let displayName = consumer.name || "Consumer"
+  if (ctx.measureText(displayName).width > contentW) {
+    while (displayName.length > 5 && ctx.measureText(displayName + "…").width > contentW) {
+      displayName = displayName.slice(0, -1)
+    }
+    displayName += "…"
+  }
+  ctx.fillText(displayName, contentX, curY)
+  curY += 22
+
+  // Consumer ID + Address Subtitle
+  ctx.fillStyle = "#38bdf8"
+  ctx.font = "bold 13px ui-monospace, monospace"
+  const idPrefix = `ID: ${consumer.consumerId}`
+  ctx.fillText(idPrefix, contentX, curY)
+
+  if (consumer.address) {
+    ctx.fillStyle = "#94a3b8"
+    ctx.font = "normal 12px system-ui, -apple-system, sans-serif"
+    const idW = ctx.measureText(idPrefix + "   •   ").width
+    let addrText = consumer.address
+    const maxAddrW = contentW - idW
+    if (ctx.measureText(addrText).width > maxAddrW) {
+      while (addrText.length > 5 && ctx.measureText(addrText + "…").width > maxAddrW) {
+        addrText = addrText.slice(0, -1)
+      }
+      addrText += "…"
+    }
+    ctx.fillText(`   •   ${addrText}`, contentX + ctx.measureText(idPrefix).width + 6, curY)
+  }
+
+  curY += 20
+
+  // 5. Quick Metric Cards Row
+  const boxGap = 10
+  const boxW = (contentW - boxGap * 2) / 3
+  const boxH = 60
+
+  const drawMetricBox = (bx: number, label: string, val: string, valColor = "#ffffff") => {
+    ctx.fillStyle = "rgba(30, 41, 59, 0.7)"
+    ctx.beginPath()
+    ctx.roundRect(bx, curY, boxW, boxH, 12)
+    ctx.fill()
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.07)"
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.roundRect(bx, curY, boxW, boxH, 12)
+    ctx.stroke()
+
+    ctx.fillStyle = "#94a3b8"
+    ctx.font = "600 10px system-ui, -apple-system, sans-serif"
+    ctx.fillText(label.toUpperCase(), bx + 12, curY + 20)
+
+    ctx.fillStyle = valColor
+    ctx.font = "bold 15px system-ui, -apple-system, sans-serif"
+    ctx.fillText(val, bx + 12, curY + 42)
+  }
+
+  // Box 1: Dues / OSD
+  const duesNum = Number.parseFloat(consumer.d2NetOS || "0")
+  const duesText = !isNaN(duesNum) && duesNum > 0 ? `₹${Math.round(duesNum).toLocaleString()}` : "₹0"
+  drawMetricBox(contentX, "Outstanding", duesText, "#f87171")
+
+  // Box 2: Agency
+  let agencyText = consumer.agency || "Assigned Team"
+  if (agencyText.length > 13) agencyText = agencyText.slice(0, 11) + "…"
+  drawMetricBox(contentX + boxW + boxGap, "Agency", agencyText, "#e2e8f0")
+
+  // Box 3: MRU / Unit
+  const mruText = consumer.mru || consumer.baseClass || (officeText ? `CCC ${officeText}` : "Field Unit")
+  drawMetricBox(contentX + (boxW + boxGap) * 2, "MRU / Book", mruText, "#38bdf8")
+
+  curY += boxH + 18
+
+  // 6. Uploaded Field Photo (if available)
+  if (photoImg) {
+    const pX = contentX
+    const pY = curY
+    const pW = contentW
+    const pH = photoHeight
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(pX, pY, pW, pH, 16)
+    ctx.clip()
+
+    const imgAspect = photoImg.width / photoImg.height
+    const cardAspect = pW / pH
+
+    let drawW = pW
+    let drawH = pH
+    let offsetX = pX
+    let offsetY = pY
+
+    if (imgAspect > cardAspect) {
+      drawW = pH * imgAspect
+      offsetX = pX - (drawW - pW) / 2
+    } else {
+      drawH = pW / imgAspect
+      offsetY = pY - (drawH - pH) / 2
+    }
+
+    ctx.drawImage(photoImg, offsetX, offsetY, drawW, drawH)
+
+    // Bottom gradient overlay for photo caption
+    const photoGrad = ctx.createLinearGradient(0, pY + pH - 60, 0, pY + pH)
+    photoGrad.addColorStop(0, "rgba(0, 0, 0, 0)")
+    photoGrad.addColorStop(1, "rgba(0, 0, 0, 0.75)")
+    ctx.fillStyle = photoGrad
+    ctx.fillRect(pX, pY + pH - 60, pW, 60)
+
+    ctx.fillStyle = "#ffffff"
+    ctx.font = "bold 11px system-ui, -apple-system, sans-serif"
+    ctx.fillText("📷 Uploaded Verification Photo", pX + 14, pY + pH - 18)
+
+    ctx.restore()
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)"
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.roundRect(pX, pY, pW, pH, 16)
+    ctx.stroke()
+
+    curY += pH + photoGap
+  }
+
+  // 7. Minimalist Footer
+  ctx.fillStyle = "#64748b"
+  ctx.font = "500 11px system-ui, -apple-system, sans-serif"
+  ctx.fillText("Status Verification Slip", contentX, cardY + cardH - 16)
+
+  const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+  ctx.textAlign = "right"
+  ctx.fillText(`Generated at ${timeStr}`, contentX + contentW, cardY + cardH - 16)
+  ctx.textAlign = "left"
+
+  // 8. Output as High Quality JPEG & Share / Download
+  return new Promise((resolve) => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        resolve({ success: false, method: "download", message: "Failed to generate image" })
+        return
+      }
+
+      const fileName = `Status_${consumer.consumerId}_${consumer.disconStatus || "update"}.jpg`
+      const file = new File([blob], fileName, { type: "image/jpeg" })
+
+      const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+      if (isMobile && typeof navigator.share === "function" && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `Consumer ${consumer.consumerId} - ${consumer.disconStatus}`,
+            text: `Consumer: ${consumer.consumerId} (${consumer.name}) | Status: ${consumer.disconStatus}`,
+          })
+          resolve({ success: true, method: "share" })
+          return
+        } catch (err: any) {
+          if (err?.name === "AbortError") {
+            resolve({ success: true, method: "share" })
+            return
+          }
+        }
+      }
+
+      const downloadUrl = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = downloadUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(downloadUrl)
+
+      resolve({ success: true, method: "download" })
+    }, "image/jpeg", 0.92)
+  })
+}

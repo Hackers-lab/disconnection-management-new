@@ -100,6 +100,13 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     amount?: number
   }>({})
 
+  const dashboardPlans = [
+    { id: "monthly_79", amount: 7900, name: "1 Month Vendor Access", days: 30, label: "1 Month", price: "₹79", originalPrice: "₹199", badge: "60% OFF", subtext: "₹79 / mo" },
+    { id: "quarterly_199", amount: 19900, name: "3 Month Vendor Access", days: 90, label: "3 Months", price: "₹199", originalPrice: "₹597", badge: "67% OFF", popular: true, subtext: "₹66 / mo" },
+    { id: "half_yearly_349", amount: 34900, name: "6 Month Vendor Access", days: 180, label: "6 Months", price: "₹349", originalPrice: "₹1,194", badge: "71% OFF", subtext: "₹58 / mo" },
+  ]
+  const [selectedDashboardPlan, setSelectedDashboardPlan] = useState(dashboardPlans[0])
+
   const handlePaymentSuccess = async (result: {
     expiresAt: string
     paymentId: string
@@ -2195,18 +2202,33 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                 {/* Simulated Payment Action inside Profile */}
                 {!(role === "admin" || role === "superuser" || role === "monitor" || bypassSubscription) && (
                   <div className="mt-5 pt-4 border-t border-slate-100 space-y-3">
-                    <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/30 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Plan Extension</span>
-                        <span className="text-base sm:text-lg font-bold text-slate-800">₹99 <span className="text-xs text-slate-400 line-through">₹199</span></span>
-                      </div>
-                      <span className="text-[10px] font-semibold text-slate-400">/ month</span>
+                    <span className="text-xs font-bold text-slate-700 block">Subscription Plans:</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {dashboardPlans.map((p) => {
+                        const isSel = selectedDashboardPlan.id === p.id
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setSelectedDashboardPlan(p)}
+                            className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                              isSel
+                                ? "border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                          >
+                            <span className="text-[9px] font-bold text-indigo-600 block uppercase">{p.badge}</span>
+                            <span className="text-xs font-bold text-slate-800 block">{p.label}</span>
+                            <span className="text-sm font-extrabold text-slate-900 block">{p.price}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                     <VendorSubscriptionCheckout 
-                      amount={9900}
-                      planName="1 Month Vendor Access"
-                      days={30}
-                      buttonText={isSubscribed ? "Extend Subscription (₹99)" : "Activate Subscription (₹99)"}
+                      amount={selectedDashboardPlan.amount}
+                      planName={selectedDashboardPlan.name}
+                      days={selectedDashboardPlan.days}
+                      buttonText={isSubscribed ? `Extend Subscription (${selectedDashboardPlan.price})` : `Activate Subscription (${selectedDashboardPlan.price})`}
                       userPrefill={{
                         name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                         contact: profileData?.mobileNumber || profileEditMobile || "",
@@ -2314,30 +2336,53 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
               </DialogDescription>
             </DialogHeader>
 
-            {/* Premium Pricing Card */}
-            <div className="my-5 p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 flex flex-col items-center justify-center relative overflow-hidden">
-              <span className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-bl-lg">
-                Save 50%
-              </span>
-              <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider mb-1">Special Promotional Offer</p>
-              <div className="flex items-baseline gap-2.5">
-                <span className="text-4xl font-extrabold text-white tracking-tight">₹99</span>
-                <span className="text-sm text-slate-400">/ month</span>
-                <span className="text-sm text-slate-500 line-through font-medium">₹199</span>
+            {/* Multi-Plan Selection Grid */}
+            <div className="my-4 space-y-3 w-full">
+              <div className="grid grid-cols-3 gap-2">
+                {dashboardPlans.map((p) => {
+                  const isSel = selectedDashboardPlan.id === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelectedDashboardPlan(p)}
+                      className={`relative p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                        isSel
+                          ? "border-indigo-500 bg-indigo-500/20 ring-1 ring-indigo-500 shadow-md"
+                          : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
+                      }`}
+                    >
+                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider mb-1 self-start ${
+                        p.popular ? "bg-amber-500 text-slate-950" : "bg-indigo-600/80 text-white"
+                      }`}>
+                        {p.badge}
+                      </span>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">{p.label}</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-base font-black text-white">{p.price}</span>
+                          <span className="text-[10px] text-slate-500 line-through">{p.originalPrice}</span>
+                        </div>
+                      </div>
+                      <span className="text-[9px] text-slate-400 mt-1 font-medium">{p.subtext}</span>
+                    </button>
+                  )
+                })}
               </div>
+
               {subscriptionExpiresAt && (
-                <span className="block mt-3 text-[10px] text-red-400 bg-red-500/5 px-2 py-0.5 rounded border border-red-500/10">
+                <span className="block text-[10px] text-red-400 bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/20 text-center">
                   Last session expired: {subscriptionExpiresAt}
                 </span>
               )}
             </div>
 
-            <DialogFooter className="mt-2 flex flex-col gap-2.5 sm:flex-col w-full">
+            <DialogFooter className="mt-1 flex flex-col gap-2.5 sm:flex-col w-full">
               <VendorSubscriptionCheckout 
-                amount={9900}
-                planName="1 Month Vendor Access"
-                days={30}
-                buttonText="Pay with Razorpay & Activate"
+                amount={selectedDashboardPlan.amount}
+                planName={selectedDashboardPlan.name}
+                days={selectedDashboardPlan.days}
+                buttonText={`Pay ${selectedDashboardPlan.price} with Razorpay & Activate`}
                 userPrefill={{
                   name: profileData?.name || profileName || initialProfile?.name || initialProfile?.username || "",
                   contact: profileData?.mobileNumber || profileEditMobile || "",

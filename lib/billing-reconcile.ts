@@ -53,10 +53,14 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
     let cccCode = String(notes.cccCode || "").trim()
     const userId = String(notes.userId || "").trim()
     const username = String(notes.username || "").trim()
-    const planDays = parseInt(notes.days || "30", 10) || 30
-    const planId = notes.planId || "monthly_99"
-    const planName = notes.planName || "1 Month Vendor Access"
     const amount = typeof payment.amount === "number" ? payment.amount : parseInt(String(payment.amount), 10)
+    
+    // Resolve plan from amount or notes
+    const { getPlanByAmount, getPlanById } = await import("@/lib/subscription-plans")
+    const matchedPlan = getPlanByAmount(amount) || (notes.planId ? getPlanById(notes.planId) : null)
+    const planDays = parseInt(notes.days, 10) || matchedPlan?.days || 30
+    const planId = notes.planId || matchedPlan?.id || "monthly_79"
+    const planName = notes.planName || matchedPlan?.name || "1 Month Vendor Access"
     const orderId = String(payment.order_id || "").trim()
 
     let agencyName = ""
