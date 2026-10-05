@@ -567,8 +567,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         })
 
       // List Status filter (NEW / OLD)
-      // If a consumer doesn't have an explicit tag yet (existing list uploaded before this feature), treat them as "OLD"
-      const consumerListStatusUpper = (String(consumer?.listStatus || "").trim() || "OLD").toUpperCase()
+      // When consumers have not yet been marked by an upload, default them to "NEW"
+      const consumerListStatusUpper = (String(consumer?.listStatus || "").trim() || "NEW").toUpperCase()
       const matchesListStatus =
         filters.listStatus.length === 0 ||
         filters.listStatus.some(ls => consumerListStatusUpper === String(ls || "").trim().toUpperCase())
@@ -1552,7 +1552,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
             const status = (consumer.disconStatus || "").toLowerCase()
             const hasPaidRecord = status === "paid" || status === "agency paid" || breakdown.paidAmt > 0
             const issueDate = extractIssueDate(consumer.osDuedateRange)
-            const effectiveStatus = (consumer.listStatus || "OLD").toUpperCase()
+            const effectiveStatus = (consumer.listStatus || "NEW").toUpperCase()
             const isUrgent = (consumer.priority || "").toLowerCase() === "urgent"
             const hasImage = !!(consumer.imageUrl || (consumer as any).image)
 
@@ -1898,7 +1898,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                          <div className="flex flex-col items-center gap-1">
                            <Badge className={`${getStatusColor(consumer.disconStatus)} whitespace-nowrap`}>{consumer.disconStatus}</Badge>
                            {(() => {
-                             const effectiveStatus = (consumer.listStatus || "OLD").toUpperCase()
+                             const effectiveStatus = (consumer.listStatus || "NEW").toUpperCase()
                              return (
                                <Badge
                                  variant="outline"
