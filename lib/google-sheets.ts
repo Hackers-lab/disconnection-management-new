@@ -46,6 +46,9 @@ export interface ConsumerData {
   outstandingAfter?: string
   nextPaymentDate?: string
   paymentSource?: string
+  // List Status: set during DC list upload — 'NEW' for freshly inserted consumers,
+  // 'OLD' for consumers that already existed in the sheet when a new list was uploaded.
+  listStatus?: 'NEW' | 'OLD' | ''
 }
 
 // Helper function to clean and parse numeric values
@@ -333,6 +336,7 @@ const COLUMN_MAPPINGS = {
   outstandingAfter: ["outstanding after", "outstandingafter", "remaining outstanding"],
   nextPaymentDate: ["next payment date", "nextpaymentdate", "next payment"],
   paymentSource: ["payment source", "paymentsource", "payment mode"],
+  listStatus: ["list status", "liststatus", "list_status", "new old", "new/old"],
 }
 
 // Headers the sheet is expected to have. Used by ensureHeaders() so columns
@@ -347,6 +351,7 @@ export const EXPECTED_CONSUMER_HEADERS = [
   "Priority",
   "Paid Amount", "Paid Date", "Paid Type",
   "Outstanding After", "Next Payment Date", "Payment Source",
+  "List Status",
 ] as const
 
 // Raw worker — does the actual fetch + parse and THROWS on failure so the
@@ -456,6 +461,7 @@ async function _fetchConsumerDataRaw(spreadsheetId: string): Promise<ConsumerDat
           outstandingAfter: columnIndices.outstandingAfter >= 0 ? values[columnIndices.outstandingAfter] || "" : "",
           nextPaymentDate: columnIndices.nextPaymentDate >= 0 ? values[columnIndices.nextPaymentDate] || "" : "",
           paymentSource: columnIndices.paymentSource >= 0 ? values[columnIndices.paymentSource] || "" : "",
+          listStatus: (columnIndices.listStatus >= 0 ? (values[columnIndices.listStatus] || "") : "") as ConsumerData["listStatus"],
         }
 
         consumers.push(consumer)

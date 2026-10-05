@@ -134,6 +134,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const nextPayColIndex   = findColumn(headers, ["next payment date", "nextpaymentdate"])
     const paySrcColIndex    = findColumn(headers, ["payment source", "paymentsource"])
 
+    const listStatusColIndex = findColumn(headers, ["list status", "liststatus", "list_status", "new old", "new/old"])
+
     if (idColIndex === -1) {
       return NextResponse.json({ error: "Consumer ID column not found" }, { status: 500 })
     }
@@ -224,6 +226,7 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         if (agencyColIndex !== -1 && mappedAgency) { newRow[agencyColIndex] = mappedAgency; autoAssignedCount++ }
         if (lastUpdColIndex !== -1) newRow[lastUpdColIndex] = todayStr
         if (uploadDateColIdx !== -1) newRow[uploadDateColIdx] = todayStr
+        if (listStatusColIndex !== -1) newRow[listStatusColIndex] = "NEW"
         insertRows.push(newRow)
       } else {
         // UPDATE: existing consumer
@@ -308,6 +311,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         }
         if (uploadDateColIdx !== -1) {
           updateWrites.push({ range: `'${sheetName}'!${colLetter(uploadDateColIdx)}${existing.row}`, values: [[todayStr]] })
+        }
+        if (listStatusColIndex !== -1) {
+          updateWrites.push({ range: `'${sheetName}'!${colLetter(listStatusColIndex)}${existing.row}`, values: [["OLD"]] })
         }
       }
     }

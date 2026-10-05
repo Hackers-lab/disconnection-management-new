@@ -75,7 +75,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { getFromCache, saveToCache, clearAllCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
-import { parseTs, getPaymentDuesBreakdown } from "@/lib/date-utils"
+import { parseTs, getPaymentDuesBreakdown, extractIssueDate, normalizeCalendarDate } from "@/lib/date-utils"
 import { useToast } from "@/components/ui/use-toast"
 import { OsdDetailsDialog } from "@/components/osd-details-dialog"
 import { shareConsumerStatusCard } from "@/lib/agency-update-image"
@@ -184,6 +184,15 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     to: null,
     isActive: false
   })
+  const [issueDateFilter, setIssueDateFilter] = useState<{
+    from: Date | null
+    to: Date | null
+    isActive: boolean
+  }>({
+    from: null,
+    to: null,
+    isActive: false
+  })
   const [filters, setFilters] = useState<{
     agency: string[]
     mru: string[]
@@ -192,6 +201,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     consumerId: string
     status: string[]
     baseClass: string[]
+    listStatus: string[]
   }>({
     agency: [],
     mru: [],
@@ -200,6 +210,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     consumerId: "",
     status: [],
     baseClass: [],
+    listStatus: [],
   })
   const [excludeFilters, setExcludeFilters] = useState({
     excludeDeemedDisconnection: false,
@@ -555,6 +566,29 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
             : consumerStatusLc === filterStatusLc
         })
 
+      // List Status filter (NEW / OLD)
+      // If a consumer doesn't have an explicit tag yet (existing list uploaded before this feature), treat them as "OLD"
+      const consumerListStatusUpper = (String(consumer?.listStatus || "").trim() || "OLD").toUpperCase()
+      const matchesListStatus =
+        filters.listStatus.length === 0 ||
+        filters.listStatus.some(ls => consumerListStatusUpper === String(ls || "").trim().toUpperCase())
+
+      // Issue date range filter (start date from osDuedateRange)
+      const matchesIssueDateRange =
+        !issueDateFilter.isActive ||
+        (() => {
+          const rawIssueDate = extractIssueDate(consumer.osDuedateRange)
+          const normIssueDate = normalizeCalendarDate(rawIssueDate)
+          const fromNorm = normalizeCalendarDate(issueDateFilter.from)
+          const toNorm = normalizeCalendarDate(issueDateFilter.to)
+
+          if (!normIssueDate) return false
+          return (
+            (!fromNorm || normIssueDate >= fromNorm) &&
+            (!toNorm || normIssueDate <= toNorm)
+          )
+        })()
+
       // OSD range filter
       const consumerOsd = Number.parseFloat(String(consumer?.d2NetOS || "0")) || 0
       const matchesOsd = consumerOsd >= minOsd
@@ -575,13 +609,15 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         matchesName &&
         matchesConsumerId &&
         matchesStatus &&
+        matchesListStatus &&
         matchesOsd &&
         matchesDateRange &&
+        matchesIssueDateRange &&
         excludeDeemedDisconnection &&
         excludeTemproryDisconnected
       )
     })
-  }, [consumers, searchTerm, filters, minOsd, excludeFilters, dateFilter, userRole, userAgencies])
+  }, [consumers, searchTerm, filters, minOsd, excludeFilters, dateFilter, issueDateFilter, userRole, userAgencies])
 
   // ── Cascading Dependent Filters ───────────────────────────────────────────
   // Base scoped dataset according to user role & permission
@@ -740,13 +776,19 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     if (isConnectedA && !isConnectedB) return -1
     if (!isConnectedA && isConnectedB) return 1
 
-    // 2. MRU A-Z sort (when active, groups by MRU before applying OSD)
+    // 2. Prioritize OLD consumers over NEW (so agency attends older carryovers first)
+    const isOldA = String(a?.listStatus || "").trim().toUpperCase() === "OLD"
+    const isOldB = String(b?.listStatus || "").trim().toUpperCase() === "OLD"
+    if (isOldA && !isOldB) return -1
+    if (!isOldA && isOldB) return 1
+
+    // 3. MRU A-Z sort (when active, groups by MRU before applying OSD)
     if (sortByMRU) {
       const mruCmp = String(a?.mru || "").localeCompare(String(b?.mru || ""))
       if (mruCmp !== 0) return mruCmp
     }
 
-    // 3. OSD Sort
+    // 4. OSD Sort
     if (sortByOSD === "none") return 0
     const aOsd = Number.parseFloat(String(a?.d2NetOS || "0")) || 0
     const bOsd = Number.parseFloat(String(b?.d2NetOS || "0")) || 0
@@ -892,6 +934,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
       consumerId: "",
       status: [],
       baseClass: [],
+      listStatus: [],
     })
     setSearchTerm("")
     setMinOsd(0)
@@ -902,6 +945,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     setSortByOSD("desc")
     setSortByMRU(false)
     setDateFilter({
+      from: null,
+      to: null,
+      isActive: false
+    })
+    setIssueDateFilter({
       from: null,
       to: null,
       isActive: false
@@ -1103,9 +1151,10 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon" className="relative shrink-0">
                   <Filter className="h-4 w-4" />
-                  {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
+                  {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.listStatus.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
                     minOsd > 0 ||
                     dateFilter.isActive ||
+                    issueDateFilter.isActive ||
                     sortByOSD !== "desc" || sortByMRU) && (
                     <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-600 rounded-full border-2 border-white" />
                   )}
@@ -1280,6 +1329,60 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-3 items-center gap-2">
+                    <label className="text-sm font-medium col-span-1">List Status</label>
+                    <div className="col-span-2">
+                      <MultiSelectDropdown
+                        placeholder="All (New & Old)"
+                        options={["OLD", "NEW"]}
+                        selected={filters.listStatus}
+                        onChange={(val) => setFilters((prev) => ({ ...prev, listStatus: val }))}
+                        searchable={false}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Issue Date Filter (From OSD Due Range Start) */}
+                <div className="space-y-3 pt-3 border-t">
+                  <label className="text-sm font-medium">Issue Date (OSD Start)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">From</span>
+                      <Input
+                        type="date"
+                        value={issueDateFilter.from instanceof Date && !isNaN(issueDateFilter.from.getTime()) ? format(issueDateFilter.from, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => setIssueDateFilter(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : null, isActive: true }))}
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">To</span>
+                      <Input
+                        type="date"
+                        value={issueDateFilter.to instanceof Date && !isNaN(issueDateFilter.to.getTime()) ? format(issueDateFilter.to, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => setIssueDateFilter(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : null, isActive: true }))}
+                        className="h-8"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-7 text-xs" 
+                      onClick={() => {
+                        setIssueDateFilter({
+                          from: null,
+                          to: null,
+                          isActive: false
+                        });
+                      }}
+                    >
+                      All
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Sort */}
@@ -1404,9 +1507,10 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 }
               </button>
            </div>
-           {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
+           {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.listStatus.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
               minOsd > 0 ||
               dateFilter.isActive ||
+              issueDateFilter.isActive ||
               sortByOSD !== "desc") && (
               <div className="flex items-center gap-1">
                 <span className="text-blue-600 font-medium">Filters Active</span>
@@ -1488,6 +1592,21 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         <AlertCircle className="h-3 w-3 text-red-500" aria-label="Sync failed (saved locally)" />
                       )}
                       <Badge className={getStatusColor(consumer.disconStatus)}>{consumer.disconStatus}</Badge>
+                      {(() => {
+                        const effectiveStatus = (consumer.listStatus || "OLD").toUpperCase()
+                        return (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-bold px-1.5 py-0 border ${
+                              effectiveStatus === "NEW"
+                                ? "bg-blue-100 text-blue-900 border-blue-300"
+                                : "bg-amber-100 text-amber-900 border-amber-300"
+                            }`}
+                          >
+                            {effectiveStatus}
+                          </Badge>
+                        )
+                      })()}
                     </div>
                     <Badge variant="outline" className="text-xs max-w-[120px] truncate block">
                       {consumer.agency}
@@ -1567,11 +1686,23 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 })()}
 
                 {consumer.osDuedateRange && (
-                  <div className="flex items-center space-x-2">
-                    <CalendarIcon className="h-4 w-4 text-gray-400" />
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-600">{consumer.osDuedateRange}</p>
-                      <p className="text-xs text-gray-500">Due Date Range</p>
+                  <div className="space-y-1.5">
+                    {extractIssueDate(consumer.osDuedateRange) && (
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-orange-500 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-orange-700">
+                            Issue Date: {extractIssueDate(consumer.osDuedateRange)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-2">
+                      <CalendarIcon className="h-4 w-4 text-gray-400 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">{consumer.osDuedateRange}</p>
+                        <p className="text-xs text-gray-500">Due Date Range</p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1704,6 +1835,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <td className="px-4 py-3 max-w-[200px]">
                         <div className="truncate text-gray-600" title={consumer.address}>{consumer.address}</div>
                         <div className="text-xs text-gray-400">{consumer.agency}</div>
+                        {extractIssueDate(consumer.osDuedateRange) && (
+                          <div className="text-[10px] text-orange-600 font-medium whitespace-nowrap">
+                            Issue: {extractIssueDate(consumer.osDuedateRange)}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                         {consumer.mobileNumber ? (
@@ -1727,7 +1863,24 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         })()}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                         <Badge className={`${getStatusColor(consumer.disconStatus)} whitespace-nowrap`}>{consumer.disconStatus}</Badge>
+                         <div className="flex flex-col items-center gap-1">
+                           <Badge className={`${getStatusColor(consumer.disconStatus)} whitespace-nowrap`}>{consumer.disconStatus}</Badge>
+                           {(() => {
+                             const effectiveStatus = (consumer.listStatus || "OLD").toUpperCase()
+                             return (
+                               <Badge
+                                 variant="outline"
+                                 className={`text-[9px] font-bold px-1.5 py-0 border ${
+                                   effectiveStatus === "NEW"
+                                     ? "bg-blue-100 text-blue-900 border-blue-300"
+                                     : "bg-amber-100 text-amber-900 border-amber-300"
+                                 }`}
+                               >
+                                 {effectiveStatus}
+                               </Badge>
+                             )
+                           })()}
+                         </div>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         {(() => {

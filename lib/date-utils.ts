@@ -226,3 +226,28 @@ export function getPaymentDuesBreakdown(consumer: {
     uploadDate: uploadDateStr,
   }
 }
+
+/**
+ * Extracts the start/issue date from an O/S Due Date Range string (e.g. "09.06.2025-07.07.2025" or "02.05.2026 - 05.08.2026").
+ * Returns the raw start date string, e.g. "09.06.2025" or "02.05.2026".
+ */
+export function extractIssueDate(osDuedateRange?: string): string {
+  if (!osDuedateRange) return ""
+  const trimmed = osDuedateRange.trim()
+  if (!trimmed) return ""
+
+  // Fast match: look for the first DD.MM.YYYY or DD-MM-YYYY or DD/MM/YYYY
+  const match = trimmed.match(/^(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/)
+  if (match && match[1]) {
+    return match[1]
+  }
+
+  // Fallback: split on "-", "–", or "to"
+  const parts = trimmed.split(/\s*(?:-|–|to)\s*/i)
+  if (parts.length > 0 && parts[0]) {
+    return parts[0].trim()
+  }
+  return ""
+}
+
+
