@@ -1616,13 +1616,13 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
                   {/* Consumer Name & ID: Clean unbordered block */}
                   <div>
-                    <h3
-                      className="font-bold text-sm text-slate-900 line-clamp-1 leading-snug tracking-tight"
+                    <CardTitle
+                      className="text-base sm:text-[17px] font-bold text-slate-900 line-clamp-1 leading-snug tracking-tight"
                       title={consumer.name}
                     >
                       {consumer.name}
-                    </h3>
-                    <div className="flex items-center justify-between mt-0.5 text-xs text-slate-500 font-mono">
+                    </CardTitle>
+                    <div className="flex items-center justify-between mt-1 text-xs text-slate-500 font-mono">
                       <span>ID: {consumer.consumerId}</span>
                       {consumer.mobileNumber ? (
                         <a
