@@ -1548,8 +1548,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   isUrgent ? "ring-2 ring-red-500 border-red-300 shadow-red-100" : ""
                 }`}
               >
-                {/* 1. Header: Pill row & Title */}
-                <CardHeader className="p-3.5 pb-2.5 border-b bg-gradient-to-b from-slate-50/80 to-slate-50/30 space-y-2">
+                {/* 1. Header: Pill row & Title (Clean, no dividing border line) */}
+                <CardHeader className="p-3.5 pb-1 space-y-2">
                   {/* Top Badge Strip: Aligned Left & Right */}
                   <div className="flex items-center justify-between gap-1.5 w-full">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
@@ -1560,16 +1560,16 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       )}
                       <Badge
                         variant="outline"
-                        className={`text-[9px] font-bold px-1.5 py-0 border ${
+                        className={`text-[9px] font-bold px-1.5 py-0 border-0 ${
                           effectiveStatus === "NEW"
-                            ? "bg-blue-100 text-blue-900 border-blue-300"
-                            : "bg-amber-100 text-amber-900 border-amber-300"
+                            ? "bg-blue-100 text-blue-900"
+                            : "bg-amber-100 text-amber-900"
                         }`}
                       >
                         {effectiveStatus}
                       </Badge>
                       {consumer.mru ? (
-                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 border px-1.5 py-0.2 rounded uppercase truncate max-w-[90px]">
+                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase truncate max-w-[90px]">
                           {consumer.mru}
                         </span>
                       ) : null}
@@ -1582,16 +1582,16 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       {consumer._syncStatus === 'error' && (
                         <AlertCircle className="h-3 w-3 text-red-500" aria-label="Sync failed (saved locally)" />
                       )}
-                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] px-2 py-0.5 whitespace-nowrap`}>
+                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] px-2 py-0.5 whitespace-nowrap border-0 shadow-none`}>
                         {consumer.disconStatus}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px] max-w-[85px] truncate block text-slate-600">
+                      <span className="text-[10px] max-w-[85px] truncate block text-slate-500 font-medium">
                         {consumer.agency}
-                      </Badge>
+                      </span>
                     </div>
                   </div>
 
-                  {/* Consumer Name & ID: Fixed 2-Line Box for Uniform Alignment */}
+                  {/* Consumer Name & ID: Clean unbordered block */}
                   <div>
                     <h3
                       className="font-bold text-sm text-slate-900 line-clamp-1 leading-snug tracking-tight"
@@ -1618,7 +1618,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                 </CardHeader>
 
                 {/* 2. Body: Address & Financial/Date Widget */}
-                <CardContent className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
+                <CardContent className="p-3.5 pt-1.5 space-y-2.5 flex-1 flex flex-col justify-between">
                   {/* Fixed 2-Line Address */}
                   <div className="flex items-start gap-1.5 min-h-[2.5rem]">
                     <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
@@ -1630,10 +1630,10 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     </p>
                   </div>
 
-                  {/* Uniform 2-Column Financial & Issue Date Tile */}
-                  <div className="bg-slate-50/90 border border-slate-200/90 shadow-xs rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                  {/* Clean 2-Column Financial & Issue Date Tile without harsh lines */}
+                  <div className="bg-slate-50/70 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
                     {/* Left Col: Outstanding Dues & Paid Tag */}
-                    <div className="border-r pr-2 flex flex-col justify-center">
+                    <div className="pr-2 flex flex-col justify-center">
                       <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
                         Outstanding
                       </span>
@@ -1668,8 +1668,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     </div>
                   </div>
 
-                  {/* 3. Footer Action Toolbar & Primary CTA */}
-                  <div className="space-y-2 pt-1 border-t">
+                  {/* 3. Footer Action Toolbar & Primary CTA without dividing line */}
+                  <div className="space-y-2 pt-1">
                     {/* Quick Utility Icon Strip */}
                     <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
                       <div className="flex items-center gap-1">
