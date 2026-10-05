@@ -847,6 +847,27 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     }
   }
 
+  const AGENCY_PILL_COLORS = [
+    "bg-indigo-100 text-indigo-800",
+    "bg-teal-100 text-teal-800",
+    "bg-purple-100 text-purple-800",
+    "bg-cyan-100 text-cyan-800",
+    "bg-rose-100 text-rose-800",
+    "bg-sky-100 text-sky-800",
+    "bg-emerald-100 text-emerald-800",
+    "bg-violet-100 text-violet-800",
+  ]
+
+  const getAgencyColor = (agencyName?: string) => {
+    if (!agencyName || !agencyName.trim()) return "bg-slate-100 text-slate-700"
+    let h = 0
+    const str = agencyName.trim().toUpperCase()
+    for (let i = 0; i < str.length; i++) {
+      h = (h * 31 + str.charCodeAt(i)) & 0xffff
+    }
+    return AGENCY_PILL_COLORS[h % AGENCY_PILL_COLORS.length]
+  }
+
 
 
   const handleUpdateConsumer = async (updatedConsumer: ConsumerData) => {
@@ -1585,9 +1606,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] px-2 py-0.5 whitespace-nowrap border-0 shadow-none`}>
                         {consumer.disconStatus}
                       </Badge>
-                      <span className="text-[10px] max-w-[85px] truncate block text-slate-500 font-medium">
-                        {consumer.agency}
-                      </span>
+                      {consumer.agency && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full max-w-[95px] truncate block ${getAgencyColor(consumer.agency)}`}>
+                          {consumer.agency}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1827,7 +1850,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       </td>
                       <td className="px-4 py-3 max-w-[200px]">
                         <div className="truncate text-gray-600" title={consumer.address}>{consumer.address}</div>
-                        <div className="text-xs text-gray-400">{consumer.agency}</div>
+                        {consumer.agency && (
+                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.2 rounded-full mt-0.5 truncate max-w-[120px] ${getAgencyColor(consumer.agency)}`}>
+                            {consumer.agency}
+                          </span>
+                        )}
                         {extractIssueDate(consumer.osDuedateRange) && (
                           <div className="text-[10px] text-orange-600 font-medium whitespace-nowrap">
                             Issue: {extractIssueDate(consumer.osDuedateRange)}
