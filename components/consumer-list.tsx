@@ -1526,233 +1526,226 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
       {/* Consumer Cards */}
       {viewMode === "card" ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {paginatedConsumers.map((consumer) => (
-            <Card id={`consumer-card-${consumer.consumerId}`} key={consumer.consumerId} className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${(consumer.priority || "").toLowerCase() === "urgent" ? "ring-2 ring-red-500 border-red-300" : ""}`}>
-              <CardHeader className="pb-3 break-words whitespace-normal">
-                <div className="flex items-start justify-between w-full gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight">{consumer.name}</CardTitle>
-                      {(consumer.priority || "").toLowerCase() === "urgent" && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-1.5 py-0.5 rounded">URGENT</span>
+          {paginatedConsumers.map((consumer) => {
+            const breakdown = getPaymentDuesBreakdown(consumer)
+            const status = (consumer.disconStatus || "").toLowerCase()
+            const hasPaidRecord = status === "paid" || status === "agency paid" || breakdown.paidAmt > 0
+            const issueDate = extractIssueDate(consumer.osDuedateRange)
+            const effectiveStatus = (consumer.listStatus || "OLD").toUpperCase()
+            const isUrgent = (consumer.priority || "").toLowerCase() === "urgent"
+            const hasImage = !!(consumer.imageUrl || (consumer as any).image)
+
+            const isReadOnlyMode = permissions
+              ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
+              : (userRole === "viewer" || userRole === "reader")
+            const reconnBlocked = blockedIds.has(consumer.consumerId)
+
+            return (
+              <Card
+                id={`consumer-card-${consumer.consumerId}`}
+                key={consumer.consumerId}
+                className={`h-full flex flex-col justify-between shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 overflow-hidden border border-slate-200/80 bg-white rounded-xl ${
+                  isUrgent ? "ring-2 ring-red-500 border-red-300 shadow-red-100" : ""
+                }`}
+              >
+                {/* 1. Header: Pill row & Title */}
+                <CardHeader className="p-3.5 pb-2.5 border-b bg-gradient-to-b from-slate-50/80 to-slate-50/30 space-y-2">
+                  {/* Top Badge Strip: Aligned Left & Right */}
+                  <div className="flex items-center justify-between gap-1.5 w-full">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      {isUrgent && (
+                        <span className="shrink-0 text-[9px] font-extrabold uppercase tracking-wider bg-red-600 text-white px-1.5 py-0.5 rounded shadow-xs">
+                          URGENT
+                        </span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <p className="text-sm text-gray-600 font-mono">ID: {consumer.consumerId}</p>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                          setOsdTargetId(consumer.consumerId)
-                          setShowOsdModal(true)
-                        }}
-                        className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold"
-                        title="Live OSD Check"
+                      <Badge
+                        variant="outline"
+                        className={`text-[9px] font-bold px-1.5 py-0 border ${
+                          effectiveStatus === "NEW"
+                            ? "bg-blue-100 text-blue-900 border-blue-300"
+                            : "bg-amber-100 text-amber-900 border-amber-300"
+                        }`}
                       >
-                        <Zap className="h-3 w-3 fill-blue-600" />
-                        <span>Live</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                          setActiveHistoryConsumer(consumer)
-                        }}
-                        className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer"
-                        title="View history"
-                      >
-                        <History className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => handleShareConsumer(consumer, e)}
-                        disabled={sharingConsumerId === consumer.consumerId}
-                        className="text-emerald-600 hover:text-emerald-800 transition-colors p-1 rounded hover:bg-emerald-50 cursor-pointer flex items-center gap-0.5 text-[11px] font-semibold disabled:opacity-50"
-                        title="Share Status Card"
-                      >
-                        {sharingConsumerId === consumer.consumerId ? (
-                          <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
-                        ) : (
-                          <Share2 className="h-3 w-3" />
-                        )}
-                        <span>Share</span>
-                      </button>
-                    </div>
-                    {consumer.mru ? (
-                      <Badge variant="outline" className="mt-2 text-[10px] uppercase tracking-[0.08em]">
-                        {consumer.mru}
+                        {effectiveStatus}
                       </Badge>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col items-end space-y-1 shrink-0">
-                    <div className="flex items-center gap-1">
+                      {consumer.mru ? (
+                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 border px-1.5 py-0.2 rounded uppercase truncate max-w-[90px]">
+                          {consumer.mru}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
                       {consumer._syncStatus === 'syncing' && (
                         <RefreshCw className="h-3 w-3 animate-spin text-blue-500" aria-label="Syncing..." />
                       )}
                       {consumer._syncStatus === 'error' && (
                         <AlertCircle className="h-3 w-3 text-red-500" aria-label="Sync failed (saved locally)" />
                       )}
-                      <Badge className={getStatusColor(consumer.disconStatus)}>{consumer.disconStatus}</Badge>
-                      {(() => {
-                        const effectiveStatus = (consumer.listStatus || "OLD").toUpperCase()
-                        return (
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] font-bold px-1.5 py-0 border ${
-                              effectiveStatus === "NEW"
-                                ? "bg-blue-100 text-blue-900 border-blue-300"
-                                : "bg-amber-100 text-amber-900 border-amber-300"
-                            }`}
-                          >
-                            {effectiveStatus}
-                          </Badge>
-                        )
-                      })()}
+                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] px-2 py-0.5 whitespace-nowrap`}>
+                        {consumer.disconStatus}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] max-w-[85px] truncate block text-slate-600">
+                        {consumer.agency}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-xs max-w-[120px] truncate block">
-                      {consumer.agency}
-                    </Badge>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 break-words whitespace-normal">
-                <div className="flex items-start space-x-2 min-w-0">
-                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-gray-600 line-clamp-2" title={consumer.address}>{consumer.address}</p>
-                </div>
-                {consumer.mobileNumber && (
-                  <a href={`tel:${consumer.mobileNumber}`} className="flex items-center space-x-2 hover:underline">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <p className="text-sm text-blue-600">{consumer.mobileNumber}</p>
-                  </a>
-                )}
 
-                {(() => {
-                  const breakdown = getPaymentDuesBreakdown(consumer)
-                  const status = (consumer.disconStatus || "").toLowerCase()
-                  const hasPaidRecord = status === "paid" || status === "agency paid" || breakdown.paidAmt > 0
-                  
-                  if (!hasPaidRecord) {
-                    return (
-                      <div className="flex items-center space-x-2">
-                        <IndianRupee className="h-4 w-4 text-gray-400 shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-red-600">
-                            ₹{breakdown.currentOsd.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-gray-500">Outstanding Dues (Issued for Disconnection)</p>
-                        </div>
+                  {/* Consumer Name & ID: Fixed 2-Line Box for Uniform Alignment */}
+                  <div>
+                    <h3
+                      className="font-bold text-sm text-slate-900 line-clamp-1 leading-snug tracking-tight"
+                      title={consumer.name}
+                    >
+                      {consumer.name}
+                    </h3>
+                    <div className="flex items-center justify-between mt-0.5 text-xs text-slate-500 font-mono">
+                      <span>ID: {consumer.consumerId}</span>
+                      {consumer.mobileNumber ? (
+                        <a
+                          href={`tel:${consumer.mobileNumber}`}
+                          className="flex items-center gap-1 text-blue-600 hover:underline font-sans font-medium"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone className="h-3 w-3" />
+                          <span>{consumer.mobileNumber}</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">No Mobile</span>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                {/* 2. Body: Address & Financial/Date Widget */}
+                <CardContent className="p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
+                  {/* Fixed 2-Line Address */}
+                  <div className="flex items-start gap-1.5 min-h-[2.5rem]">
+                    <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                    <p
+                      className="text-xs text-slate-600 line-clamp-2 leading-relaxed"
+                      title={consumer.address}
+                    >
+                      {consumer.address || "Address not provided"}
+                    </p>
+                  </div>
+
+                  {/* Uniform 2-Column Financial & Issue Date Tile */}
+                  <div className="bg-slate-50/90 border border-slate-200/90 shadow-xs rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                    {/* Left Col: Outstanding Dues & Paid Tag */}
+                    <div className="border-r pr-2 flex flex-col justify-center">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Outstanding
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-extrabold text-red-600 leading-tight">
+                          ₹{breakdown.currentOsd.toLocaleString()}
+                        </span>
                       </div>
-                    )
-                  }
+                      {hasPaidRecord && breakdown.paidAmt > 0 ? (
+                        <span className={`text-[10px] font-bold truncate block ${breakdown.isPaidAfterUpload ? "text-emerald-700" : "text-slate-500"}`}>
+                          {breakdown.isPaidAfterUpload ? `Paid: ₹${breakdown.paidAmt.toLocaleString()}` : `Prev: ₹${breakdown.paidAmt.toLocaleString()}`}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 truncate block">Unpaid</span>
+                      )}
+                    </div>
 
-                  return (
-                    <div className="space-y-1.5 bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-1.5">
-                          <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
-                          <span className="text-sm font-extrabold text-emerald-700">
-                            {breakdown.isPaidAfterUpload ? `Paid: ₹${breakdown.paidAmt.toLocaleString()}` : `Prev Paid: ₹${breakdown.paidAmt.toLocaleString()}`}
-                          </span>
-                        </div>
-                        {breakdown.paidDate && (
-                          <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                            📅 {breakdown.paidDate}
-                          </span>
+                    {/* Right Col: Issue Date & Range */}
+                    <div className="pl-1 flex flex-col justify-center">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Issue Date
+                      </span>
+                      <span className="text-xs font-bold text-orange-700 mt-0.5 truncate block">
+                        {issueDate ? `📅 ${issueDate}` : "Not Available"}
+                      </span>
+                      <span
+                        className="text-[10px] text-slate-500 truncate block"
+                        title={consumer.osDuedateRange || ""}
+                      >
+                        {consumer.osDuedateRange ? `Due: ${consumer.osDuedateRange}` : "Range: -"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. Footer Action Toolbar & Primary CTA */}
+                  <div className="space-y-2 pt-1 border-t">
+                    {/* Quick Utility Icon Strip */}
+                    <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                            setOsdTargetId(consumer.consumerId)
+                            setShowOsdModal(true)
+                          }}
+                          className="px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold flex items-center gap-1 text-[11px] transition-colors"
+                          title="Check Live OSD"
+                        >
+                          <Zap className="h-3 w-3 fill-blue-600 text-blue-600" />
+                          <span>Live</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                            setActiveHistoryConsumer(consumer)
+                          }}
+                          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          title="View History"
+                        >
+                          <History className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleShareConsumer(consumer, e)}
+                          disabled={sharingConsumerId === consumer.consumerId}
+                          className="p-1 rounded text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                          title="Share Status Card"
+                        >
+                          {sharingConsumerId === consumer.consumerId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Share2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        {hasImage && (
+                          <a
+                            href={getValidUrl((consumer.imageUrl || (consumer as any).image) as string)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                            title="View Uploaded Image"
+                          >
+                            <ImageIcon className="h-3.5 w-3.5" />
+                          </a>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] border-t border-emerald-200/60 font-medium">
-                        <div className="text-slate-600">
-                          <span className="block text-[10px] text-slate-400 uppercase">OSD</span>
-                          ₹{breakdown.currentOsd.toLocaleString()}
-                        </div>
-                        <div className="text-emerald-700">
-                          <span className="block text-[10px] text-emerald-600/70 uppercase">{breakdown.isPaidAfterUpload ? "Paid" : "Prev Paid"}</span>
-                          ₹{breakdown.paidAmt.toLocaleString()}
-                        </div>
-                        <div className={breakdown.remainingPending > 0 ? "text-red-600 font-bold" : "text-emerald-700"}>
-                          <span className="block text-[10px] text-slate-400 uppercase">Pending</span>
-                          ₹{breakdown.remainingPending.toLocaleString()}
-                        </div>
-                      </div>
-
-                      {!breakdown.isPaidAfterUpload && (
-                        <p className="text-[10px] text-amber-800 font-medium pt-0.5 leading-tight">
-                          ℹ️ Payment of ₹{breakdown.paidAmt.toLocaleString()} on {breakdown.paidDate} was prior to list upload ({breakdown.uploadDate}). Current OSD reflects fresh dues.
-                        </p>
-                      )}
+                      {/* Info / Quick Preview Icon Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPreviewConsumer(consumer)
+                        }}
+                        className="px-2 py-1 rounded text-[11px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-1"
+                        title="More Consumer Details"
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span>Details</span>
+                      </button>
                     </div>
-                  )
-                })()}
 
-                {consumer.osDuedateRange && (
-                  <div className="space-y-1.5">
-                    {extractIssueDate(consumer.osDuedateRange) && (
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-orange-500 shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-xs font-semibold text-orange-700">
-                            Issue Date: {extractIssueDate(consumer.osDuedateRange)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-2">
-                      <CalendarIcon className="h-4 w-4 text-gray-400 shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-600">{consumer.osDuedateRange}</p>
-                        <p className="text-xs text-gray-500">Due Date Range</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                  <div>
-                    <span className="font-medium">Class:</span> {consumer.class}
-                  </div>
-                  <div>
-                    <span className="font-medium">Device:</span> {consumer.device}
-                  </div>
-                </div>
-
-                {consumer.disconDate && (
-                  <div className="text-xs text-red-600">
-                    <span className="font-medium">Last Updated:</span> {consumer.disconDate}
-                  </div>
-                )}
-
-                {/* 👇 UPDATED IMAGE LINK SECTION 👇 */}
-                {(consumer.imageUrl || (consumer as any).image) && (
-                  <div className="pt-2 pb-1 relative z-10"> {/* Added z-10 and spacing */}
-                    <a
-                      href={getValidUrl((consumer.imageUrl || (consumer as any).image) as string)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center space-x-2 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
-                      onClick={(e) => e.stopPropagation()} 
-                    >
-                      <ImageIcon className="h-3.5 w-3.5" />
-                      <span>View Uploaded Image</span>
-                    </a>
-                  </div>
-                )}
-                {/* 👆 END UPDATED SECTION 👆 */}
-
-                {(() => {
-                  const isReadOnlyMode = permissions
-                    ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
-                    : (userRole === "viewer" || userRole === "reader")
-                  const reconnBlocked = blockedIds.has(consumer.consumerId)
-                  return (
+                    {/* Primary Action Button */}
                     <Button
                       onClick={() => {
                         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         setSelectedConsumer(consumer)
                       }}
-                      className={`w-full mt-4 ${
+                      className={`w-full h-8 text-xs font-semibold ${
                         isReadOnlyMode
-                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-semibold"
+                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"
                           : "bg-slate-900 hover:bg-slate-800 text-white"
                       }`}
                       size="sm"
@@ -1760,21 +1753,21 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     >
                       {isReadOnlyMode ? (
                         <>
-                          <Eye className="h-4 w-4 mr-2 text-slate-600" />
+                          <Eye className="h-3.5 w-3.5 mr-1 text-slate-600" />
                           View Details
                         </>
                       ) : (
                         <>
-                          <Edit className="h-4 w-4 mr-2" />
+                          <Edit className="h-3.5 w-3.5 mr-1" />
                           {reconnBlocked ? "⚠ Update Status" : "Update Status"}
                         </>
                       )}
                     </Button>
-                  )
-                })()}
-              </CardContent>
-            </Card>
-          ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       ) : (
         <>
