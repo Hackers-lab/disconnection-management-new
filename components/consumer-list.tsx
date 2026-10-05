@@ -1689,6 +1689,18 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         {consumer.osDuedateRange ? `Due: ${consumer.osDuedateRange}` : "Range: -"}
                       </span>
                     </div>
+
+                    {/* Class & Meter Device Strip */}
+                    <div className="col-span-2 pt-1.5 mt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-600 font-medium">
+                      <span className="truncate max-w-[50%]" title={consumer.class || consumer.baseClass || "-"}>
+                        <span className="text-slate-400 font-normal">Class: </span>
+                        {consumer.class || consumer.baseClass || "-"}
+                      </span>
+                      <span className="truncate max-w-[50%] text-right font-mono" title={consumer.device || "-"}>
+                        <span className="text-slate-400 font-sans font-normal">Meter: </span>
+                        {consumer.device || "-"}
+                      </span>
+                    </div>
                   </div>
 
                   {/* 3. Footer Action Toolbar & Primary CTA without dividing line */}
