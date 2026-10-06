@@ -618,12 +618,33 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       }
     }
     const s = String(raw).trim()
-    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return s
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-      const [y, m, d] = s.split("-")
-      return `${d}-${m}-${y.slice(0, 4)}`
+    if (!s) return ""
+
+    // Normalize separators (. and / to -)
+    const clean = s.replace(/[./]/g, "-")
+
+    // DD-MM-YYYY or D-M-YYYY
+    const dmyMatch = clean.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
+    if (dmyMatch) {
+      const [, p1, p2, year] = dmyMatch
+      let day = Number(p1)
+      let month = Number(p2)
+      // Check if format was MM-DD-YYYY where day > 12
+      if (month > 12 && day <= 12) {
+        const tmp = day
+        day = month
+        month = tmp
+      }
+      return `${String(day).padStart(2, "0")}-${String(month).padStart(2, "0")}-${year}`
     }
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s.replace(/\//g, "-")
+
+    // YYYY-MM-DD
+    const ymdMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+    if (ymdMatch) {
+      const [, y, m, d] = ymdMatch
+      return `${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}-${y}`
+    }
+
     // Last resort: let Date parse it
     const parsed = new Date(s)
     if (!isNaN(parsed.getTime())) {
@@ -631,7 +652,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       const mm = String(parsed.getMonth() + 1).padStart(2, "0")
       return `${dd}-${mm}-${parsed.getFullYear()}`
     }
-    return s
+    return clean
   }
 
   const parsePaymentFile = (file: File) => {

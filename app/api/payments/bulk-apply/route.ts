@@ -31,14 +31,24 @@ type BulkPaymentRequest = {
 
 const sheets = googleSheets({ version: "v4", auth })
 
-// Parse a date string of DD-MM-YYYY, YYYY-MM-DD, MM/DD/YYYY etc. into a Date.
+// Parse a date string of DD-MM-YYYY, DD.MM.YYYY, DD/MM/YYYY, YYYY-MM-DD etc. into a Date.
 function parseFlexDate(dateStr: string): Date | null {
   if (!dateStr) return null
+  const clean = String(dateStr).trim().replace(/[./]/g, "-")
   let d: Date | null = null
-  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) d = new Date(dateStr)
-  else if (/^\d{2}-\d{2}-\d{4}/.test(dateStr)) {
-    const [dd, mm, yyyy] = dateStr.split("-")
-    d = new Date(`${yyyy}-${mm}-${dd}`)
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(clean)) {
+    const [yyyy, mm, dd] = clean.split("-")
+    d = new Date(`${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`)
+  } else if (/^\d{1,2}-\d{1,2}-\d{4}/.test(clean)) {
+    const [p1, p2, yyyy] = clean.split("-")
+    let dd = Number(p1)
+    let mm = Number(p2)
+    if (mm > 12 && dd <= 12) {
+      const tmp = dd
+      dd = mm
+      mm = tmp
+    }
+    d = new Date(`${yyyy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`)
   } else {
     const parsed = new Date(dateStr)
     if (!isNaN(parsed.getTime())) d = parsed
