@@ -828,7 +828,9 @@ export function Header({
       const targetAgency = userRole === "admin" ? reportAgency : (userAgencies.length === 1 ? userAgencies[0] : "All Agencies")
       const agencyDescriptions: Record<string, string> = {}
       
-      if (targetAgency === "All Agencies") {
+      const normTarget = (targetAgency || "").trim().toUpperCase()
+
+      if (normTarget === "ALL AGENCIES") {
           try {
              const res = await fetch("/api/admin/agencies")
              if (res.ok) {
@@ -845,18 +847,37 @@ export function Header({
           } catch (e) { console.warn(e) }
       }
 
-      const cachedData = await getFromCache<any[]>("consumers_data_cache") || []
+      let cachedData = await getFromCache<any[]>("consumers_data_cache") || []
+      
+      // If agency cache is empty (e.g. user hasn't visited the consumer list yet), fetch fresh base data
+      if (cachedData.length === 0) {
+        try {
+          const res = await fetch("/api/consumers/base")
+          if (res.ok) {
+            const data = await res.json()
+            if (Array.isArray(data)) {
+              cachedData = data
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("Could not fallback-fetch consumers for report", fetchErr)
+        }
+      }
       
       const fromDate = new Date(reportDateRange.from)
       fromDate.setHours(0, 0, 0, 0)
       const toDate = new Date(reportDateRange.to)
       toDate.setHours(23, 59, 59, 999)
 
+      const userAgenciesNorm = (userAgencies || []).map(a => String(a || "").trim().toUpperCase())
+
       const filtered = cachedData.filter(item => {
-        // Agency Check
-        if (targetAgency !== "All Agencies" && item.agency !== targetAgency) return false
-        if (userRole !== "admin" && targetAgency === "All Agencies") {
-             if (userAgencies.length > 0 && !userAgencies.includes(item.agency)) return false
+        const itemAgencyNorm = String(item.agency || "").trim().toUpperCase()
+
+        // Agency Check (case-insensitive & whitespace-trimmed)
+        if (normTarget !== "ALL AGENCIES" && itemAgencyNorm !== normTarget) return false
+        if (userRole !== "admin" && normTarget === "ALL AGENCIES") {
+             if (userAgenciesNorm.length > 0 && !userAgenciesNorm.includes(itemAgencyNorm)) return false
         }
         
         if (!item.disconDate) return false
