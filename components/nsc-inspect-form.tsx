@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, XCircle, RefreshCw, MapPin } from "lucide-react"
+import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, XCircle, RefreshCw, MapPin, AlertTriangle } from "lucide-react"
 import { NSC_CLASSES } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
@@ -228,7 +228,10 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
   const [existingMeterImg, setExistingMeterImg] = useState(app.existingMeterImg || "")
   const [validPartition,   setValidPartition]   = useState(app.validPartition   || "yes")
   const [partitionImg,     setPartitionImg]     = useState(app.partitionImg     || "")
+  const initialHasDispute = Boolean(app.dispute && !["ok", "all ok", "allok", "nil", "none", "no"].includes(app.dispute.trim().toLowerCase()))
+  const [hasDispute,       setHasDispute]       = useState(initialHasDispute)
   const [dispute,          setDispute]          = useState(app.dispute          || "")
+  const [generalRemarks,   setGeneralRemarks]   = useState(app.agencyRemarks    || "")
   // Technical
   const [load,           setLoad]           = useState(app.load           || "")
   const [serviceLength,  setServiceLength]  = useState(app.serviceLength  || "")
@@ -265,6 +268,15 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
       normalizedLoad = (numLoad / 1000).toString()
     }
 
+    let cleanedDispute = ""
+    if (hasDispute && dispute.trim()) {
+      const lower = dispute.trim().toLowerCase()
+      // If user typed 'all ok' or 'ok', ignore as dispute
+      if (!["ok", "all ok", "allok", "nil", "none", "no"].includes(lower)) {
+        cleanedDispute = dispute.trim()
+      }
+    }
+
     setSubmitting(true)
     try {
       const res = await fetch("/api/nsc/inspect", {
@@ -274,7 +286,8 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
           receiveNo: app.receiveNo,
           verifyName, verifyCO, verifyAddress, verifyClass,
           existingMeter, existingMeterNo, existingMeterImg,
-          validPartition, partitionImg, dispute,
+          validPartition, partitionImg,
+          dispute: cleanedDispute,
           load: normalizedLoad, serviceLength, poleRequired, poleDrawingImg,
           dtrCapacity, dtrLoad, siteImg, inspectionFormImg,
           agencyDecision, agencyRemarks,
@@ -370,9 +383,49 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
             </div>
           )}
 
-          <div className="space-y-1">
-            <Label className="text-xs text-gray-500 uppercase tracking-wide">Any Other Dispute / Remarks</Label>
-            <Textarea value={dispute} onChange={e => setDispute(e.target.value)} placeholder="Describe any issues or disputes at site..." rows={2} />
+          {/* Dispute Toggle & Input */}
+          <div className="space-y-2 pt-1 border-t border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs font-semibold text-gray-700">Any Dispute at Site?</Label>
+                <p className="text-[11px] text-gray-400">Boundary objection, legal/court stay, or property dispute</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (hasDispute) {
+                    setHasDispute(false)
+                    setDispute("")
+                  } else {
+                    setHasDispute(true)
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition ${
+                  hasDispute
+                    ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                    : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200"
+                }`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {hasDispute ? "Dispute Reported (Click to Remove)" : "+ Report Dispute"}
+              </button>
+            </div>
+
+            {hasDispute && (
+              <div className="space-y-1 pl-2 border-l-2 border-amber-400 animate-in fade-in duration-150">
+                <Label className="text-xs font-medium text-amber-800">Describe Specific Dispute / Reason *</Label>
+                <Textarea
+                  value={dispute}
+                  onChange={e => setDispute(e.target.value)}
+                  placeholder="e.g. Neighbor objection over right of way, court stay order, title dispute..."
+                  rows={2}
+                  className="text-xs border-amber-300 focus-visible:ring-amber-500"
+                />
+                <p className="text-[10px] text-gray-400">
+                  Note: Do not type normal remarks like &quot;all ok&quot; here. If there is no dispute, click button above to remove.
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

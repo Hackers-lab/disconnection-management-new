@@ -482,6 +482,12 @@ export async function processApplication(req: {
     req.finalAction === "quotation"      ? "quotation_issued" :
     req.finalAction === "dispute_letter" ? "dispute_issued"   : "pending"
 
+  // Enforce decision integrity
+  const resolvedAdminDecision =
+    req.finalAction === "quotation" ? "accepted" :
+    req.finalAction === "dispute_letter" ? "rejected" :
+    req.adminDecision
+
   const data: any[] = []
   const addUpdate = (field: keyof NSCApplication, value: string) => {
     const colIdx = findColumn(headers, NSC_FIELD_MAP[field])
@@ -494,7 +500,7 @@ export async function processApplication(req: {
   }
 
   addUpdate("status", newStatus)
-  addUpdate("adminDecision", req.adminDecision)
+  addUpdate("adminDecision", resolvedAdminDecision)
   addUpdate("adminRemarks", req.adminRemarks)
   addUpdate("finalAction", req.finalAction)
   addUpdate("finalizedAt", now)

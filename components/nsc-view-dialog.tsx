@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { NSC_STATUS_COLORS, NSC_STATUS_LABELS } from "@/lib/nsc-types"
+import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, isNSCDispute } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import {
   Check, ChevronDown, ChevronRight,
@@ -313,7 +313,7 @@ export function NscViewDialog({ app, open, onClose }: Props) {
                     {app.existingMeter  === "yes" && <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Existing Meter: {app.existingMeterNo || "?"}</span>}
                     {app.validPartition === "no"  && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Invalid Partition</span>}
                     {app.poleRequired   === "yes" && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Pole Required</span>}
-                    {app.dispute                  && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Dispute: {app.dispute}</span>}
+                    {isNSCDispute(app)            && <span className="text-xs bg-rose-100 text-rose-700 font-semibold px-2 py-0.5 rounded-full">Dispute: {app.dispute || "Flagged / Rejected"}</span>}
                   </div>
 
                   {(app.siteImg || app.inspectionFormImg || app.existingMeterImg || app.poleDrawingImg) && (

@@ -21,6 +21,38 @@ export function normalizeNSCStatus(rawStatus?: string): string {
   return s
 }
 
+const NON_DISPUTE_PHRASES = new Set([
+  "ok", "all ok", "allok", "nil", "none", "no", "no dispute", "na", "n/a", "good", "fine",
+  "clear", "site ok", "accepted", "normal", "meter ok", "nothing", "-", "--"
+])
+
+export function isNSCDispute(app: {
+  status?: string
+  dispute?: string
+  agencyDecision?: string
+  adminDecision?: string
+  finalAction?: string
+}): boolean {
+  if (!app) return false
+  const status = normalizeNSCStatus(app.status)
+  // 1. Official dispute issued by admin
+  if (status === "dispute_issued" || app.finalAction === "dispute_letter") return true
+  // 2. Official rejection
+  if (app.adminDecision === "rejected") return true
+  if (app.agencyDecision === "rejected") return true
+
+  // 3. If agency explicitly accepted the application, site remarks (like "13 pul", "new home", "mitter dewa jabe", "no") are NOT disputes!
+  if (app.agencyDecision === "accepted") {
+    return false
+  }
+
+  // 4. For applications not yet decided (or pending inspection), check if dispute text was reported
+  const d = (app.dispute || "").trim().toLowerCase()
+  if (!d) return false
+  if (NON_DISPUTE_PHRASES.has(d)) return false
+  return true
+}
+
 export const NSC_CLASSES: { value: NSCAppliedClass; label: string }[] = [
   { value: "domestic",   label: "LT Domestic" },
   { value: "commercial", label: "LT Commercial" },

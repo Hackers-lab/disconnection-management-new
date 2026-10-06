@@ -9,6 +9,7 @@ import {
   Search, X, Plus, RefreshCw, Check, ChevronLeft, ChevronRight,
   FileDown, Phone, MapPin, ClipboardList, Clock, FolderOpen,
   FileInput, Pencil, Loader2, SlidersHorizontal, Eye, FileSpreadsheet, FileText,
+  ChevronDown, ChevronUp, BarChart3, TrendingUp, AlertTriangle,
 } from "lucide-react"
 import { NscReportDownloadModal } from "@/components/nsc-report-download-modal"
 import {
@@ -25,7 +26,7 @@ import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
-import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, NSC_CLASSES, normalizeNSCStatus } from "@/lib/nsc-types"
+import { NSC_STATUS_COLORS, NSC_STATUS_LABELS, NSC_CLASSES, normalizeNSCStatus, isNSCDispute } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { parseTs } from "@/lib/date-utils"
 import { NscApplicationForm } from "@/components/nsc-application-form"
@@ -118,6 +119,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   // Filters
   const [filters, setFilters]   = useState<ActiveFilters>(DEFAULT_FILTERS)
   const [filterOpen, setFilterOpen] = useState(false)
+  const [showKpiDashboard, setShowKpiDashboard] = useState(false)
 
   // Project state
   const [projects, setProjects]                 = useState<NSCProject[]>([])
@@ -239,7 +241,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     if (filters.klass)   data = data.filter(a => a.appliedClass === filters.klass)
     if (filters.pole === "yes") data = data.filter(a => a.poleRequired === "yes")
     if (filters.pole === "no")  data = data.filter(a => a.poleRequired !== "yes")
-    if (filters.dispute) data = data.filter(a => !!a.dispute)
+    if (filters.dispute) data = data.filter(a => isNSCDispute(a))
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -270,6 +272,13 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
   // Phase sub-counts for pending — shows how many 1P vs 3P are waiting
   const pending1P = scopedApps.filter(a => normalizeNSCStatus(a.status) === "pending" && a.phase === "1P").length
   const pending3P = scopedApps.filter(a => normalizeNSCStatus(a.status) === "pending" && a.phase === "3P").length
+
+  // Additional KPI metrics for quick dashboard
+  const quotationCount = scopedApps.filter(a => normalizeNSCStatus(a.status) === "quotation_issued").length
+  const disputeCount   = scopedApps.filter(a => isNSCDispute(a)).length
+  const poleCount      = scopedApps.filter(a => a.poleRequired === "yes").length
+  const nonPoleCount   = scopedApps.filter(a => a.poleRequired !== "yes").length
+  const effectedCount  = scopedApps.filter(a => ["connection_effected", "meter_issued"].includes(normalizeNSCStatus(a.status))).length
 
   // ── Export ────────────────────────────────────────────────────────────────
   const exportData = useCallback(async () => {
@@ -462,21 +471,56 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
             {search && <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer" onClick={() => setSearch("")} />}
           </div>
 
+          {/* Reports quick button (brought forward from filter tab) */}
+          {isAdmin && (
+            <button
+              onClick={() => setTab(t => t === "reports" ? "all" : "reports")}
+              className={`h-9 px-3 flex items-center gap-1.5 rounded-xl border transition shrink-0 font-medium text-xs shadow-sm ${
+                tab === "reports"
+                  ? "bg-indigo-600 border-indigo-600 text-white shadow-indigo-200"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200"
+              }`}
+              title="Reports & Analytics"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="hidden sm:inline font-semibold">Reports</span>
+            </button>
+          )}
+
+          {/* Collapsible KPI Dashboard Toggle */}
+          <button
+            onClick={() => setShowKpiDashboard(prev => !prev)}
+            className={`h-9 px-3 flex items-center gap-1.5 rounded-xl border transition shrink-0 font-medium text-xs shadow-sm ${
+              showKpiDashboard
+                ? "bg-slate-900 border-slate-900 text-white shadow-slate-200"
+                : "bg-white border-gray-200 text-gray-700 hover:bg-slate-50 hover:border-gray-300"
+            }`}
+            title={showKpiDashboard ? "Hide KPI Dashboard" : "Show KPI Dashboard"}
+          >
+            <BarChart3 className="h-4 w-4 text-blue-500" />
+            <span className="hidden sm:inline font-semibold">KPIs</span>
+            {showKpiDashboard ? (
+              <ChevronUp className="h-3.5 w-3.5 opacity-70" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            )}
+          </button>
+
           {/* Unified Filter Button (All filters inside popover) */}
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
               <button
                 className={`relative h-9 px-3 flex items-center gap-1.5 rounded-xl border transition shrink-0 font-medium text-xs
-                  ${(activeFilterCount > 0 || tab !== "all")
+                  ${(activeFilterCount > 0 || (tab !== "all" && tab !== "reports"))
                     ? "bg-slate-900 border-slate-900 text-white shadow-sm"
                     : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}
                 title="Filters"
               >
                 <SlidersHorizontal className="h-4 w-4" />
                 <span className="hidden sm:inline font-semibold">Filter</span>
-                {(activeFilterCount > 0 || tab !== "all") && (
+                {(activeFilterCount > 0 || (tab !== "all" && tab !== "reports")) && (
                   <span className="h-4 min-w-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {activeFilterCount + (tab !== "all" ? 1 : 0)}
+                    {activeFilterCount + ((tab !== "all" && tab !== "reports") ? 1 : 0)}
                   </span>
                 )}
               </button>
@@ -546,6 +590,163 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
         </div>
       </div>
 
+      {/* Collapsible KPI Dashboard */}
+      {showKpiDashboard && (
+        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                <BarChart3 className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">NSC KPI Dashboard</h3>
+                <p className="text-[11px] text-gray-500">Live operational indicators across application lifecycle</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowKpiDashboard(false)}
+                className="text-xs text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-gray-100 transition"
+                title="Collapse Dashboard"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {/* Total Applications */}
+            <div
+              onClick={() => { setTab("all"); setFilters(DEFAULT_FILTERS) }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                tab === "all" && activeFilterCount === 0
+                  ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                  : "bg-slate-50 text-slate-800 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">Total</span>
+                <span className="text-[10px] opacity-75">All</span>
+              </div>
+              <div className="text-xl font-bold mt-1">{scopedApps.length}</div>
+              <div className="text-[10px] opacity-75 mt-0.5">Applications</div>
+            </div>
+
+            {/* Pending Inspection */}
+            <div
+              onClick={() => { setTab("pending") }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                tab === "pending"
+                  ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                  : "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">Pending</span>
+                <span className="text-[10px] font-bold opacity-75">1P:{pending1P} | 3P:{pending3P}</span>
+              </div>
+              <div className="text-xl font-bold mt-1">{pendingCount}</div>
+              <div className="text-[10px] opacity-75 mt-0.5">Need Inspection</div>
+            </div>
+
+            {/* Inspection Done */}
+            <div
+              onClick={() => { setTab("inspected") }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                tab === "inspected"
+                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                  : "bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">Inspected</span>
+                <span className="text-[10px] opacity-75">Stage 2</span>
+              </div>
+              <div className="text-xl font-bold mt-1">{inspectedCount}</div>
+              <div className="text-[10px] opacity-75 mt-0.5">Site Verified</div>
+            </div>
+
+            {/* Projects / Erection */}
+            <div
+              onClick={() => { setTab("projects") }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                tab === "projects"
+                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                  : "bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">Projects</span>
+                <span className="text-[10px] opacity-75">Erection</span>
+              </div>
+              <div className="text-xl font-bold mt-1">{projectCount}</div>
+              <div className="text-[10px] opacity-75 mt-0.5">Pole / Line Work</div>
+            </div>
+
+            {/* Completed */}
+            <div
+              onClick={() => { setTab("completed") }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                tab === "completed"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                  : "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">Completed</span>
+                <span className="text-[10px] opacity-75">Done</span>
+              </div>
+              <div className="text-xl font-bold mt-1">{completedCount}</div>
+              <div className="text-[10px] opacity-75 mt-0.5">Resolved / Done</div>
+            </div>
+
+            {/* Disputes */}
+            <div
+              onClick={() => { setFilters(f => ({ ...f, dispute: !f.dispute })) }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                filters.dispute
+                  ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                  : "bg-rose-50 text-rose-900 border-rose-200 hover:bg-rose-100"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-75">Disputes</span>
+                <AlertTriangle className="h-3 w-3 opacity-75" />
+              </div>
+              <div className="text-xl font-bold mt-1">{disputeCount}</div>
+              <div className="text-[10px] opacity-75 mt-0.5">{filters.dispute ? "Filter Active ✕" : "Flagged"}</div>
+            </div>
+          </div>
+
+          {/* Quick breakdown tags */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t text-[11px] text-gray-500">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>Phase: <strong className="text-gray-700">1P ({scopedApps.filter(a => a.phase === "1P").length})</strong> | <strong className="text-gray-700">3P ({scopedApps.filter(a => a.phase === "3P").length})</strong></span>
+              <span className="text-gray-300">|</span>
+              <span>Case: <strong className="text-gray-700">Pole ({poleCount})</strong> | <strong className="text-gray-700">Non-Pole ({nonPoleCount})</strong></span>
+              <span className="text-gray-300">|</span>
+              <span>Quotations: <strong className="text-gray-700">{quotationCount}</strong></span>
+              {effectedCount > 0 && (
+                <>
+                  <span className="text-gray-300">|</span>
+                  <span>Meter / Effected: <strong className="text-gray-700">{effectedCount}</strong></span>
+                </>
+              )}
+            </div>
+
+            {isAdmin && (
+              <button
+                onClick={() => setTab("reports")}
+                className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 hover:underline"
+              >
+                Open Detailed Analytics & Reports →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Reports tab */}
       {tab === "reports" && isAdmin && <NscReports apps={apps} />}
 
@@ -603,8 +804,8 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
                     {app.poleRequired === "yes" && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Pole</span>
                     )}
-                    {app.dispute && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">⚠ Dispute</span>
+                    {isNSCDispute(app) && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">⚠ Dispute</span>
                     )}
                   </div>
                   {/* Agency pill — right side */}

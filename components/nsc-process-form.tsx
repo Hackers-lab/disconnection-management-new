@@ -54,6 +54,14 @@ export function NscProcessForm({ app, agencies, onSave, onCancel }: Props) {
   const handleSubmit = async () => {
     if (!finalAction) { alert("Select an action to proceed."); return }
     if (!adminDecision && finalAction !== "reassign") { alert("Select Accept or Reject."); return }
+    if (finalAction === "quotation" && adminDecision === "rejected") {
+      alert("Cannot issue quotation for a rejected application. Please select 'Accept' under Admin Decision if quotation is to be issued.");
+      return
+    }
+    if (finalAction === "dispute_letter" && adminDecision === "accepted") {
+      alert("Cannot issue a dispute letter for an accepted application. Please select 'Reject' under Admin Decision if a dispute letter is to be issued.");
+      return
+    }
     if (isDecisionChanged && !adminRemarks.trim()) { alert("Remarks required when overriding agency decision."); return }
     if (finalAction === "quotation"      && applicationNo.trim().length !== 10) { alert("Application No must be exactly 10 digits."); return }
     if (finalAction === "dispute_letter" && !memoNo.trim()) { alert("Memo No is required."); return }
@@ -206,18 +214,53 @@ export function NscProcessForm({ app, agencies, onSave, onCancel }: Props) {
         <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm">Final Action</CardTitle></CardHeader>
         <CardContent className="px-4 pb-4 space-y-4">
           <div className="grid grid-cols-1 gap-2">
-            <button type="button" onClick={() => setFinalAction("quotation")}
-              className={`py-3 px-4 rounded-xl text-sm font-semibold border-2 flex items-center gap-2 transition ${finalAction === "quotation" ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-700 hover:border-blue-300"}`}>
+            <button
+              type="button"
+              onClick={() => {
+                setFinalAction("quotation")
+                setAdminDecision("accepted")
+              }}
+              className={`py-3 px-4 rounded-xl text-sm font-semibold border-2 flex items-center gap-2 transition ${
+                finalAction === "quotation"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "border-gray-300 text-gray-700 hover:border-blue-300"
+              }`}
+            >
               <ClipboardList className="h-4 w-4 shrink-0" />
-              <span>Issue Quotation <span className="font-normal text-xs opacity-70">— enter 10-digit application no</span></span>
+              <div className="text-left">
+                <span>Issue Quotation <span className="font-normal text-xs opacity-75">— enter 10-digit application no</span></span>
+                <span className="block text-[11px] font-normal opacity-70">Automatically marks Admin Decision as Accepted</span>
+              </div>
             </button>
-            <button type="button" onClick={() => setFinalAction("dispute_letter")}
-              className={`py-3 px-4 rounded-xl text-sm font-semibold border-2 flex items-center gap-2 transition ${finalAction === "dispute_letter" ? "bg-orange-600 text-white border-orange-600" : "border-gray-300 text-gray-700 hover:border-orange-300"}`}>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFinalAction("dispute_letter")
+                setAdminDecision("rejected")
+              }}
+              className={`py-3 px-4 rounded-xl text-sm font-semibold border-2 flex items-center gap-2 transition ${
+                finalAction === "dispute_letter"
+                  ? "bg-orange-600 text-white border-orange-600"
+                  : "border-gray-300 text-gray-700 hover:border-orange-300"
+              }`}
+            >
               <FileText className="h-4 w-4 shrink-0" />
-              <span>Issue Dispute Letter <span className="font-normal text-xs opacity-70">— enter memo no</span></span>
+              <div className="text-left">
+                <span>Issue Dispute Letter <span className="font-normal text-xs opacity-75">— enter memo no</span></span>
+                <span className="block text-[11px] font-normal opacity-70">Automatically marks Admin Decision as Rejected</span>
+              </div>
             </button>
-            <button type="button" onClick={() => setFinalAction("reassign")}
-              className={`py-3 px-4 rounded-xl text-sm font-semibold border-2 flex items-center gap-2 transition ${finalAction === "reassign" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-700 hover:border-purple-300"}`}>
+
+            <button
+              type="button"
+              onClick={() => setFinalAction("reassign")}
+              className={`py-3 px-4 rounded-xl text-sm font-semibold border-2 flex items-center gap-2 transition ${
+                finalAction === "reassign"
+                  ? "bg-purple-600 text-white border-purple-600"
+                  : "border-gray-300 text-gray-700 hover:border-purple-300"
+              }`}
+            >
               <RotateCcw className="h-4 w-4 shrink-0" />
               <span>Reassign / Send for Re-inspection</span>
             </button>

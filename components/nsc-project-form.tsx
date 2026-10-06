@@ -219,11 +219,12 @@ export function ProjectPOForm({ project, onSuccess, onCancel }: POFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update_po", projectId: project.projectId, poNumber: po }),
       })
-      if (!res.ok) throw new Error((await res.json()).error)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `Server returned ${res.status}`)
       toast({ title: "PO number saved" })
       onSuccess()
     } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" })
+      toast({ title: "Failed", description: e.message || "Failed to save PO", variant: "destructive" })
     } finally {
       setSaving(false)
     }
