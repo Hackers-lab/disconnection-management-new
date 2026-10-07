@@ -60,6 +60,9 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
   const hasWiring = (r: IcdsRecord) => r.equipmentPackageInstalled || r.existingWiringStatus === "EXISTS_WORKING" || r.stage === "EQUIPMENT_INSTALLED" || r.stage === "COMPLETED"
 
   const meteredRecords = records.filter(hasMeter)
+  const appReceivedRecords = records.filter(r => r.bookletReceived || !!r.officialApplicationNo || r.stage === "APPLICATION_PENDING")
+  const quotationRecords = records.filter(r => !!r.quotationNo || !!r.quotationDate || (typeof r.quotationAmount === "number" && r.quotationAmount > 0))
+  const wiringRecords = records.filter(hasWiring)
   const meterAndWiringRecords = records.filter(r => hasMeter(r) && hasWiring(r))
   const meterNoWiringRecords = records.filter(r => hasMeter(r) && !hasWiring(r))
   const unmeteredRecords = records.filter(r => !hasMeter(r))
@@ -162,18 +165,39 @@ export function IcdsMiniKpiDrawer({ records }: { records: IcdsRecord[] }) {
       badgeColor: "bg-blue-100 text-blue-800",
     },
     {
+      title: "Application Received",
+      count: appReceivedRecords.length,
+      records: appReceivedRecords,
+      color: "border-indigo-200 text-indigo-800 bg-indigo-50/40 hover:bg-indigo-50/80",
+      badgeColor: "bg-indigo-100 text-indigo-800",
+    },
+    {
+      title: "Quotation Generated",
+      count: quotationRecords.length,
+      records: quotationRecords,
+      color: "border-sky-200 text-sky-800 bg-sky-50/40 hover:bg-sky-50/80",
+      badgeColor: "bg-sky-100 text-sky-800",
+    },
+    {
+      title: "Connection Effected",
+      count: meteredRecords.length,
+      records: meteredRecords,
+      color: "border-teal-200 text-teal-800 bg-teal-50/40 hover:bg-teal-50/80",
+      badgeColor: "bg-teal-100 text-teal-800",
+    },
+    {
+      title: "Wiring Completed",
+      count: wiringRecords.length,
+      records: wiringRecords,
+      color: "border-purple-200 text-purple-800 bg-purple-50/40 hover:bg-purple-50/80",
+      badgeColor: "bg-purple-100 text-purple-800",
+    },
+    {
       title: "Pending",
       count: pending.length,
       records: pending,
       color: "border-amber-200 text-amber-800 bg-amber-50/40 hover:bg-amber-50/80",
       badgeColor: "bg-amber-100 text-amber-800",
-    },
-    {
-      title: "Meter Exists",
-      count: meteredRecords.length,
-      records: meteredRecords,
-      color: "border-indigo-200 text-indigo-800 bg-indigo-50/40 hover:bg-indigo-50/80",
-      badgeColor: "bg-indigo-100 text-indigo-800",
     },
     {
       title: "Meter + Wiring Exists",

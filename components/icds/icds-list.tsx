@@ -157,6 +157,7 @@ export function IcdsList({
   const [selectedJurisdiction, setSelectedJurisdiction] = useState("all")
   const [selectedProperty, setSelectedProperty] = useState("all")
   const [selectedMeterWiring, setSelectedMeterWiring] = useState("all")
+  const [selectedMilestone, setSelectedMilestone] = useState("all")
   const [selectedStage, setSelectedStage] = useState("all")
 
   // Pagination
@@ -302,9 +303,11 @@ export function IcdsList({
     }
   }
 
-  // Meter & wiring helper checks
+  // Meter, wiring & milestone helper checks
   const checkHasMeter = (r: IcdsRecord) => r.meterExists || !!r.smartMeterNo || r.stage === "METER_INSTALLED" || r.stage === "COMPLETED"
   const checkHasWiring = (r: IcdsRecord) => r.equipmentPackageInstalled || r.existingWiringStatus === "EXISTS_WORKING" || r.stage === "EQUIPMENT_INSTALLED" || r.stage === "COMPLETED"
+  const checkAppReceived = (r: IcdsRecord) => r.bookletReceived || !!r.officialApplicationNo || r.stage === "APPLICATION_PENDING"
+  const checkQuotationGen = (r: IcdsRecord) => !!r.quotationNo || !!r.quotationDate || (typeof r.quotationAmount === "number" && r.quotationAmount > 0)
 
   // Scope filtered records (filters applied EXCEPT stage) so stage buttons show filtered numbers
   const scopeFilteredRecords = useMemo(() => {
@@ -338,7 +341,8 @@ export function IcdsList({
           r.awwMobile?.toLowerCase().includes(term) ||
           r.assignedAgency?.toLowerCase().includes(term) ||
           r.smartMeterNo?.toLowerCase().includes(term) ||
-          r.officialApplicationNo?.toLowerCase().includes(term)
+          r.officialApplicationNo?.toLowerCase().includes(term) ||
+          r.quotationNo?.toLowerCase().includes(term)
         if (!match) return false
       }
 
@@ -348,6 +352,17 @@ export function IcdsList({
       if (selectedAgency !== "all" && r.assignedAgency !== selectedAgency) return false
       if (selectedJurisdiction !== "all" && r.jurisdictionStatus !== selectedJurisdiction) return false
       if (selectedProperty !== "all" && r.propertyStatus !== selectedProperty) return false
+
+      // Milestone Filter
+      if (selectedMilestone === "app_received") {
+        if (!checkAppReceived(r)) return false
+      } else if (selectedMilestone === "quotation_generated") {
+        if (!checkQuotationGen(r)) return false
+      } else if (selectedMilestone === "connection_effected") {
+        if (!checkHasMeter(r)) return false
+      } else if (selectedMilestone === "wiring_completed") {
+        if (!checkHasWiring(r)) return false
+      }
 
       // Meter & Wiring Status
       if (selectedMeterWiring === "meter_exists") {
@@ -375,6 +390,7 @@ export function IcdsList({
     selectedAgency,
     selectedJurisdiction,
     selectedProperty,
+    selectedMilestone,
     selectedMeterWiring,
   ])
 
@@ -382,7 +398,15 @@ export function IcdsList({
   const filteredRecords = useMemo(() => {
     if (selectedStage === "all") return scopeFilteredRecords
     return scopeFilteredRecords.filter((r) => {
-      if (selectedStage === "INSPECTED") {
+      if (selectedStage === "APPLICATION_RECEIVED") {
+        return checkAppReceived(r)
+      } else if (selectedStage === "QUOTATION_GENERATED") {
+        return checkQuotationGen(r)
+      } else if (selectedStage === "CONNECTION_EFFECTED") {
+        return checkHasMeter(r)
+      } else if (selectedStage === "WIRING_COMPLETED") {
+        return checkHasWiring(r)
+      } else if (selectedStage === "INSPECTED") {
         return r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING"
       } else if (selectedStage === "WO_ISSUED") {
         return r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED"
@@ -397,6 +421,10 @@ export function IcdsList({
       all: scopeFilteredRecords.length,
       pending: scopeFilteredRecords.filter((r) => r.stage === "PENDING_INSPECTION").length,
       inspected: scopeFilteredRecords.filter((r) => r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING").length,
+      appReceived: scopeFilteredRecords.filter(checkAppReceived).length,
+      quotationGen: scopeFilteredRecords.filter(checkQuotationGen).length,
+      connectionEffected: scopeFilteredRecords.filter(checkHasMeter).length,
+      wiringCompleted: scopeFilteredRecords.filter(checkHasWiring).length,
       woIssued: scopeFilteredRecords.filter((r) => r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED").length,
       completed: scopeFilteredRecords.filter((r) => r.stage === "COMPLETED").length,
     }
@@ -412,6 +440,7 @@ export function IcdsList({
     selectedAgency,
     selectedJurisdiction,
     selectedProperty,
+    selectedMilestone,
     selectedMeterWiring,
     selectedStage,
   ])
@@ -431,9 +460,10 @@ export function IcdsList({
     if (selectedAgency !== "all") count++
     if (selectedJurisdiction !== "all") count++
     if (selectedProperty !== "all") count++
+    if (selectedMilestone !== "all") count++
     if (selectedMeterWiring !== "all") count++
     return count
-  }, [selectedBlock, selectedGp, selectedAgency, selectedJurisdiction, selectedProperty, selectedMeterWiring])
+  }, [selectedBlock, selectedGp, selectedAgency, selectedJurisdiction, selectedProperty, selectedMilestone, selectedMeterWiring])
 
   const clearFilters = () => {
     setSelectedBlock("all")
@@ -441,6 +471,7 @@ export function IcdsList({
     setSelectedAgency("all")
     setSelectedJurisdiction("all")
     setSelectedProperty("all")
+    setSelectedMilestone("all")
     setSelectedMeterWiring("all")
   }
 
@@ -693,10 +724,14 @@ export function IcdsList({
         >
           {[
             { id: "all", label: "All Centers", shortLabel: "All", count: stageCounts.all },
-            { id: "PENDING_INSPECTION", label: "Pending", shortLabel: "Pending", count: stageCounts.pending },
+            { id: "PENDING_INSPECTION", label: "Pending Inspection", shortLabel: "Pending", count: stageCounts.pending },
             { id: "INSPECTED", label: "Inspected", shortLabel: "Inspected", count: stageCounts.inspected },
+            { id: "APPLICATION_RECEIVED", label: "Application Received", shortLabel: "App Recv", count: stageCounts.appReceived },
+            { id: "QUOTATION_GENERATED", label: "Quotation Generated", shortLabel: "Quotation", count: stageCounts.quotationGen },
             { id: "WO_ISSUED", label: "WO Issued", shortLabel: "WO", count: stageCounts.woIssued },
-            { id: "COMPLETED", label: "Certified", shortLabel: "Certified", count: stageCounts.completed },
+            { id: "CONNECTION_EFFECTED", label: "Connection Effected", shortLabel: "Connected", count: stageCounts.connectionEffected },
+            { id: "WIRING_COMPLETED", label: "Wiring Completed", shortLabel: "Wiring Done", count: stageCounts.wiringCompleted },
+            { id: "COMPLETED", label: "Certified Handover", shortLabel: "Certified", count: stageCounts.completed },
           ].map((s) => {
             const isActive = selectedStage === s.id
             return (
@@ -1202,6 +1237,23 @@ export function IcdsList({
                   <SelectItem value="RENTED">Rented House</SelectItem>
                   <SelectItem value="PRIVATE">Private House</SelectItem>
                   <SelectItem value="COMMUNITY_HALL">Community Hall</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Milestone Status Filter */}
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700">Electrification Milestone Progress</label>
+              <Select value={selectedMilestone} onValueChange={setSelectedMilestone}>
+                <SelectTrigger className="h-9 text-xs rounded-lg">
+                  <SelectValue placeholder="All Milestones" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="all">All Milestones</SelectItem>
+                  <SelectItem value="app_received">Application Received (Booklet / CRM App No)</SelectItem>
+                  <SelectItem value="quotation_generated">Quotation Generated</SelectItem>
+                  <SelectItem value="connection_effected">Connection Effected (Meter Installed)</SelectItem>
+                  <SelectItem value="wiring_completed">Wiring Completed (CSR Package Done)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
