@@ -683,7 +683,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
           </Button>
         </div>
 
-        {/* Users Table */}
+        {/* Users List Container */}
         <CardContent className="p-0">
           {currentCohorts.length === 0 ? (
             <div className="py-12 text-center text-slate-500 text-xs">
@@ -691,110 +691,223 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
               No user accounts found matching this cohort filter for {currentMonthData?.monthLabel}.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50 text-[11px]">
-                    <TableHead>User / Agency</TableHead>
-                    <TableHead>Care Center (CCC)</TableHead>
-                    <TableHead className="text-center">Cohort Status</TableHead>
-                    <TableHead className="text-center">Expiry Date</TableHead>
-                    <TableHead className="text-right">Month Amount</TableHead>
-                    <TableHead className="text-right">Lifetime Paid</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentCohorts.map((u) => {
-                    return (
-                      <TableRow key={u.userId} className="text-xs hover:bg-slate-50/80 transition-colors">
-                        {/* User / Agency */}
-                        <TableCell className="py-2.5 px-3">
-                          <div className="font-bold text-slate-900">{u.fullName || u.username}</div>
-                          <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
-                            <span>@{u.username}</span>
+            <>
+              {/* MOBILE VIEW (< md): Card list, perfectly fits portrait phone screens with 0 horizontal scroll */}
+              <div className="block md:hidden divide-y divide-slate-100">
+                {currentCohorts.map((u) => {
+                  return (
+                    <div
+                      key={`mob-${u.userId}`}
+                      className="p-3.5 space-y-2.5 hover:bg-slate-50/60 transition-colors"
+                    >
+                      {/* Top: Name, Role & Status Pill */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                            {u.fullName || u.username}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-slate-600 font-semibold">@{u.username}</span>
                             <span>•</span>
-                            <span className="capitalize">{u.role}</span>
-                          </div>
-                        </TableCell>
-
-                        {/* Care Center */}
-                        <TableCell className="py-2.5 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                              {u.cccCode}
-                            </span>
-                            <span className="text-slate-700 font-medium truncate max-w-[140px]">
-                              {u.cccName || "Care Center"}
+                            <span className="capitalize px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+                              {u.role}
                             </span>
                           </div>
-                        </TableCell>
+                        </div>
 
-                        {/* Cohort Status Pill */}
-                        <TableCell className="py-2.5 px-3 text-center">
+                        {/* Cohort Status Badge */}
+                        <div className="shrink-0">
                           {u.cohortStatus === "paid" ? (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold">
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold px-2 py-0.5">
                               ✓ Paid This Month
                             </Badge>
                           ) : u.cohortStatus === "expired_will_pay" ? (
-                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold animate-pulse">
-                              ⚡ Paid Last Mo • Will Pay
+                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold animate-pulse px-2 py-0.5">
+                              ⚡ Will Pay
                             </Badge>
                           ) : u.cohortStatus === "expiring_soon" ? (
-                            <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-[10px] font-semibold">
-                              ⏳ Expiring In Month
+                            <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-[10px] font-semibold px-2 py-0.5">
+                              ⏳ Expiring
                             </Badge>
                           ) : u.cohortStatus === "deemed" ? (
-                            <Badge className="bg-rose-100 text-rose-800 border-rose-300 text-[10px] font-bold">
-                              ⛔ Deemed Dormant (&gt;60d)
+                            <Badge className="bg-rose-100 text-rose-800 border-rose-300 text-[10px] font-bold px-2 py-0.5">
+                              ⛔ Deemed (&gt;60d)
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-slate-600 text-[10px]">
+                            <Badge variant="outline" className="text-slate-600 text-[10px] px-2 py-0.5">
                               Active
                             </Badge>
                           )}
-                        </TableCell>
+                        </div>
+                      </div>
 
-                        {/* Expiry Date */}
-                        <TableCell className="py-2.5 px-3 text-center font-mono text-xs">
+                      {/* Care Center & Expiration Info Strip */}
+                      <div className="flex items-center justify-between text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100 gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono font-bold text-[10px] text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded border border-blue-200 shrink-0">
+                            {u.cccCode}
+                          </span>
+                          <span className="text-slate-700 font-medium truncate text-[11px]">
+                            {u.cccName || "Care Center"}
+                          </span>
+                        </div>
+
+                        <div className="text-right shrink-0">
                           {u.subscriptionExpiresAt ? (
-                            <div>
-                              <span className={u.expiredDaysAgo !== undefined && u.expiredDaysAgo > 0 ? "text-rose-600 font-bold" : "text-slate-700 font-medium"}>
+                            <div className="text-[10px] font-mono">
+                              <span className="text-slate-400">Exp: </span>
+                              <span
+                                className={
+                                  u.expiredDaysAgo !== undefined && u.expiredDaysAgo > 0
+                                    ? "text-rose-600 font-bold"
+                                    : "text-slate-700 font-semibold"
+                                }
+                              >
                                 {u.subscriptionExpiresAt}
                               </span>
                               {u.expiredDaysAgo !== undefined && u.expiredDaysAgo > 0 && (
-                                <div className="text-[9px] text-slate-400">
-                                  {u.expiredDaysAgo}d ago
-                                </div>
+                                <span className="text-[9px] text-rose-500 ml-1">
+                                  ({u.expiredDaysAgo}d ago)
+                                </span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic">No expiry</span>
+                            <span className="text-[10px] text-slate-400 italic">No expiry</span>
                           )}
-                        </TableCell>
+                        </div>
+                      </div>
 
-                        {/* Month Amount */}
-                        <TableCell className="py-2.5 px-3 text-right font-mono font-bold">
+                      {/* Financial Metrics Strip */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-[11px]">
+                        <div>
+                          <span className="text-slate-500 text-[10px]">Month Amount: </span>
                           {u.lastPaymentAmount ? (
-                            <span className="text-emerald-700">₹{u.lastPaymentAmount.toLocaleString("en-IN")}</span>
+                            <span className="font-mono font-bold text-emerald-700 text-xs">
+                              ₹{u.lastPaymentAmount.toLocaleString("en-IN")}
+                            </span>
                           ) : (
-                            <span className="text-slate-400">—</span>
+                            <span className="text-slate-400 text-xs">—</span>
                           )}
-                        </TableCell>
+                        </div>
 
-                        {/* Lifetime Paid */}
-                        <TableCell className="py-2.5 px-3 text-right font-mono font-medium text-slate-600">
-                          {u.totalPaidAmount > 0 ? (
-                            <span>₹{u.totalPaidAmount.toLocaleString("en-IN")}</span>
-                          ) : (
-                            <span className="text-slate-400">₹0</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                        <div className="text-right">
+                          <span className="text-slate-500 text-[10px]">Lifetime Paid: </span>
+                          <span className="font-mono font-bold text-slate-800 text-xs">
+                            ₹{(u.totalPaidAmount || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* DESKTOP / TABLET VIEW (md+): Standard Full Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 text-[11px]">
+                      <TableHead>User / Agency</TableHead>
+                      <TableHead>Care Center (CCC)</TableHead>
+                      <TableHead className="text-center">Cohort Status</TableHead>
+                      <TableHead className="text-center">Expiry Date</TableHead>
+                      <TableHead className="text-right">Month Amount</TableHead>
+                      <TableHead className="text-right">Lifetime Paid</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {currentCohorts.map((u) => {
+                      return (
+                        <TableRow key={u.userId} className="text-xs hover:bg-slate-50/80 transition-colors">
+                          {/* User / Agency */}
+                          <TableCell className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900">{u.fullName || u.username}</div>
+                            <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
+                              <span>@{u.username}</span>
+                              <span>•</span>
+                              <span className="capitalize">{u.role}</span>
+                            </div>
+                          </TableCell>
+
+                          {/* Care Center */}
+                          <TableCell className="py-2.5 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                {u.cccCode}
+                              </span>
+                              <span className="text-slate-700 font-medium truncate max-w-[140px]">
+                                {u.cccName || "Care Center"}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          {/* Cohort Status Pill */}
+                          <TableCell className="py-2.5 px-3 text-center">
+                            {u.cohortStatus === "paid" ? (
+                              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold">
+                                ✓ Paid This Month
+                              </Badge>
+                            ) : u.cohortStatus === "expired_will_pay" ? (
+                              <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold animate-pulse">
+                                ⚡ Paid Last Mo • Will Pay
+                              </Badge>
+                            ) : u.cohortStatus === "expiring_soon" ? (
+                              <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-[10px] font-semibold">
+                                ⏳ Expiring In Month
+                              </Badge>
+                            ) : u.cohortStatus === "deemed" ? (
+                              <Badge className="bg-rose-100 text-rose-800 border-rose-300 text-[10px] font-bold">
+                                ⛔ Deemed Dormant (&gt;60d)
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-slate-600 text-[10px]">
+                                Active
+                              </Badge>
+                            )}
+                          </TableCell>
+
+                          {/* Expiry Date */}
+                          <TableCell className="py-2.5 px-3 text-center font-mono text-xs">
+                            {u.subscriptionExpiresAt ? (
+                              <div>
+                                <span className={u.expiredDaysAgo !== undefined && u.expiredDaysAgo > 0 ? "text-rose-600 font-bold" : "text-slate-700 font-medium"}>
+                                  {u.subscriptionExpiresAt}
+                                </span>
+                                {u.expiredDaysAgo !== undefined && u.expiredDaysAgo > 0 && (
+                                  <div className="text-[9px] text-slate-400">
+                                    {u.expiredDaysAgo}d ago
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">No expiry</span>
+                            )}
+                          </TableCell>
+
+                          {/* Month Amount */}
+                          <TableCell className="py-2.5 px-3 text-right font-mono font-bold">
+                            {u.lastPaymentAmount ? (
+                              <span className="text-emerald-700">₹{u.lastPaymentAmount.toLocaleString("en-IN")}</span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </TableCell>
+
+                          {/* Lifetime Paid */}
+                          <TableCell className="py-2.5 px-3 text-right font-mono font-medium text-slate-600">
+                            {u.totalPaidAmount > 0 ? (
+                              <span>₹{u.totalPaidAmount.toLocaleString("en-IN")}</span>
+                            ) : (
+                              <span className="text-slate-400">₹0</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
