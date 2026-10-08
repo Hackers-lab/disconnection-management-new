@@ -121,7 +121,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
           monthMap[key] = { revenue: 0, txCount: 0, paidUserMap: new Map() }
         }
 
-        const amt = (tx.amount || 0) / 100
+        const amt = typeof tx.amount === "number" ? tx.amount : 0
         monthMap[key].revenue += amt
         monthMap[key].txCount += 1
 
@@ -246,7 +246,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
       })
 
       // Overall metrics
-      const allTimeRevenue = transactions.reduce((acc, tx) => acc + (tx.amount || 0) / 100, 0)
+      const allTimeRevenue = transactions.reduce((acc, tx) => acc + (typeof tx.amount === "number" ? tx.amount : 0), 0)
       const currentActiveUsers = subscribers.filter((s) => !s.isExpired).length
       const twoMonthsAgo = new Date(now)
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2)
