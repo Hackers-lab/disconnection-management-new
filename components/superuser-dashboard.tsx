@@ -135,7 +135,7 @@ function formatRegistrationDate(dateStr?: string): { formatted: string; relative
 }
 
 export function SuperuserDashboard() {
-  const [activeTab, setActiveTab] = useState<"overview" | "revenue_analytics" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "revenue_analytics" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions">("revenue_analytics")
   const [hasLoadedData, setHasLoadedData] = useState(false)
   const [onlineUserCount, setOnlineUserCount] = useState<number | null>(null)
   const [vercelSpikeCount, setVercelSpikeCount] = useState<number | null>(null)
