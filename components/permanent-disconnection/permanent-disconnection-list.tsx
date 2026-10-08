@@ -45,7 +45,11 @@ import {
   TrendingUp,
   BarChart3,
   FileSpreadsheet,
+  Image as ImageIcon,
+  ExternalLink,
+  DownloadCloud,
 } from "lucide-react"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -108,6 +112,12 @@ export function PermanentDisconnectionList({
   const [returnOpen, setReturnOpen] = useState(false)
   const [noteSheetOpen, setNoteSheetOpen] = useState(false)
   const [certificateOpen, setCertificateOpen] = useState(false)
+  const [previewPhoto, setPreviewPhoto] = useState<{
+    url: string
+    title: string
+    consumerId: string
+    pdId: string
+  } | null>(null)
 
   // Selected item for modals
   const [activeRecord, setActiveRecord] = useState<PermanentDisconnection | null>(null)
@@ -970,6 +980,124 @@ export function PermanentDisconnectionList({
                       </div>
                     )}
 
+                    {/* Evidence Photos (Application & Meter) */}
+                    {(() => {
+                      const photos = r.evidencePhotos
+                        ? r.evidencePhotos.split(",").map(s => s.trim()).filter(Boolean)
+                        : []
+                      if (photos.length === 0) return null
+
+                      const meterPhoto = photos[0]
+                      const appPhoto = photos[1] || null
+
+                      return (
+                        <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-2">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-slate-700 flex items-center gap-1">
+                              <ImageIcon className="h-3.5 w-3.5 text-blue-600" />
+                              <span>Site Proofs ({photos.length})</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400">Click to preview</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Photo 1: Meter Photo */}
+                            {meterPhoto && (
+                              <div
+                                onClick={() =>
+                                  setPreviewPhoto({
+                                    url: meterPhoto,
+                                    title: "Removed Meter Dial Photo",
+                                    consumerId: r.consumerId,
+                                    pdId: r.pdId,
+                                  })
+                                }
+                                className="group relative flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
+                              >
+                                <div className="h-10 w-10 rounded shrink-0 bg-slate-100 overflow-hidden relative">
+                                  <img
+                                    src={getGoogleDriveDirectLink(meterPhoto, 200)}
+                                    onError={e => handleImageError(e, meterPhoto)}
+                                    alt="Meter Photo"
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1 group-hover:text-blue-600">
+                                    <span>Meter</span>
+                                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 font-mono">Dial Proof</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Photo 2: Application / Site Photo */}
+                            {appPhoto ? (
+                              <div
+                                onClick={() =>
+                                  setPreviewPhoto({
+                                    url: appPhoto,
+                                    title: "Application / Premise Photo",
+                                    consumerId: r.consumerId,
+                                    pdId: r.pdId,
+                                  })
+                                }
+                                className="group relative flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 bg-white hover:border-purple-400 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
+                              >
+                                <div className="h-10 w-10 rounded shrink-0 bg-slate-100 overflow-hidden relative">
+                                  <img
+                                    src={getGoogleDriveDirectLink(appPhoto, 200)}
+                                    onError={e => handleImageError(e, appPhoto)}
+                                    alt="Application Photo"
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1 group-hover:text-purple-600">
+                                    <span>Application</span>
+                                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 font-mono">Premise Proof</span>
+                                </div>
+                              </div>
+                            ) : (
+                              photos.slice(1).map((extraPhoto, pIdx) => (
+                                <div
+                                  key={pIdx}
+                                  onClick={() =>
+                                    setPreviewPhoto({
+                                      url: extraPhoto,
+                                      title: `Evidence Photo ${pIdx + 2}`,
+                                      consumerId: r.consumerId,
+                                      pdId: r.pdId,
+                                    })
+                                  }
+                                  className="group relative flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
+                                >
+                                  <div className="h-10 w-10 rounded shrink-0 bg-slate-100 overflow-hidden relative">
+                                    <img
+                                      src={getGoogleDriveDirectLink(extraPhoto, 200)}
+                                      onError={e => handleImageError(e, extraPhoto)}
+                                      alt={`Photo ${pIdx + 2}`}
+                                      className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1 group-hover:text-blue-600">
+                                      <span>Photo {pIdx + 2}</span>
+                                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 font-mono">View proof</span>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     {/* Black Centered Primary Action Button + Side Printer Icon */}
                     <div className="flex items-center justify-center gap-2 pt-2 border-t border-slate-100">
                       {/* 1. Proposed stage -> Issue Button */}
@@ -1069,6 +1197,7 @@ export function PermanentDisconnectionList({
                     <TableHead>Agency</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead>Removed Meter / Reading</TableHead>
+                    <TableHead className="text-center">Photos</TableHead>
                     <TableHead className="text-center">Store Return</TableHead>
                     <TableHead className="text-center">Note Sheet</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
@@ -1138,6 +1267,58 @@ export function PermanentDisconnectionList({
                           ) : (
                             <span className="text-slate-400 text-xs">—</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const photos = r.evidencePhotos
+                              ? r.evidencePhotos.split(",").map(s => s.trim()).filter(Boolean)
+                              : []
+                            if (photos.length === 0) return <span className="text-slate-400 text-xs">—</span>
+
+                            const meterPhoto = photos[0]
+                            const appPhoto = photos[1] || null
+
+                            return (
+                              <div className="flex items-center justify-center gap-1">
+                                {meterPhoto && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewPhoto({
+                                        url: meterPhoto,
+                                        title: "Removed Meter Dial Photo",
+                                        consumerId: r.consumerId,
+                                        pdId: r.pdId,
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                                    title="Click to view Meter photo"
+                                  >
+                                    <ImageIcon className="h-3 w-3" />
+                                    <span>Meter</span>
+                                  </button>
+                                )}
+                                {appPhoto && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPreviewPhoto({
+                                        url: appPhoto,
+                                        title: "Application / Premise Photo",
+                                        consumerId: r.consumerId,
+                                        pdId: r.pdId,
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors cursor-pointer"
+                                    title="Click to view Application photo"
+                                  >
+                                    <ImageIcon className="h-3 w-3" />
+                                    <span>Application</span>
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
                           <span
@@ -1503,6 +1684,73 @@ export function PermanentDisconnectionList({
         }}
         record={activeRecord}
       />
+
+      {/* Evidence Photo Preview Lightbox Dialog */}
+      {previewPhoto && (
+        <Dialog open={!!previewPhoto} onOpenChange={open => !open && setPreviewPhoto(null)}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white">
+            <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                  <ImageIcon className="h-4 w-4 text-blue-400" />
+                  <span>{previewPhoto.title}</span>
+                </h3>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  PD ID: {previewPhoto.pdId} | Consumer #{previewPhoto.consumerId}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setPreviewPhoto(null)}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 rounded-full cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Image Preview with CDN Direct View Link & Error Proxy Fallback */}
+            <div className="p-3 bg-black flex items-center justify-center max-h-[65vh] overflow-hidden">
+              <img
+                src={getGoogleDriveDirectLink(previewPhoto.url, 1600)}
+                onError={e => handleImageError(e, previewPhoto.url)}
+                alt={previewPhoto.title}
+                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-700"
+              />
+            </div>
+
+            {/* Footer with Direct Drive Link and Download Options */}
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono text-slate-400 truncate">
+                {previewPhoto.consumerId}_{previewPhoto.pdId}.jpg
+              </span>
+
+              <div className="flex gap-2 shrink-0">
+                <a
+                  href={(() => {
+                    const idMatch = previewPhoto.url.match(/id=([a-zA-Z0-9_-]+)/) || previewPhoto.url.match(/\/d\/([a-zA-Z0-9_-]+)/)
+                    return idMatch ? `https://drive.google.com/file/d/${idMatch[1]}/view` : previewPhoto.url
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs h-8 px-3 rounded-lg shadow-md cursor-pointer transition-colors"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Open in Drive</span>
+                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPreviewPhoto(null)}
+                  className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 text-xs h-8 rounded-lg cursor-pointer"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
