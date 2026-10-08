@@ -9,6 +9,16 @@
     "app/api/upload-image/route.ts": {
       "memory": 512,
       "maxDuration": 60
+    },
+    "app/api/system/daily-backup/route.ts": {
+      "memory": 512,
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/system/daily-backup",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }
