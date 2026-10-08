@@ -21,14 +21,16 @@ import {
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
-import { AgencyProfileTracker } from "@/components/agency-profile-tracker"
 import { SuperuserSubscriptions } from "@/components/superuser-subscriptions"
+import { SuperuserRevenueAnalytics } from "@/components/superuser-revenue-analytics"
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import { PushNotificationManager } from "@/components/push-notification-manager"
 import { 
   Building2, 
   Users, 
   UserCheck,
+  TrendingUp,
+  IndianRupee,
   KeyRound, 
   LogOut, 
   Plus, 
@@ -133,7 +135,7 @@ function formatRegistrationDate(dateStr?: string): { formatted: string; relative
 }
 
 export function SuperuserDashboard() {
-  const [activeTab, setActiveTab] = useState<"overview" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "revenue_analytics" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions">("overview")
   const [hasLoadedData, setHasLoadedData] = useState(false)
   const [onlineUserCount, setOnlineUserCount] = useState<number | null>(null)
   const [vercelSpikeCount, setVercelSpikeCount] = useState<number | null>(null)
@@ -308,9 +310,9 @@ export function SuperuserDashboard() {
     ])
   }
 
-  const handleTabChange = (tab: "overview" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions") => {
+  const handleTabChange = (tab: "overview" | "revenue_analytics" | "registrations" | "online_users" | "module_versions" | "agency_tracker" | "vercel_usage" | "subscriptions") => {
     setActiveTab(tab)
-    if (!hasLoadedData && (tab === "overview" || tab === "registrations")) {
+    if (!hasLoadedData && (tab === "overview" || tab === "registrations" || tab === "revenue_analytics")) {
       loadDashboardData()
     } else if (tab === "online_users" && onlineUserCount === null) {
       fetchOnlineCount()
@@ -702,171 +704,248 @@ export function SuperuserDashboard() {
       {/* MAIN CONTAINER */}
       <main className="max-w-7xl mx-auto px-3 py-3.5 sm:px-6 space-y-3.5">
         
-        {/* TOP NAVIGATION TABS - Clean Light Style */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2 border-b border-slate-200/80 pb-2.5">
+        {/* TOP NAVIGATION TABS - Reorganized as Card Tiles */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 border-b border-slate-200/80 pb-3">
+          {/* Card 1: Care Centers */}
           <button
             type="button"
             onClick={() => handleTabChange("overview")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
               activeTab === "overview"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <Building2 className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Care Centers</span>
-            <Badge
-              variant="outline"
-              className={`text-[9px] px-1 py-0 ${
-                activeTab === "overview"
-                  ? "bg-blue-700 border-blue-400 text-white"
-                  : "bg-slate-100 border-slate-200 text-slate-600"
-              }`}
-            >
-              {hasLoadedData ? tenants.length : "•"}
-            </Badge>
+            <div className="flex items-center justify-between w-full">
+              <Building2 className={`h-4 w-4 ${activeTab === "overview" ? "text-white" : "text-blue-600"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 ${
+                  activeTab === "overview"
+                    ? "bg-blue-700 border-blue-400 text-white"
+                    : "bg-slate-100 border-slate-200 text-slate-600"
+                }`}
+              >
+                {hasLoadedData ? tenants.length : "•"}
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Care Centers</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "overview" ? "text-blue-100" : "text-slate-400"}`}>
+              Supply console
+            </span>
           </button>
 
+          {/* Card 2: Revenue Check (NEW) */}
           <button
             type="button"
-            onClick={() => handleTabChange("registrations")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
-              activeTab === "registrations"
-                ? "bg-purple-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+            onClick={() => handleTabChange("revenue_analytics")}
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left relative overflow-hidden ${
+              activeTab === "revenue_analytics"
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <UserCheck className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-            <span className="truncate">Self Registrations</span>
-            <Badge
-              variant="outline"
-              className={`text-[9px] px-1 py-0 ${
-                activeTab === "registrations"
-                  ? "bg-purple-700 border-purple-400 text-white"
-                  : "bg-purple-50 border-purple-200 text-purple-700"
-              }`}
-            >
-              {hasLoadedData ? tenants.filter(t => Boolean(t.createdAt || t.contactPerson || t.mobileNumber)).length : "Log"}
-            </Badge>
+            <div className="flex items-center justify-between w-full">
+              <TrendingUp className={`h-4 w-4 ${activeTab === "revenue_analytics" ? "text-white" : "text-emerald-600"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 font-bold ${
+                  activeTab === "revenue_analytics"
+                    ? "bg-emerald-700 border-emerald-400 text-white"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                }`}
+              >
+                Audit
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Revenue Check</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "revenue_analytics" ? "text-emerald-100" : "text-slate-400"}`}>
+              Month audit &amp; cohorts
+            </span>
           </button>
 
+          {/* Card 3: Subscriptions */}
           <button
             type="button"
             onClick={() => handleTabChange("subscriptions")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
               activeTab === "subscriptions"
-                ? "bg-amber-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+                ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <CreditCard className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            <span className="truncate">Subscriptions</span>
-            <Badge
-              variant="outline"
-              className={`text-[9px] px-1 py-0 ${
-                activeTab === "subscriptions"
-                  ? "bg-amber-700 border-amber-400 text-white"
-                  : "bg-amber-50 border-amber-200 text-amber-700 font-bold"
-              }`}
-            >
-              Billing
-            </Badge>
+            <div className="flex items-center justify-between w-full">
+              <CreditCard className={`h-4 w-4 ${activeTab === "subscriptions" ? "text-white" : "text-amber-500"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 font-bold ${
+                  activeTab === "subscriptions"
+                    ? "bg-amber-700 border-amber-400 text-white"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
+                }`}
+              >
+                Billing
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Subscriptions</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "subscriptions" ? "text-amber-100" : "text-slate-400"}`}>
+              Razorpay &amp; passes
+            </span>
           </button>
 
+          {/* Card 4: Self Registrations */}
+          <button
+            type="button"
+            onClick={() => handleTabChange("registrations")}
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
+              activeTab === "registrations"
+                ? "bg-purple-600 text-white border-purple-600 shadow-sm ring-2 ring-purple-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <UserCheck className={`h-4 w-4 ${activeTab === "registrations" ? "text-white" : "text-purple-600"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 ${
+                  activeTab === "registrations"
+                    ? "bg-purple-700 border-purple-400 text-white"
+                    : "bg-purple-50 border-purple-200 text-purple-700"
+                }`}
+              >
+                {hasLoadedData ? tenants.filter(t => Boolean(t.createdAt || t.contactPerson || t.mobileNumber)).length : "Log"}
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Registrations</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "registrations" ? "text-purple-100" : "text-slate-400"}`}>
+              Onboarding log
+            </span>
+          </button>
+
+          {/* Card 5: Online Users */}
           <button
             type="button"
             onClick={() => handleTabChange("online_users")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
               activeTab === "online_users"
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <Users className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-            <span className="truncate">Online Users</span>
-            <Badge
-              variant="outline"
-              className={`text-[9px] px-1 py-0 ${
-                activeTab === "online_users"
-                  ? "bg-emerald-700 border-emerald-400 text-white"
-                  : onlineUserCount !== null && onlineUserCount > 0
-                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold"
-                  : "bg-slate-100 border-slate-200 text-slate-600"
-              }`}
-            >
-              {onlineUserCount !== null ? onlineUserCount : "Live"}
-            </Badge>
+            <div className="flex items-center justify-between w-full">
+              <Users className={`h-4 w-4 ${activeTab === "online_users" ? "text-white" : "text-emerald-600"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 ${
+                  activeTab === "online_users"
+                    ? "bg-emerald-700 border-emerald-400 text-white"
+                    : onlineUserCount !== null && onlineUserCount > 0
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-700 font-bold"
+                    : "bg-slate-100 border-slate-200 text-slate-600"
+                }`}
+              >
+                {onlineUserCount !== null ? onlineUserCount : "Live"}
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Online Users</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "online_users" ? "text-emerald-100" : "text-slate-400"}`}>
+              Presence radar
+            </span>
           </button>
 
+          {/* Card 6: Module Sync */}
           <button
             type="button"
             onClick={() => handleTabChange("module_versions")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
               activeTab === "module_versions"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-            <span className="truncate">Module Sync</span>
-            <Badge
-              variant="outline"
-              className={`text-[9px] px-1 py-0 ${
-                activeTab === "module_versions"
-                  ? "bg-blue-700 border-blue-400 text-white"
-                  : "bg-blue-50 border-blue-200 text-blue-700"
-              }`}
-            >
-              KV
-            </Badge>
+            <div className="flex items-center justify-between w-full">
+              <Layers className={`h-4 w-4 ${activeTab === "module_versions" ? "text-white" : "text-blue-600"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 ${
+                  activeTab === "module_versions"
+                    ? "bg-blue-700 border-blue-400 text-white"
+                    : "bg-blue-50 border-blue-200 text-blue-700"
+                }`}
+              >
+                KV
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Module Sync</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "module_versions" ? "text-blue-100" : "text-slate-400"}`}>
+              Version engine
+            </span>
           </button>
 
+          {/* Card 7: Agency Profiles */}
           <button
             type="button"
             onClick={() => handleTabChange("agency_tracker")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
               activeTab === "agency_tracker"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <Building2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-            <span className="truncate">Agency Profiles</span>
-            <Badge
-              variant="outline"
-              className={`text-[9px] px-1 py-0 ${
-                activeTab === "agency_tracker"
-                  ? "bg-indigo-700 border-indigo-400 text-white"
-                  : "bg-indigo-50 border-indigo-200 text-indigo-700 font-bold"
-              }`}
-            >
-              Track
-            </Badge>
+            <div className="flex items-center justify-between w-full">
+              <Building2 className={`h-4 w-4 ${activeTab === "agency_tracker" ? "text-white" : "text-indigo-500"}`} />
+              <Badge
+                variant="outline"
+                className={`text-[9px] px-1 py-0 ${
+                  activeTab === "agency_tracker"
+                    ? "bg-indigo-700 border-indigo-400 text-white"
+                    : "bg-indigo-50 border-indigo-200 text-indigo-700 font-bold"
+                }`}
+              >
+                Track
+              </Badge>
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Agency Tracker</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "agency_tracker" ? "text-indigo-100" : "text-slate-400"}`}>
+              Vendor status
+            </span>
           </button>
 
+          {/* Card 8: Vercel Quota */}
           <button
             type="button"
             onClick={() => handleTabChange("vercel_usage")}
-            className={`inline-flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+            className={`flex flex-col items-start p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
               activeTab === "vercel_usage"
-                ? "bg-amber-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/90"
+                ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20"
+                : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200 shadow-2xs"
             }`}
           >
-            <Flame className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            <span className="truncate">Vercel Quota</span>
-            {vercelSpikeCount !== null && vercelSpikeCount > 0 && (
-              <Badge
-                variant="outline"
-                className="text-[9px] px-1 py-0 bg-amber-50 border-amber-300 text-amber-800 font-bold"
-              >
-                {vercelSpikeCount}
-              </Badge>
-            )}
+            <div className="flex items-center justify-between w-full">
+              <Flame className={`h-4 w-4 ${activeTab === "vercel_usage" ? "text-white" : "text-amber-500"}`} />
+              {vercelSpikeCount !== null && vercelSpikeCount > 0 ? (
+                <Badge
+                  variant="outline"
+                  className="text-[9px] px-1 py-0 bg-amber-50 border-amber-300 text-amber-800 font-bold"
+                >
+                  {vercelSpikeCount}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] px-1 py-0 text-slate-400">
+                  OK
+                </Badge>
+              )}
+            </div>
+            <span className="font-bold text-xs mt-1.5 truncate w-full">Vercel Quota</span>
+            <span className={`text-[10px] truncate w-full ${activeTab === "vercel_usage" ? "text-amber-100" : "text-slate-400"}`}>
+              Usage alerts
+            </span>
           </button>
         </div>
 
-        {activeTab === "subscriptions" ? (
+        {activeTab === "revenue_analytics" ? (
+          <SuperuserRevenueAnalytics onBackToDashboard={() => setActiveTab("overview")} />
+        ) : activeTab === "subscriptions" ? (
           <SuperuserSubscriptions onBackToDashboard={() => setActiveTab("overview")} />
         ) : activeTab === "agency_tracker" ? (
           <AgencyProfileTracker onBackToDashboard={() => setActiveTab("overview")} />
