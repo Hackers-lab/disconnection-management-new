@@ -106,7 +106,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
         {
           revenue: number
           txCount: number
-          paidUserMap: Map<string, { amount: number; date: string }>
+          paidUserMap: Map<string, { amount: number; date: string; username?: string; subscriberName?: string; ccc_code?: string }>
         }
       > = {}
 
@@ -126,9 +126,18 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
         monthMap[key].txCount += 1
 
         const uid = tx.user_id || tx.username || tx.id
-        const existing = monthMap[key].paidUserMap.get(uid) || { amount: 0, date: dStr }
+        const existing = monthMap[key].paidUserMap.get(uid) || {
+          amount: 0,
+          date: dStr,
+          username: tx.username || tx.user_id,
+          subscriberName: tx.subscriberName || tx.agency_name || tx.username || uid,
+          ccc_code: tx.ccc_code,
+        }
         existing.amount += amt
         if (new Date(dStr) > new Date(existing.date)) existing.date = dStr
+        if (!existing.username && tx.username) existing.username = tx.username
+        if (!existing.subscriberName && tx.subscriberName) existing.subscriberName = tx.subscriberName
+        if (!existing.ccc_code && tx.ccc_code) existing.ccc_code = tx.ccc_code
         monthMap[key].paidUserMap.set(uid, existing)
       })
 
@@ -159,14 +168,100 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
         const prevMonthKey = `${prevMonthStart.getFullYear()}-${String(prevMonthStart.getMonth() + 1).padStart(2, "0")}`
         const prevMonthPaidUsers = monthMap[prevMonthKey]?.paidUserMap || new Map()
 
+        // Fast lookup map for subscriber records by various possible keys
+        const subLookup = new Map<string, any>()
+        subscribers.forEach((s) => {
+          if (s.id) {
+            subLookup.set(s.id, s)
+            subLookup.set(s.id.toLowerCase(), s)
+            if (s.id.startsWith("user_")) {
+              const stripped = s.id.replace(/^user_/, "")
+              subLookup.set(stripped, s)
+              subLookup.set(stripped.toLowerCase(), s)
+            }
+            if (s.id.startsWith("agency_")) {
+              const stripped = s.id.replace(/^agency_/, "")
+              subLookup.set(stripped, s)
+              subLookup.set(stripped.toLowerCase(), s)
+            }
+          }
+          if (s.username) {
+            subLookup.set(s.username, s)
+            subLookup.set(s.username.toLowerCase(), s)
+          }
+          if (s.name) {
+            subLookup.set(s.name, s)
+            subLookup.set(s.name.toLowerCase(), s)
+          }
+        })
+
+        // Helper to check if a subscriber paid in a given month
+        const getSubscriberPaidInfo = (sub: any, targetMonthKey: string) => {
+          const pMap = monthMap[targetMonthKey]?.paidUserMap
+          if (!pMap) return undefined
+          const keysToTry = [
+            sub.id,
+            sub.id?.toLowerCase(),
+            sub.id?.replace(/^user_/, ""),
+            sub.id?.replace(/^agency_/, ""),
+            sub.username,
+            sub.username?.toLowerCase(),
+            sub.name,
+            sub.name?.toLowerCase(),
+          ].filter(Boolean)
+
+          for (const k of keysToTry) {
+            if (pMap.has(k)) return pMap.get(k)
+          }
+          return undefined
+        }
+
         const monthUsersList: RevenueCohortItem[] = []
+        const addedUserKeys = new Set<string>()
+
+        // 1. FIRST: Add ALL users who actually made transactions in this month
+        // This guarantees that "Paid This Month" list is NEVER blank when transactions exist
+        monthMap[mKey].paidUserMap.forEach((pInfo, uid) => {
+          const matchedSub =
+            subLookup.get(uid) ||
+            subLookup.get(uid.toLowerCase()) ||
+            subLookup.get(`user_${uid}`) ||
+            subLookup.get(`agency_${uid}`)
+
+          const uKey = matchedSub?.id || uid
+          if (addedUserKeys.has(uKey)) return
+          addedUserKeys.add(uKey)
+
+          monthUsersList.push({
+            userId: uKey,
+            username: matchedSub?.username || pInfo.username || uid,
+            fullName: matchedSub?.name || pInfo.subscriberName || matchedSub?.username || uid,
+            role: matchedSub?.role || (matchedSub?.type === "agency" ? "agency" : "technician"),
+            cccCode: matchedSub?.cccCode || pInfo.ccc_code || "—",
+            cccName: matchedSub?.cccName || pInfo.ccc_code || "Care Center",
+            paymentCount: matchedSub?.orderCount || 1,
+            totalPaidAmount: matchedSub?.totalPaidAmount || pInfo.amount,
+            lastPaymentDate: pInfo.date || matchedSub?.lastPaymentDate || null,
+            lastPaymentAmount: pInfo.amount,
+            subscriptionStatus: matchedSub?.subscriptionStatus || "active",
+            subscriptionExpiresAt: matchedSub?.subscriptionExpiresAt || null,
+            cohortStatus: "paid",
+            cohortLabel: `Paid This Month (₹${pInfo.amount.toLocaleString("en-IN")})`,
+          })
+        })
+
+        // 2. SECOND: Add cohort users (expired_will_pay, expiring_soon, deemed) from subscribers
         let expiringCount = 0
         let willPayCount = 0
         let deemedCount = 0
 
         subscribers.forEach((sub) => {
-          const paidInThisMonth = monthMap[mKey]?.paidUserMap.get(sub.id)
-          const paidInPrevMonth = prevMonthPaidUsers.get(sub.id)
+          const uKey = sub.id
+          // If already added via paid list above, skip re-evaluating
+          if (addedUserKeys.has(uKey)) return
+
+          const paidInThisMonth = getSubscriberPaidInfo(sub, mKey)
+          const paidInPrevMonth = getSubscriberPaidInfo(sub, prevMonthKey)
 
           const expStr = sub.subscriptionExpiresAt
           const expDate = expStr ? new Date(expStr) : null
@@ -205,6 +300,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
 
           // If relevant to this month's analytics
           if (cohortStatus !== "active_other" || paidInThisMonth) {
+            addedUserKeys.add(uKey)
             monthUsersList.push({
               userId: sub.id,
               username: sub.username || sub.name,
@@ -225,6 +321,9 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
           }
         })
 
+        // Unique paid users count in this month
+        const uniquePaidCount = monthUsersList.filter((u) => u.cohortStatus === "paid").length
+
         // Format label: "October 2026"
         const monthLabel = monthStart.toLocaleDateString("en-US", {
           month: "long",
@@ -236,7 +335,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
           monthLabel,
           totalRevenue: monthMap[mKey].revenue,
           transactionsCount: monthMap[mKey].txCount,
-          uniquePaidUsersCount: monthMap[mKey].paidUserMap.size,
+          uniquePaidUsersCount: uniquePaidCount,
           expiringThisMonthCount: expiringCount,
           expiredLastMonthWillPayCount: willPayCount,
           deemedUsersCount: deemedCount,

@@ -23,6 +23,7 @@ import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
 import { SuperuserSubscriptions } from "@/components/superuser-subscriptions"
 import { SuperuserRevenueAnalytics } from "@/components/superuser-revenue-analytics"
+import { AgencyProfileTracker } from "@/components/agency-profile-tracker"
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import { PushNotificationManager } from "@/components/push-notification-manager"
 import { 

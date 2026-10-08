@@ -1703,7 +1703,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-medium">Subscriber / Agency:</span>
-                  <span className="font-semibold text-slate-800">{deleteTarget.subscriberName} ({deleteTarget.agency_name || deleteTarget.username})</span>
+                  <span className="font-semibold text-slate-800">{deleteTarget.subscriberName} ({(deleteTarget as any).agency_name || deleteTarget.username})</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 font-medium">Amount:</span>
