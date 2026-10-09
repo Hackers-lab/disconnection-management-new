@@ -50,8 +50,8 @@ interface SupplyModuleVersionsReportProps {
 }
 
 type ViewMode = "matrix" | "cards" | "modules"
-type FilterStatus = "all" | "active" | "base_only" | "unused"
-type SortField = "updates" | "code" | "name" | "recent"
+type FilterStatus = "all" | "today" | "active" | "base_only" | "unused"
+type SortField = "today" | "updates" | "lifetime" | "code" | "name" | "recent"
 
 function formatRelativeTime(ts: number | null): string {
   if (!ts) return "Never updated"
@@ -116,7 +116,7 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [selectedModuleKey, setSelectedModuleKey] = useState<string>("all")
-  const [sortField, setSortField] = useState<SortField>("updates")
+  const [sortField, setSortField] = useState<SortField>("today")
   const [sortAsc, setSortAsc] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>("matrix")
 
@@ -175,15 +175,16 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
       }
 
       // Status filter
-      if (statusFilter === "active" && s.totalUpdates === 0) return false
+      if (statusFilter === "today" && s.updatesToday === 0) return false
+      if (statusFilter === "active" && s.totalUpdates === 0 && s.updatesToday === 0 && (s.lifetimeUpdates || 0) === 0) return false
       if (statusFilter === "base_only" && (s.totalUpdates > 0 || s.activeModulesCount === 0)) return false
       if (statusFilter === "unused" && s.activeModulesCount > 0) return false
 
       // Module specific filter
       if (selectedModuleKey !== "all") {
         const modDetail = s.modules[selectedModuleKey]
-        if (!modDetail || modDetail.totalUpdates === 0) {
-          if (statusFilter === "active") return false
+        if (!modDetail || (modDetail.totalUpdates === 0 && (modDetail.updatesToday || 0) === 0)) {
+          if (statusFilter === "active" || statusFilter === "today") return false
         }
       }
 
@@ -193,8 +194,12 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
     // Sorting
     result.sort((a, b) => {
       let cmp = 0
-      if (sortField === "updates") {
+      if (sortField === "today") {
+        cmp = (b.updatesToday || 0) - (a.updatesToday || 0) || b.totalUpdates - a.totalUpdates
+      } else if (sortField === "updates") {
         cmp = b.totalUpdates - a.totalUpdates
+      } else if (sortField === "lifetime") {
+        cmp = (b.lifetimeUpdates || 0) - (a.lifetimeUpdates || 0)
       } else if (sortField === "code") {
         cmp = a.cccCode.localeCompare(b.cccCode)
       } else if (sortField === "name") {
@@ -488,11 +493,35 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
 
       {/* ── KPI METRICS CARDS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-        {/* KPI 1: Total System Updates */}
+        {/* KPI 1: Updates Today */}
+        <Card className="bg-slate-900/70 border-emerald-900/50 shadow-sm backdrop-blur">
+          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
+            <CardTitle className="text-[11px] sm:text-xs font-semibold text-emerald-400 flex items-center justify-between">
+              Updates Today
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-2.5 sm:p-3 pt-0">
+            {loading ? (
+              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
+            ) : (
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
+                  {(globalSummary?.totalUpdatesTodayAllSupplies || 0).toLocaleString()}
+                </div>
+                <p className="text-[9px] sm:text-[10px] text-emerald-400/80 font-mono mt-0.5">
+                  {globalSummary?.activeTodaySuppliesCount || 0} Supplies active today
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* KPI 2: Live Patch Updates */}
         <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
           <CardHeader className="p-2.5 sm:p-3 pb-0.5">
             <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Total Updates
+              Current Patches
               <Flame className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             </CardTitle>
           </CardHeader>
@@ -505,19 +534,19 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                   {(globalSummary?.totalUpdatesAllSupplies || 0).toLocaleString()}
                 </div>
                 <p className="text-[9px] sm:text-[10px] text-amber-400/80 font-mono mt-0.5">
-                  Across all {supplies.length} Supplies
+                  Uncompacted delta logs
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* KPI 2: Active Supplies */}
+        {/* KPI 3: Lifetime Updates */}
         <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
           <CardHeader className="p-2.5 sm:p-3 pb-0.5">
             <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Active Supplies
-              <Building2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              Cumulative Updates
+              <ShieldCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />
             </CardTitle>
           </CardHeader>
           <CardContent className="p-2.5 sm:p-3 pt-0">
@@ -525,11 +554,35 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
               <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
             ) : (
               <div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
+                <div className="text-xl sm:text-2xl font-black text-blue-400 font-mono">
+                  {(globalSummary?.totalLifetimeUpdatesAllSupplies || 0).toLocaleString()}
+                </div>
+                <p className="text-[9px] sm:text-[10px] text-blue-400/80 font-mono mt-0.5">
+                  Survives base bumps
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* KPI 4: Active Care Centers */}
+        <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
+          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
+            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
+              Active Supplies
+              <Building2 className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-2.5 sm:p-3 pt-0">
+            {loading ? (
+              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
+            ) : (
+              <div>
+                <div className="text-xl sm:text-2xl font-black text-indigo-400 font-mono">
                   {globalSummary?.activeSuppliesCount || 0}{" "}
                   <span className="text-xs text-slate-500 font-normal">/ {supplies.length}</span>
                 </div>
-                <p className="text-[9px] sm:text-[10px] text-emerald-400/80 font-mono mt-0.5">
+                <p className="text-[9px] sm:text-[10px] text-indigo-400/80 font-mono mt-0.5">
                   {supplies.length ? Math.round(((globalSummary?.activeSuppliesCount || 0) / supplies.length) * 100) : 0}% Active Rate
                 </p>
               </div>
@@ -537,12 +590,12 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
           </CardContent>
         </Card>
 
-        {/* KPI 3: Top Active Care Center */}
+        {/* KPI 5: Top Active Care Center */}
         <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
           <CardHeader className="p-2.5 sm:p-3 pb-0.5">
             <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
               Top Active Supply
-              <TrendingUp className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <TrendingUp className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
             </CardTitle>
           </CardHeader>
           <CardContent className="p-2.5 sm:p-3 pt-0">
@@ -550,14 +603,14 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
               <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
             ) : globalSummary?.topSupply ? (
               <div>
-                <div className="text-xs sm:text-sm font-bold text-blue-300 truncate">
+                <div className="text-xs sm:text-sm font-bold text-cyan-300 truncate">
                   {globalSummary.topSupply.cccCode}
                 </div>
                 <p className="text-[10px] text-slate-300 font-medium truncate mt-0.5">
                   {globalSummary.topSupply.cccName}
                 </p>
-                <Badge variant="outline" className="text-[9px] bg-blue-950/60 border-blue-800 text-blue-400 mt-1 px-1 py-0 font-mono">
-                  {globalSummary.topSupply.totalUpdates.toLocaleString()} updates
+                <Badge variant="outline" className="text-[9px] bg-cyan-950/60 border-cyan-800 text-cyan-400 mt-1 px-1 py-0 font-mono">
+                  +{globalSummary.topSupply.updatesToday} today ({globalSummary.topSupply.totalUpdates} patches)
                 </Badge>
               </div>
             ) : (
@@ -566,12 +619,12 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
           </CardContent>
         </Card>
 
-        {/* KPI 4: Top Active Module */}
+        {/* KPI 6: Top Active Module */}
         <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
           <CardHeader className="p-2.5 sm:p-3 pb-0.5">
             <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
               Top Active Module
-              <Zap className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+              <Zap className="h-3.5 w-3.5 text-purple-400 shrink-0" />
             </CardTitle>
           </CardHeader>
           <CardContent className="p-2.5 sm:p-3 pt-0">
@@ -579,68 +632,18 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
               <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
             ) : globalSummary?.topModule ? (
               <div>
-                <div className="text-xs sm:text-sm font-bold text-indigo-300 truncate">
+                <div className="text-xs sm:text-sm font-bold text-purple-300 truncate">
                   {globalSummary.topModule.moduleLabel}
                 </div>
                 <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  {globalSummary.topModule.totalUpdates.toLocaleString()} updates total
+                  +{globalSummary.topModule.updatesToday} today
                 </p>
-                <Badge variant="outline" className="text-[9px] bg-indigo-950/60 border-indigo-800 text-indigo-400 mt-1 px-1 py-0 font-mono">
-                  #1 Module
+                <Badge variant="outline" className="text-[9px] bg-purple-950/60 border-purple-800 text-purple-400 mt-1 px-1 py-0 font-mono">
+                  {globalSummary.topModule.totalUpdates.toLocaleString()} patches total
                 </Badge>
               </div>
             ) : (
               <p className="text-xs text-slate-500 italic my-1">No updates yet</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* KPI 5: Modules Tracked */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
-          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Core Modules
-              <Layers className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            {loading ? (
-              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-purple-400 font-mono">
-                  {modulesList.length}
-                </div>
-                <p className="text-[9px] sm:text-[10px] text-purple-400/80 font-mono mt-0.5">
-                  Versioned Pipelines
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* KPI 6: Average Updates / Supply */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
-          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Avg Updates / CCC
-              <Activity className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            {loading ? (
-              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-cyan-400 font-mono">
-                  {supplies.length
-                    ? Math.round((globalSummary?.totalUpdatesAllSupplies || 0) / supplies.length).toLocaleString()
-                    : 0}
-                </div>
-                <p className="text-[9px] sm:text-[10px] text-cyan-400/80 font-mono mt-0.5">
-                  Per Care Center
-                </p>
-              </div>
             )}
           </CardContent>
         </Card>
@@ -672,9 +675,18 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
 
           <Button
             size="sm"
+            variant={statusFilter === "today" ? "default" : "outline"}
+            onClick={() => setStatusFilter("today")}
+            className={`text-[11px] h-7.5 px-2.5 shrink-0 ${statusFilter === "today" ? "bg-emerald-600 text-white font-semibold" : "border-slate-700 text-emerald-400 hover:bg-slate-800"}`}
+          >
+            Updated Today ({globalSummary?.activeTodaySuppliesCount || 0})
+          </Button>
+
+          <Button
+            size="sm"
             variant={statusFilter === "active" ? "default" : "outline"}
             onClick={() => setStatusFilter("active")}
-            className={`text-[11px] h-7.5 px-2.5 shrink-0 ${statusFilter === "active" ? "bg-emerald-600 text-white font-semibold" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
+            className={`text-[11px] h-7.5 px-2.5 shrink-0 ${statusFilter === "active" ? "bg-indigo-600 text-white font-semibold" : "border-slate-700 text-slate-400 hover:bg-slate-800"}`}
           >
             Active ({globalSummary?.activeSuppliesCount || 0})
           </Button>
@@ -775,11 +787,14 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
               {/* Table Header */}
               <thead className="bg-slate-950/90 border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400 font-bold sticky top-0 z-20">
                 <tr>
-                  <th className="py-3 px-3.5 sticky left-0 z-30 bg-slate-950 border-r border-slate-800 min-w-[200px]">
+                  <th className="py-3 px-3.5 sticky left-0 z-30 bg-slate-950 border-r border-slate-800 min-w-[210px]">
                     Care Center (Supply)
                   </th>
-                  <th className="py-3 px-3 text-center border-r border-slate-800/80 w-[90px]">
-                    Total Updates
+                  <th className="py-3 px-2 text-center border-r border-slate-800/80 w-[80px]">
+                    Today
+                  </th>
+                  <th className="py-3 px-2 text-center border-r border-slate-800/80 w-[85px]">
+                    Patches
                   </th>
                   {filteredModulesList.map(mod => (
                     <th key={mod.key} className="py-3 px-2 text-center border-r border-slate-800/80 min-w-[85px] last:border-r-0">
@@ -799,24 +814,43 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                     <tr key={supply.cccCode} className="hover:bg-slate-800/30 transition-colors group">
                       {/* 1. Supply Name & Code (Sticky Column) */}
                       <td className="py-2.5 px-3.5 sticky left-0 z-10 bg-slate-950/95 border-r border-slate-800 group-hover:bg-slate-900 transition-colors">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-mono font-bold text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
                             {supply.cccCode}
                           </span>
-                          <span className="font-semibold text-slate-200 text-xs truncate max-w-[140px]">
+                          <span className="font-semibold text-slate-200 text-xs truncate max-w-[130px]" title={supply.cccName}>
                             {supply.cccName}
                           </span>
+                          {supply.activityTier === "high" && (
+                            <span className="inline-flex items-center px-1 py-0 text-[9px] font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              Active
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-mono">
-                          <span>{supply.activeModulesCount}/{supply.totalModulesCount} active</span>
+                          <span>{supply.activeModulesCount}/{supply.totalModulesCount} mods</span>
                           {supply.lastActiveTimestamp && (
                             <span className="text-slate-500">· {formatRelativeTime(supply.lastActiveTimestamp)}</span>
                           )}
                         </div>
                       </td>
 
-                      {/* 2. Total Updates Column */}
-                      <td className="py-2.5 px-3 text-center border-r border-slate-800/80 font-mono">
+                      {/* 2. Today Updates Column */}
+                      <td className="py-2.5 px-2 text-center border-r border-slate-800/80 font-mono">
+                        <Badge
+                          variant="outline"
+                          className={`font-mono text-xs font-bold ${
+                            supply.updatesToday > 0
+                              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                              : "bg-slate-900/50 border-slate-800 text-slate-500"
+                          }`}
+                        >
+                          {supply.updatesToday > 0 ? `+${supply.updatesToday}` : "0"}
+                        </Badge>
+                      </td>
+
+                      {/* 3. Current Live Patches Column */}
+                      <td className="py-2.5 px-2 text-center border-r border-slate-800/80 font-mono">
                         <Badge
                           variant="outline"
                           className={`font-mono text-xs font-bold ${
@@ -824,6 +858,7 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                               ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
                               : "bg-slate-900 border-slate-800 text-slate-500"
                           }`}
+                          title={`Cumulative lifetime updates: ${supply.lifetimeUpdates || supply.totalUpdates}`}
                         >
                           {supply.totalUpdates.toLocaleString()}
                         </Badge>
@@ -879,21 +914,20 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                   <td className="py-3 px-3.5 sticky left-0 z-30 bg-slate-950 border-r border-slate-800 text-slate-200">
                     Grand Total
                   </td>
-                  <td className="py-3 px-3 text-center border-r border-slate-800 text-amber-300 font-mono text-xs">
+                  <td className="py-3 px-2 text-center border-r border-slate-800 text-emerald-300 font-mono text-xs">
+                    +{(globalSummary?.totalUpdatesTodayAllSupplies || 0).toLocaleString()}
+                  </td>
+                  <td className="py-3 px-2 text-center border-r border-slate-800 text-amber-300 font-mono text-xs">
                     {(globalSummary?.totalUpdatesAllSupplies || 0).toLocaleString()}
                   </td>
-                  {filteredModulesList.map(mod => {
-                    const modTot = globalSummary?.moduleTotals[mod.key]?.totalUpdates || 0
-                    const activeCCCs = globalSummary?.moduleTotals[mod.key]?.activeSuppliesCount || 0
-                    return (
-                      <td key={mod.key} className="py-3 px-2 text-center border-r border-slate-800/80 text-blue-300 font-mono text-[11px]">
-                        <div>{modTot.toLocaleString()}</div>
-                        <div className="text-[9px] font-normal text-slate-400">
-                          {activeCCCs} CCCs
-                        </div>
-                      </td>
-                    )
-                  })}
+                  {filteredModulesList.map(mod => (
+                    <td key={mod.key} className="py-3 px-2 text-center border-r border-slate-800/80 text-blue-300 font-mono text-[11px]">
+                      <div>{(globalSummary?.moduleTotals[mod.key]?.totalUpdates || 0).toLocaleString()}</div>
+                      <div className="text-[9px] font-normal text-slate-400">
+                        {globalSummary?.moduleTotals[mod.key]?.activeSuppliesCount || 0} CCCs
+                      </div>
+                    </td>
+                  ))}
                 </tr>
               </tfoot>
             </table>
@@ -1120,23 +1154,29 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
               )}
 
               {/* Version Metrics Summary Row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 py-2">
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-center">
                   <div className="text-[10px] text-slate-400 font-medium">Base Version</div>
                   <div className="text-base font-black text-blue-400 font-mono mt-0.5">
                     v{selectedModuleDetail.baseVersion}
                   </div>
                 </div>
+                <div className="bg-slate-950/80 border border-emerald-900/50 rounded-xl p-2.5 text-center">
+                  <div className="text-[10px] text-emerald-400 font-medium">Updates Today</div>
+                  <div className="text-base font-black text-emerald-300 font-mono mt-0.5">
+                    +{selectedModuleDetail.updatesToday || 0}
+                  </div>
+                </div>
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-center">
-                  <div className="text-[10px] text-slate-400 font-medium">Patch Version (Updates)</div>
+                  <div className="text-[10px] text-slate-400 font-medium">Active Patches</div>
                   <div className="text-base font-black text-amber-400 font-mono mt-0.5">
                     {selectedModuleDetail.patchVersion}
                   </div>
                 </div>
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-center">
-                  <div className="text-[10px] text-slate-400 font-medium">Last Action</div>
-                  <div className="text-base font-black text-emerald-400 font-mono mt-0.5 uppercase">
-                    {selectedModuleDetail.lastAction || "None"}
+                  <div className="text-[10px] text-slate-400 font-medium">Cumulative Updates</div>
+                  <div className="text-base font-black text-cyan-400 font-mono mt-0.5">
+                    {selectedModuleDetail.lifetimeUpdates || selectedModuleDetail.totalUpdates}
                   </div>
                 </div>
                 <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-center">

@@ -58,6 +58,12 @@ export async function appendDeltaPatch(
   const updatedLog = [...existingLog, patchItem].slice(-200) // Keep last 200 patches for compaction threshold
   await setKV(logKey, updatedLog)
 
+  // Track persistent last updated timestamp and cumulative updates count
+  const lastUpdatedKey = getTenantKey(tenantId, `${moduleKey}:last_updated_at`)
+  const lifetimeUpdatesKey = getTenantKey(tenantId, `${moduleKey}:lifetime_updates`)
+  await setKV(lastUpdatedKey, patchItem.timestamp)
+  await incrKV(lifetimeUpdatesKey)
+
   // Asynchronously record live user activity in presence service
   try {
     import("@/lib/session")
@@ -93,18 +99,36 @@ export async function getDeltaPatchesSince(
 
 /**
  * Compact / Reset base version for a module, forcing all clients to re-sync full Base dataset.
+ * Preserves lastUpdated timestamp, bumps cumulative metrics, and logs last bump time.
  */
 export async function compactBaseVersion(tenantId: string, moduleKey: string): Promise<ModuleVersions> {
   const baseKey = getTenantKey(tenantId, `${moduleKey}:base_version`)
   const patchKey = getTenantKey(tenantId, `${moduleKey}:patch_version`)
   const logKey = getTenantKey(tenantId, `${moduleKey}:patch_log`)
+  const lastBumpKey = getTenantKey(tenantId, `${moduleKey}:last_base_bump`)
+  const lastUpdatedKey = getTenantKey(tenantId, `${moduleKey}:last_updated_at`)
 
   const currentBase = (await getKV<number>(baseKey)) || 1
+  const currentPatch = (await getKV<number>(patchKey)) || 0
   const nextBase = currentBase + 1
+  const now = Date.now()
+
+  // Ensure lifetime_updates captures existing patches before reset
+  const lifetimeUpdatesKey = getTenantKey(tenantId, `${moduleKey}:lifetime_updates`)
+  const existingLifetime = (await getKV<number>(lifetimeUpdatesKey)) || 0
+  if (existingLifetime < currentPatch) {
+    await setKV(lifetimeUpdatesKey, currentPatch)
+  }
 
   await setKV(baseKey, nextBase)
   await setKV(patchKey, 0)
   await setKV(logKey, [])
+  await setKV(lastBumpKey, now)
+  // Ensure last_updated_at is recorded if not present
+  const existingLastUpdated = await getKV<number>(lastUpdatedKey)
+  if (!existingLastUpdated) {
+    await setKV(lastUpdatedKey, now)
+  }
 
   return { baseVersion: nextBase, patchVersion: 0 }
 }
@@ -284,7 +308,10 @@ export interface SupplyModuleVersionDetail {
   patchVersion: number
   versionString: string
   totalUpdates: number
+  lifetimeUpdates: number
+  updatesToday: number
   lastUpdated: number | null
+  lastCompactedAt: number | null
   lastAction: "UPDATE" | "DELETE" | null
   lastRecordId: string | null
   recentPatches: PatchPayload[]
@@ -296,19 +323,25 @@ export interface SupplyVersionReportItem {
   cccName: string
   spreadsheetId?: string
   totalUpdates: number
+  lifetimeUpdates: number
+  updatesToday: number
   activeModulesCount: number
   totalModulesCount: number
   lastActiveTimestamp: number | null
+  activityTier: "high" | "moderate" | "dormant"
   modules: Record<string, SupplyModuleVersionDetail>
 }
 
 export interface GlobalVersionSummary {
   totalUpdatesAllSupplies: number
+  totalLifetimeUpdatesAllSupplies: number
+  totalUpdatesTodayAllSupplies: number
   totalSuppliesCount: number
   activeSuppliesCount: number
-  topSupply: { cccCode: string; cccName: string; totalUpdates: number } | null
-  topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number } | null
-  moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; activeSuppliesCount: number }>
+  activeTodaySuppliesCount: number
+  topSupply: { cccCode: string; cccName: string; totalUpdates: number; updatesToday: number } | null
+  topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number } | null
+  moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number; activeSuppliesCount: number }>
 }
 
 /**
@@ -324,16 +357,27 @@ export async function getSupplyModuleVersionsReport(
   const { getAllTenantKV } = await import("./kv-store")
   const allKV = await getAllTenantKV()
 
+  // Calculate start of today (midnight IST - UTC+5:30)
+  const now = new Date()
+  const istOffset = 5.5 * 60 * 60 * 1000
+  const istTime = new Date(now.getTime() + istOffset)
+  istTime.setUTCHours(0, 0, 0, 0)
+  const startOfTodayMs = istTime.getTime() - istOffset
+
   const supplies: SupplyVersionReportItem[] = []
   let totalUpdatesAllSupplies = 0
+  let totalLifetimeUpdatesAllSupplies = 0
+  let totalUpdatesTodayAllSupplies = 0
   let activeSuppliesCount = 0
+  let activeTodaySuppliesCount = 0
 
-  const moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; activeSuppliesCount: number }> = {}
+  const moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number; activeSuppliesCount: number }> = {}
   SYSTEM_MODULE_REGISTRY.forEach(mod => {
     moduleTotals[mod.key] = {
       moduleKey: mod.key,
       moduleLabel: mod.label,
       totalUpdates: 0,
+      updatesToday: 0,
       activeSuppliesCount: 0,
     }
   })
@@ -346,6 +390,8 @@ export async function getSupplyModuleVersionsReport(
     const modules: Record<string, SupplyModuleVersionDetail> = {}
 
     let supplyTotalUpdates = 0
+    let supplyLifetimeUpdates = 0
+    let supplyUpdatesToday = 0
     let activeModulesCount = 0
     let lastActiveTimestamp: number | null = null
 
@@ -354,15 +400,24 @@ export async function getSupplyModuleVersionsReport(
       let baseVersion = 1
       let patchVersion = 0
       let patchLog: PatchPayload[] = []
+      let lastCompactedAt: number | null = null
+      let storedLastUpdated: number | null = null
+      let storedLifetime = 0
 
       for (const alias of mod.aliases) {
         const baseKey = `tenant_${cleanTenant}:${alias}:base_version`
         const patchKey = `tenant_${cleanTenant}:${alias}:patch_version`
         const logKey = `tenant_${cleanTenant}:${alias}:patch_log`
+        const bumpKey = `tenant_${cleanTenant}:${alias}:last_base_bump`
+        const lastUpdatedKey = `tenant_${cleanTenant}:${alias}:last_updated_at`
+        const lifetimeKey = `tenant_${cleanTenant}:${alias}:lifetime_updates`
 
         const bVal = allKV[baseKey]
         const pVal = allKV[patchKey]
         const lVal = allKV[logKey]
+        const bumpVal = allKV[bumpKey]
+        const luVal = allKV[lastUpdatedKey]
+        const ltVal = allKV[lifetimeKey]
 
         if (bVal !== undefined && Number(bVal) > baseVersion) {
           baseVersion = Number(bVal)
@@ -373,39 +428,66 @@ export async function getSupplyModuleVersionsReport(
         if (Array.isArray(lVal) && lVal.length > 0) {
           patchLog = lVal
         }
+        if (bumpVal !== undefined && Number(bumpVal) > (lastCompactedAt || 0)) {
+          lastCompactedAt = Number(bumpVal)
+        }
+        if (luVal !== undefined && Number(luVal) > (storedLastUpdated || 0)) {
+          storedLastUpdated = Number(luVal)
+        }
+        if (ltVal !== undefined && Number(ltVal) > storedLifetime) {
+          storedLifetime = Number(ltVal)
+        }
       }
 
       const totalUpdates = patchVersion
+      const lifetimeUpdates = Math.max(storedLifetime, totalUpdates)
       supplyTotalUpdates += totalUpdates
+      supplyLifetimeUpdates += lifetimeUpdates
 
-      let lastUpdated: number | null = null
+      let lastUpdated: number | null = storedLastUpdated || null
       let lastAction: "UPDATE" | "DELETE" | null = null
       let lastRecordId: string | null = null
       let recentPatches: PatchPayload[] = []
+      let modUpdatesToday = 0
 
       if (patchLog && patchLog.length > 0) {
         // Sort descending by timestamp / patchVersion
         const sortedLog = [...patchLog].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
         const latest = sortedLog[0]
         if (latest) {
-          lastUpdated = latest.timestamp || null
+          lastUpdated = Math.max(latest.timestamp || 0, lastUpdated || 0) || null
           lastAction = latest.action || null
           lastRecordId = latest.recordId || null
         }
         recentPatches = sortedLog.slice(0, 10)
 
-        if (lastUpdated && (!lastActiveTimestamp || lastUpdated > lastActiveTimestamp)) {
-          lastActiveTimestamp = lastUpdated
+        // Count updates made today (from patch log)
+        for (const p of patchLog) {
+          if (p.timestamp && p.timestamp >= startOfTodayMs) {
+            modUpdatesToday++
+          }
         }
       }
 
-      const isActive = totalUpdates > 0 || baseVersion > 1
+      // If lastUpdated was not in patch log (e.g. compacted), fallback to lastCompactedAt if newer
+      if (lastCompactedAt && (!lastUpdated || lastCompactedAt > lastUpdated)) {
+        lastUpdated = lastCompactedAt
+      }
+
+      if (lastUpdated && (!lastActiveTimestamp || lastUpdated > lastActiveTimestamp)) {
+        lastActiveTimestamp = lastUpdated
+      }
+
+      supplyUpdatesToday += modUpdatesToday
+
+      const isActive = totalUpdates > 0 || baseVersion > 1 || lifetimeUpdates > 0
 
       if (isActive) {
         activeModulesCount++
         moduleTotals[mod.key].activeSuppliesCount++
       }
       moduleTotals[mod.key].totalUpdates += totalUpdates
+      moduleTotals[mod.key].updatesToday += modUpdatesToday
 
       modules[mod.key] = {
         moduleKey: mod.key,
@@ -416,7 +498,10 @@ export async function getSupplyModuleVersionsReport(
         patchVersion,
         versionString: `v${baseVersion}.${patchVersion}`,
         totalUpdates,
+        lifetimeUpdates,
+        updatesToday: modUpdatesToday,
         lastUpdated,
+        lastCompactedAt,
         lastAction,
         lastRecordId,
         recentPatches,
@@ -424,38 +509,59 @@ export async function getSupplyModuleVersionsReport(
       }
     }
 
-    if (supplyTotalUpdates > 0 || activeModulesCount > 0) {
+    if (supplyTotalUpdates > 0 || activeModulesCount > 0 || supplyLifetimeUpdates > 0) {
       activeSuppliesCount++
     }
+    if (supplyUpdatesToday > 0) {
+      activeTodaySuppliesCount++
+    }
     totalUpdatesAllSupplies += supplyTotalUpdates
+    totalLifetimeUpdatesAllSupplies += supplyLifetimeUpdates
+    totalUpdatesTodayAllSupplies += supplyUpdatesToday
+
+    // Calculate Activity Tier
+    let activityTier: "high" | "moderate" | "dormant" = "dormant"
+    if (supplyUpdatesToday > 0 || (lastActiveTimestamp && Date.now() - lastActiveTimestamp < 24 * 60 * 60 * 1000)) {
+      activityTier = "high"
+    } else if (lastActiveTimestamp && Date.now() - lastActiveTimestamp < 7 * 24 * 60 * 60 * 1000) {
+      activityTier = "moderate"
+    }
 
     supplies.push({
       cccCode,
       cccName: tenant.cccName || `Care Center ${cccCode}`,
       spreadsheetId: tenant.spreadsheetId,
       totalUpdates: supplyTotalUpdates,
+      lifetimeUpdates: supplyLifetimeUpdates,
+      updatesToday: supplyUpdatesToday,
       activeModulesCount,
       totalModulesCount: SYSTEM_MODULE_REGISTRY.length,
       lastActiveTimestamp,
+      activityTier,
       modules,
     })
   }
 
-  // Sort supplies descending by totalUpdates, then cccCode
-  supplies.sort((a, b) => b.totalUpdates - a.totalUpdates || a.cccCode.localeCompare(b.cccCode))
+  // Sort supplies: highest updatesToday first, then totalUpdates, then cccCode
+  supplies.sort((a, b) => b.updatesToday - a.updatesToday || b.totalUpdates - a.totalUpdates || a.cccCode.localeCompare(b.cccCode))
 
   // Find top supply and top module
-  const topSupply = supplies.length > 0 && supplies[0].totalUpdates > 0
-    ? { cccCode: supplies[0].cccCode, cccName: supplies[0].cccName, totalUpdates: supplies[0].totalUpdates }
+  const topSupply = supplies.length > 0 && (supplies[0].totalUpdates > 0 || supplies[0].updatesToday > 0 || supplies[0].lifetimeUpdates > 0)
+    ? { cccCode: supplies[0].cccCode, cccName: supplies[0].cccName, totalUpdates: supplies[0].totalUpdates, updatesToday: supplies[0].updatesToday }
     : null
 
-  let topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number } | null = null
+  let topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number } | null = null
   let maxModUpdates = -1
   for (const mod of SYSTEM_MODULE_REGISTRY) {
     const tot = moduleTotals[mod.key]?.totalUpdates || 0
     if (tot > maxModUpdates && tot > 0) {
       maxModUpdates = tot
-      topModule = { moduleKey: mod.key, moduleLabel: mod.label, totalUpdates: tot }
+      topModule = {
+        moduleKey: mod.key,
+        moduleLabel: mod.label,
+        totalUpdates: tot,
+        updatesToday: moduleTotals[mod.key]?.updatesToday || 0,
+      }
     }
   }
 
@@ -463,8 +569,11 @@ export async function getSupplyModuleVersionsReport(
     supplies,
     globalSummary: {
       totalUpdatesAllSupplies,
+      totalLifetimeUpdatesAllSupplies,
+      totalUpdatesTodayAllSupplies,
       totalSuppliesCount: supplies.length,
       activeSuppliesCount,
+      activeTodaySuppliesCount,
       topSupply,
       topModule,
       moduleTotals,
