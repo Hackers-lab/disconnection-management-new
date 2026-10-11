@@ -14,7 +14,7 @@ export const METER_TYPES = [
 export type MeterTypeLabel = typeof METER_TYPES[number]["label"]
 export type MeterCondition = "available" | "issued" | "installed" | "faulty"
 export type IssuePurpose   = "faulty_replacement" | "burnt_replacement" | "slow_fast" | "nsc"
-export type IssueStatus    = "issued" | "installation_done" | "installed" | "returned"
+export type IssueStatus    = "proposed" | "issued" | "installation_done" | "installed" | "returned" | "withheld"
 
 export interface MeterStock {
   serialNo:      string

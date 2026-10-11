@@ -250,4 +250,24 @@ export function extractIssueDate(osDuedateRange?: string): string {
   return ""
 }
 
+/**
+ * Formats any date string (DD-MM-YYYY, DD/MM/YYYY HH:mm, YYYY-MM-DD, etc.)
+ * into a clean, human-readable display date string (e.g. "06-10-2026" or "11-10-2026 18:16").
+ */
+export function formatDisplayDate(rawDate?: any, includeTime = false): string {
+  if (!rawDate) return "—"
+  const str = String(rawDate).trim()
+  if (!str || str === "-" || str === "—") return "—"
 
+  const parts = str.split(" ")
+  const datePart = parts[0] || ""
+  const timePart = parts[1] || ""
+
+  const cleanDate = sanitizeDisconDate(datePart)
+  if (!cleanDate) return str
+
+  if (includeTime && timePart) {
+    return `${cleanDate} ${timePart}`
+  }
+  return cleanDate
+}

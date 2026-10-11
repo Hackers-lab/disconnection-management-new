@@ -39,6 +39,7 @@ import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { getGoogleDriveDirectLink } from "@/lib/image-utils"
+import { formatDisplayDate } from "@/lib/date-utils"
 // xlsx loaded dynamically to reduce initial bundle size
 const loadXLSX = () => import("xlsx")
 
@@ -116,6 +117,12 @@ interface MeterReplacement {
   noteSheetNo?: string
   closedRemarks?: string
   meterType?: string
+  issueDate?: string
+  completedAt?: string
+  beforeImage?: string
+  afterImage?: string
+  lastReading?: string
+  newReading?: string
 }
 
 export function MeterList({ userRole, userAgencies, username, agencies, permissions }: Props) {
@@ -822,7 +829,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
     // 1. Optimistic UI update
     setReplacements(prev => {
-      const updated = prev.map(r => (r.issueId === issue.issueId || (r.consumerId === issue.consumerId && r.status !== "closed")) ? { ...r, status: "closed", remarks: trimmedRemarks } : r)
+      const updated = prev.map(r => (r.issueId === issue.issueId || (r.consumerId === issue.consumerId && r.status !== "closed")) ? { ...r, status: "closed" as const, remarks: trimmedRemarks } : r)
       saveToCache("meter_replacement_data_cache", updated)
       return updated
     })
@@ -838,7 +845,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
         })
       }
 
-      // 2. Return issued meter back to stock if issued
+      // 2. Return issued meter back to stock if issue status is issued
       if (issue.status === "issued") {
         await fetch("/api/meters/return", {
           method: "POST",
@@ -865,7 +872,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
     // Optimistic UI update: immediately move to closed in state and IndexedDB cache
     setReplacements(prev => {
-      const updated = prev.map(r => r.replacementId === rep.replacementId ? { ...r, status: "closed", remarks: trimmedRemarks } : r)
+      const updated = prev.map(r => r.replacementId === rep.replacementId ? { ...r, status: "closed" as const, remarks: trimmedRemarks } : r)
       saveToCache("meter_replacement_data_cache", updated)
       return updated
     })
@@ -2087,11 +2094,21 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredReplacements.map(rep => {
-                const linkedIssue = issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
+                // Match by explicit issueId first, otherwise match by consumerId with active/latest issue
+                const linkedIssue = rep.issueId
+                  ? issues.find(i => i.issueId === rep.issueId)
+                  : issues.find(i => i.consumerId === rep.consumerId && (rep.serialNo ? i.serialNo === rep.serialNo : true) && i.status !== "returned") ||
+                    issues.find(i => i.consumerId === rep.consumerId)
+
                 const isCompleted = rep.status === "replaced" && rep.noteSheetNo && rep.noteSheetNo.trim()
                 const isWODone = rep.status === "replaced" && (!rep.noteSheetNo || !rep.noteSheetNo.trim())
                 const isExpanded = expandedTimeline.has(rep.replacementId)
                 const isSelected = selectedForBulkRep.has(rep.replacementId)
+
+                const effectiveIssueDate = linkedIssue?.issueDate || rep.issueDate || ""
+                const effectiveInstalledDate = linkedIssue?.completedAt || rep.completedAt || ""
+                const effectiveWO = rep.workOrderNo || linkedIssue?.completionRef || ""
+                const effectiveNoteSheet = rep.noteSheetNo || linkedIssue?.noteSheetNo || ""
 
                 return (
                   <Card key={rep.replacementId} className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>
@@ -2247,29 +2264,29 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                         {rep.status === "proposed" && (
                           <div className="flex justify-between items-center text-gray-600">
                             <span>Proposed Date:</span>
-                            <strong className="font-mono text-amber-800">{rep.proposedDate || "—"}</strong>
+                            <strong className="font-mono text-amber-800">{formatDisplayDate(rep.proposedDate)}</strong>
                           </div>
                         )}
                         {rep.status === "issued" && (
                           <div className="flex justify-between items-center text-gray-600">
                             <span>Issued Date:</span>
-                            <strong className="font-mono text-yellow-800">{linkedIssue?.issueDate || "—"}</strong>
+                            <strong className="font-mono text-yellow-800">{formatDisplayDate(effectiveIssueDate)}</strong>
                           </div>
                         )}
                         {rep.status === "updated" && (
                           <>
                             <div className="flex justify-between items-center text-gray-600">
                               <span>Installed Date:</span>
-                              <strong className="font-mono text-blue-800">{linkedIssue?.completedAt || "—"}</strong>
+                              <strong className="font-mono text-blue-800">{formatDisplayDate(effectiveInstalledDate, true)}</strong>
                             </div>
                             <div className="flex justify-between items-center text-gray-600 pt-1 border-t border-slate-200">
                               <span>Readings:</span>
-                              <span className="font-mono">Old Meter Last: <strong>{linkedIssue?.lastReading || "0"}</strong> | New Meter Initial: <strong className="text-blue-700">{linkedIssue?.newReading || "—"}</strong></span>
+                              <span className="font-mono">Old Meter Last: <strong>{linkedIssue?.lastReading || rep.lastReading || "0"}</strong> | New Meter Initial: <strong className="text-blue-700">{linkedIssue?.newReading || rep.newReading || "—"}</strong></span>
                             </div>
-                            {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
+                            {(linkedIssue?.beforeImage || rep.beforeImage || linkedIssue?.afterImage || rep.afterImage) && (
                               <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
-                                {linkedIssue?.beforeImage && <a href={getGoogleDriveDirectLink(linkedIssue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
-                                {linkedIssue?.afterImage && <a href={getGoogleDriveDirectLink(linkedIssue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                                {(linkedIssue?.beforeImage || rep.beforeImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.beforeImage || rep.beforeImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {(linkedIssue?.afterImage || rep.afterImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.afterImage || rep.afterImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
                               </div>
                             )}
                           </>
@@ -2277,8 +2294,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                         {(isWODone || isCompleted) && (
                           <>
                             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
-                              <span>WO: <strong className="text-slate-800">{rep.workOrderNo || linkedIssue?.completionRef || "—"}</strong></span>
-                              <span>Note Sheet: <strong className={rep.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{rep.noteSheetNo || "Pending"}</strong></span>
+                              <span>WO: <strong className="text-slate-800">{effectiveWO || "—"}</strong></span>
+                              <span>Note Sheet: <strong className={effectiveNoteSheet ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{effectiveNoteSheet || "Pending"}</strong></span>
                             </div>
                             {linkedIssue && (
                               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200">
@@ -2286,10 +2303,10 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                                 <span>Return: <strong className={linkedIssue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{linkedIssue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"}</strong></span>
                               </div>
                             )}
-                            {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
+                            {(linkedIssue?.beforeImage || rep.beforeImage || linkedIssue?.afterImage || rep.afterImage) && (
                               <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
-                                {linkedIssue?.beforeImage && <a href={getGoogleDriveDirectLink(linkedIssue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
-                                {linkedIssue?.afterImage && <a href={getGoogleDriveDirectLink(linkedIssue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                                {(linkedIssue?.beforeImage || rep.beforeImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.beforeImage || rep.beforeImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {(linkedIssue?.afterImage || rep.afterImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.afterImage || rep.afterImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
                               </div>
                             )}
                           </>
@@ -2310,16 +2327,15 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                         <div className="bg-slate-100/80 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 text-slate-700 animate-in fade-in duration-200">
                           <p className="font-bold text-slate-900 border-b pb-1 text-[11px] uppercase tracking-wider">Full Tracking Details & History</p>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] pt-1">
-                            <p><span className="text-gray-500">Proposed Date:</span> {rep.proposedDate || "—"}</p>
-                            <p><span className="text-gray-500">Issued Date:</span> {linkedIssue?.issueDate || "—"}</p>
-                            <p><span className="text-gray-500">Installed Date:</span> {linkedIssue?.completedAt || "—"}</p>
-                            <p><span className="text-gray-500">WO Finalized:</span> {linkedIssue?.completedAt || "—"}</p>
-                            <p><span className="text-gray-500">WO Number:</span> {rep.workOrderNo || "—"}</p>
-                            <p><span className="text-gray-500">Note Sheet No:</span> {rep.noteSheetNo || "—"}</p>
-                            <p><span className="text-gray-500">Old Meter Last Reading:</span> {linkedIssue?.lastReading || "0"}</p>
-                            <p><span className="text-gray-500">New Meter Initial Reading:</span> {linkedIssue?.newReading || "—"}</p>
+                            <p><span className="text-gray-500">Proposed Date:</span> {formatDisplayDate(rep.proposedDate)}</p>
+                            <p><span className="text-gray-500">Issued Date:</span> {formatDisplayDate(effectiveIssueDate)}</p>
+                            <p><span className="text-gray-500">Installed Date:</span> {formatDisplayDate(effectiveInstalledDate, true)}</p>
+                            <p><span className="text-gray-500">WO Number:</span> {effectiveWO || "—"}</p>
+                            <p><span className="text-gray-500">Note Sheet No:</span> {effectiveNoteSheet || "—"}</p>
+                            <p><span className="text-gray-500">Old Meter Last Reading:</span> {linkedIssue?.lastReading || rep.lastReading || "0"}</p>
+                            <p><span className="text-gray-500">New Meter Initial Reading:</span> {linkedIssue?.newReading || rep.newReading || "—"}</p>
                             <p><span className="text-gray-500">Old Meter Return:</span> {linkedIssue?.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
-                            <p><span className="text-gray-500">Agency:</span> {rep.agency || "—"}</p>
+                            <p><span className="text-gray-500">Agency:</span> {rep.agency || linkedIssue?.agency || "—"}</p>
                           </div>
                           {rep.remarks && <p className="text-[11px] italic text-gray-600 pt-1 border-t">Remarks: "{rep.remarks}"</p>}
                         </div>

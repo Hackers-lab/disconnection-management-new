@@ -27,6 +27,13 @@ export interface MeterReplacement {
   oldMeterReturnReceivedBy?: string
   oldMeterReturnCondition?: "working" | "faulty" | "burnt"
   oldMeterReturnRemarks?: string
+  issueDate?: string
+  completedAt?: string
+  beforeImage?: string
+  afterImage?: string
+  lastReading?: string
+  newReading?: string
+  meterType?: string
 }
 
 const sheets = googleSheets({ version: "v4", auth: auth as any })
@@ -116,10 +123,73 @@ export async function _fetchReplacementsRaw(spreadsheetId: string): Promise<Mete
     spreadsheetId,
     range: `${REPLACEMENT_TAB}!A:V`
   })
-  return (res.data.values || [])
+  const baseList = (res.data.values || [])
     .slice(1)
     .filter(r => r[0])
     .map(r => parseReplacement(r.map(String)))
+
+  // Join linked issue details (issueDate, completedAt, meterType, images, readings, etc.)
+  try {
+    const { _fetchIssuesRaw } = await import("./meter-service")
+    const issues = await _fetchIssuesRaw(spreadsheetId)
+    if (issues && issues.length > 0) {
+      // Build index by issueId and by consumerId
+      const issueMap = new Map<string, any>()
+      const consumerMap = new Map<string, any[]>()
+      for (const i of issues) {
+        if (i.issueId) issueMap.set(i.issueId, i)
+        if (i.consumerId) {
+          if (!consumerMap.has(i.consumerId)) consumerMap.set(i.consumerId, [])
+          consumerMap.get(i.consumerId)!.push(i)
+        }
+      }
+
+      for (const rep of baseList) {
+        let linked = rep.issueId ? issueMap.get(rep.issueId) : null
+        if (!linked && rep.consumerId && consumerMap.has(rep.consumerId)) {
+          const candList = consumerMap.get(rep.consumerId)!
+          // Prefer matching serialNo, or active/installed issue
+          linked = candList.find(c => rep.serialNo && c.serialNo === rep.serialNo) ||
+                   candList.find(c => c.status !== "returned") ||
+                   candList[candList.length - 1]
+        }
+
+        if (linked) {
+          if (!rep.issueDate && linked.issueDate) rep.issueDate = linked.issueDate
+          if (!rep.completedAt && linked.completedAt) rep.completedAt = linked.completedAt
+          if (!rep.serialNo && linked.serialNo) rep.serialNo = linked.serialNo
+          if (!rep.issueId && linked.issueId) rep.issueId = linked.issueId
+          if (!rep.meterType && linked.meterType) rep.meterType = linked.meterType
+          if (!rep.workOrderNo && linked.completionRef) rep.workOrderNo = linked.completionRef
+          if (!rep.noteSheetNo && linked.noteSheetNo) rep.noteSheetNo = linked.noteSheetNo
+          if (!rep.beforeImage && linked.beforeImage) rep.beforeImage = linked.beforeImage
+          if (!rep.afterImage && linked.afterImage) rep.afterImage = linked.afterImage
+          if (!rep.lastReading && linked.lastReading) rep.lastReading = linked.lastReading
+          if (!rep.newReading && linked.newReading) rep.newReading = linked.newReading
+          if (!rep.oldMeterReturnStatus && linked.oldMeterReturnStatus) rep.oldMeterReturnStatus = linked.oldMeterReturnStatus
+          if (!rep.oldMeterReturnDate && linked.oldMeterReturnDate) rep.oldMeterReturnDate = linked.oldMeterReturnDate
+          if (!rep.oldMeterReturnReceivedBy && linked.oldMeterReturnReceivedBy) rep.oldMeterReturnReceivedBy = linked.oldMeterReturnReceivedBy
+          if (!rep.oldMeterReturnCondition && linked.oldMeterReturnCondition) rep.oldMeterReturnCondition = linked.oldMeterReturnCondition
+          if (!rep.oldMeterReturnRemarks && linked.oldMeterReturnRemarks) rep.oldMeterReturnRemarks = linked.oldMeterReturnRemarks
+
+          // Auto-align status if completed or installed
+          if (rep.status === "proposed" || rep.status === "issued" || rep.status === "updated") {
+            if (linked.status === "installed" || Boolean(rep.workOrderNo)) {
+              rep.status = "replaced"
+            } else if (linked.status === "installation_done") {
+              rep.status = "updated"
+            } else if (linked.status === "issued" && rep.status === "proposed") {
+              rep.status = "issued"
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to join linked issues in _fetchReplacementsRaw:", err)
+  }
+
+  return baseList
 }
 
 export const fetchReplacements = unstable_cache(

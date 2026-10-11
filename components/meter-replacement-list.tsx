@@ -12,7 +12,7 @@ import {
   Search, X, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   Loader2, Download, RefreshCw, Check, ArrowLeft, RotateCcw, Package,
   MapPin, Phone, Building2, User, Upload, FileText, Monitor, FileSpreadsheet, AlertCircle,
-  IndianRupee, AlertTriangle, ShieldCheck, Filter, ChevronDown
+  IndianRupee, AlertTriangle, ShieldCheck, Filter, ChevronDown, ChevronUp
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -32,6 +32,7 @@ import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { MeterReplacement } from "@/lib/meter-replacement-service"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { formatDisplayDate } from "@/lib/date-utils"
 
 const CACHE_KEY = "meter_replacement_data_cache"
 
@@ -164,6 +165,15 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
   
   const isAdmin = userRole === "admin" || userRole === "executive"
   const [oldMeterMap, setOldMeterMap] = useState<Record<string, string>>({})
+  const [expandedTimeline, setExpandedTimeline] = useState<Set<string>>(new Set())
+  const toggleTimeline = (id: string) => {
+    setExpandedTimeline(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const handleReassignAgency = async () => {
     if (!selectedForReassign) return
@@ -931,15 +941,70 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                 </div>
               )}
 
-              {(r.serialNo || r.issueId || r.workOrderNo || r.noteSheetNo) && (
-                <div className="pt-2 border-t mt-2 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
+              {/* Primary Lifecycle Dates Display */}
+              <div className="pt-2 border-t text-xs space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <div className="flex justify-between items-center text-gray-600">
+                  <span>Proposed Date:</span>
+                  <strong className="font-mono text-amber-800">{formatDisplayDate(r.proposedDate)}</strong>
+                </div>
+                {r.issueDate && (
+                  <div className="flex justify-between items-center text-gray-600">
+                    <span>Issued Date:</span>
+                    <strong className="font-mono text-yellow-800">{formatDisplayDate(r.issueDate)}</strong>
+                  </div>
+                )}
+                {r.completedAt && (
+                  <div className="flex justify-between items-center text-gray-600">
+                    <span>Installed Date:</span>
+                    <strong className="font-mono text-blue-800">{formatDisplayDate(r.completedAt, true)}</strong>
+                  </div>
+                )}
+                {(r.workOrderNo || r.noteSheetNo) && (
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px] pt-1 border-t border-slate-200">
                     <span>WO: <strong className="text-slate-800">{r.workOrderNo || "—"}</strong></span>
                     <span>Note Sheet: <strong className={r.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{r.noteSheetNo || "Pending"}</strong></span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200">
-                    <span>Issue ID: <strong className="font-mono text-gray-700">{r.issueId || "—"}</strong></span>
-                    <span>New Serial: <strong className="font-mono text-blue-800">{r.serialNo || "—"}</strong></span>
+                )}
+                {(r.beforeImage || r.afterImage) && (
+                  <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
+                    {r.beforeImage && (
+                      <a href={r.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800">
+                        Before Photo ↗
+                      </a>
+                    )}
+                    {r.afterImage && (
+                      <a href={r.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800">
+                        After Photo ↗
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible Timeline Details Toggle */}
+              <button
+                type="button"
+                onClick={() => toggleTimeline(r.replacementId)}
+                className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-800 py-1 bg-blue-50/50 hover:bg-blue-50 rounded border border-blue-100 flex items-center justify-center gap-1">
+                <span>{expandedTimeline.has(r.replacementId) ? "Hide Full Tracking Details" : "View Full Tracking Details"}</span>
+                {expandedTimeline.has(r.replacementId) ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+
+              {/* Expanded Collapsible Tracking Details */}
+              {expandedTimeline.has(r.replacementId) && (
+                <div className="bg-slate-100/90 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 text-slate-700 animate-in fade-in duration-200">
+                  <p className="font-bold text-slate-900 border-b pb-1 text-[11px] uppercase tracking-wider">Full Tracking Details & History</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] pt-1">
+                    <p><span className="text-gray-500">Proposed:</span> {formatDisplayDate(r.proposedDate)}</p>
+                    <p><span className="text-gray-500">Issued:</span> {formatDisplayDate(r.issueDate)}</p>
+                    <p><span className="text-gray-500">Installed:</span> {formatDisplayDate(r.completedAt, true)}</p>
+                    <p><span className="text-gray-500">Issue ID:</span> {r.issueId || "—"}</p>
+                    <p><span className="text-gray-500">WO Number:</span> {r.workOrderNo || "—"}</p>
+                    <p><span className="text-gray-500">Note Sheet:</span> {r.noteSheetNo || "—"}</p>
+                    <p><span className="text-gray-500">Last Reading:</span> {r.lastReading || "0"}</p>
+                    <p><span className="text-gray-500">New Reading:</span> {r.newReading || "0"}</p>
+                    <p><span className="text-gray-500">Old Return:</span> {r.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
+                    <p><span className="text-gray-500">Agency:</span> {r.agency || "—"}</p>
                   </div>
                 </div>
               )}
