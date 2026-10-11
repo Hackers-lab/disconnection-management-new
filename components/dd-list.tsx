@@ -17,6 +17,7 @@ import { getFromCache, saveToCache, clearAllCache, getCccPrefix } from "@/lib/in
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { DeemedVisitData } from "@/lib/dd-service"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { DDStats } from "./dd-stats"
 import { DDForm } from "./dd-form"
 import {
@@ -93,6 +94,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
   const [baseClasses, setBaseClasses] = useState<string[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
   const [showNearbyMap, setShowNearbyMap] = useState(false)
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string; consumerId?: string } | null>(null)
   const [dateFilter, setDateFilter] = useState<{
     from: Date | null
     to: Date | null
@@ -598,16 +600,21 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
 
                 {consumer.imageUrl && (
                   <div className="pt-2 pb-1 relative z-10">
-                    <a
-                      href={getValidUrl(consumer.imageUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewImage({
+                          url: consumer.imageUrl,
+                          title: `Evidence Photo - ${consumer.name || consumer.consumerId}`,
+                          consumerId: consumer.consumerId,
+                        })
+                      }}
                       className="inline-flex items-center space-x-2 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
-                      onClick={e => e.stopPropagation()}
                     >
                       <ImageIcon className="h-3.5 w-3.5" />
                       <span>View Uploaded Image</span>
-                    </a>
+                    </button>
                   </div>
                 )}
 
@@ -727,6 +734,69 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
             />
           </div>
         </div>
+      )}
+
+      {/* Evidence Image Preview Lightbox Dialog */}
+      {previewImage && (
+        <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white rounded-2xl z-[70]">
+            <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+              <div className="min-w-0 pr-2">
+                <h3 className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                  <ImageIcon className="h-4 w-4 text-blue-400 shrink-0" />
+                  <span>{previewImage.title}</span>
+                </h3>
+                {previewImage.consumerId && (
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    Consumer #{previewImage.consumerId}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-black flex items-center justify-center min-h-[250px] max-h-[65vh] overflow-hidden">
+              <img
+                src={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                onError={(e) => handleImageError(e, previewImage.url)}
+                alt={previewImage.title}
+                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-700"
+              />
+            </div>
+
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono text-slate-400 truncate">
+                {previewImage.consumerId ? `Consumer_${previewImage.consumerId}_Evidence.jpg` : "Evidence.jpg"}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 border border-slate-700"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Full Size</span>
+                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreviewImage(null)}
+                  className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 text-xs h-8 rounded-lg cursor-pointer"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

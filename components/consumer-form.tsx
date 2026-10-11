@@ -22,6 +22,7 @@ import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
 import { getPaymentDuesBreakdown } from "@/lib/date-utils"
 import { triggerHaptic } from "@/lib/utils"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 import { Lock } from "lucide-react"
 
@@ -61,6 +62,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
     oldOsd: string; oldNotes: string; oldImageUrl: string; changedBy: string;
     amount?: string; eventDate?: string;
   }[]>([])
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null)
 
   const loadHistory = async () => {
     const cacheKey = `consumer_history_${consumer.consumerId}`
@@ -412,15 +414,17 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                       )}
                       <div className="flex items-center justify-between mt-1">
                         {h.oldImageUrl ? (
-                          <a
-                            href={getValidUrl(h.oldImageUrl)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage({
+                              url: h.oldImageUrl,
+                              title: `Consumer History Photo - ${consumer.name || consumer.consumerId}`
+                            })}
                             className="inline-flex items-center space-x-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
                           >
                             <ImageIcon className="h-3.5 w-3.5" />
                             <span>View Uploaded Image</span>
-                          </a>
+                          </button>
                         ) : <span />}
                         <span className="text-[10px] text-slate-450 font-medium">by {h.changedBy}</span>
                       </div>
@@ -730,7 +734,8 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                 {(previewUrl || formData.imageUrl) && !cameraActive && (
                     <div className="relative mt-2 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
                         <img 
-                            src={previewUrl || formData.imageUrl} 
+                            src={previewUrl || getGoogleDriveDirectLink(formData.imageUrl, 1200)} 
+                            onError={(e) => handleImageError(e, previewUrl || formData.imageUrl)}
                             alt="Evidence" 
                             className={`w-full h-48 object-cover ${uploading ? 'opacity-50' : ''}`} 
                         />
@@ -869,6 +874,63 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
           )}
         </div>,
         document.body
+      )}
+
+      {/* Evidence Image Preview Lightbox Dialog */}
+      {previewImage && (
+        <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white rounded-2xl z-[70]">
+            <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                <ImageIcon className="h-4 w-4 text-blue-400 shrink-0" />
+                <span>{previewImage.title}</span>
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPreviewImage(null)}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 p-0 rounded-full"
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div className="p-3 bg-black flex items-center justify-center min-h-[250px] max-h-[65vh] overflow-hidden">
+              <img
+                src={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                onError={(e) => handleImageError(e, previewImage.url)}
+                alt={previewImage.title}
+                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-700"
+              />
+            </div>
+
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono text-slate-400 truncate">
+                Consumer_{consumer.consumerId}_Evidence.jpg
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 border border-slate-700"
+                >
+                  Full Size
+                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreviewImage(null)}
+                  className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 text-xs h-8 rounded-lg cursor-pointer"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
     </div>

@@ -9,6 +9,9 @@ export const POST = withTenant(async function POST(request: NextRequest) {
   if (!session.isSubscribed) {
     return NextResponse.json({ error: "Subscription required" }, { status: 402 })
   }
+  if (session.role !== "admin" && session.role !== "executive") {
+    return NextResponse.json({ error: "Forbidden: Meter return can only be logged by office/admin staff" }, { status: 403 })
+  }
 
   try {
     const body = await request.json()

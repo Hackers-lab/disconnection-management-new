@@ -79,6 +79,7 @@ import { parseTs, getPaymentDuesBreakdown, extractIssueDate, normalizeCalendarDa
 import { useToast } from "@/components/ui/use-toast"
 import { OsdDetailsDialog } from "@/components/osd-details-dialog"
 import { shareConsumerStatusCard } from "@/lib/agency-update-image"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
   loading: () => <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
@@ -228,8 +229,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const [activeHistoryConsumer, setActiveHistoryConsumer] = useState<ConsumerData | null>(null)
   const [showNearbyMap, setShowNearbyMap] = useState(false)
   const [showOsdModal, setShowOsdModal] = useState(false)
-  const [osdTargetId, setOsdTargetId] = useState("")
   const [sharingConsumerId, setSharingConsumerId] = useState<string | null>(null)
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string; consumerId?: string } | null>(null)
 
   const handleShareConsumer = async (consumer: ConsumerData, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -1745,16 +1746,22 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                           )}
                         </button>
                         {hasImage && (
-                          <a
-                            href={getValidUrl((consumer.imageUrl || (consumer as any).image) as string)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const imgUrl = (consumer.imageUrl || (consumer as any).image) as string
+                              setPreviewImage({
+                                url: imgUrl,
+                                title: `Consumer Evidence - ${consumer.name || consumer.consumerId}`,
+                                consumerId: consumer.consumerId,
+                              })
+                            }}
                             className="p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
                             title="View Uploaded Image"
                           >
                             <ImageIcon className="h-3.5 w-3.5" />
-                          </a>
+                          </button>
                         )}
                       </div>
 
@@ -2212,15 +2219,21 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
                 {(previewConsumer.imageUrl || (previewConsumer as any).image) && (
                   <div className="pt-2">
-                    <a
-                      href={getValidUrl((previewConsumer.imageUrl || (previewConsumer as any).image) as string)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center space-x-2 text-xs font-medium text-blue-600 hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const imgUrl = (previewConsumer.imageUrl || (previewConsumer as any).image) as string
+                        setPreviewImage({
+                          url: imgUrl,
+                          title: `Evidence Photo - ${previewConsumer.name || previewConsumer.consumerId}`,
+                          consumerId: previewConsumer.consumerId,
+                        })
+                      }}
+                      className="inline-flex items-center space-x-2 text-xs font-medium text-blue-600 hover:underline cursor-pointer"
                     >
                       <ImageIcon className="h-3.5 w-3.5" />
                       <span>View Uploaded Image</span>
-                    </a>
+                    </button>
                   </div>
                 )}
 
@@ -2265,6 +2278,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         <ConsumerHistoryDialog
           consumer={activeHistoryConsumer}
           onClose={() => setActiveHistoryConsumer(null)}
+          onPreviewImage={(img) => setPreviewImage(img)}
         />
       )}
       {/* Floating Live OSD Check Modal */}
@@ -2273,11 +2287,82 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
         onOpenChange={setShowOsdModal}
         initialConsumerId={osdTargetId}
       />
+
+      {/* Evidence Image Preview Lightbox Dialog */}
+      {previewImage && (
+        <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+          <DialogContent className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white rounded-2xl z-[70]">
+            <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+              <div className="min-w-0 pr-2">
+                <h3 className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                  <ImageIcon className="h-4 w-4 text-blue-400 shrink-0" />
+                  <span>{previewImage.title}</span>
+                </h3>
+                {previewImage.consumerId && (
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    Consumer #{previewImage.consumerId}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-black flex items-center justify-center min-h-[250px] max-h-[65vh] overflow-hidden">
+              <img
+                src={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                onError={(e) => handleImageError(e, previewImage.url)}
+                alt={previewImage.title}
+                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-700"
+              />
+            </div>
+
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono text-slate-400 truncate">
+                {previewImage.consumerId ? `Consumer_${previewImage.consumerId}_Evidence.jpg` : "Evidence.jpg"}
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 border border-slate-700"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>Full Size</span>
+                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreviewImage(null)}
+                  className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 text-xs h-8 rounded-lg cursor-pointer"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 })
 
-function ConsumerHistoryDialog({ consumer, onClose }: { consumer: ConsumerData; onClose: () => void }) {
+function ConsumerHistoryDialog({ 
+  consumer, 
+  onClose,
+  onPreviewImage
+}: { 
+  consumer: ConsumerData; 
+  onClose: () => void;
+  onPreviewImage?: (img: { url: string; title: string; consumerId?: string }) => void;
+}) {
   const [historyEntries, setHistoryEntries] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
@@ -2388,15 +2473,24 @@ function ConsumerHistoryDialog({ consumer, onClose }: { consumer: ConsumerData; 
                     )}
                     <div className="flex items-center justify-between">
                       {h.oldImageUrl ? (
-                        <a
-                          href={getValidUrl(h.oldImageUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onPreviewImage) {
+                              onPreviewImage({
+                                url: h.oldImageUrl,
+                                title: `History Photo - ${consumer.name || consumer.consumerId}`,
+                                consumerId: consumer.consumerId,
+                              })
+                            } else {
+                              window.open(getValidUrl(h.oldImageUrl), "_blank", "noopener,noreferrer")
+                            }
+                          }}
                           className="inline-flex items-center space-x-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
                         >
                           <ImageIcon className="h-3.5 w-3.5" />
                           <span>View Uploaded Image</span>
-                        </a>
+                        </button>
                       ) : <span />}
                       <span className="text-[10px] text-gray-400">by {h.changedBy}</span>
                     </div>

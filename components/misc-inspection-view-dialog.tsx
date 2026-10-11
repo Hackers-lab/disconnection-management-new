@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { Loader2, FileText, Download, CheckCircle2, Clock, MapPin, Building2, User, AlertTriangle, ShieldCheck } from "lucide-react"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 interface MiscInspectionViewDialogProps {
   record: MiscInspectionRecord | null
@@ -253,24 +254,39 @@ export function MiscInspectionViewDialog({
                   {record.sitePhotoUrl && (
                     <div>
                       <span className="block text-[10px] text-muted-foreground mb-1 font-semibold">Site Photo</span>
-                      <a href={record.sitePhotoUrl} target="_blank" rel="noreferrer">
-                        <img src={record.sitePhotoUrl} alt="Site" className="h-28 w-full object-cover rounded border hover:opacity-90" />
+                      <a href={getGoogleDriveDirectLink(record.sitePhotoUrl, 1600)} target="_blank" rel="noreferrer">
+                        <img 
+                          src={getGoogleDriveDirectLink(record.sitePhotoUrl, 600)} 
+                          onError={(e) => handleImageError(e, record.sitePhotoUrl)}
+                          alt="Site" 
+                          className="h-28 w-full object-cover rounded border hover:opacity-90" 
+                        />
                       </a>
                     </div>
                   )}
                   {record.meterReadingPhotoUrl && (
                     <div>
                       <span className="block text-[10px] text-muted-foreground mb-1 font-semibold">Meter Photo</span>
-                      <a href={record.meterReadingPhotoUrl} target="_blank" rel="noreferrer">
-                        <img src={record.meterReadingPhotoUrl} alt="Meter" className="h-28 w-full object-cover rounded border hover:opacity-90" />
+                      <a href={getGoogleDriveDirectLink(record.meterReadingPhotoUrl, 1600)} target="_blank" rel="noreferrer">
+                        <img 
+                          src={getGoogleDriveDirectLink(record.meterReadingPhotoUrl, 600)} 
+                          onError={(e) => handleImageError(e, record.meterReadingPhotoUrl)}
+                          alt="Meter" 
+                          className="h-28 w-full object-cover rounded border hover:opacity-90" 
+                        />
                       </a>
                     </div>
                   )}
                   {record.sketchDrawingUrl && (
                     <div>
                       <span className="block text-[10px] text-muted-foreground mb-1 font-semibold">Sketch / Drawing</span>
-                      <a href={record.sketchDrawingUrl} target="_blank" rel="noreferrer">
-                        <img src={record.sketchDrawingUrl} alt="Sketch" className="h-28 w-full object-cover rounded border hover:opacity-90" />
+                      <a href={getGoogleDriveDirectLink(record.sketchDrawingUrl, 1600)} target="_blank" rel="noreferrer">
+                        <img 
+                          src={getGoogleDriveDirectLink(record.sketchDrawingUrl, 600)} 
+                          onError={(e) => handleImageError(e, record.sketchDrawingUrl)}
+                          alt="Sketch" 
+                          className="h-28 w-full object-cover rounded border hover:opacity-90" 
+                        />
                       </a>
                     </div>
                   )}

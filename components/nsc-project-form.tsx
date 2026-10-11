@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
 import type { NSCApplication, NSCProject } from "@/lib/nsc-types"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 // ── Client-side image compression (target < maxKB) ───────────────────────────
 async function compressImage(file: File, maxKB = 100): Promise<string> {
@@ -379,8 +380,13 @@ export function AdminApproveProjectForm({ project, onSuccess, onCancel }: AdminA
         <p className="text-sm text-muted-foreground">{project.workTypes.split(",").join(" + ")} — {project.agency}</p>
         {project.poNumber && <p className="text-xs">PO: <span className="font-mono">{project.poNumber}</span></p>}
         {project.sitePhotoUrl && (
-          <a href={project.sitePhotoUrl} target="_blank" rel="noopener noreferrer">
-            <img src={project.sitePhotoUrl} alt="Site photo" className="mt-2 w-full max-h-40 object-cover rounded border" />
+          <a href={getGoogleDriveDirectLink(project.sitePhotoUrl, 1600)} target="_blank" rel="noopener noreferrer">
+            <img 
+              src={getGoogleDriveDirectLink(project.sitePhotoUrl, 600)} 
+              onError={(e) => handleImageError(e, project.sitePhotoUrl)}
+              alt="Site photo" 
+              className="mt-2 w-full max-h-40 object-cover rounded border" 
+            />
           </a>
         )}
         {project.agencyRemarks && <p className="text-xs text-muted-foreground mt-1">Agency: {project.agencyRemarks}</p>}

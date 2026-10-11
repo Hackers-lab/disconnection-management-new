@@ -18,6 +18,7 @@ import { ReconnectionCreateForm } from "@/components/reconnection-create-form"
 import { ReconnectionUpdateForm } from "@/components/reconnection-update-form"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache, mergePatchToCache } from "@/lib/indexed-db"
+import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -755,7 +756,8 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
             </DialogHeader>
             <div className="p-2 flex items-center justify-center min-h-[250px] max-h-[75vh] bg-slate-950">
               <img
-                src={previewImage.url}
+                src={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                onError={(e) => handleImageError(e, previewImage.url)}
                 alt="Evidence preview"
                 className="max-h-[70vh] w-auto max-w-full object-contain rounded-lg shadow-lg"
               />

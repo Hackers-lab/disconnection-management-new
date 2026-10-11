@@ -8,6 +8,9 @@ export function extractDriveFileId(url: string | undefined): string | null {
   const idMatch = clean.match(/[?&]id=([a-zA-Z0-9_-]{20,})/)
   if (idMatch && idMatch[1]) return idMatch[1]
 
+  const openIdMatch = clean.match(/open\?id=([a-zA-Z0-9_-]{20,})/)
+  if (openIdMatch && openIdMatch[1]) return openIdMatch[1]
+
   if (/^[a-zA-Z0-9_-]{25,}$/.test(clean)) return clean
 
   return null

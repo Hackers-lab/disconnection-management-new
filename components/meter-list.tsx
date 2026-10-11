@@ -38,6 +38,7 @@ import { getFromCache, saveToCache, getCacheAgeMs } from "@/lib/indexed-db"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import type { NSCApplication } from "@/lib/nsc-types"
+import { getGoogleDriveDirectLink } from "@/lib/image-utils"
 // xlsx loaded dynamically to reduce initial bundle size
 const loadXLSX = () => import("xlsx")
 
@@ -1999,8 +2000,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                         </label>
                       )}
                       {issue.purpose === "nsc" && <span className="flex-1 text-xs text-gray-400 font-medium">NSC — finalize individually</span>}
-                      {issue.afterImage && <a href={issue.afterImage} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">After ↗</a>}
-                      {issue.beforeImage && <a href={issue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">Before ↗</a>}
+                      {issue.afterImage && <a href={getGoogleDriveDirectLink(issue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">After ↗</a>}
+                      {issue.beforeImage && <a href={getGoogleDriveDirectLink(issue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">Before ↗</a>}
                     </div>
                     {issue.newReading && <p className="text-xs text-gray-500 font-mono">Reading: <strong>{issue.newReading}</strong></p>}
                     <Button size="sm" className="w-full h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
@@ -2267,8 +2268,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                             </div>
                             {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
                               <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
-                                {linkedIssue?.beforeImage && <a href={linkedIssue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
-                                {linkedIssue?.afterImage && <a href={linkedIssue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                                {linkedIssue?.beforeImage && <a href={getGoogleDriveDirectLink(linkedIssue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {linkedIssue?.afterImage && <a href={getGoogleDriveDirectLink(linkedIssue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
                               </div>
                             )}
                           </>
@@ -2287,8 +2288,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                             )}
                             {(linkedIssue?.beforeImage || linkedIssue?.afterImage) && (
                               <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
-                                {linkedIssue?.beforeImage && <a href={linkedIssue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
-                                {linkedIssue?.afterImage && <a href={linkedIssue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                                {linkedIssue?.beforeImage && <a href={getGoogleDriveDirectLink(linkedIssue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {linkedIssue?.afterImage && <a href={getGoogleDriveDirectLink(linkedIssue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
                               </div>
                             )}
                           </>
@@ -2421,7 +2422,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                                 }}>
                                 <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Finalize & Add WO
                               </Button>
-                              {linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
+                              {isAdmin && linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
                                 <Button size="sm" variant="outline" className="text-xs h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
                                   onClick={() => {
                                     setSelectedForReturnOffice(linkedIssue)
@@ -2450,7 +2451,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                               <FileText className="h-3.5 w-3.5 mr-1" /> {rep.noteSheetNo ? "Edit Note Sheet" : "+ Note Sheet"}
                             </Button>
                           )}
-                          {linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
+                          {isAdmin && linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
                             <Button size="sm" variant="outline" className="text-xs h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
                               onClick={() => {
                                 setSelectedForReturnOffice(linkedIssue)
@@ -2523,8 +2524,8 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
               </Button>
             )}
 
-            {/* In Completed tab: show Bulk Meter Return */}
-            {repSubTab === "completed" && (
+            {/* In Completed tab: show Bulk Meter Return (Admin only) */}
+            {isAdmin && repSubTab === "completed" && (
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8"
                 onClick={() => {
                   const selectedReps = Array.from(selectedForBulkRep).map(id => replacements.find(r => r.replacementId === id)).filter(Boolean) as MeterReplacement[]
