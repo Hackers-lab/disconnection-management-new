@@ -85,6 +85,7 @@ export function ReconnectionUpdateForm({ request, userRole, username, onSave, on
       const fd = new FormData()
       fd.append("file", compressed)
       fd.append("consumerId", request.consumerId)
+      fd.append("module", "reconnection")
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const data = await res.json()
       if (data.success) setImageUrl(data.url)

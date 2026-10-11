@@ -159,7 +159,9 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
     try {
       const compressed = await compressImage(file, slot)
       const fd = new FormData()
-      fd.append("file", compressed); fd.append("consumerId", issue.consumerId || issue.nscReceiveNo)
+      fd.append("file", compressed)
+      fd.append("consumerId", issue.consumerId || issue.nscReceiveNo)
+      fd.append("module", "meter_replacement")
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const data = await res.json()
       if (data.success) setUrl(data.url)

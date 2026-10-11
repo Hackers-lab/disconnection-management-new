@@ -183,6 +183,7 @@ export function ReconnectionCreateForm({ agencies, onSave, onCancel }: Props) {
       const fd = new FormData()
       fd.append("file", processed)
       fd.append("consumerId", consumerId || "manual")
+      fd.append("module", "reconnection")
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const data = await res.json()
       if (data.success) setRequestImageUrl(data.url)

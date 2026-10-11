@@ -185,46 +185,42 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
     // Instantiate clean drive client with tenant-specific OAuth credentials
     let drive = getDriveClient(false)
-
-    // Determine subfolder based on module name
-    let targetFolderId = rootFolderId
     const folderName = detectFolderForModule(consumerId, moduleName)
-    
-    if (folderName) {
+
+    // Helper to find or create a module subfolder
+    const getOrCreateSubfolder = async (client: drive_v3.Drive, parentId: string, subName: string): Promise<string> => {
       try {
-        // Query to check if the module subfolder already exists inside the root folder
-        const query = `name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and '${rootFolderId}' in parents and trashed = false`
-        const listResponse = await drive.files.list({
+        const query = `name = '${subName}' and mimeType = 'application/vnd.google-apps.folder' and '${parentId}' in parents and trashed = false`
+        const listRes = await client.files.list({
           q: query,
           spaces: 'drive',
           fields: 'files(id)',
           supportsAllDrives: true,
           includeItemsFromAllDrives: true,
         })
+        const found = listRes.data.files?.[0]?.id
+        if (found) return found
 
-        const existingFolder = listResponse.data.files?.[0]
-        if (existingFolder?.id) {
-          targetFolderId = existingFolder.id
-        } else {
-          // Create the subfolder under the root folder
-          const folderMetadata = {
-            name: folderName,
+        const createRes = await client.files.create({
+          requestBody: {
+            name: subName,
             mimeType: 'application/vnd.google-apps.folder',
-            parents: [rootFolderId],
-          }
-          const createResponse = await drive.files.create({
-            requestBody: folderMetadata,
-            fields: 'id',
-            supportsAllDrives: true,
-          })
-          if (createResponse.data.id) {
-            targetFolderId = createResponse.data.id
-          }
-        }
+            parents: [parentId],
+          },
+          fields: 'id',
+          supportsAllDrives: true,
+        })
+        return createRes.data.id || parentId
       } catch (err) {
-        console.error(`Failed to locate or create Drive subfolder '${folderName}':`, err)
-        targetFolderId = rootFolderId
+        console.error(`Failed to locate or create Drive subfolder '${subName}' under '${parentId}':`, err)
+        return parentId
       }
+    }
+
+    // Determine subfolder based on module name
+    let targetFolderId = rootFolderId
+    if (folderName) {
+      targetFolderId = await getOrCreateSubfolder(drive, rootFolderId, folderName)
     }
 
     // Helper to upload with specified parents or to root
@@ -246,7 +242,7 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
 
     let response: any = null
 
-    // Attempt 1: Upload to targetFolderId (subfolder or tenant driveFolderId)
+    // Attempt 1: Upload to targetFolderId (subfolder under tenant root)
     try {
       response = await uploadWithClient(drive, [targetFolderId])
     } catch (err1: any) {
@@ -256,30 +252,22 @@ export async function uploadImageToDrive(file: File, consumerId: string, moduleN
         throw new Error("Google Drive storage quota exceeded for linked Google account. Please free up space in Google Drive or relink a new account.")
       }
 
-      console.warn(`Upload to target folder '${targetFolderId}' failed (${err1?.message}). Trying tenant Drive root...`)
+      console.warn(`Upload to target folder '${targetFolderId}' failed (${err1?.message}). Attempting fallback default auth...`)
 
-      // Attempt 2: Upload to root of active tenant Drive account
+      // Attempt 2: Fallback auth to process.env.GOOGLE_DRIVE_FOLDER_ID with module subfolder
       try {
-        response = await uploadWithClient(drive, undefined)
-      } catch (err2: any) {
-        console.warn(`Upload to tenant Drive root failed (${err2?.message}). Attempting fallback default auth...`)
-
-        // Attempt 3: Fallback auth to process.env.GOOGLE_DRIVE_FOLDER_ID or fallback root
-        try {
-          const fallbackDrive = getDriveClient(true)
-          const envFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
-          if (envFolderId && envFolderId !== targetFolderId) {
-            try {
-              response = await uploadWithClient(fallbackDrive, [envFolderId])
-            } catch {
-              response = await uploadWithClient(fallbackDrive, undefined)
-            }
-          } else {
-            response = await uploadWithClient(fallbackDrive, undefined)
-          }
-        } catch (finalErr: any) {
-          throw err1 // Re-throw original error if all fallbacks fail
+        const fallbackDrive = getDriveClient(true)
+        const envFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
+        if (envFolderId) {
+          const fallbackTargetFolderId = folderName 
+            ? await getOrCreateSubfolder(fallbackDrive, envFolderId, folderName) 
+            : envFolderId
+          response = await uploadWithClient(fallbackDrive, [fallbackTargetFolderId])
+        } else {
+          throw err1
         }
+      } catch (finalErr: any) {
+        throw err1 // Re-throw original error if all fallbacks fail
       }
     }
 
