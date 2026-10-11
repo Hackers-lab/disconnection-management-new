@@ -21,6 +21,12 @@ import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 import { DDStats } from "./dd-stats"
 import { DDForm } from "./dd-form"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -740,26 +746,19 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
       {previewImage && (
         <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
           <DialogContent className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white rounded-2xl z-[70]">
-            <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+            <DialogHeader className="p-3 bg-slate-900 border-b border-slate-800 flex flex-row items-center justify-between space-y-0">
               <div className="min-w-0 pr-2">
-                <h3 className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                <DialogTitle className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
                   <ImageIcon className="h-4 w-4 text-blue-400 shrink-0" />
                   <span>{previewImage.title}</span>
-                </h3>
+                </DialogTitle>
                 {previewImage.consumerId && (
                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">
                     Consumer #{previewImage.consumerId}
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewImage(null)}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            </DialogHeader>
 
             <div className="p-3 bg-black flex items-center justify-center min-h-[250px] max-h-[65vh] overflow-hidden">
               <img

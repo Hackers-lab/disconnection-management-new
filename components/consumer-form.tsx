@@ -880,21 +880,12 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
       {previewImage && (
         <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
           <DialogContent className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white rounded-2xl z-[70]">
-            <div className="p-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
+            <DialogHeader className="p-3 bg-slate-900 border-b border-slate-800 flex flex-row items-center justify-between space-y-0">
+              <DialogTitle className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
                 <ImageIcon className="h-4 w-4 text-blue-400 shrink-0" />
                 <span>{previewImage.title}</span>
-              </h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPreviewImage(null)}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 p-0 rounded-full"
-              >
-                ✕
-              </Button>
-            </div>
+              </DialogTitle>
+            </DialogHeader>
 
             <div className="p-3 bg-black flex items-center justify-center min-h-[250px] max-h-[65vh] overflow-hidden">
               <img
