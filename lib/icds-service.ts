@@ -14,7 +14,8 @@ import type {
   JurisdictionStatus,
   CsrEquipmentChecklist,
 } from "./icds-types"
-import { nowTs, currentFY } from "./date-utils"
+import { nowTs, currentFY, nowDate } from "./date-utils"
+import { issueMeter, finalizeMeterInstallation, _fetchIssuesRaw } from "./meter-service"
 
 const sheets = googleSheets({ version: "v4", auth: auth as any })
 
@@ -529,6 +530,54 @@ export async function updateIcdsRecord(id: string, patch: Partial<IcdsRecord>): 
   }
 
   const currentRecord = parseRecordFromRow(headers, rows[targetRowIdx - 1])
+
+  // Synchronize meterIssuedNo and smartMeterNo if one is passed
+  if (patch.meterIssuedNo && !patch.smartMeterNo && !currentRecord.smartMeterNo) {
+    patch.smartMeterNo = patch.meterIssuedNo
+  } else if (patch.smartMeterNo && !patch.meterIssuedNo && !currentRecord.meterIssuedNo) {
+    patch.meterIssuedNo = patch.smartMeterNo
+  }
+
+  // If a meter is being issued (or changed) and not yet deducted from stock, deduct it via issueMeter
+  const newMeterSerial = (patch.meterIssuedNo || patch.smartMeterNo || "").trim()
+  const oldMeterSerial = (currentRecord.meterIssuedNo || currentRecord.smartMeterNo || "").trim()
+  if (newMeterSerial && newMeterSerial.toUpperCase() !== oldMeterSerial.toUpperCase()) {
+    try {
+      await issueMeter({
+        serialNo: newMeterSerial,
+        purpose: "icds",
+        consumerId: currentRecord.awcCode || currentRecord.id,
+        consumerName: currentRecord.awcName || "ICDS Center",
+        agency: patch.assignedAgency || currentRecord.assignedAgency || "UNASSIGNED",
+        workOrderNo: patch.workOrderNo || currentRecord.workOrderNo || "",
+        remarks: `ICDS Center ${currentRecord.awcName} (${currentRecord.awcCode})`,
+        address: currentRecord.awcAddress || `${currentRecord.blockName}, ${currentRecord.gpName}`,
+        mobile: currentRecord.awwMobile || "",
+      })
+    } catch (meterErr: any) {
+      console.warn(`[ICDS] Could not automatically deduct meter ${newMeterSerial} from stock:`, meterErr?.message)
+      // If the meter is already issued (e.g. from previous manual action), proceed without failing the whole update
+    }
+  }
+
+  // If completed with installation, finalize in meter issues if available
+  if (patch.stage === "COMPLETED" && (patch.smartMeterNo || currentRecord.smartMeterNo)) {
+    const installedMeter = (patch.smartMeterNo || currentRecord.smartMeterNo || "").trim()
+    try {
+      const issues = await _fetchIssuesRaw(spreadsheetId)
+      const issue = issues.find(i => (i.serialNo || "").trim().toUpperCase() === installedMeter.toUpperCase())
+      if (issue && issue.status !== "installed") {
+        await finalizeMeterInstallation({
+          issueId: issue.issueId,
+          completionRef: patch.workOrderNo || currentRecord.workOrderNo || "ICDS-COMPLETED",
+          finalizedBy: patch.meterInstalledBy || "ICDS Admin",
+        })
+      }
+    } catch (finErr: any) {
+      console.warn(`[ICDS] Could not finalize meter ${installedMeter} installation:`, finErr?.message)
+    }
+  }
+
   const updatedRecord: IcdsRecord = {
     ...currentRecord,
     ...patch,

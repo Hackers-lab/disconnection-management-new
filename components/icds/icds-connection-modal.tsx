@@ -20,6 +20,8 @@ import {
   Gauge,
   ExternalLink,
   Search,
+  Lock,
+  Unlock,
 } from "lucide-react"
 import { getFromCache } from "@/lib/indexed-db"
 
@@ -52,6 +54,11 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
   const [assignedAgency, setAssignedAgency] = useState("")
   const [meterIssuedNo, setMeterIssuedNo] = useState("")
   const [meterIssuedDate, setMeterIssuedDate] = useState("")
+
+  // Manual Unlock Overrides for completed milestones
+  const [unlockBooklet, setUnlockBooklet] = useState(false)
+  const [unlockQuotation, setUnlockQuotation] = useState(false)
+  const [unlockWorkOrder, setUnlockWorkOrder] = useState(false)
 
   // Dynamic Lists
   const [agencies, setAgencies] = useState<string[]>([])
@@ -116,6 +123,10 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
     setAssignedAgency(record.assignedAgency || "")
     setMeterIssuedNo(record.meterIssuedNo || record.smartMeterNo || "")
     setMeterIssuedDate(record.meterIssuedDate || "")
+
+    setUnlockBooklet(false)
+    setUnlockQuotation(false)
+    setUnlockWorkOrder(false)
   }
 
   const handleBookletScanUpload = async (file: File) => {
@@ -239,322 +250,422 @@ export function IcdsConnectionModal({ record, open, onClose, onSuccess, username
 
         <div className="space-y-4 text-xs">
           {/* SECTION 1: CDPO APPLICATION BOOKLET RECEIPT */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">1</div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-xs">CDPO Physical Application Booklet</h3>
-                  <p className="text-[11px] text-slate-500">Mark application receipt and upload scanned copy</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-700">Received?</span>
-                <Switch checked={bookletReceived} onCheckedChange={setBookletReceived} />
-              </div>
-            </div>
+          {(() => {
+            const isBookletSaved = Boolean(record.bookletReceived)
+            const isBookletLocked = isBookletSaved && !unlockBooklet
 
-            {bookletReceived && (
-              <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-semibold">Booklet Received Date</Label>
-                    <Input
-                      type="date"
-                      value={bookletReceivedDate}
-                      onChange={(e) => setBookletReceivedDate(e.target.value)}
-                      className="h-8 text-xs bg-slate-50 rounded-lg"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-semibold">Booklet Scan / Application Photo</Label>
-                    {bookletScanUrl ? (
+            return (
+              <div className={`border rounded-xl p-4 space-y-3 bg-white shadow-sm transition-colors ${isBookletLocked ? "border-slate-200/80 bg-slate-50/40" : "border-slate-200"}`}>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">1</div>
+                    <div>
                       <div className="flex items-center gap-2">
-                        <a
-                          href={bookletScanUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="h-8 px-2.5 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center gap-1.5 truncate border border-blue-200"
-                        >
-                          <FileCheck className="h-3.5 w-3.5" />
-                          View Scan Copy
-                          <ExternalLink className="h-3 w-3 ml-auto opacity-60" />
-                        </a>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => bookletInputRef.current?.click()}
-                          className="h-8 text-xs px-2 rounded-lg"
-                        >
-                          Change
-                        </Button>
+                        <h3 className="font-bold text-slate-900 text-xs">CDPO Physical Application Booklet</h3>
+                        {isBookletSaved && (
+                          <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold gap-1 py-0 h-4">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Recorded
+                          </Badge>
+                        )}
                       </div>
-                    ) : (
+                      <p className="text-[11px] text-slate-500">Mark application receipt and upload scanned copy</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isBookletSaved && (
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => bookletInputRef.current?.click()}
-                        disabled={uploadingBooklet}
-                        className="h-8 text-xs w-full justify-start rounded-lg border-dashed text-slate-600 hover:bg-slate-50"
+                        onClick={() => setUnlockBooklet(!unlockBooklet)}
+                        className="h-6 px-2 text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-1"
                       >
-                        {uploadingBooklet ? (
-                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin text-blue-600" />
-                        ) : (
-                          <Upload className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
-                        )}
-                        Upload Application Booklet Scan (.jpg / .pdf)
+                        {unlockBooklet ? <Unlock className="h-3 w-3 text-amber-600" /> : <Lock className="h-3 w-3 text-slate-400" />}
+                        {unlockBooklet ? "Lock" : "Edit"}
                       </Button>
                     )}
-                    <input
-                      type="file"
-                      ref={bookletInputRef}
-                      accept="image/*,.pdf"
-                      onChange={(e) => e.target.files?.[0] && handleBookletScanUpload(e.target.files[0])}
-                      className="hidden"
-                    />
+                    <span className="text-[11px] font-semibold text-slate-700">Received?</span>
+                    <Switch checked={bookletReceived} onCheckedChange={setBookletReceived} disabled={isBookletLocked} />
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => saveMilestone("booklet")}
-                    disabled={submittingStep === "booklet" || uploadingBooklet}
-                    className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
-                  >
-                    {submittingStep === "booklet" ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                {bookletReceived && (
+                  <div className="space-y-3 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Booklet Received Date</Label>
+                        <Input
+                          type="date"
+                          value={bookletReceivedDate}
+                          onChange={(e) => setBookletReceivedDate(e.target.value)}
+                          disabled={isBookletLocked}
+                          className="h-8 text-xs bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold">Booklet Scan / Application Photo</Label>
+                        {bookletScanUrl ? (
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={bookletScanUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="h-8 px-2.5 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center gap-1.5 truncate border border-blue-200"
+                            >
+                              <FileCheck className="h-3.5 w-3.5" />
+                              View Scan Copy
+                              <ExternalLink className="h-3 w-3 ml-auto opacity-60" />
+                            </a>
+                            {!isBookletLocked && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => bookletInputRef.current?.click()}
+                                className="h-8 text-xs px-2 rounded-lg"
+                              >
+                                Change
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => bookletInputRef.current?.click()}
+                            disabled={uploadingBooklet || isBookletLocked}
+                            className="h-8 text-xs w-full justify-start rounded-lg border-dashed text-slate-600 hover:bg-slate-50"
+                          >
+                            {uploadingBooklet ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin text-blue-600" />
+                            ) : (
+                              <Upload className="h-3.5 w-3.5 mr-1.5 text-slate-500" />
+                            )}
+                            Upload Application Booklet Scan (.jpg / .pdf)
+                          </Button>
+                        )}
+                        <input
+                          type="file"
+                          ref={bookletInputRef}
+                          accept="image/*,.pdf"
+                          onChange={(e) => e.target.files?.[0] && handleBookletScanUpload(e.target.files[0])}
+                          className="hidden"
+                          disabled={isBookletLocked}
+                        />
+                      </div>
+                    </div>
+
+                    {!isBookletLocked && (
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => saveMilestone("booklet")}
+                          disabled={submittingStep === "booklet" || uploadingBooklet}
+                          className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                        >
+                          {submittingStep === "booklet" ? (
+                            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                          )}
+                          Save Booklet Status
+                        </Button>
+                      </div>
                     )}
-                    Save Booklet Status
-                  </Button>
-                </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            )
+          })()}
 
           {/* SECTION 2: WBSEDCL CRM APPLICATION & QUOTATION */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-              <div className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs">2</div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-xs">CRM Application & Quotation Generation</h3>
-                <p className="text-[11px] text-slate-500">Record official 10-digit CRM app number, quotation no, and quotation date</p>
-              </div>
-            </div>
+          {(() => {
+            const isQuotationSaved = Boolean(record.quotationNo || record.officialApplicationNo)
+            const isQuotationLocked = isQuotationSaved && !unlockQuotation
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">10-Digit CRM Application No</Label>
-                <Input
-                  value={officialApplicationNo}
-                  onChange={(e) => setOfficialApplicationNo(e.target.value)}
-                  placeholder="e.g. 2004928190"
-                  maxLength={10}
-                  className="h-8 text-xs font-mono bg-slate-50 rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Quotation Number</Label>
-                <Input
-                  value={quotationNo}
-                  onChange={(e) => setQuotationNo(e.target.value)}
-                  placeholder="e.g. QT/2026/092"
-                  className="h-8 text-xs font-mono bg-slate-50 rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Quotation Date</Label>
-                <Input
-                  type="date"
-                  value={quotationDate}
-                  onChange={(e) => setQuotationDate(e.target.value)}
-                  className="h-8 text-xs bg-slate-50 rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Quotation Amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={quotationAmount}
-                  onChange={(e) => setQuotationAmount(e.target.value ? Number(e.target.value) : "")}
-                  placeholder="e.g. 6611"
-                  className="h-8 text-xs bg-slate-50 rounded-lg"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => saveMilestone("quotation")}
-                disabled={submittingStep === "quotation"}
-                className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
-              >
-                {submittingStep === "quotation" ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                )}
-                Save Quotation Details
-              </Button>
-            </div>
-          </div>
-
-          {/* SECTION 3: WORK ORDER & SMART METER ISSUE TO AGENCY */}
-          <div className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white shadow-sm">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-              <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">3</div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-xs">Work Order & Smart Meter Issue</h3>
-                <p className="text-[11px] text-slate-500">Assign agency contractor and issue single-phase smart meter from stock</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Work Order (WO) No</Label>
-                <Input
-                  value={workOrderNo}
-                  onChange={(e) => setWorkOrderNo(e.target.value)}
-                  placeholder="e.g. WO/EDD49/2026/04"
-                  className="h-8 text-xs font-mono bg-slate-50 rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Work Order Date</Label>
-                <Input
-                  type="date"
-                  value={workOrderDate}
-                  onChange={(e) => setWorkOrderDate(e.target.value)}
-                  className="h-8 text-xs bg-slate-50 rounded-lg"
-                />
-              </div>
-
-              {/* Agency Dropdown */}
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Assigned Agency (Contractor) *</Label>
-                <Select value={assignedAgency} onValueChange={setAssignedAgency}>
-                  <SelectTrigger className="h-8 text-xs bg-slate-50 rounded-lg border-slate-200">
-                    <SelectValue placeholder="Select Agency..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl max-h-56">
-                    {agencies.length === 0 ? (
-                      <SelectItem value={assignedAgency || "UNASSIGNED"} disabled>
-                        No agencies loaded
-                      </SelectItem>
-                    ) : (
-                      agencies.map((agency) => (
-                        <SelectItem key={agency} value={agency} className="text-xs">
-                          {agency}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Smart Meter Issue with Search / Stock Dropdown */}
-              <div className="space-y-1 relative">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold">Issue Smart Meter Serial No</Label>
-                  {availableMeters.length > 0 && (
-                    <button
+            return (
+              <div className={`border rounded-xl p-4 space-y-3 bg-white shadow-sm transition-colors ${isQuotationLocked ? "border-slate-200/80 bg-slate-50/40" : "border-slate-200"}`}>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs">2</div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-900 text-xs">CRM Application & Quotation Generation</h3>
+                        {isQuotationSaved && (
+                          <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold gap-1 py-0 h-4">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Saved
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500">Record official 10-digit CRM app number, quotation no, and quotation date</p>
+                    </div>
+                  </div>
+                  {isQuotationSaved && (
+                    <Button
                       type="button"
-                      onClick={() => setShowMeterPicker(!showMeterPicker)}
-                      className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setUnlockQuotation(!unlockQuotation)}
+                      className="h-6 px-2 text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-1"
                     >
-                      {showMeterPicker ? "Hide Stock" : `Pick from Stock (${availableMeters.length})`}
-                    </button>
+                      {unlockQuotation ? <Unlock className="h-3 w-3 text-amber-600" /> : <Lock className="h-3 w-3 text-slate-400" />}
+                      {unlockQuotation ? "Lock" : "Edit"}
+                    </Button>
                   )}
                 </div>
 
-                <div className="relative">
-                  <Input
-                    value={meterIssuedNo}
-                    onChange={(e) => setMeterIssuedNo(e.target.value)}
-                    placeholder="Enter or select smart meter serial..."
-                    className="h-8 text-xs font-mono bg-slate-50 rounded-lg pr-7"
-                  />
-                  <Gauge className="h-3.5 w-3.5 absolute right-2 top-2.5 text-slate-400 pointer-events-none" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">10-Digit CRM Application No</Label>
+                    <Input
+                      value={officialApplicationNo}
+                      onChange={(e) => setOfficialApplicationNo(e.target.value)}
+                      placeholder="e.g. 2004928190"
+                      maxLength={10}
+                      disabled={isQuotationLocked}
+                      className="h-8 text-xs font-mono bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Quotation Number</Label>
+                    <Input
+                      value={quotationNo}
+                      onChange={(e) => setQuotationNo(e.target.value)}
+                      placeholder="e.g. QT/2026/092"
+                      disabled={isQuotationLocked}
+                      className="h-8 text-xs font-mono bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Quotation Date</Label>
+                    <Input
+                      type="date"
+                      value={quotationDate}
+                      onChange={(e) => setQuotationDate(e.target.value)}
+                      disabled={isQuotationLocked}
+                      className="h-8 text-xs bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Quotation Amount (₹)</Label>
+                    <Input
+                      type="number"
+                      value={quotationAmount}
+                      onChange={(e) => setQuotationAmount(e.target.value ? Number(e.target.value) : "")}
+                      placeholder="e.g. 6611"
+                      disabled={isQuotationLocked}
+                      className="h-8 text-xs bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
                 </div>
 
-                {/* Stock Picker Dropdown */}
-                {showMeterPicker && (
-                  <div className="absolute z-50 left-0 right-0 top-14 bg-white border border-slate-200 rounded-xl shadow-xl p-2 space-y-1.5 max-h-48 overflow-y-auto">
-                    <div className="relative">
-                      <Search className="h-3.5 w-3.5 absolute left-2 top-2 text-slate-400" />
-                      <Input
-                        value={meterSearch}
-                        onChange={(e) => setMeterSearch(e.target.value)}
-                        placeholder="Search meter serial..."
-                        className="h-7 text-xs pl-7 rounded-lg"
-                      />
-                    </div>
-                    <div className="divide-y divide-slate-100 max-h-32 overflow-y-auto">
-                      {filteredMeters.length === 0 ? (
-                        <p className="text-[11px] text-slate-400 text-center py-2">No matching meters in stock</p>
+                {!isQuotationLocked && (
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => saveMilestone("quotation")}
+                      disabled={submittingStep === "quotation"}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                    >
+                      {submittingStep === "quotation" ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                       ) : (
-                        filteredMeters.slice(0, 30).map((m) => (
-                          <div
-                            key={m}
-                            onClick={() => {
-                              setMeterIssuedNo(m)
-                              setShowMeterPicker(false)
-                            }}
-                            className="py-1.5 px-2 hover:bg-blue-50 cursor-pointer rounded text-xs font-mono text-slate-800 flex items-center justify-between"
-                          >
-                            <span>{m}</span>
-                            <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">Available</Badge>
-                          </div>
-                        ))
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
                       )}
-                    </div>
+                      Save Quotation Details
+                    </Button>
                   </div>
                 )}
               </div>
+            )
+          })()}
 
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Meter Issue Date</Label>
-                <Input
-                  type="date"
-                  value={meterIssuedDate || new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setMeterIssuedDate(e.target.value)}
-                  className="h-8 text-xs bg-slate-50 rounded-lg"
-                />
-              </div>
-            </div>
+          {/* SECTION 3: WORK ORDER & SMART METER ISSUE TO AGENCY */}
+          {(() => {
+            const isWorkOrderSaved = Boolean(record.workOrderNo || record.meterIssuedNo || record.smartMeterNo)
+            const isWorkOrderLocked = isWorkOrderSaved && !unlockWorkOrder
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <p className="text-[11px] text-slate-500">
-                Saving will set status to <span className="font-bold text-emerald-700">WO_ISSUED</span> and dispatch for agency execution.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => saveMilestone("workorder")}
-                disabled={submittingStep === "workorder" || !assignedAgency}
-                className="h-8 px-4 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
-              >
-                {submittingStep === "workorder" ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+            return (
+              <div className={`border rounded-xl p-4 space-y-3 bg-white shadow-sm transition-colors ${isWorkOrderLocked ? "border-slate-200/80 bg-slate-50/40" : "border-slate-200"}`}>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">3</div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-900 text-xs">Work Order & Smart Meter Issue</h3>
+                        {isWorkOrderSaved && (
+                          <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold gap-1 py-0 h-4">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Issued
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500">Assign agency contractor and issue single-phase smart meter from stock</p>
+                    </div>
+                  </div>
+                  {isWorkOrderSaved && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setUnlockWorkOrder(!unlockWorkOrder)}
+                      className="h-6 px-2 text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                    >
+                      {unlockWorkOrder ? <Unlock className="h-3 w-3 text-amber-600" /> : <Lock className="h-3 w-3 text-slate-400" />}
+                      {unlockWorkOrder ? "Lock" : "Edit"}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Work Order (WO) No</Label>
+                    <Input
+                      value={workOrderNo}
+                      onChange={(e) => setWorkOrderNo(e.target.value)}
+                      placeholder="e.g. WO/EDD49/2026/04"
+                      disabled={isWorkOrderLocked}
+                      className="h-8 text-xs font-mono bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Work Order Date</Label>
+                    <Input
+                      type="date"
+                      value={workOrderDate}
+                      onChange={(e) => setWorkOrderDate(e.target.value)}
+                      disabled={isWorkOrderLocked}
+                      className="h-8 text-xs bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
+
+                  {/* Agency Dropdown */}
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Assigned Agency (Contractor) *</Label>
+                    <Select value={assignedAgency} onValueChange={setAssignedAgency} disabled={isWorkOrderLocked}>
+                      <SelectTrigger className="h-8 text-xs bg-slate-50 rounded-lg border-slate-200 disabled:opacity-75 disabled:bg-slate-100">
+                        <SelectValue placeholder="Select Agency..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl max-h-56">
+                        {agencies.length === 0 ? (
+                          <SelectItem value={assignedAgency || "UNASSIGNED"} disabled>
+                            No agencies loaded
+                          </SelectItem>
+                        ) : (
+                          agencies.map((agency) => (
+                            <SelectItem key={agency} value={agency} className="text-xs">
+                              {agency}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Smart Meter Issue with Search / Stock Dropdown */}
+                  <div className="space-y-1 relative">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold">Issue Smart Meter Serial No</Label>
+                      {!isWorkOrderLocked && availableMeters.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowMeterPicker(!showMeterPicker)}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold"
+                        >
+                          {showMeterPicker ? "Hide Stock" : `Pick from Stock (${availableMeters.length})`}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        value={meterIssuedNo}
+                        onChange={(e) => setMeterIssuedNo(e.target.value)}
+                        placeholder="Enter or select smart meter serial..."
+                        disabled={isWorkOrderLocked}
+                        className="h-8 text-xs font-mono bg-slate-50 rounded-lg pr-7 disabled:opacity-75 disabled:bg-slate-100"
+                      />
+                      <Gauge className="h-3.5 w-3.5 absolute right-2 top-2.5 text-slate-400 pointer-events-none" />
+                    </div>
+
+                    {/* Stock Picker Dropdown */}
+                    {!isWorkOrderLocked && showMeterPicker && (
+                      <div className="absolute z-50 left-0 right-0 top-14 bg-white border border-slate-200 rounded-xl shadow-xl p-2 space-y-1.5 max-h-48 overflow-y-auto">
+                        <div className="relative">
+                          <Search className="h-3.5 w-3.5 absolute left-2 top-2 text-slate-400" />
+                          <Input
+                            value={meterSearch}
+                            onChange={(e) => setMeterSearch(e.target.value)}
+                            placeholder="Search meter serial..."
+                            className="h-7 text-xs pl-7 rounded-lg"
+                          />
+                        </div>
+                        <div className="divide-y divide-slate-100 max-h-32 overflow-y-auto">
+                          {filteredMeters.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 text-center py-2">No matching meters in stock</p>
+                          ) : (
+                            filteredMeters.slice(0, 30).map((m) => (
+                              <div
+                                key={m}
+                                onClick={() => {
+                                  setMeterIssuedNo(m)
+                                  setShowMeterPicker(false)
+                                }}
+                                className="py-1.5 px-2 hover:bg-blue-50 cursor-pointer rounded text-xs font-mono text-slate-800 flex items-center justify-between"
+                              >
+                                <span>{m}</span>
+                                <Badge className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200">Available</Badge>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Meter Issue Date</Label>
+                    <Input
+                      type="date"
+                      value={meterIssuedDate || new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setMeterIssuedDate(e.target.value)}
+                      disabled={isWorkOrderLocked}
+                      className="h-8 text-xs bg-slate-50 rounded-lg disabled:opacity-75 disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+
+                {!isWorkOrderLocked && (
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <p className="text-[11px] text-slate-500">
+                      Saving will set status to <span className="font-bold text-emerald-700">WO_ISSUED</span>, deduct meter from stock, and dispatch for agency execution.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => saveMilestone("workorder")}
+                      disabled={submittingStep === "workorder" || !assignedAgency}
+                      className="h-8 px-4 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                    >
+                      {submittingStep === "workorder" ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Issue Work Order & Meter
+                    </Button>
+                  </div>
                 )}
-                Issue Work Order & Meter
-              </Button>
-            </div>
-          </div>
+              </div>
+            )
+          })()}
         </div>
 
         <div className="flex justify-end border-t pt-3">

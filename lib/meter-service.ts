@@ -238,9 +238,10 @@ export async function issueMeter(req: {
   const id = getSpreadsheetId()
   await ensureTabs(id)
   const stock = await _fetchStockRaw(id)
-  const idx = stock.findIndex(m => m.serialNo === req.serialNo)
-  if (idx === -1) throw new Error("Serial number not found in stock")
-  if (stock[idx].condition !== "available") throw new Error("Meter is not available")
+  const reqSerial = (req.serialNo || "").trim().toUpperCase()
+  const idx = stock.findIndex(m => (m.serialNo || "").trim().toUpperCase() === reqSerial)
+  if (idx === -1) throw new Error(`Serial number "${req.serialNo}" not found in stock`)
+  if (stock[idx].condition !== "available") throw new Error(`Meter "${req.serialNo}" is not available (current status: ${stock[idx].condition})`)
   const issueId = await nextIssueId(id)
   const today = nowDate()
 
