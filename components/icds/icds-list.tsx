@@ -58,6 +58,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Gauge,
   X,
   LayoutGrid,
   List,
@@ -122,6 +123,7 @@ export function IcdsList({
   const [showInspectModal, setShowInspectModal] = useState(false)
   const [showConnectionModal, setShowConnectionModal] = useState(false)
   const [showExecutionModal, setShowExecutionModal] = useState(false)
+  const [executionTab, setExecutionTab] = useState<"meter" | "wiring" | "handover">("meter")
   const [showViewDialog, setShowViewDialog] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showReportsModal, setShowReportsModal] = useState(false)
@@ -409,7 +411,11 @@ export function IcdsList({
       } else if (selectedStage === "INSPECTED") {
         return r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING"
       } else if (selectedStage === "WO_ISSUED") {
-        return r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED"
+        return r.stage === "WO_ISSUED"
+      } else if (selectedStage === "METER_INSTALLED") {
+        return r.stage === "METER_INSTALLED"
+      } else if (selectedStage === "EQUIPMENT_INSTALLED") {
+        return r.stage === "EQUIPMENT_INSTALLED"
       }
       return r.stage === selectedStage
     })
@@ -423,9 +429,9 @@ export function IcdsList({
       inspected: scopeFilteredRecords.filter((r) => r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING").length,
       appReceived: scopeFilteredRecords.filter(checkAppReceived).length,
       quotationGen: scopeFilteredRecords.filter(checkQuotationGen).length,
-      connectionEffected: scopeFilteredRecords.filter(checkHasMeter).length,
-      wiringCompleted: scopeFilteredRecords.filter(checkHasWiring).length,
-      woIssued: scopeFilteredRecords.filter((r) => r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED").length,
+      woIssued: scopeFilteredRecords.filter((r) => r.stage === "WO_ISSUED").length,
+      meterInstalled: scopeFilteredRecords.filter((r) => r.stage === "METER_INSTALLED").length,
+      equipmentInstalled: scopeFilteredRecords.filter((r) => r.stage === "EQUIPMENT_INSTALLED").length,
       completed: scopeFilteredRecords.filter((r) => r.stage === "COMPLETED").length,
     }
   }, [scopeFilteredRecords])
@@ -728,9 +734,9 @@ export function IcdsList({
             { id: "INSPECTED", label: "Inspected", shortLabel: "Inspected", count: stageCounts.inspected },
             { id: "APPLICATION_RECEIVED", label: "Application Received", shortLabel: "App Recv", count: stageCounts.appReceived },
             { id: "QUOTATION_GENERATED", label: "Quotation Generated", shortLabel: "Quotation", count: stageCounts.quotationGen },
-            { id: "WO_ISSUED", label: "WO Issued", shortLabel: "WO", count: stageCounts.woIssued },
-            { id: "CONNECTION_EFFECTED", label: "Connection Effected", shortLabel: "Connected", count: stageCounts.connectionEffected },
-            { id: "WIRING_COMPLETED", label: "Wiring Completed", shortLabel: "Wiring Done", count: stageCounts.wiringCompleted },
+            { id: "WO_ISSUED", label: "Work Order Issued", shortLabel: "WO Issued", count: stageCounts.woIssued },
+            { id: "METER_INSTALLED", label: "Meter Installed", shortLabel: "Meter Done", count: stageCounts.meterInstalled },
+            { id: "EQUIPMENT_INSTALLED", label: "CSR Wiring Done", shortLabel: "Wiring Done", count: stageCounts.equipmentInstalled },
             { id: "COMPLETED", label: "Certified Handover", shortLabel: "Certified", count: stageCounts.completed },
           ].map((s) => {
             const isActive = selectedStage === s.id
@@ -950,19 +956,49 @@ export function IcdsList({
                       <Clock className="h-3 w-3 mr-1 animate-pulse" /> Awaiting WO
                     </Badge>
                   )
-                ) : r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED" ? (
+                ) : r.stage === "WO_ISSUED" ? (
                   canExecute ? (
                     <Button
                       size="sm"
-                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("meter"); setShowExecutionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                     >
-                      <Zap className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
-                      Execute & Certify
+                      <Gauge className="h-3.5 w-3.5 mr-1.5" />
+                      Install Meter
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-blue-700 bg-blue-50 border-blue-200">
+                      WO Issued
+                    </Badge>
+                  )
+                ) : r.stage === "METER_INSTALLED" ? (
+                  canExecute ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("wiring"); setShowExecutionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                    >
+                      <Layers className="h-3.5 w-3.5 mr-1.5" />
+                      CSR Wiring
                     </Button>
                   ) : (
                     <Badge variant="outline" className="text-[10px] font-bold py-1 text-purple-700 bg-purple-50 border-purple-200">
-                      WO Issued
+                      Meter Done
+                    </Badge>
+                  )
+                ) : r.stage === "EQUIPMENT_INSTALLED" ? (
+                  canExecute ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("handover"); setShowExecutionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    >
+                      <Award className="h-3.5 w-3.5 mr-1.5" />
+                      Deliver & Certify
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-emerald-700 bg-emerald-50 border-emerald-200">
+                      Wiring Done
                     </Badge>
                   )
                 ) : (
@@ -1063,17 +1099,41 @@ export function IcdsList({
                           ) : (
                             <Badge variant="outline" className="text-[10px] text-indigo-700 bg-indigo-50 border-indigo-200">Awaiting WO</Badge>
                           )
-                        ) : r.stage === "WO_ISSUED" || r.stage === "METER_INSTALLED" || r.stage === "EQUIPMENT_INSTALLED" ? (
+                        ) : r.stage === "WO_ISSUED" ? (
                           canExecute ? (
                             <Button
                               size="sm"
-                              onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowExecutionModal(true); }}
-                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                              onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("meter"); setShowExecutionModal(true); }}
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                             >
-                              Execute
+                              Meter
                             </Button>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">WO Issued</Badge>
+                            <Badge variant="outline" className="text-[10px] text-blue-700 bg-blue-50 border-blue-200">WO Issued</Badge>
+                          )
+                        ) : r.stage === "METER_INSTALLED" ? (
+                          canExecute ? (
+                            <Button
+                              size="sm"
+                              onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("wiring"); setShowExecutionModal(true); }}
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                            >
+                              Wiring
+                            </Button>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-purple-700 bg-purple-50 border-purple-200">Meter Done</Badge>
+                          )
+                        ) : r.stage === "EQUIPMENT_INSTALLED" ? (
+                          canExecute ? (
+                            <Button
+                              size="sm"
+                              onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("handover"); setShowExecutionModal(true); }}
+                              className="h-7 px-2.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            >
+                              Deliver
+                            </Button>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-emerald-700 bg-emerald-50 border-emerald-200">Wiring Done</Badge>
                           )
                         ) : (
                           <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 shadow-xs">Certified</Badge>
@@ -1426,6 +1486,7 @@ export function IcdsList({
         onClose={() => setShowExecutionModal(false)}
         onSuccess={handleRecordUpdated}
         username={username}
+        initialTab={executionTab}
       />
 
       <IcdsViewDialog

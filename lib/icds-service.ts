@@ -15,7 +15,7 @@ import type {
   CsrEquipmentChecklist,
 } from "./icds-types"
 import { nowTs, currentFY, nowDate } from "./date-utils"
-import { issueMeter, finalizeMeterInstallation, _fetchIssuesRaw } from "./meter-service"
+import { issueMeter, completeMeterInstallation, finalizeMeterInstallation, _fetchIssuesRaw } from "./meter-service"
 
 const sheets = googleSheets({ version: "v4", auth: auth as any })
 
@@ -560,21 +560,41 @@ export async function updateIcdsRecord(id: string, patch: Partial<IcdsRecord>): 
     }
   }
 
-  // If completed with installation, finalize in meter issues if available
-  if (patch.stage === "COMPLETED" && (patch.smartMeterNo || currentRecord.smartMeterNo)) {
-    const installedMeter = (patch.smartMeterNo || currentRecord.smartMeterNo || "").trim()
+  // If meter is installed, sync installation_done status in meter issues
+  const currentMeter = (patch.smartMeterNo || currentRecord.smartMeterNo || patch.meterIssuedNo || currentRecord.meterIssuedNo || "").trim()
+  if (currentMeter && (patch.stage === "METER_INSTALLED" || patch.stage === "EQUIPMENT_INSTALLED" || patch.meterPhotoUrl || patch.meterInstallDate)) {
     try {
       const issues = await _fetchIssuesRaw(spreadsheetId)
-      const issue = issues.find(i => (i.serialNo || "").trim().toUpperCase() === installedMeter.toUpperCase())
+      const issue = issues.find(i => (i.serialNo || "").trim().toUpperCase() === currentMeter.toUpperCase())
+      if (issue && (issue.status === "issued" || issue.status === "proposed")) {
+        await completeMeterInstallation({
+          issueId: issue.issueId,
+          afterImage: patch.meterPhotoUrl || currentRecord.meterPhotoUrl || "",
+          newReading: patch.meterInitialReading || currentRecord.meterInitialReading || "0",
+          completedBy: patch.meterInstalledBy || currentRecord.meterInstalledBy || "ICDS Agency",
+          installationDate: patch.meterInstallDate || currentRecord.meterInstallDate || nowDate(),
+          remarks: `ICDS Center ${currentRecord.awcName} (${currentRecord.awcCode})`,
+        })
+      }
+    } catch (instErr: any) {
+      console.warn(`[ICDS] Could not mark meter ${currentMeter} installation_done:`, instErr?.message)
+    }
+  }
+
+  // If completed with final handover & certificate, finalize in meter issues as installed
+  if (patch.stage === "COMPLETED" && currentMeter) {
+    try {
+      const issues = await _fetchIssuesRaw(spreadsheetId)
+      const issue = issues.find(i => (i.serialNo || "").trim().toUpperCase() === currentMeter.toUpperCase())
       if (issue && issue.status !== "installed") {
         await finalizeMeterInstallation({
           issueId: issue.issueId,
           completionRef: patch.workOrderNo || currentRecord.workOrderNo || "ICDS-COMPLETED",
-          finalizedBy: patch.meterInstalledBy || "ICDS Admin",
+          finalizedBy: patch.meterInstalledBy || currentRecord.meterInstalledBy || "ICDS Admin",
         })
       }
     } catch (finErr: any) {
-      console.warn(`[ICDS] Could not finalize meter ${installedMeter} installation:`, finErr?.message)
+      console.warn(`[ICDS] Could not finalize meter ${currentMeter} installation:`, finErr?.message)
     }
   }
 

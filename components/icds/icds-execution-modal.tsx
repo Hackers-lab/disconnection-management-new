@@ -26,6 +26,8 @@ import {
   Building2,
   Phone,
   Check,
+  Lock,
+  Unlock,
 } from "lucide-react"
 
 interface Props {
@@ -34,10 +36,12 @@ interface Props {
   onClose: () => void
   onSuccess: (updated: IcdsRecord) => void
   username: string
+  initialTab?: "meter" | "wiring" | "handover"
 }
 
-export function IcdsExecutionModal({ record, open, onClose, onSuccess, username }: Props) {
-  const [submitting, setSubmitting] = useState(false)
+export function IcdsExecutionModal({ record, open, onClose, onSuccess, username, initialTab = "meter" }: Props) {
+  const [activeTab, setActiveTab] = useState<"meter" | "wiring" | "handover">(initialTab)
+  const [submittingStep, setSubmittingStep] = useState<string | null>(null)
   const [uploadingMeterPhoto, setUploadingMeterPhoto] = useState(false)
   const [uploadingAfterPhoto, setUploadingAfterPhoto] = useState(false)
   const [uploadingCertPhoto, setUploadingCertPhoto] = useState(false)
@@ -72,9 +76,39 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
 
   if (!record) return null
 
+  const [unlockedSections, setUnlockedSections] = useState<Record<string, boolean>>({})
+
+  const toggleUnlock = (sectionKey: string) => {
+    setUnlockedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }))
+  }
+
+  const isMeterDone = Boolean(record.smartMeterNo && (record.meterInstallDate || record.stage === "METER_INSTALLED" || record.stage === "EQUIPMENT_INSTALLED" || record.stage === "COMPLETED"))
+  const isWiringDone = Boolean(record.equipmentPackageInstalled || record.stage === "EQUIPMENT_INSTALLED" || record.stage === "COMPLETED")
+  const isHandoverDone = Boolean(record.stage === "COMPLETED" || (record.certificateDate && record.certificatePhotoUrl))
+
+  const isMeterLocked = isMeterDone && !unlockedSections["meter"]
+  const isWiringLocked = isWiringDone && !unlockedSections["wiring"]
+  const isHandoverLocked = isHandoverDone && !unlockedSections["handover"]
+
   const handleOpen = () => {
     const today = new Date().toISOString().slice(0, 10)
     const cl = record.equipmentChecklist
+
+    // Decide initial tab based on record stage if not explicitly passed
+    if (initialTab) {
+      setActiveTab(initialTab)
+    } else if (record.stage === "WO_ISSUED") {
+      setActiveTab("meter")
+    } else if (record.stage === "METER_INSTALLED") {
+      setActiveTab("wiring")
+    } else if (record.stage === "EQUIPMENT_INSTALLED") {
+      setActiveTab("handover")
+    } else if (record.stage === "COMPLETED") {
+      setActiveTab("handover")
+    }
 
     setSmartMeterNo(record.smartMeterNo || record.meterIssuedNo || "")
     setMeterInstallDate(record.meterInstallDate || today)
@@ -163,15 +197,52 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  // 1. SAVE SMART METER INSTALLATION
+  const handleSaveMeter = async () => {
     if (!smartMeterNo.trim()) {
       toast.error("Please enter or verify the Installed Smart Meter Serial Number")
       return
     }
 
-    setSubmitting(true)
+    setSubmittingStep("meter")
+    try {
+      const patch: Partial<IcdsRecord> = {
+        smartMeterNo: smartMeterNo.trim(),
+        meterIssuedNo: smartMeterNo.trim(),
+        meterInstallDate: meterInstallDate || new Date().toISOString().slice(0, 10),
+        meterInitialReading: meterInitialReading.trim() || "0",
+        meterInstalledBy: username,
+        meterPhotoUrl: meterPhotoUrl || undefined,
+        // Only advance stage if not already further along
+        stage: record.stage === "EQUIPMENT_INSTALLED" || record.stage === "COMPLETED" ? record.stage : "METER_INSTALLED",
+      }
+
+      const res = await fetch(`/api/icds/${record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to save smart meter installation")
+
+      toast.success("Smart Meter Physical Installation recorded successfully!")
+      onSuccess(data)
+      setUnlockedSections(prev => ({ ...prev, meter: false }))
+      // Smoothly advance to wiring tab if not yet completed
+      if (!isWiringDone) {
+        setActiveTab("wiring")
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save meter installation")
+    } finally {
+      setSubmittingStep(null)
+    }
+  }
+
+  // 2. SAVE CSR INTERNAL WIRING PACKAGE
+  const handleSaveWiring = async () => {
+    setSubmittingStep("wiring")
     try {
       const checklist: CsrEquipmentChecklist = {
         mainSwitch16ADp: mainSwitch,
@@ -185,24 +256,57 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
       }
 
       const patch: Partial<IcdsRecord> = {
-        smartMeterNo: smartMeterNo.trim(),
-        meterInstallDate: meterInstallDate || new Date().toISOString().slice(0, 10),
-        meterInitialReading: meterInitialReading.trim() || "0",
-        meterInstalledBy: username,
-        meterPhotoUrl: meterPhotoUrl || undefined,
-
         equipmentPackageInstalled: true,
         equipmentChecklist: checklist,
         equipmentInstallDate: equipmentInstallDate || new Date().toISOString().slice(0, 10),
         equipmentAgency: record.assignedAgency,
+        // Advance stage to EQUIPMENT_INSTALLED unless already COMPLETED
+        stage: record.stage === "COMPLETED" ? "COMPLETED" : "EQUIPMENT_INSTALLED",
+      }
 
+      const res = await fetch(`/api/icds/${record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to save CSR internal wiring")
+
+      toast.success("CSR Internal Wiring (EDD/49) recorded successfully!")
+      onSuccess(data)
+      setUnlockedSections(prev => ({ ...prev, wiring: false }))
+      // Smoothly advance to delivery & handover tab if not yet completed
+      if (!isHandoverDone) {
+        setActiveTab("handover")
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save CSR wiring")
+    } finally {
+      setSubmittingStep(null)
+    }
+  }
+
+  // 3. SAVE DELIVERY & HANDOVER CERTIFICATION
+  const handleSaveHandover = async () => {
+    if (!afterPhotoUrl && !record.afterPhotoUrl) {
+      toast.error("Please upload the photo with Anganwadi Worker")
+      return
+    }
+    if (!certificatePhotoUrl && !record.certificatePhotoUrl) {
+      toast.error("Please upload the signed Service Certificate Slip (Page 4)")
+      return
+    }
+
+    setSubmittingStep("handover")
+    try {
+      const patch: Partial<IcdsRecord> = {
         afterPhotoUrl: afterPhotoUrl || undefined,
         certificatePhotoUrl: certificatePhotoUrl || undefined,
         certificateSignatory: certificateSignatory.trim() || record.awwName || "Anganwadi Worker",
         certificateSignatoryDesignation: certificateSignatoryDesignation.trim() || "Anganwadi Worker",
         certificateDate: certificateDate || new Date().toISOString().slice(0, 10),
         finalRemarks: finalRemarks.trim() || undefined,
-
         stage: "COMPLETED",
       }
 
@@ -213,32 +317,38 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to submit execution details")
+      if (!res.ok) throw new Error(data.error || "Failed to submit handover certification")
 
-      toast.success("Site Execution & Service Handover completed successfully!")
+      toast.success("Delivery & Handover Certification completed! Electrification complete.")
       onSuccess(data)
+      setUnlockedSections(prev => ({ ...prev, handover: false }))
       onClose()
     } catch (e: any) {
-      toast.error(e.message || "Failed to save execution details")
+      toast.error(e.message || "Failed to save handover certification")
     } finally {
-      setSubmitting(false)
+      setSubmittingStep(null)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6" onOpenAutoFocus={handleOpen}>
+      <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl p-6" onOpenAutoFocus={handleOpen}>
         <DialogHeader>
-          <DialogTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-            <Zap className="h-5 w-5 text-emerald-600" />
-            Agency Work Execution & Handover Certification
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <Zap className="h-5 w-5 text-emerald-600" />
+              Agency Execution Milestones
+            </DialogTitle>
+            <Badge variant="outline" className="text-[10px] font-mono uppercase bg-slate-50">
+              Stage: {record.stage.replace(/_/g, " ")}
+            </Badge>
+          </div>
           <DialogDescription className="text-xs text-slate-500">
-            Install smart meter, complete standard CSR internal wiring package (WBSEDCL EDD/49), and upload handover photo & signed service slip with Anganwadi Worker.
+            Execute the 3 distinct phases: Smart Meter Installation, CSR Internal Wiring, and Delivery / Handover Certification.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Center Header */}
+        {/* Center Header Details */}
         <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex items-center justify-between">
           <div>
             <p className="font-extrabold text-slate-900 text-sm">{record.awcName}</p>
@@ -251,323 +361,547 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username 
           </div>
           <div className="text-right">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Assigned Agency</span>
-            <p className="font-bold text-slate-800">{record.assignedAgency || "Unassigned"}</p>
+            <p className="font-bold text-slate-800 text-xs">{record.assignedAgency || "Unassigned"}</p>
+            {record.workOrderNo && (
+              <span className="text-[10px] font-mono text-purple-700 font-semibold block">WO: {record.workOrderNo}</span>
+            )}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-1 text-xs">
-          {/* 1. SMART METER INSTALLATION */}
-          <div className="border border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/30 shadow-sm">
-            <div className="flex items-center gap-2 border-b border-blue-200/60 pb-2">
-              <Gauge className="h-4 w-4 text-blue-600" />
-              <h3 className="font-bold text-blue-950 text-xs">1. Smart Meter Physical Installation</h3>
-            </div>
+        {/* Phase Navigator Tabs */}
+        <div className="grid grid-cols-3 gap-2 border-b border-slate-200 pb-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("meter")}
+            className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all border ${
+              activeTab === "meter"
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Gauge className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">1. Smart Meter</span>
+            {isMeterDone && (
+              <CheckCircle2 className={`h-3 w-3 shrink-0 ${activeTab === "meter" ? "text-blue-200" : "text-emerald-600"}`} />
+            )}
+          </button>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold">Installed Smart Meter Serial *</Label>
-                  {record.smartMeterNo && (
-                    <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                      WO Issued
-                    </span>
-                  )}
-                </div>
-                <Input
-                  value={smartMeterNo}
-                  onChange={(e) => setSmartMeterNo(e.target.value)}
-                  placeholder="e.g. SM-108492"
-                  readOnly={Boolean(record.smartMeterNo || record.meterIssuedNo)}
-                  className="h-8 text-xs font-mono bg-white rounded-lg read-only:bg-slate-50 read-only:text-slate-700 cursor-not-allowed"
-                  required
-                />
-              </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("wiring")}
+            className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all border ${
+              activeTab === "wiring"
+                ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">2. CSR Wiring</span>
+            {isWiringDone && (
+              <CheckCircle2 className={`h-3 w-3 shrink-0 ${activeTab === "wiring" ? "text-purple-200" : "text-emerald-600"}`} />
+            )}
+          </button>
 
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Installation Date</Label>
-                <Input
-                  type="date"
-                  value={meterInstallDate}
-                  onChange={(e) => setMeterInstallDate(e.target.value)}
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("handover")}
+            className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all border ${
+              activeTab === "handover"
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+            }`}
+          >
+            <Award className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">3. Handover</span>
+            {isHandoverDone && (
+              <CheckCircle2 className={`h-3 w-3 shrink-0 ${activeTab === "handover" ? "text-emerald-200" : "text-emerald-600"}`} />
+            )}
+          </button>
+        </div>
 
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Initial kWh Reading</Label>
-                <Input
-                  value={meterInitialReading}
-                  onChange={(e) => setMeterInitialReading(e.target.value)}
-                  placeholder="0.0"
-                  className="h-8 text-xs font-mono bg-white rounded-lg"
-                />
+        {/* TAB 1: SMART METER PHYSICAL INSTALLATION */}
+        {activeTab === "meter" && (
+          <div className="border border-blue-200 rounded-xl p-4 space-y-3.5 bg-blue-50/30 shadow-sm text-xs">
+            <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
+              <div className="flex items-center gap-2">
+                <Gauge className="h-4 w-4 text-blue-600" />
+                <h3 className="font-bold text-blue-950 text-xs">1. Smart Meter Physical Installation</h3>
               </div>
-            </div>
-
-            {/* Meter Photo */}
-            <div className="pt-2 border-t border-blue-200/60">
-              <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-[11px] font-semibold text-blue-950">Meter Board / Terminal Photo</Label>
-                {uploadingMeterPhoto && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
-              </div>
-              {meterPhotoUrl ? (
-                <div className="flex items-center gap-3">
-                  <div className="h-14 w-20 rounded-lg border overflow-hidden bg-black/10">
-                    <img src={meterPhotoUrl} alt="Meter" className="h-full w-full object-cover" />
-                  </div>
+              <div className="flex items-center gap-2">
+                {isMeterDone && (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
+                    <Check className="h-3 w-3" /> Installed
+                  </Badge>
+                )}
+                {isMeterDone && (
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
-                    onClick={() => meterPhotoInputRef.current?.click()}
-                    className="text-xs h-7 rounded-lg"
+                    variant="ghost"
+                    onClick={() => toggleUnlock("meter")}
+                    className="h-6 px-2 text-[11px] font-semibold text-blue-700 hover:bg-blue-100/60"
                   >
-                    Change Meter Photo
+                    {isMeterLocked ? (
+                      <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-amber-600" /> Unlock</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><Unlock className="h-3 w-3 text-emerald-600" /> Lock</span>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {isMeterLocked ? (
+              <div className="p-3 bg-white rounded-lg border border-blue-100 space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Installed Meter Serial</span>
+                    <p className="font-bold font-mono text-slate-800">{smartMeterNo || record.smartMeterNo || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Installation Date</span>
+                    <p className="font-bold text-slate-800">{meterInstallDate || record.meterInstallDate || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Initial kWh Reading</span>
+                    <p className="font-bold font-mono text-slate-800">{meterInitialReading || record.meterInitialReading || "0"}</p>
+                  </div>
+                </div>
+                {meterPhotoUrl && (
+                  <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                    <img src={meterPhotoUrl} alt="Meter" className="h-12 w-16 rounded object-cover border" />
+                    <span className="text-[11px] text-slate-500 font-medium">GPS-stamped meter photo verified</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold">Smart Meter Serial *</Label>
+                      {record.meterIssuedNo && (
+                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                          Issued from Store
+                        </span>
+                      )}
+                    </div>
+                    <Input
+                      value={smartMeterNo}
+                      onChange={(e) => setSmartMeterNo(e.target.value)}
+                      placeholder="e.g. IL0093147"
+                      className="h-8 text-xs font-mono bg-white rounded-lg"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Installation Date</Label>
+                    <Input
+                      type="date"
+                      value={meterInstallDate}
+                      onChange={(e) => setMeterInstallDate(e.target.value)}
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Initial kWh Reading</Label>
+                    <Input
+                      value={meterInitialReading}
+                      onChange={(e) => setMeterInitialReading(e.target.value)}
+                      placeholder="0.0"
+                      className="h-8 text-xs font-mono bg-white rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                {/* Meter Photo */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label className="text-[11px] font-semibold text-blue-950">Meter Board / Terminal Photo</Label>
+                    {uploadingMeterPhoto && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                  </div>
+                  {meterPhotoUrl ? (
+                    <div className="flex items-center gap-3">
+                      <div className="h-14 w-20 rounded-lg border overflow-hidden bg-black/10">
+                        <img src={meterPhotoUrl} alt="Meter" className="h-full w-full object-cover" />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => meterPhotoInputRef.current?.click()}
+                        className="text-xs h-7 rounded-lg"
+                      >
+                        Change Meter Photo
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => meterPhotoInputRef.current?.click()}
+                      className="border-2 border-dashed border-blue-200 rounded-xl p-3 text-center cursor-pointer hover:border-blue-400 bg-white"
+                    >
+                      <Camera className="h-4 w-4 mx-auto text-blue-500 mb-0.5" />
+                      <p className="text-[11px] font-semibold text-blue-900">Upload / Capture Installed Smart Meter Photo</p>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    ref={meterPhotoInputRef}
+                    accept="image/*"
+                    onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "meter")}
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-blue-200/60">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveMeter}
+                    disabled={submittingStep === "meter" || uploadingMeterPhoto}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl"
+                  >
+                    {submittingStep === "meter" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                    Save Meter Installation
                   </Button>
                 </div>
-              ) : (
-                <div
-                  onClick={() => meterPhotoInputRef.current?.click()}
-                  className="border-2 border-dashed border-blue-200 rounded-xl p-2.5 text-center cursor-pointer hover:border-blue-400 bg-white"
-                >
-                  <Camera className="h-4 w-4 mx-auto text-blue-500 mb-0.5" />
-                  <p className="text-[11px] font-semibold text-blue-900">Upload / Capture Installed Smart Meter Photo</p>
-                </div>
-              )}
-              <input
-                type="file"
-                ref={meterPhotoInputRef}
-                accept="image/*"
-                onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "meter")}
-                className="hidden"
-              />
-            </div>
+              </>
+            )}
           </div>
+        )}
 
-          {/* 2. CSR INTERNAL WIRING PACKAGE (EDD/49) */}
-          <div className="border border-purple-200 rounded-xl p-4 space-y-3 bg-purple-50/30 shadow-sm">
+        {/* TAB 2: CSR INTERNAL WIRING PACKAGE (EDD/49) */}
+        {activeTab === "wiring" && (
+          <div className="border border-purple-200 rounded-xl p-4 space-y-3.5 bg-purple-50/30 shadow-sm text-xs">
             <div className="flex items-center justify-between border-b border-purple-200/60 pb-2">
               <div className="flex items-center gap-2">
                 <Layers className="h-4 w-4 text-purple-600" />
                 <h3 className="font-bold text-purple-950 text-xs">2. Standard CSR Electrification Package (EDD/49 - ₹6,611)</h3>
               </div>
-              <Badge className="bg-purple-100 text-purple-800 text-[10px] font-mono">EDD/49 Compliant</Badge>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
-                <Checkbox checked={mainSwitch} onCheckedChange={(v) => setMainSwitch(Boolean(v))} />
-                <span className="text-[11px] font-medium text-slate-800">16A-DP Main Switch (1 No.)</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
-                <Checkbox checked={switchBoard} onCheckedChange={(v) => setSwitchBoard(Boolean(v))} />
-                <span className="text-[11px] font-medium text-slate-800">Switchboard (5S + 1R + 1 Ind + 1P)</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
-                <Checkbox checked={wiring} onCheckedChange={(v) => setWiring(Boolean(v))} />
-                <span className="text-[11px] font-medium text-slate-800">FRLS Copper Wiring in 20mm PVC Conduit</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
-                <Checkbox checked={earthing} onCheckedChange={(v) => setEarthing(Boolean(v))} />
-                <span className="text-[11px] font-medium text-slate-800">Chemical Pipe Earthing + GI Wire</span>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">LED Bulbs Count</Label>
-                <Input
-                  type="number"
-                  value={ledBulbsCount}
-                  onChange={(e) => setLedBulbsCount(Number(e.target.value))}
-                  min={0}
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">80W Ceiling Fan Count</Label>
-                <Input
-                  type="number"
-                  value={fan80WCount}
-                  onChange={(e) => setFan80WCount(Number(e.target.value))}
-                  min={0}
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Fan Brand / Warranty</Label>
-                <Input
-                  value={fanBrand}
-                  onChange={(e) => setFanBrand(e.target.value)}
-                  placeholder="e.g. CGL / Orient (2 Yr)"
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
+              <div className="flex items-center gap-2">
+                {isWiringDone && (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
+                    <Check className="h-3 w-3" /> Wiring Done
+                  </Badge>
+                )}
+                {isWiringDone && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => toggleUnlock("wiring")}
+                    className="h-6 px-2 text-[11px] font-semibold text-purple-700 hover:bg-purple-100/60"
+                  >
+                    {isWiringLocked ? (
+                      <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-amber-600" /> Unlock</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><Unlock className="h-3 w-3 text-emerald-600" /> Lock</span>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
+
+            {isWiringLocked ? (
+              <div className="p-3 bg-white rounded-lg border border-purple-100 space-y-2">
+                <p className="text-[11px] font-semibold text-purple-950">
+                  Standard CSR Wiring Package completed on {equipmentInstallDate || record.equipmentInstallDate || "recorded date"}.
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-slate-700">
+                  <div>• 16A-DP Main Switch: {mainSwitch ? "Yes" : "No"}</div>
+                  <div>• Switchboard (5S+1R+1Ind+1P): {switchBoard ? "Yes" : "No"}</div>
+                  <div>• FRLS Conduit Wiring: {wiring ? "Yes" : "No"}</div>
+                  <div>• Chemical Pipe Earthing: {earthing ? "Yes" : "No"}</div>
+                  <div>• LED Bulbs: {ledBulbsCount} Nos.</div>
+                  <div>• 80W Fan: {fan80WCount} Nos. ({fanBrand})</div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
+                    <Checkbox checked={mainSwitch} onCheckedChange={(v) => setMainSwitch(Boolean(v))} />
+                    <span className="text-[11px] font-medium text-slate-800">16A-DP Main Switch (1 No.)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
+                    <Checkbox checked={switchBoard} onCheckedChange={(v) => setSwitchBoard(Boolean(v))} />
+                    <span className="text-[11px] font-medium text-slate-800">Switchboard (5S + 1R + 1 Ind + 1P)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
+                    <Checkbox checked={wiring} onCheckedChange={(v) => setWiring(Boolean(v))} />
+                    <span className="text-[11px] font-medium text-slate-800">FRLS Copper Wiring in 20mm PVC Conduit</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-purple-100 cursor-pointer">
+                    <Checkbox checked={earthing} onCheckedChange={(v) => setEarthing(Boolean(v))} />
+                    <span className="text-[11px] font-medium text-slate-800">Chemical Pipe Earthing + GI Wire</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Wiring Done Date</Label>
+                    <Input
+                      type="date"
+                      value={equipmentInstallDate}
+                      onChange={(e) => setEquipmentInstallDate(e.target.value)}
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">LED Bulbs Count</Label>
+                    <Input
+                      type="number"
+                      value={ledBulbsCount}
+                      onChange={(e) => setLedBulbsCount(Number(e.target.value))}
+                      min={0}
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">80W Ceiling Fan Count</Label>
+                    <Input
+                      type="number"
+                      value={fan80WCount}
+                      onChange={(e) => setFan80WCount(Number(e.target.value))}
+                      min={0}
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Fan Brand / Model</Label>
+                    <Input
+                      value={fanBrand}
+                      onChange={(e) => setFanBrand(e.target.value)}
+                      placeholder="e.g. CGL / Orient"
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-purple-200/60">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveWiring}
+                    disabled={submittingStep === "wiring"}
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl"
+                  >
+                    {submittingStep === "wiring" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                    Save CSR Wiring Package
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
+        )}
 
-          {/* 3. HANDOVER CERTIFICATION & AWW AFTER PHOTO */}
-          <div className="border border-emerald-200 rounded-xl p-4 space-y-3 bg-emerald-50/30 shadow-sm">
+        {/* TAB 3: DELIVERY & HANDOVER CERTIFICATION */}
+        {activeTab === "handover" && (
+          <div className="border border-emerald-200 rounded-xl p-4 space-y-3.5 bg-emerald-50/30 shadow-sm text-xs">
             <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
               <div className="flex items-center gap-2">
                 <Award className="h-4 w-4 text-emerald-600" />
-                <h3 className="font-bold text-emerald-950 text-xs">3. Handover & Service Certification (Page 4)</h3>
+                <h3 className="font-bold text-emerald-950 text-xs">3. Delivery & Handover Certification (Page 4)</h3>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadPDF}
-                className="h-7 text-[11px] px-2 rounded-lg text-emerald-700 bg-white border-emerald-300 hover:bg-emerald-50 font-bold"
-              >
-                <Download className="h-3 w-3 mr-1" />
-                Download Blank PDF Slip
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* After Photo with Worker */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold text-emerald-950">"After" Photo with Anganwadi Worker *</Label>
-                  {uploadingAfterPhoto && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
-                </div>
-                {afterPhotoUrl ? (
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-14 w-20 rounded-lg border overflow-hidden bg-black/10">
-                      <img src={afterPhotoUrl} alt="After" className="h-full w-full object-cover" />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => afterPhotoInputRef.current?.click()}
-                      className="text-xs h-7 rounded-lg"
-                    >
-                      Change Photo
-                    </Button>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => afterPhotoInputRef.current?.click()}
-                    className="border-2 border-dashed border-emerald-300 rounded-xl p-3 text-center cursor-pointer hover:border-emerald-500 bg-white"
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadPDF}
+                  className="h-7 text-[11px] px-2 rounded-lg text-emerald-700 bg-white border-emerald-300 hover:bg-emerald-50 font-bold"
+                >
+                  <Download className="h-3 w-3 mr-1" />
+                  Blank PDF Slip
+                </Button>
+                {isHandoverDone && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => toggleUnlock("handover")}
+                    className="h-6 px-2 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100/60"
                   >
-                    <Camera className="h-4 w-4 mx-auto text-emerald-600 mb-0.5" />
-                    <p className="text-[11px] font-semibold text-emerald-900">Upload Site Photo with Worker</p>
-                  </div>
+                    {isHandoverLocked ? (
+                      <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-amber-600" /> Unlock</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><Unlock className="h-3 w-3 text-emerald-600" /> Lock</span>
+                    )}
+                  </Button>
                 )}
-                <input
-                  type="file"
-                  ref={afterPhotoInputRef}
-                  accept="image/*"
-                  onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "after")}
-                  className="hidden"
-                />
               </div>
+            </div>
 
-              {/* Scanned Signed Service Slip */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold text-emerald-950">Signed Service Certificate Slip *</Label>
-                  {uploadingCertPhoto && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
+            {isHandoverLocked ? (
+              <div className="p-3 bg-white rounded-lg border border-emerald-100 space-y-2">
+                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
+                  <Check className="h-3 w-3" /> Fully Certified & Handed Over
+                </Badge>
+                <div className="grid grid-cols-2 gap-2 text-slate-700 pt-1">
+                  <div><strong>Signatory:</strong> {certificateSignatory || record.certificateSignatory} ({certificateSignatoryDesignation || record.certificateSignatoryDesignation})</div>
+                  <div><strong>Handover Date:</strong> {certificateDate || record.certificateDate}</div>
                 </div>
-                {certificatePhotoUrl ? (
-                  <div className="flex items-center gap-2.5">
-                    <div className="h-14 w-20 rounded-lg border overflow-hidden bg-black/10">
-                      <img src={certificatePhotoUrl} alt="Certificate" className="h-full w-full object-cover" />
+                {finalRemarks && <p className="text-[11px] text-slate-600 italic">"{finalRemarks}"</p>}
+                <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                  {afterPhotoUrl && <img src={afterPhotoUrl} alt="After" className="h-12 w-16 rounded object-cover border" />}
+                  {certificatePhotoUrl && <img src={certificatePhotoUrl} alt="Certificate" className="h-12 w-16 rounded object-cover border" />}
+                  <span className="text-[11px] text-slate-500 font-medium">Site verification and signed slip archived</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* After Photo with Worker */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold text-emerald-950">"After" Photo with Worker *</Label>
+                      {uploadingAfterPhoto && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => certPhotoInputRef.current?.click()}
-                      className="text-xs h-7 rounded-lg"
-                    >
-                      Change Slip
-                    </Button>
+                    {afterPhotoUrl ? (
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-14 w-20 rounded-lg border overflow-hidden bg-black/10">
+                          <img src={afterPhotoUrl} alt="After" className="h-full w-full object-cover" />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => afterPhotoInputRef.current?.click()}
+                          className="text-xs h-7 rounded-lg"
+                        >
+                          Change Photo
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => afterPhotoInputRef.current?.click()}
+                        className="border-2 border-dashed border-emerald-300 rounded-xl p-3 text-center cursor-pointer hover:border-emerald-500 bg-white"
+                      >
+                        <Camera className="h-4 w-4 mx-auto text-emerald-600 mb-0.5" />
+                        <p className="text-[11px] font-semibold text-emerald-900">Upload Site Photo with Worker</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      ref={afterPhotoInputRef}
+                      accept="image/*"
+                      onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "after")}
+                      className="hidden"
+                    />
                   </div>
-                ) : (
-                  <div
-                    onClick={() => certPhotoInputRef.current?.click()}
-                    className="border-2 border-dashed border-emerald-300 rounded-xl p-3 text-center cursor-pointer hover:border-emerald-500 bg-white"
+
+                  {/* Scanned Signed Service Slip */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-semibold text-emerald-950">Signed Service Certificate Slip *</Label>
+                      {uploadingCertPhoto && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
+                    </div>
+                    {certificatePhotoUrl ? (
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-14 w-20 rounded-lg border overflow-hidden bg-black/10">
+                          <img src={certificatePhotoUrl} alt="Certificate" className="h-full w-full object-cover" />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => certPhotoInputRef.current?.click()}
+                          className="text-xs h-7 rounded-lg"
+                        >
+                          Change Slip
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => certPhotoInputRef.current?.click()}
+                        className="border-2 border-dashed border-emerald-300 rounded-xl p-3 text-center cursor-pointer hover:border-emerald-500 bg-white"
+                      >
+                        <Upload className="h-4 w-4 mx-auto text-emerald-600 mb-0.5" />
+                        <p className="text-[11px] font-semibold text-emerald-900">Upload Signed Page 4 Slip</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      ref={certPhotoInputRef}
+                      accept="image/*,.pdf"
+                      onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "certificate")}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-emerald-200/60">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Signatory (AWW Worker Name)</Label>
+                    <Input
+                      value={certificateSignatory}
+                      onChange={(e) => setCertificateSignatory(e.target.value)}
+                      placeholder="Worker Full Name"
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Designation</Label>
+                    <Input
+                      value={certificateSignatoryDesignation}
+                      onChange={(e) => setCertificateSignatoryDesignation(e.target.value)}
+                      placeholder="Anganwadi Worker / In-Charge"
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-semibold">Handover Date</Label>
+                    <Input
+                      type="date"
+                      value={certificateDate}
+                      onChange={(e) => setCertificateDate(e.target.value)}
+                      className="h-8 text-xs bg-white rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 pt-1">
+                  <Label className="text-[11px] font-semibold">Commissioning Remarks</Label>
+                  <Textarea
+                    value={finalRemarks}
+                    onChange={(e) => setFinalRemarks(e.target.value)}
+                    placeholder="Smart meter & CSR internal wiring commissioned successfully, tested fan & bulbs in presence of AWW..."
+                    className="h-14 text-xs bg-white rounded-lg"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-emerald-200/60">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleSaveHandover}
+                    disabled={submittingStep === "handover" || uploadingAfterPhoto || uploadingCertPhoto}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
                   >
-                    <Upload className="h-4 w-4 mx-auto text-emerald-600 mb-0.5" />
-                    <p className="text-[11px] font-semibold text-emerald-900">Upload Signed Page 4 Slip</p>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  ref={certPhotoInputRef}
-                  accept="image/*,.pdf"
-                  onChange={(e) => e.target.files?.[0] && handlePhotoUpload(e.target.files[0], "certificate")}
-                  className="hidden"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-emerald-200/60">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Signatory (AWW Worker Name)</Label>
-                <Input
-                  value={certificateSignatory}
-                  onChange={(e) => setCertificateSignatory(e.target.value)}
-                  placeholder="Worker Full Name"
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Designation</Label>
-                <Input
-                  value={certificateSignatoryDesignation}
-                  onChange={(e) => setCertificateSignatoryDesignation(e.target.value)}
-                  placeholder="Anganwadi Worker / In-Charge"
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">Handover Date</Label>
-                <Input
-                  type="date"
-                  value={certificateDate}
-                  onChange={(e) => setCertificateDate(e.target.value)}
-                  className="h-8 text-xs bg-white rounded-lg"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1 pt-1">
-              <Label className="text-[11px] font-semibold">Commissioning Remarks</Label>
-              <Textarea
-                value={finalRemarks}
-                onChange={(e) => setFinalRemarks(e.target.value)}
-                placeholder="Smart meter & CSR internal wiring commissioned successfully, tested fan & bulbs in presence of AWW..."
-                className="h-14 text-xs bg-white rounded-lg"
-              />
-            </div>
+                    {submittingStep === "handover" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                    Complete & Certify Handover
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
+        )}
 
-          <DialogFooter className="gap-2 border-t pt-3">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs font-semibold rounded-xl border-slate-200 hover:bg-slate-50">
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={submitting || uploadingMeterPhoto || uploadingAfterPhoto || uploadingCertPhoto}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm"
-            >
-              {submitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
-              Complete & Certify Electrification
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter className="gap-2 border-t pt-3">
+          <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs font-semibold rounded-xl border-slate-200 hover:bg-slate-50">
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
