@@ -2094,21 +2094,22 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredReplacements.map(rep => {
-                // Match by explicit issueId first, otherwise match by consumerId with active/latest issue
+                // Match by explicit issueId first, otherwise match by consumerId with active/latest non-returned issue
                 const linkedIssue = rep.issueId
                   ? issues.find(i => i.issueId === rep.issueId)
-                  : issues.find(i => i.consumerId === rep.consumerId && (rep.serialNo ? i.serialNo === rep.serialNo : true) && i.status !== "returned") ||
-                    issues.find(i => i.consumerId === rep.consumerId)
+                  : issues.find(i => i.consumerId === rep.consumerId && (rep.serialNo ? i.serialNo === rep.serialNo : true) && i.status !== "returned")
 
                 const isCompleted = rep.status === "replaced" && rep.noteSheetNo && rep.noteSheetNo.trim()
                 const isWODone = rep.status === "replaced" && (!rep.noteSheetNo || !rep.noteSheetNo.trim())
                 const isExpanded = expandedTimeline.has(rep.replacementId)
                 const isSelected = selectedForBulkRep.has(rep.replacementId)
 
-                const effectiveIssueDate = linkedIssue?.issueDate || rep.issueDate || ""
-                const effectiveInstalledDate = linkedIssue?.completedAt || rep.completedAt || ""
-                const effectiveWO = rep.workOrderNo || linkedIssue?.completionRef || ""
-                const effectiveNoteSheet = rep.noteSheetNo || linkedIssue?.noteSheetNo || ""
+                // If proposal has not been re-issued or linked to an active issue, do not show dates of a previously returned issue
+                const isLinkedActive = linkedIssue && linkedIssue.status !== "returned"
+                const effectiveIssueDate = isLinkedActive ? (linkedIssue.issueDate || rep.issueDate || "") : ""
+                const effectiveInstalledDate = isLinkedActive ? (linkedIssue.completedAt || rep.completedAt || "") : ""
+                const effectiveWO = rep.workOrderNo || (isLinkedActive ? linkedIssue.completionRef : "") || ""
+                const effectiveNoteSheet = rep.noteSheetNo || (isLinkedActive ? linkedIssue.noteSheetNo : "") || ""
 
                 return (
                   <Card key={rep.replacementId} className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>

@@ -148,13 +148,13 @@ export async function _fetchReplacementsRaw(spreadsheetId: string): Promise<Mete
         let linked = rep.issueId ? issueMap.get(rep.issueId) : null
         if (!linked && rep.consumerId && consumerMap.has(rep.consumerId)) {
           const candList = consumerMap.get(rep.consumerId)!
-          // Prefer matching serialNo, or active/installed issue
-          linked = candList.find(c => rep.serialNo && c.serialNo === rep.serialNo) ||
-                   candList.find(c => c.status !== "returned") ||
-                   candList[candList.length - 1]
+          // Only link active/installed issues to proposed replacements; ignore issues that were returned to stock
+          linked = candList.find(c => rep.serialNo && c.serialNo === rep.serialNo && c.status !== "returned") ||
+                   candList.find(c => c.status !== "returned")
         }
 
-        if (linked) {
+        // If the linked issue is returned, do not copy issueDate or completedAt to proposed replacement
+        if (linked && linked.status !== "returned") {
           if (!rep.issueDate && linked.issueDate) rep.issueDate = linked.issueDate
           if (!rep.completedAt && linked.completedAt) rep.completedAt = linked.completedAt
           if (!rep.serialNo && linked.serialNo) rep.serialNo = linked.serialNo

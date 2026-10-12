@@ -947,19 +947,19 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                   <span>Proposed Date:</span>
                   <strong className="font-mono text-amber-800">{formatDisplayDate(r.proposedDate)}</strong>
                 </div>
-                {r.issueDate && (
+                {r.status !== "proposed" && r.issueDate && (
                   <div className="flex justify-between items-center text-gray-600">
                     <span>Issued Date:</span>
                     <strong className="font-mono text-yellow-800">{formatDisplayDate(r.issueDate)}</strong>
                   </div>
                 )}
-                {r.completedAt && (
+                {r.status !== "proposed" && r.completedAt && (
                   <div className="flex justify-between items-center text-gray-600">
                     <span>Installed Date:</span>
                     <strong className="font-mono text-blue-800">{formatDisplayDate(r.completedAt, true)}</strong>
                   </div>
                 )}
-                {(r.workOrderNo || r.noteSheetNo) && (
+                {r.status !== "proposed" && (r.workOrderNo || r.noteSheetNo) && (
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px] pt-1 border-t border-slate-200">
                     <span>WO: <strong className="text-slate-800">{r.workOrderNo || "—"}</strong></span>
                     <span>Note Sheet: <strong className={r.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{r.noteSheetNo || "Pending"}</strong></span>
@@ -996,11 +996,11 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                   <p className="font-bold text-slate-900 border-b pb-1 text-[11px] uppercase tracking-wider">Full Tracking Details & History</p>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] pt-1">
                     <p><span className="text-gray-500">Proposed:</span> {formatDisplayDate(r.proposedDate)}</p>
-                    <p><span className="text-gray-500">Issued:</span> {formatDisplayDate(r.issueDate)}</p>
-                    <p><span className="text-gray-500">Installed:</span> {formatDisplayDate(r.completedAt, true)}</p>
-                    <p><span className="text-gray-500">Issue ID:</span> {r.issueId || "—"}</p>
-                    <p><span className="text-gray-500">WO Number:</span> {r.workOrderNo || "—"}</p>
-                    <p><span className="text-gray-500">Note Sheet:</span> {r.noteSheetNo || "—"}</p>
+                    <p><span className="text-gray-500">Issued:</span> {r.status === "proposed" ? "—" : formatDisplayDate(r.issueDate)}</p>
+                    <p><span className="text-gray-500">Installed:</span> {r.status === "proposed" ? "—" : formatDisplayDate(r.completedAt, true)}</p>
+                    <p><span className="text-gray-500">Issue ID:</span> {r.status === "proposed" ? "—" : (r.issueId || "—")}</p>
+                    <p><span className="text-gray-500">WO Number:</span> {r.status === "proposed" ? "—" : (r.workOrderNo || "—")}</p>
+                    <p><span className="text-gray-500">Note Sheet:</span> {r.status === "proposed" ? "—" : (r.noteSheetNo || "—")}</p>
                     <p><span className="text-gray-500">Last Reading:</span> {r.lastReading || "0"}</p>
                     <p><span className="text-gray-500">New Reading:</span> {r.newReading || "0"}</p>
                     <p><span className="text-gray-500">Old Return:</span> {r.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
