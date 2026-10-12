@@ -70,13 +70,13 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username,
   const [certificateDate, setCertificateDate] = useState("")
   const [finalRemarks, setFinalRemarks] = useState("")
 
+  const [unlockedSections, setUnlockedSections] = useState<Record<string, boolean>>({})
+
   const meterPhotoInputRef = useRef<HTMLInputElement>(null)
   const afterPhotoInputRef = useRef<HTMLInputElement>(null)
   const certPhotoInputRef = useRef<HTMLInputElement>(null)
 
   if (!record) return null
-
-  const [unlockedSections, setUnlockedSections] = useState<Record<string, boolean>>({})
 
   const toggleUnlock = (sectionKey: string) => {
     setUnlockedSections((prev) => ({
