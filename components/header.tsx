@@ -77,6 +77,7 @@ import { generateAndShareAgencyUpdatesJPEG } from "@/lib/agency-update-image"
 import { unlockSpotAiSession } from "@/lib/spotai-guard"
 import { LanguageToggle } from "@/components/language-toggle"
 import { useModuleTheme, ModuleTheme } from "@/lib/module-theme"
+import { normalizeCalendarDate } from "@/lib/date-utils"
 import { Palette } from "lucide-react"
 
 interface HeaderProps {
@@ -725,80 +726,83 @@ export function Header({
     setLoading(true);
     setAgencyLastUpdates([]);
 
-    // 1. Try to calculate from consumers_data_cache (Local Base+Patch Data)
-    try {
-      console.log("🔄 [Local DB] Attempting to calculate agency updates from local cache...");
-      const consumers = await getFromCache<any[]>("consumers_data_cache");
-      
-      if (consumers && Array.isArray(consumers) && consumers.length > 0) {
-        console.log("✅ [Local DB] Cache hit. Calculating updates locally.");
+    // 1. Try to calculate from consumers_data_cache ONLY for admins/viewers who have the full tenant dataset cached.
+    // Agency users have their local cache scoped only to their own agency, so they MUST fetch the authoritative server endpoint
+    // to see accurate counts for all agencies.
+    const isAgencyRole = userRole === "agency" || (userAgencies && userAgencies.length > 0 && userRole !== "admin" && userRole !== "viewer" && userRole !== "executive");
+
+    if (!isAgencyRole) {
+      try {
+        console.log("🔄 [Local DB] Attempting to calculate agency updates from local cache...");
+        const consumers = await getFromCache<any[]>("consumers_data_cache");
         
-        const agencyData = new Map<string, any[]>();
-        consumers.forEach(item => {
-            if (!item.agency) return;
-            const agency = item.agency;
-            if (!agencyData.has(agency)) {
-                agencyData.set(agency, []);
-            }
-            agencyData.get(agency)!.push(item);
-        });
+        if (consumers && Array.isArray(consumers) && consumers.length > 0) {
+          console.log("✅ [Local DB] Cache hit. Calculating updates locally.");
+          
+          const agencyData = new Map<string, any[]>();
+          consumers.forEach(item => {
+              if (!item.agency) return;
+              const agency = item.agency;
+              if (!agencyData.has(agency)) {
+                  agencyData.set(agency, []);
+              }
+              agencyData.get(agency)!.push(item);
+          });
 
-        const derivedUpdates = Array.from(agencyData.entries()).map(([name, items]) => {
-            if (items.length === 0) {
+          const derivedUpdates = Array.from(agencyData.entries()).map(([name, items]) => {
+              if (items.length === 0) {
+                  return { name, lastUpdate: "", lastUpdateCount: 0 };
+              }
+
+              let latestNormalizedDate = "";
+
+              // Find the latest ISO date (YYYY-MM-DD) in this agency's items
+              items.forEach(item => {
+                  if (item.disconDate) {
+                      const norm = normalizeCalendarDate(item.disconDate);
+                      if (norm && (!latestNormalizedDate || norm > latestNormalizedDate)) {
+                          latestNormalizedDate = norm;
+                      }
+                  }
+              });
+
+              if (!latestNormalizedDate) {
                 return { name, lastUpdate: "", lastUpdateCount: 0 };
-            }
+              }
 
-            let latestTs = 0;
-            let latestDateStr = "";
+              // Count items matching the latest normalized calendar date
+              const count = items.filter(item => {
+                  if (!item.disconDate) return false;
+                  return normalizeCalendarDate(item.disconDate) === latestNormalizedDate;
+              }).length;
 
-            // Find the latest date string in this agency's items
-            items.forEach(item => {
-                if (item.disconDate) {
-                    let ts = 0;
-                    if (item.disconDate.match(/^\d{2}-\d{2}-\d{4}$/)) {
-                        const [day, month, year] = item.disconDate.split('-').map(Number);
-                        ts = new Date(year, month - 1, day).getTime();
-                    } else if (item.disconDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        ts = new Date(item.disconDate).getTime();
-                    }
+              const [y, m, d] = latestNormalizedDate.split("-");
+              const formattedDate = `${d}-${m}-${y}`;
 
-                    if (ts > latestTs) {
-                        latestTs = ts;
-                        latestDateStr = item.disconDate;
-                    }
-                }
-            });
+              return {
+                  name,
+                  lastUpdate: formattedDate,
+                  lastUpdateCount: count
+              };
+          });
 
-            if (latestDateStr === "") {
-              return { name, lastUpdate: "", lastUpdateCount: 0 };
-            }
+          // Filter based on role
+          const filteredData = (userRole === "admin" || userRole === "viewer" || userRole === "executive" || userRole === "agency")
+            ? derivedUpdates
+            : derivedUpdates.filter((agency) => userAgencies.includes(agency.name));
 
-            // Count items that have the latest date string
-            const count = items.filter(item => item.disconDate === latestDateStr).length;
-
-            return {
-                name,
-                lastUpdate: latestDateStr,
-                lastUpdateCount: count
-            };
-        });
-
-        // Filter based on role
-        const filteredData = (userRole === "admin" || userRole === "viewer" || userRole === "executive" || userRole === "agency")
-          ? derivedUpdates
-          : derivedUpdates.filter((agency) => userAgencies.includes(agency.name));
-
-        setAgencyLastUpdates(filteredData);
-        setLoading(false);
-        return; // Stop here, do not fetch from API
-      } else {
-        console.log(" M [Local DB] Cache miss or empty. Falling back to network.");
+          setAgencyLastUpdates(filteredData);
+          setLoading(false);
+          return; // Stop here, do not fetch from API
+        } else {
+          console.log("ℹ️ [Local DB] Cache miss or empty. Falling back to network.");
+        }
+      } catch (error) {
+        console.warn("⚠️ [Local DB] Could not calculate updates from local cache, falling back to network.", error);
       }
-    } catch (error) {
-      console.warn("⚠️ [Local DB] Could not calculate updates from local cache, falling back to network.", error);
     }
 
-    // 2. Fallback to Network if local cache is empty or fails
+    // 2. Fetch fresh updates from server API (authoritative across all agencies)
     try {
       console.log("🔄 [Network] Fetching fresh agency updates from server...");
       const response = await fetch("/api/agency-last-updates");

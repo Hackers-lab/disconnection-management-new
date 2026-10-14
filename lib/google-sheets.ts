@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache"
 import * as fs from "fs"
 import * as path from "path"
 import * as os from "os"
-import { sanitizeDisconDate } from "./date-utils"
+import { sanitizeDisconDate, normalizeCalendarDate } from "./date-utils"
 
 // Web Push Helper
 export const CONSUMERS_TAG = "consumers"
@@ -110,7 +110,6 @@ function findColumnIndex(headers: string[], searchTerms: string[]): number {
   return -1
 }
 
-// lib/google-sheets.ts
 export async function getAgencyLastUpdates(spreadsheetId: string): Promise<
   { name: string; lastUpdate: string; lastUpdateCount: number }[]
 > {
@@ -126,64 +125,37 @@ export async function getAgencyLastUpdates(spreadsheetId: string): Promise<
       }
       agencyData.get(agency)!.push(item);
   });
-  
-  const dateFormats = [
-      {
-        pattern: /^(\d{2})-(\d{2})-(\d{4})$/,
-        handler: (d: RegExpMatchArray) => new Date(`${d[3]}-${d[2]}-${d[1]}`), // DD-MM-YYYY
-      },
-      {
-        pattern: /^(\d{2})-(\d{2})-(\d{4})$/,
-        handler: (d: RegExpMatchArray) => new Date(`${d[3]}-${d[1]}-${d[2]}`), // MM-DD-YYYY
-      },
-      {
-        pattern: /^(\d{4})-(\d{2})-(\d{2})$/,
-        handler: (d: RegExpMatchArray) => new Date(`${d[1]}-${d[2]}-${d[3]}`), // YYYY-MM-DD
-      },
-  ];
-  
-  const parseDate = (dateStr: string): Date | null => {
-      if (!dateStr) return null;
-      for (const format of dateFormats) {
-          const match = dateStr.match(format.pattern);
-          if (match) {
-              const d = format.handler(match);
-              if (!isNaN(d.getTime())) return d;
-          }
-      }
-      return null;
-  }
 
   const derivedUpdates = Array.from(agencyData.entries()).map(([name, items]) => {
       if (items.length === 0) {
           return { name, lastUpdate: "", lastUpdateCount: 0 };
       }
 
-      let latestTs = 0;
-      let latestDateStr = "";
+      let latestNormalizedDate = "";
 
-      // Find the latest date string in this agency's items
+      // Find the latest ISO date (YYYY-MM-DD) in this agency's items
       items.forEach(item => {
           if (item.disconDate) {
-              const d = parseDate(item.disconDate);
-              if (d && d.getTime() > latestTs) {
-                  latestTs = d.getTime();
-                  latestDateStr = item.disconDate;
+              const norm = normalizeCalendarDate(item.disconDate);
+              if (norm && (!latestNormalizedDate || norm > latestNormalizedDate)) {
+                  latestNormalizedDate = norm;
               }
           }
       });
 
-      if (latestDateStr === "") {
+      if (!latestNormalizedDate) {
         return { name, lastUpdate: "", lastUpdateCount: 0 };
       }
 
-      // Count items that have the latest date string
-      const count = items.filter(item => item.disconDate === latestDateStr).length;
+      // Count items matching the latest normalized calendar date
+      const count = items.filter(item => {
+          if (!item.disconDate) return false;
+          return normalizeCalendarDate(item.disconDate) === latestNormalizedDate;
+      }).length;
 
-      const latestDate = parseDate(latestDateStr);
-      const formattedDate = latestDate 
-          ? `${String(latestDate.getDate()).padStart(2, "0")}-${String(latestDate.getMonth() + 1).padStart(2, "0")}-${latestDate.getFullYear()}`
-          : "";
+      // Format as DD-MM-YYYY for presentation
+      const [y, m, d] = latestNormalizedDate.split("-");
+      const formattedDate = `${d}-${m}-${y}`;
 
       return {
           name,
