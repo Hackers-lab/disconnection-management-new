@@ -440,6 +440,11 @@ export async function bulkCreateIcdsRecords(inputs: any[]): Promise<{ createdCou
     const agency = getFlexibleField(input, "assignedAgency", "Assigned Agency", "Agency", "Agency Name", "Contractor", "Contractor Name")
     const jurisdiction = getFlexibleField(input, "jurisdictionStatus", "Jurisdiction", "Office Jurisdiction", "CCC", "Customer Care Center")
     const otherOffice = getFlexibleField(input, "jurisdictionOffice", "Other Office", "Other CCC", "Adjacent Office")
+    const smartMeterNo = getFlexibleField(input, "smartMeterNo", "Smart Meter No", "Smart Meter", "Meter No", "Meter Serial", "Meter", "Meter Number")
+    const meterInstallDate = getFlexibleField(input, "meterInstallDate", "Meter Install Date", "Meter Installation Date", "Install Date", "Connection Date", "DOC")
+    const meterInitialReading = getFlexibleField(input, "meterInitialReading", "Meter Initial Reading", "Initial Reading", "Meter Reading", "Starting Reading", "Reading")
+    const officialAppNo = getFlexibleField(input, "officialApplicationNo", "Official Application No", "Official App No", "Application No", "App No", "CRM Application No", "CRM No")
+    const workOrderNo = getFlexibleField(input, "workOrderNo", "Work Order No", "WO No", "Work Order Number", "WO Number")
 
     // Automatically ignore blank / trailing rows
     if (!code && !name && !block && !gp && !worker) {
@@ -454,6 +459,16 @@ export async function bulkCreateIcdsRecords(inputs: any[]): Promise<{ createdCou
     if (existingCodes.has(code)) {
       errors.push(`Duplicate AWC Code skipped: ${code} (${name || code})`)
       continue
+    }
+
+    // Determine starting stage based on uploaded data
+    let initialStage: IcdsStage = "PENDING_INSPECTION"
+    if (smartMeterNo || meterInstallDate) {
+      initialStage = "METER_INSTALLED"
+    } else if (workOrderNo) {
+      initialStage = "WO_ISSUED"
+    } else if (officialAppNo) {
+      initialStage = "APPLICATION_PENDING"
     }
 
     const id = `ICDS-${year}-${String(nextSeq++).padStart(4, "0")}`
@@ -472,11 +487,17 @@ export async function bulkCreateIcdsRecords(inputs: any[]): Promise<{ createdCou
 
       jurisdictionStatus: (jurisdiction.toLowerCase().includes("other") ? "OTHER_OFFICE" : "UNDER_OFFICE"),
       jurisdictionOffice: otherOffice || undefined,
-      stage: "PENDING_INSPECTION",
+      stage: initialStage,
 
-      meterExists: false,
+      meterExists: Boolean(smartMeterNo),
       infraRequired: false,
-      bookletReceived: false,
+      bookletReceived: Boolean(officialAppNo || workOrderNo || smartMeterNo),
+      officialApplicationNo: officialAppNo || undefined,
+      workOrderNo: workOrderNo || undefined,
+      smartMeterNo: smartMeterNo || undefined,
+      meterIssuedNo: smartMeterNo || undefined,
+      meterInstallDate: meterInstallDate || undefined,
+      meterInitialReading: meterInitialReading || (smartMeterNo ? "0" : undefined),
       equipmentPackageInstalled: false,
 
       createdAt: now,

@@ -45,6 +45,11 @@ export function IcdsEditModal({ record, open, onClose, onSuccess, agencies = [],
   const [assignedAgency, setAssignedAgency] = useState("")
   const [jurisdictionStatus, setJurisdictionStatus] = useState<JurisdictionStatus>("UNDER_OFFICE")
   const [jurisdictionOffice, setJurisdictionOffice] = useState("")
+  const [smartMeterNo, setSmartMeterNo] = useState("")
+  const [meterInstallDate, setMeterInstallDate] = useState("")
+  const [meterInitialReading, setMeterInitialReading] = useState("")
+  const [officialApplicationNo, setOfficialApplicationNo] = useState("")
+  const [workOrderNo, setWorkOrderNo] = useState("")
   const [agencyList, setAgencyList] = useState<string[]>(agencies)
 
   useEffect(() => {
@@ -86,6 +91,11 @@ export function IcdsEditModal({ record, open, onClose, onSuccess, agencies = [],
     setAssignedAgency(record.assignedAgency || "")
     setJurisdictionStatus(record.jurisdictionStatus || "UNDER_OFFICE")
     setJurisdictionOffice(record.jurisdictionOffice || "")
+    setSmartMeterNo(record.smartMeterNo || record.meterIssuedNo || "")
+    setMeterInstallDate(record.meterInstallDate || "")
+    setMeterInitialReading(record.meterInitialReading || "")
+    setOfficialApplicationNo(record.officialApplicationNo || "")
+    setWorkOrderNo(record.workOrderNo || "")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,6 +121,11 @@ export function IcdsEditModal({ record, open, onClose, onSuccess, agencies = [],
         assignedAgency: (assignedAgency && assignedAgency !== "UNASSIGNED") ? assignedAgency.trim() : undefined,
         jurisdictionStatus,
         jurisdictionOffice: jurisdictionStatus === "OTHER_OFFICE" ? jurisdictionOffice.trim() || undefined : undefined,
+        smartMeterNo: smartMeterNo.trim() || undefined,
+        meterInstallDate: meterInstallDate.trim() || undefined,
+        meterInitialReading: meterInitialReading.trim() || undefined,
+        officialApplicationNo: officialApplicationNo.trim() || undefined,
+        workOrderNo: workOrderNo.trim() || undefined,
       }
 
       const res = await fetch(`/api/icds/${record.id}`, {
@@ -303,6 +318,62 @@ export function IcdsEditModal({ record, open, onClose, onSuccess, agencies = [],
                 placeholder="CDPO Name"
                 className="h-8 text-xs rounded-lg"
               />
+            </div>
+          </div>
+
+          {/* Meter & Connection Details */}
+          <div className="border border-indigo-100 rounded-xl p-3.5 space-y-3 bg-indigo-50/30">
+            <Label className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+              Meter & CRM Connection Details
+            </Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Smart Meter Serial No</Label>
+                <Input
+                  value={smartMeterNo}
+                  onChange={(e) => setSmartMeterNo(e.target.value)}
+                  placeholder="e.g. IL0093147"
+                  className="h-8 text-xs font-mono bg-white rounded-lg"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Meter Install Date</Label>
+                <Input
+                  type="date"
+                  value={meterInstallDate}
+                  onChange={(e) => setMeterInstallDate(e.target.value)}
+                  className="h-8 text-xs bg-white rounded-lg"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Initial kWh Reading</Label>
+                <Input
+                  value={meterInitialReading}
+                  onChange={(e) => setMeterInitialReading(e.target.value)}
+                  placeholder="0.0"
+                  className="h-8 text-xs font-mono bg-white rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-indigo-100/60">
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Official CRM App No (10-Digit)</Label>
+                <Input
+                  value={officialApplicationNo}
+                  onChange={(e) => setOfficialApplicationNo(e.target.value)}
+                  placeholder="e.g. 5001234567"
+                  className="h-8 text-xs font-mono bg-white rounded-lg"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Work Order No</Label>
+                <Input
+                  value={workOrderNo}
+                  onChange={(e) => setWorkOrderNo(e.target.value)}
+                  placeholder="e.g. WO-2026-001"
+                  className="h-8 text-xs bg-white rounded-lg"
+                />
+              </div>
             </div>
           </div>
 

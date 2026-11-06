@@ -39,6 +39,11 @@ export function IcdsBulkUploadModal({ open, onClose, onSuccess }: Props) {
         "AWW Mobile",
         "CDPO Name",
         "Assigned Agency",
+        "Smart Meter No",
+        "Meter Install Date",
+        "Meter Initial Reading",
+        "Official Application No",
+        "Work Order No",
       ]
 
       const sampleRows = [
@@ -53,6 +58,11 @@ export function IcdsBulkUploadModal({ open, onClose, onSuccess }: Props) {
           "AWW Mobile": "9876543210",
           "CDPO Name": "CDPO Joynagar",
           "Assigned Agency": "M/S Power Solutions",
+          "Smart Meter No": "IL0093147",
+          "Meter Install Date": "2026-11-01",
+          "Meter Initial Reading": "0.0",
+          "Official Application No": "5001234567",
+          "Work Order No": "WO-2026-881",
         },
         {
           "AWC Code": "19323010102",
@@ -65,6 +75,11 @@ export function IcdsBulkUploadModal({ open, onClose, onSuccess }: Props) {
           "AWW Mobile": "9876543211",
           "CDPO Name": "CDPO Kultali",
           "Assigned Agency": "M/S Ghosh Electricals",
+          "Smart Meter No": "",
+          "Meter Install Date": "",
+          "Meter Initial Reading": "",
+          "Official Application No": "",
+          "Work Order No": "",
         },
       ]
 

@@ -188,6 +188,12 @@ export interface IcdsEditInput {
   assignedAgency?: string
   jurisdictionStatus?: JurisdictionStatus
   jurisdictionOffice?: string
+  smartMeterNo?: string
+  meterInstallDate?: string
+  meterInitialReading?: string
+  officialApplicationNo?: string
+  workOrderNo?: string
+  workOrderDate?: string
 }
 
 export interface IcdsAgencyMetrics {

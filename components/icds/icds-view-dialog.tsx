@@ -315,50 +315,127 @@ export function IcdsViewDialog({ record, open, onClose, officeName }: Props) {
                   <p className="font-semibold text-slate-700">
                     {record.quotationNo ? `${record.quotationNo} (₹${record.quotationAmount || 6611})` : "Pending"}
                   </p>
+                  {record.quotationDate && (
+                    <span className="text-[10px] text-slate-400 block font-mono">Date: {record.quotationDate}</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-slate-400">Work Order No:</span>
                   <p className="font-semibold text-slate-700">{record.workOrderNo || "Pending"}</p>
+                  {record.workOrderDate && (
+                    <span className="text-[10px] text-slate-400 block font-mono">Date: {record.workOrderDate}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Meter Installation Details Subsection */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 bg-indigo-50/40 p-2.5 rounded-lg mt-1">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Smart Meter Serial</span>
+                  <p className="font-mono font-bold text-indigo-800 mt-0.5">
+                    {record.smartMeterNo || record.meterIssuedNo || "Not Installed"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Meter Install Date</span>
+                  <p className="font-semibold text-slate-700 mt-0.5">
+                    {record.meterInstallDate || record.meterIssuedDate || "Pending"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Initial Reading (kWh)</span>
+                  <p className="font-mono font-semibold text-slate-700 mt-0.5">
+                    {record.meterInitialReading ?? "0"} kWh
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Installed By / Agency</span>
+                  <p className="font-semibold text-slate-700 mt-0.5 truncate" title={record.meterInstalledBy || record.assignedAgency || "—"}>
+                    {record.meterInstalledBy || record.assignedAgency || "—"}
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Section 4: CSR Standard Package Checklist */}
-            {record.equipmentChecklist && (
+            {(record.equipmentChecklist || record.equipmentPackageInstalled || record.equipmentInstallDate) && (
               <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2 bg-white shadow-sm">
-                <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1">
-                  <Layers className="h-4 w-4 text-purple-600" />
-                  Stage 3: Standard CSR Electrification Package (EDD/49)
-                </h4>
+                <div className="flex items-center justify-between border-b pb-1">
+                  <h4 className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                    <Layers className="h-4 w-4 text-purple-600" />
+                    Stage 3: Standard CSR Electrification Package (EDD/49)
+                  </h4>
+                  {record.equipmentInstallDate && (
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Date: <strong className="text-slate-700">{record.equipmentInstallDate}</strong>
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                   <div>
                     <span className="text-slate-400">16A-DP Main Switch:</span>
-                    <p className="font-semibold text-slate-700">{record.equipmentChecklist.mainSwitch16ADp ? "Installed" : "No"}</p>
+                    <p className="font-semibold text-slate-700">{record.equipmentChecklist?.mainSwitch16ADp ? "Installed" : (record.equipmentPackageInstalled ? "Installed" : "No")}</p>
                   </div>
                   <div>
                     <span className="text-slate-400">5-Switch Board & Regulator:</span>
-                    <p className="font-semibold text-slate-700">{record.equipmentChecklist.switchBoard5S1R1P ? "Installed (Step Type)" : "No"}</p>
+                    <p className="font-semibold text-slate-700">{record.equipmentChecklist?.switchBoard5S1R1P ? "Installed (Step Type)" : (record.equipmentPackageInstalled ? "Installed" : "No")}</p>
                   </div>
                   <div>
                     <span className="text-slate-400">FRLS Wiring & Conduit:</span>
-                    <p className="font-semibold text-slate-700">{record.equipmentChecklist.frlsWiringConduit ? "2.5+1.5 sq mm Done" : "No"}</p>
+                    <p className="font-semibold text-slate-700">{record.equipmentChecklist?.frlsWiringConduit ? "2.5+1.5 sq mm Done" : (record.equipmentPackageInstalled ? "Done" : "No")}</p>
                   </div>
                   <div>
                     <span className="text-slate-400">LED Bulbs & 80W Fan:</span>
                     <p className="font-semibold text-slate-700">
-                      {record.equipmentChecklist.ledBulbsCount || 3} Bulbs, {record.equipmentChecklist.fan80WCount || 1} Fan ({record.equipmentChecklist.fanBrand || "CGL"})
+                      {record.equipmentChecklist?.ledBulbsCount || 3} Bulbs, {record.equipmentChecklist?.fan80WCount || 1} Fan ({record.equipmentChecklist?.fanBrand || "CGL"})
                     </p>
                   </div>
                 </div>
+                {(record.equipmentAgency || record.assignedAgency) && (
+                  <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Wiring Agency: <strong className="text-slate-800">{record.equipmentAgency || record.assignedAgency}</strong></span>
+                    <span>Wiring Status: <strong className="text-purple-700">{record.equipmentPackageInstalled ? "Completed" : "In Progress"}</strong></span>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Section 5: Photo Gallery (Direct Inline View with Google CDN + Error Fallback) */}
             <div className="border border-slate-200/80 rounded-xl p-3.5 space-y-2 bg-white shadow-sm">
-              <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b pb-1">
-                <Award className="h-4 w-4 text-emerald-600" />
-                Stage 4: Visual Audit & Service Certificate Photos
-              </h4>
+              <div className="flex items-center justify-between border-b pb-1">
+                <h4 className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                  <Award className="h-4 w-4 text-emerald-600" />
+                  Stage 4: Visual Audit & Handover Service Certificate
+                </h4>
+                {record.certificateDate && (
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Handover Date: <strong className="text-slate-700">{record.certificateDate}</strong>
+                  </span>
+                )}
+              </div>
+              
+              {/* Handover Signatory Details */}
+              {(record.certificateSignatory || record.finalRemarks) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] bg-emerald-50/60 p-2.5 rounded-lg border border-emerald-100">
+                  {record.certificateSignatory && (
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Authorized Signatory</span>
+                      <p className="font-bold text-emerald-950 mt-0.5">
+                        {record.certificateSignatory} ({record.certificateSignatoryDesignation || "Anganwadi Worker"})
+                      </p>
+                    </div>
+                  )}
+                  {record.finalRemarks && (
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Handover Remarks</span>
+                      <p className="font-medium text-slate-700 mt-0.5 italic">
+                        &quot;{record.finalRemarks}&quot;
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                 {/* 1. Before Photo */}
                 <div className="space-y-1">
