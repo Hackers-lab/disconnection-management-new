@@ -585,11 +585,11 @@ export function IcdsViewDialog({ record, open, onClose, officeName }: Props) {
       {/* FULLSCREEN IMAGE LIGHTBOX / PREVIEW MODAL (MATCHING SAFETY MODULE) */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
           onClick={() => setPreviewImage(null)}
         >
           <div
-            className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden max-w-2xl w-full shadow-2xl flex flex-col"
+            className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden max-w-2xl w-full shadow-2xl flex flex-col z-[101]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
