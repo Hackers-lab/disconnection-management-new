@@ -348,12 +348,14 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
 
   if (selectedConsumer) {
     return (
-      <DDForm
-        consumer={selectedConsumer}
-        onSave={handleUpdateConsumer}
-        onCancel={() => setSelectedConsumer(null)}
-        userRole={userRole}
-      />
+      <div className="animate-form-expand">
+        <DDForm
+          consumer={selectedConsumer}
+          onSave={handleUpdateConsumer}
+          onCancel={() => setSelectedConsumer(null)}
+          userRole={userRole}
+        />
+      </div>
     )
   }
 

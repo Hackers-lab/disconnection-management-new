@@ -1044,14 +1044,16 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
   if (selectedConsumer) {
     return (
-      <ConsumerForm
-        consumer={selectedConsumer}
-        onSave={handleUpdateConsumer}
-        onCancel={() => setSelectedConsumer(null)}
-        userRole={userRole}
-        availableAgencies={agencies}
-        permissions={permissions}
-      />
+      <div className="animate-form-expand">
+        <ConsumerForm
+          consumer={selectedConsumer}
+          onSave={handleUpdateConsumer}
+          onCancel={() => setSelectedConsumer(null)}
+          userRole={userRole}
+          availableAgencies={agencies}
+          permissions={permissions}
+        />
+      </div>
     )
   }
 

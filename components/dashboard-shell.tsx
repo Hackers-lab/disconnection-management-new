@@ -71,8 +71,10 @@ export function DashboardShell({
           ? "px-4 sm:px-6 lg:px-8 py-4 sm:py-6"
           : "px-4 sm:px-6 lg:px-8 pt-2 pb-6"
       }`}>
-        {/* Render whatever is passed as children (Menu, List, etc.) */}
-        {children} 
+        {/* Render whatever is passed as children (Menu, List, etc.) with smooth animated module zoom */}
+        <div key={activeView} className="animate-module-zoom">
+          {children}
+        </div> 
 
         {/* Real-time Visitor Count & Live Users in simple text at the bottom (hidden in GIS Camera) */}
         {activeView !== "gis-camera" && (
