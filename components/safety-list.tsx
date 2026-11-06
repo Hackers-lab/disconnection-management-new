@@ -830,7 +830,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
             const canEdit = isAdmin || ticket.physicalStatus === "pending"
 
             return (
-              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className="shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden border border-slate-200/90 flex flex-col justify-between rounded-xl bg-white group">
+              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className={`shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden border border-slate-200/90 flex flex-col justify-between rounded-xl bg-white group animate-card-enter stagger-${(idx % 6) + 1}`}>
                 <div>
                   {/* Card Header */}
                   <CardHeader className="pb-2 p-3 bg-slate-50/80 border-b border-slate-100">

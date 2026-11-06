@@ -808,11 +808,11 @@ export function IcdsList({
       ) : viewMode === "card" ? (
         /* Cards Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginatedRecords.map((r) => (
+          {paginatedRecords.map((r, idx) => (
             <Card
               id={`icds-card-${r.id}`}
               key={r.id}
-              className="shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full flex flex-col justify-between"
+              className={`shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden max-w-full flex flex-col justify-between border-slate-200/90 rounded-2xl animate-card-enter stagger-${(idx % 6) + 1}`}
             >
               <CardHeader className="pb-3 break-words whitespace-normal">
                 <div className="flex items-start justify-between w-full gap-2">
