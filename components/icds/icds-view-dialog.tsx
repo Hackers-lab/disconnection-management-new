@@ -582,73 +582,64 @@ export function IcdsViewDialog({ record, open, onClose, officeName }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* FULLSCREEN IMAGE LIGHTBOX / PREVIEW MODAL (MATCHING SAFETY MODULE) */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
-          onClick={() => setPreviewImage(null)}
+      {/* FULLSCREEN IMAGE LIGHTBOX / PREVIEW MODAL AS RADIX DIALOG (PORTAL TO BODY AT Z-[70]) */}
+      <Dialog open={!!previewImage} onOpenChange={(isOpen) => !isOpen && setPreviewImage(null)}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="max-w-2xl p-0 overflow-hidden bg-slate-950 border-slate-800 text-white rounded-2xl z-[70] shadow-2xl gap-0"
         >
-          <div
-            className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden max-w-2xl w-full shadow-2xl flex flex-col z-[101]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="p-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
-                  <ImageIcon className="h-4 w-4 text-amber-400" />
-                  <span>{previewImage.title}</span>
-                </h3>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">Center Code: {previewImage.centerCode}</p>
+          {previewImage && (
+            <>
+              {/* Header */}
+              <div className="p-3.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                    <ImageIcon className="h-4 w-4 text-amber-400" />
+                    <span>{previewImage.title}</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">Center Code: {previewImage.centerCode}</p>
+                </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setPreviewImage(null)}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 h-7 w-7 rounded-full cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
 
-            {/* Image Container with Google Drive CDN */}
-            <div className="p-3 bg-black flex items-center justify-center max-h-[65vh] overflow-hidden">
-              <img
-                src={getGoogleDriveDirectLink(previewImage.url, 1600)}
-                onError={(e) => handleImageError(e, previewImage.url)}
-                alt={previewImage.title}
-                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-700"
-              />
-            </div>
-
-            {/* Footer Controls with Download Button */}
-            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-mono text-slate-400 truncate">
-                {previewImage.centerCode}_{previewImage.type}_Photo.jpg
-              </span>
-
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  onClick={() => handleDownloadPreviewImage(previewImage)}
-                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer"
-                >
-                  <DownloadCloud className="h-3.5 w-3.5" />
-                  <span>Download</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPreviewImage(null)}
-                  className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 text-xs h-8 rounded-lg cursor-pointer"
-                >
-                  Close
-                </Button>
+              {/* Image Container with Google Drive CDN */}
+              <div className="p-3 bg-black flex items-center justify-center max-h-[65vh] overflow-hidden">
+                <img
+                  src={getGoogleDriveDirectLink(previewImage.url, 1600)}
+                  onError={(e) => handleImageError(e, previewImage.url)}
+                  alt={previewImage.title}
+                  className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-slate-700"
+                />
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+              {/* Footer Controls with Download Button */}
+              <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-mono text-slate-400 truncate">
+                  {previewImage.centerCode}_{previewImage.type}_Photo.jpg
+                </span>
+
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => handleDownloadPreviewImage(previewImage)}
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 shadow-md cursor-pointer"
+                  >
+                    <DownloadCloud className="h-3.5 w-3.5" />
+                    <span>Download</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPreviewImage(null)}
+                    className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 text-xs h-8 rounded-lg cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
