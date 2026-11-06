@@ -27,6 +27,7 @@ import {
   DialogDescription,
   DialogHeader,
 } from "@/components/ui/dialog"
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
 import { format } from "date-fns"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import {
@@ -1001,12 +1002,15 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     return (
       <div className="space-y-6">
         <DashboardStats consumers={[]} loading={true} />
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading consumer data...</p>
+        {viewMode === "card" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
-        </div>
+        ) : (
+          <SkeletonTable rows={8} cols={7} />
+        )}
       </div>
     )
   }

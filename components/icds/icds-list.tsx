@@ -34,6 +34,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import {
   Search,
@@ -776,10 +777,15 @@ export function IcdsList({
 
       {/* 4. Main Records Display (Cards / Table) */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center p-16 bg-white rounded-xl shadow-md border border-slate-200">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
-          <p className="text-xs text-slate-500 font-semibold">Hydrating Anganwadi Centers registry...</p>
-        </div>
+        viewMode === "card" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : (
+          <SkeletonTable rows={8} cols={7} />
+        )
       ) : filteredRecords.length === 0 ? (
         <div className="text-center p-16 bg-white rounded-xl shadow-md border border-slate-200 space-y-4">
           <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-200">

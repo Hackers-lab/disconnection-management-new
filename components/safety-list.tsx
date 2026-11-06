@@ -36,6 +36,7 @@ import type { SafetyTicket } from "@/lib/safety-service"
 import { SafetyStats } from "./safety-stats"
 import { SafetyAgencyDrawer } from "./safety-agency-drawer"
 import { SafetyForm } from "./safety-form"
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
@@ -808,8 +809,18 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
         </div>
       </div>
 
-      {/* Cards View */}
-      {viewMode === "card" ? (
+      {/* Cards View / Skeleton Loading */}
+      {loading ? (
+        viewMode === "card" ? (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : (
+          <SkeletonTable rows={8} cols={6} />
+        )
+      ) : viewMode === "card" ? (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {paginatedTickets.map((ticket, idx) => {
             const isFullyClosed = ticket.physicalStatus === "rectified" && (ticket.adminStatus === "po_done" || ticket.adminStatus === "not_required")

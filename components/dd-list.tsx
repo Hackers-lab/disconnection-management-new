@@ -35,6 +35,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
 
@@ -323,9 +324,15 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
     return (
       <div className="space-y-6">
         <DDStats consumers={[]} loading={true} />
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
-        </div>
+        {viewMode === "card" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : (
+          <SkeletonTable rows={8} cols={6} />
+        )}
       </div>
     )
   }

@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import type { MeterStock, MeterIssue, StockSummary, MeterTypeLabel } from "@/lib/meter-types"
 import { METER_TYPES } from "@/lib/meter-types"
@@ -2085,7 +2086,11 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           </div>
 
           {loadingReplacements ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
           ) : filteredReplacements.length === 0 ? (
             <div className="bg-white text-center py-16 text-gray-400 border rounded-2xl">
               <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
