@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
-import { fetchApplications, fetchApplicationsRaw, createApplication } from "@/lib/nsc-service"
+import { fetchApplications, fetchApplicationsRaw, createApplication, updateApplication } from "@/lib/nsc-service"
 import { checkApiPermission, isAgencyScopeRestricted } from "@/lib/permissions"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { getSpreadsheetId } from "@/lib/google-sheets-api"
@@ -70,6 +70,46 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, receiveNo })
   } catch (e: any) {
     console.error("NSC create error:", e)
+    return NextResponse.json({ error: e.message || "Failed" }, { status: 500 })
+  }
+})
+
+export const PUT = withTenant(async function PUT(request: NextRequest) {
+  const { authorized, error, status, session } = await checkApiPermission("nsc", "update")
+  if (!authorized) return NextResponse.json({ error }, { status })
+
+  try {
+    const body = await request.json()
+    if (!body.receiveNo) return NextResponse.json({ error: "Receive No required" }, { status: 400 })
+
+    if (body.agency && isAgencyScopeRestricted(session, body.agency)) {
+      return NextResponse.json({ error: "Forbidden: Target agency is outside your scope" }, { status: 403 })
+    }
+
+    await updateApplication({
+      receiveNo:          body.receiveNo,
+      applicantName:      body.applicantName,
+      careOf:             body.careOf,
+      address:            body.address,
+      mobile:             body.mobile,
+      appliedClass:       body.appliedClass,
+      phase:              body.phase,
+      agency:             body.agency,
+      officeRefNo:        body.officeRefNo,
+      applicationFormUrl: body.applicationFormUrl,
+    })
+
+    const tenantContext = getTenantContext()
+    const tenantId = tenantContext?.cccCode || request.headers.get("x-tenant-id") || "default"
+    await appendDeltaPatch(tenantId, "nsc", {
+      action: "UPDATE",
+      recordId: String(body.receiveNo),
+      changes: { ...body },
+    }).catch(e => console.warn("NSC update patch logging failed:", e))
+
+    return NextResponse.json({ success: true, receiveNo: body.receiveNo })
+  } catch (e: any) {
+    console.error("NSC update error:", e)
     return NextResponse.json({ error: e.message || "Failed" }, { status: 500 })
   }
 })

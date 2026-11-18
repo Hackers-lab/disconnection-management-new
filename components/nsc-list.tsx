@@ -47,7 +47,7 @@ const CACHE_KEY = "nsc_data_cache"
 const PAGE = 20
 
 type Tab      = "all" | "pending" | "inspected" | "completed" | "projects" | "reports"
-type View     = "list" | "create" | "inspect" | "process"
+type View     = "list" | "create" | "edit" | "inspect" | "process"
 type SyncState = "idle" | "loading" | "updated"
 
 const CLASS_LABELS: Record<string, string> = {
@@ -145,6 +145,23 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
         setSyncState("idle")
       }
     }).catch(() => {})
+
+    // Pick up search term from Global Consumer Search
+    const pendingSearch = sessionStorage.getItem("module_search_term")
+    if (pendingSearch) {
+      setSearch(pendingSearch)
+      setTab("all")
+      sessionStorage.removeItem("module_search_term")
+    }
+
+    const handleGlobalSearch = (e: any) => {
+      if (e.detail?.searchTerm) {
+        setSearch(e.detail.searchTerm)
+        setTab("all")
+      }
+    }
+    window.addEventListener("set_module_search", handleGlobalSearch)
+    return () => window.removeEventListener("set_module_search", handleGlobalSearch)
   }, [])
 
   const load = async (silent = false, forceFull = false) => {
@@ -228,10 +245,28 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
   const filtered = useMemo(() => {
     let data = scopedApps
-    if (tab === "pending")   data = data.filter(a => normalizeNSCStatus(a.status) === "pending")
-    if (tab === "inspected") data = data.filter(a => normalizeNSCStatus(a.status) === "inspected")
-    if (tab === "completed") data = data.filter(a => COMPLETED_STATUSES.includes(normalizeNSCStatus(a.status)))
-    if (tab === "projects")  data = data.filter(a => ["project_required", "project_ongoing", "project_done"].includes(normalizeNSCStatus(a.status)))
+    const q = search.trim().toLowerCase()
+
+    // When searching, match across all stages/statuses so the application is always found
+    if (q) {
+      data = data.filter(a =>
+        a.receiveNo.toLowerCase().includes(q)               ||
+        (a.officeRefNo || "").toLowerCase().includes(q)     ||
+        (a.applicationNo || "").toLowerCase().includes(q)   ||
+        (a.memoNo || "").toLowerCase().includes(q)          ||
+        a.applicantName.toLowerCase().includes(q)           ||
+        a.careOf.toLowerCase().includes(q)                  ||
+        a.address.toLowerCase().includes(q)                 ||
+        a.mobile.includes(q)                                ||
+        a.agency.toLowerCase().includes(q)                  ||
+        (a.existingConsumerId || "").includes(q)
+      )
+    } else {
+      if (tab === "pending")   data = data.filter(a => normalizeNSCStatus(a.status) === "pending")
+      if (tab === "inspected") data = data.filter(a => normalizeNSCStatus(a.status) === "inspected")
+      if (tab === "completed") data = data.filter(a => COMPLETED_STATUSES.includes(normalizeNSCStatus(a.status)))
+      if (tab === "projects")  data = data.filter(a => ["project_required", "project_ongoing", "project_done"].includes(normalizeNSCStatus(a.status)))
+    }
 
     // Additional filters
     if (filters.agency.length > 0) {
@@ -243,19 +278,6 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
     if (filters.pole === "no")  data = data.filter(a => a.poleRequired !== "yes")
     if (filters.dispute) data = data.filter(a => isNSCDispute(a))
 
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      data = data.filter(a =>
-        a.receiveNo.toLowerCase().includes(q)               ||
-        (a.officeRefNo || "").toLowerCase().includes(q)     ||
-        a.applicantName.toLowerCase().includes(q)           ||
-        a.careOf.toLowerCase().includes(q)                  ||
-        a.address.toLowerCase().includes(q)                 ||
-        a.mobile.includes(q)                                ||
-        a.agency.toLowerCase().includes(q)                  ||
-        (a.existingConsumerId || "").includes(q)
-      )
-    }
     return data
   }, [scopedApps, tab, search, filters])
 
@@ -331,6 +353,20 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       agencies={agencies}
       onSave={rcvNo => { toast({ title: "Application created", description: `Receive No: ${rcvNo}` }); setView("list"); load(true, true) }}
       onCancel={() => setView("list")}
+    />
+  )
+
+  if (view === "edit" && selected) return (
+    <NscApplicationForm
+      initialApp={selected}
+      agencies={agencies}
+      onSave={rcvNo => {
+        toast({ title: "Application updated", description: `Receive No: ${rcvNo}` })
+        setSelected(null)
+        setView("list")
+        load(true, true)
+      }}
+      onCancel={() => { setSelected(null); setView("list") }}
     />
   )
 
@@ -901,6 +937,17 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
                     <Eye className="h-3.5 w-3.5" /> View
                   </button>
 
+                  {/* Edit application details — available to admin, executives, and creators */}
+                  {(isAdmin || canProcess || canCreate) && (
+                    <button
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 border border-blue-200 transition font-medium"
+                      onClick={() => { setSelected(app); setView("edit") }}
+                      title="Edit application details"
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </button>
+                  )}
+
                   {/* Agency / Inspector / Custom Role: inspect pending */}
                   {canInspect && normalizeNSCStatus(app.status) === "pending" && (
                     <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
@@ -916,15 +963,15 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
                   )}
 
                   {/* Admin / Staff / Custom Role: process inspected */}
-                  {canProcess && normalizeNSCStatus(app.status) === "inspected" && (
+                  {(isAdmin || canProcess) && normalizeNSCStatus(app.status) === "inspected" && (
                     <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
                       onClick={() => { setSelected(app); setView("process") }}>
                       Process
                     </Button>
                   )}
 
-                  {/* Admin: view/reprocess quotation or dispute */}
-                  {isAdmin && (normalizeNSCStatus(app.status) === "quotation_issued" || normalizeNSCStatus(app.status) === "dispute_issued") && (
+                  {/* Admin / Executive: view/reprocess quotation or dispute */}
+                  {(isAdmin || canProcess) && (normalizeNSCStatus(app.status) === "quotation_issued" || normalizeNSCStatus(app.status) === "dispute_issued") && (
                     <Button size="sm" variant="outline" className="flex-1 h-9 text-xs font-semibold rounded-lg shadow-sm bg-slate-950 hover:bg-slate-900 text-white border-slate-900 transition-colors"
                       onClick={() => { setSelected(app); setView("process") }}>
                       View / Override
@@ -964,11 +1011,11 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
                     </Button>
                   )}
 
-                  {/* Admin: pending — reassign */}
-                  {isAdmin && normalizeNSCStatus(app.status) === "pending" && (
-                    <Button size="sm" className="flex-1 h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                  {/* Admin / Executive: pending — reassign / process */}
+                  {(isAdmin || canProcess) && normalizeNSCStatus(app.status) === "pending" && (
+                    <Button size="sm" variant="outline" className="flex-1 h-9 border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-semibold rounded-lg shadow-sm transition-colors"
                       onClick={() => { setSelected(app); setView("process") }}>
-                      Reassign
+                      Process / Reassign
                     </Button>
                   )}
 
@@ -1009,8 +1056,8 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       {/* View dialog */}
       <NscViewDialog app={viewApp} open={!!viewApp} onClose={() => setViewApp(null)} />
 
-      {/* Sticky bottom — Add NSC */}
-      {canCreate && (
+      {/* Sticky bottom — Add NSC (hidden when actively searching to avoid obscuring card actions) */}
+      {canCreate && !search.trim() && (
         <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
           <div className="max-w-xl mx-auto pointer-events-auto">
             <Button

@@ -626,6 +626,72 @@ export async function updateOfficeRefNo(receiveNo: string, officeRefNo: string):
   invalidateNSCCache()
 }
 
+// ─── Update application details (Edit NSC) ──────────────────────────────────
+export async function updateApplication(req: {
+  receiveNo:           string
+  applicantName?:      string
+  careOf?:             string
+  address?:            string
+  mobile?:             string
+  appliedClass?:       string
+  phase?:              string
+  agency?:             string
+  officeRefNo?:        string
+  applicationFormUrl?: string
+}): Promise<void> {
+  const id = getSpreadsheetId()
+  const headers = await ensureHeaders(id, NSC_TAB, NSC_HEADERS)
+  const all = await _fetchApplicationsRaw(id)
+  const idx = all.findIndex(a => a.receiveNo === req.receiveNo)
+  if (idx === -1) throw new Error("Application not found")
+  const row = idx + 2
+
+  const updates: any[] = []
+  const addUpdate = (field: keyof NSCApplication, value: string | undefined) => {
+    if (value === undefined) return
+    const colIdx = findColumn(headers, NSC_FIELD_MAP[field])
+    if (colIdx !== -1) {
+      updates.push({
+        range: `${NSC_TAB}!${colLetter(colIdx)}${row}`,
+        values: [[value]],
+      })
+    }
+  }
+
+  addUpdate("applicantName", req.applicantName)
+  addUpdate("careOf", req.careOf)
+  addUpdate("address", req.address)
+  addUpdate("mobile", req.mobile)
+  addUpdate("appliedClass", req.appliedClass)
+  addUpdate("phase", req.phase)
+  addUpdate("agency", req.agency)
+  addUpdate("officeRefNo", req.officeRefNo)
+  addUpdate("applicationFormUrl", req.applicationFormUrl)
+
+  if (updates.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: id,
+      requestBody: {
+        valueInputOption: "RAW",
+        data: updates,
+      },
+    })
+  }
+
+  // Rename Google Drive file if needed
+  if (req.applicationFormUrl) {
+    const match = req.applicationFormUrl.match(/id=([^&]+)/)
+    const fileId = match ? match[1] : null
+    if (fileId) {
+      const rawName = req.officeRefNo?.trim() ? req.officeRefNo.trim() : req.receiveNo
+      const cleanName = `${rawName.replace(/[^a-zA-Z0-9-_]/g, "_")}.pdf`
+      await renameDriveFile(fileId, cleanName).catch(() => {})
+    }
+  }
+
+  invalidateNSCCache()
+}
+
 // ─── Link an application to a project ────────────────────────────────────────
 export async function updateNSCProjectLink(receiveNo: string, projectId: string, newStatus?: string): Promise<void> {
   const id = getSpreadsheetId()

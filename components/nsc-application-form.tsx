@@ -13,11 +13,13 @@ import {
 } from "lucide-react"
 import { getFromCache, notifyCacheUpdate } from "@/lib/indexed-db"
 import { NSC_CLASSES, NSC_PHASES } from "@/lib/nsc-types"
+import type { NSCApplication } from "@/lib/nsc-types"
 import { NscCameraModal } from "@/components/nsc-camera-modal"
 import { NscCropDialog } from "@/components/nsc-crop-dialog"
 import { applyCamScannerMagicColor, detectDocumentCorners, warpPerspective } from "@/lib/document-scanner"
 
 interface Props {
+  initialApp?: NSCApplication
   agencies: string[]
   onSave: (receiveNo: string) => void
   onCancel: () => void
@@ -107,15 +109,16 @@ const processImageForScan = (
   })
 }
 
-export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
-  const [applicantName, setApplicantName] = useState("")
-  const [careOf, setCareOf]               = useState("")
-  const [address, setAddress]             = useState("")
-  const [mobile, setMobile]               = useState("")
-  const [appliedClass, setAppliedClass]   = useState("")
-  const [phase, setPhase]                 = useState("")
-  const [agency, setAgency]               = useState("")
-  const [officeRefNo, setOfficeRefNo]     = useState("")
+export function NscApplicationForm({ initialApp, agencies, onSave, onCancel }: Props) {
+  const isEditing = !!initialApp
+  const [applicantName, setApplicantName] = useState(initialApp?.applicantName || "")
+  const [careOf, setCareOf]               = useState(initialApp?.careOf || "")
+  const [address, setAddress]             = useState(initialApp?.address || "")
+  const [mobile, setMobile]               = useState(initialApp?.mobile || "")
+  const [appliedClass, setAppliedClass]   = useState(initialApp?.appliedClass || "")
+  const [phase, setPhase]                 = useState(initialApp?.phase || "")
+  const [agency, setAgency]               = useState(initialApp?.agency || "")
+  const [officeRefNo, setOfficeRefNo]     = useState(initialApp?.officeRefNo || "")
   const [agencyList, setAgencyList]       = useState<string[]>(agencies)
   const [submitting, setSubmitting]       = useState(false)
 
@@ -124,7 +127,7 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
   const [uploadingPdf, setUploadingPdf]   = useState(false)
   const [uploadProgressText, setUploadProgressText] = useState("")
   const [uploadError, setUploadError]     = useState<string | null>(null)
-  const [applicationFormUrl, setApplicationFormUrl] = useState("")
+  const [applicationFormUrl, setApplicationFormUrl] = useState(initialApp?.applicationFormUrl || "")
 
   // Modal states
   const [isCameraOpen, setIsCameraOpen]   = useState(false)
@@ -326,31 +329,54 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
     if (!appliedClass)         { alert("Applied class is required."); return }
     if (!phase)                { alert("Phase is required."); return }
     if (!agency)               { alert("Please assign an agency."); return }
-    if (!applicationFormUrl)   { alert("Please upload or compile the Application Form PDF first."); return }
+    if (!applicationFormUrl && !isEditing) { alert("Please upload or compile the Application Form PDF first."); return }
 
     setSubmitting(true)
     try {
-      const res = await fetch("/api/nsc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicantName: applicantName.trim(),
-          careOf: careOf.trim(),
-          address: address.trim(),
-          mobile: mobile.trim(),
-          appliedClass,
-          phase,
-          agency,
-          officeRefNo: officeRefNo.trim(),
-          applicationFormUrl
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed")
-      notifyCacheUpdate("nsc_applications_cache")
-      onSave(data.receiveNo)
+      if (isEditing && initialApp) {
+        const res = await fetch("/api/nsc", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            receiveNo: initialApp.receiveNo,
+            applicantName: applicantName.trim(),
+            careOf: careOf.trim(),
+            address: address.trim(),
+            mobile: mobile.trim(),
+            appliedClass,
+            phase,
+            agency,
+            officeRefNo: officeRefNo.trim(),
+            applicationFormUrl: applicationFormUrl || initialApp.applicationFormUrl || "",
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "Failed to update application")
+        notifyCacheUpdate("nsc_applications_cache")
+        onSave(initialApp.receiveNo)
+      } else {
+        const res = await fetch("/api/nsc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicantName: applicantName.trim(),
+            careOf: careOf.trim(),
+            address: address.trim(),
+            mobile: mobile.trim(),
+            appliedClass,
+            phase,
+            agency,
+            officeRefNo: officeRefNo.trim(),
+            applicationFormUrl
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || "Failed")
+        notifyCacheUpdate("nsc_applications_cache")
+        onSave(data.receiveNo)
+      }
     } catch (e: any) {
-      alert(e.message || "Failed to create application")
+      alert(e.message || "Failed to save application")
     } finally { setSubmitting(false) }
   }
 
@@ -359,8 +385,8 @@ export function NscApplicationForm({ agencies, onSave, onCancel }: Props) {
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="h-5 w-5" /></Button>
         <div>
-          <h1 className="text-xl font-bold">New NSC Application</h1>
-          <p className="text-xs text-gray-500">Receive number will be auto-assigned</p>
+          <h1 className="text-xl font-bold">{isEditing ? `Edit NSC Application — ${initialApp?.receiveNo}` : "New NSC Application"}</h1>
+          <p className="text-xs text-gray-500">{isEditing ? "Update applicant details and technical assignment" : "Receive number will be auto-assigned"}</p>
         </div>
       </div>
 
