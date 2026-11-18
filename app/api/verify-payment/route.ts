@@ -104,7 +104,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
         if (agencyRes.rows && agencyRes.rows.length > 0) {
           const aRow: any = agencyRes.rows[0]
           if (aRow.vendor_code) foundVendorCode = String(aRow.vendor_code)
-          if (aRow.subscription_expires_at) {
+          const agStatus = String(aRow.subscription_status || "").toLowerCase()
+          // Only extend from existing expiry date if status is 'active' and date is in the future.
+          // If status is 'expired' or 'inactive', recharge strictly starts from today (now).
+          if (agStatus === "active" && aRow.subscription_expires_at) {
             const agExp = new Date(aRow.subscription_expires_at)
             if (!isNaN(agExp.getTime()) && agExp > now) {
               baseDate = agExp
@@ -116,8 +119,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       }
     }
 
-    // Fallback: check session expiration date
-    if (session.subscriptionExpiresAt && baseDate.getTime() === now.getTime()) {
+    // Fallback: check session expiration date only if active
+    if (session.subscriptionExpiresAt && session.subscriptionStatus === "active" && baseDate.getTime() === now.getTime()) {
       const existingExp = new Date(session.subscriptionExpiresAt)
       if (!isNaN(existingExp.getTime()) && existingExp > now) {
         baseDate = existingExp

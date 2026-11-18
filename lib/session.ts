@@ -183,7 +183,15 @@ export async function verifySession() {
             }
           }
 
-          isSubscribed = anyActive
+          // If the user's direct record in users table was explicitly marked expired/inactive,
+          // user status takes priority
+          if (session.subscriptionStatus && session.subscriptionStatus !== "active") {
+            isSubscribed = false
+            subscriptionStatus = session.subscriptionStatus
+          } else {
+            isSubscribed = anyActive
+          }
+
           if (!anyActive && lastSubDetails) {
             subscriptionExpiresAt = lastSubDetails.expiresAt || ""
             subscriptionStatus = lastSubDetails.reason === "expired" ? "expired" : "inactive"

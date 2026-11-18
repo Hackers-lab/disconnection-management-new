@@ -115,7 +115,7 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
     let baseDate = new Date()
     try {
       const agRes = await db.execute({
-        sql: `SELECT a.id, a.name, a.vendor_code, a.subscription_expires_at
+        sql: `SELECT a.id, a.name, a.vendor_code, a.subscription_expires_at, a.subscription_status
               FROM agencies a
               JOIN ccc_registry c ON a.ccc_id = c.id
               WHERE c.ccc_code = ? COLLATE NOCASE
@@ -128,7 +128,8 @@ export async function reconcileCapturedPayment(payment: any): Promise<ReconcileR
         const aRow: any = agRes.rows[0]
         if (aRow.name) agencyName = String(aRow.name)
         if (aRow.vendor_code) vendorCode = String(aRow.vendor_code)
-        if (aRow.subscription_expires_at) {
+        const agStatus = String(aRow.subscription_status || "").toLowerCase()
+        if (agStatus === "active" && aRow.subscription_expires_at) {
           const agExp = new Date(aRow.subscription_expires_at)
           if (!isNaN(agExp.getTime()) && agExp > now) {
             baseDate = agExp

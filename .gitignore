@@ -72,3 +72,4 @@ signing-key-info.txt
 
 # Raw unmasked screenshots folder
 /images/
+*.har

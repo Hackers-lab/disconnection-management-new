@@ -3,6 +3,9 @@ import { sheets, getSpreadsheetId } from "@/lib/google-sheets-api"
 import { verifySession } from "@/lib/session"
 import { withTenant, getTenantContext } from "@/lib/tenant-context"
 import { compactBaseVersion } from "@/lib/version-engine"
+import { syncConsumersWithZoneMap } from "@/lib/zone-map-sync"
+
+export const maxDuration = 60
 
 const TAB = "AgencyZoneMap"
 const HISTORY_TAB = "ZoneMapHistory"
@@ -168,7 +171,33 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       console.warn("compactBaseVersion error for zone-map:", err)
     )
 
-    return NextResponse.json({ success: true, count: rows.length, historyEntries: historyEntries.length })
+    // 5. Automatically re-sync existing consumers in the main Google Sheet
+    // and bump consumer version if any consumers were reassigned
+    let resyncSummary = null
+    try {
+      const zoneAgencyMap = new Map<string, string>()
+      ;(rows || []).forEach(r => {
+        const z = normMru(r.zone || "")
+        const a = normMru(r.agency || "")
+        if (z && a) zoneAgencyMap.set(z, a)
+      })
+
+      resyncSummary = await syncConsumersWithZoneMap({
+        spreadsheetId: id,
+        changedBy: session.userId || "admin",
+        tenantId,
+        zoneAgencyMap,
+      })
+    } catch (syncErr) {
+      console.warn("Auto-sync consumers with zone map error:", syncErr)
+    }
+
+    return NextResponse.json({
+      success: true,
+      count: rows.length,
+      historyEntries: historyEntries.length,
+      summary: resyncSummary,
+    })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 })
   }

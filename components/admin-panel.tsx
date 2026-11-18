@@ -858,11 +858,17 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         setZoneMapRows(updated)
         // Update cache immediately with new data so next open is instant.
         await saveToCache(ZONE_MAP_CACHE_KEY, updated)
+        if (data.summary) {
+          setResyncResult(data.summary)
+        }
+        const reassignedInfo = data.summary?.reassigned
+          ? ` (${data.summary.reassigned} consumers auto-reassigned in sheet & version refreshed)`
+          : ""
         setMessage({
           type: "success",
           text: rows.length === 0
             ? "Zone map cleared successfully."
-            : `Zone map saved successfully (${rows.length} mappings).`
+            : `Zone map saved successfully (${rows.length} mappings)${reassignedInfo}.`
         })
         setShowClearZoneDialog(false)
       } else {

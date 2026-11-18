@@ -228,6 +228,9 @@ export async function addAgency({
 
   // If subscriptionExpiresAt was not explicitly passed, inherit tenant expiry
   const finalExpiresAt = subscriptionExpiresAt || (await resolveAgencyDefaultExpiry(cccCode))
+  const initialStatus = (finalExpiresAt && finalExpiresAt <= BILLING_START_DATE_STR && isBillingActive())
+    ? "expired"
+    : "active"
 
   // 1. Insert into Turso DB
   try {
@@ -243,7 +246,7 @@ export async function addAgency({
     if (cccId) {
       const insertRes = await db.execute({
         sql: `INSERT INTO agencies (vendor_code, ccc_id, name, description, mobile_number, is_active, subscription_status, subscription_expires_at)
-              VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           vendorCode || null,
           cccId,
@@ -251,6 +254,7 @@ export async function addAgency({
           description || "",
           mobileNumber || null,
           isActive ? 1 : 0,
+          initialStatus,
           finalExpiresAt || null
         ]
       })
@@ -282,7 +286,7 @@ export async function addAgency({
     isActive, 
     vendorCode: vendorCode || undefined, 
     mobileNumber: mobileNumber || undefined, 
-    subscriptionStatus: "active", 
+    subscriptionStatus: initialStatus, 
     subscriptionExpiresAt: finalExpiresAt,
     cccCode 
   }
@@ -507,76 +511,40 @@ export async function resolveAgencyDefaultExpiry(cccCode?: string): Promise<stri
   if (!cccCode || cccCode === "SYSTEM") return fallback
 
   try {
-    // 1. Look for existing agencies in this CCC to inherit their expiry date
+    // 1. Check if the CCC itself is currently in a 90-day operational trial
+    const cccTrial = await isCccInTrialPeriod(cccCode)
+    if (cccTrial.inTrial && cccTrial.expiresAt) {
+      return cccTrial.expiresAt
+    }
+
+    // 2. Look for existing agencies in this CCC that have an active trial grant (not paid)
+    // Only inherit if the date is still valid in the future
     const agRes = await db.execute({
       sql: `SELECT a.subscription_expires_at 
             FROM agencies a
             JOIN ccc_registry c ON a.ccc_id = c.id
-            WHERE c.ccc_code = ? COLLATE NOCASE AND a.subscription_expires_at IS NOT NULL AND a.subscription_expires_at != ''
+            WHERE c.ccc_code = ? COLLATE NOCASE 
+              AND a.subscription_status = 'active'
+              AND a.subscription_expires_at IS NOT NULL 
+              AND a.subscription_expires_at != ''
             ORDER BY a.id ASC
             LIMIT 1`,
       args: [cccCode]
     })
     if (agRes.rows && agRes.rows.length > 0 && agRes.rows[0].subscription_expires_at) {
-      return String(agRes.rows[0].subscription_expires_at).trim()
-    }
-
-    // 2. Check CCC details: first DC upload timestamp, registration date, or admin user expiry
-    const cccRes = await db.execute({
-      sql: `SELECT first_dc_upload_at, created_at FROM ccc_registry WHERE ccc_code = ? COLLATE NOCASE LIMIT 1`,
-      args: [cccCode]
-    })
-    if (cccRes.rows && cccRes.rows.length > 0) {
-      const cccRow: any = cccRes.rows[0]
-
-      // 2a. If first DC list was uploaded, trial is upload date + 90 days
-      if (cccRow.first_dc_upload_at) {
-        const uploadDate = new Date(String(cccRow.first_dc_upload_at))
-        if (!isNaN(uploadDate.getTime())) {
-          const exp = new Date(uploadDate.getTime() + 90 * 24 * 60 * 60 * 1000)
-          const y = exp.getFullYear()
-          const m = String(exp.getMonth() + 1).padStart(2, "0")
-          const d = String(exp.getDate()).padStart(2, "0")
-          return `${y}-${m}-${d}`
-        }
-      }
-
-      // 2b. If NO DC list uploaded yet, inherit the CCC admin user's setup expiry
-      const userRes = await db.execute({
-        sql: `SELECT u.subscription_expires_at 
-              FROM users u 
-              JOIN ccc_registry c ON u.ccc_id = c.id 
-              WHERE c.ccc_code = ? COLLATE NOCASE AND u.role = 'admin' AND u.subscription_expires_at IS NOT NULL AND u.subscription_expires_at != ''
-              ORDER BY u.created_at ASC 
-              LIMIT 1`,
-        args: [cccCode]
-      })
-      if (userRes.rows && userRes.rows.length > 0 && userRes.rows[0].subscription_expires_at) {
-        const adminExp = String(userRes.rows[0].subscription_expires_at).trim()
-        const expDate = new Date(adminExp)
-        if (!isNaN(expDate.getTime()) && expDate.getTime() > Date.now()) {
-          return adminExp
-        }
-      }
-
-      // 2c. If newly registered CCC without agencies, grant initial 14-day setup window
-      if (cccRow.created_at) {
-        const regDate = new Date(String(cccRow.created_at))
-        if (!isNaN(regDate.getTime())) {
-          const setupExp = new Date(regDate.getTime() + 14 * 24 * 60 * 60 * 1000)
-          if (Date.now() <= setupExp.getTime()) {
-            const y = setupExp.getFullYear()
-            const m = String(setupExp.getMonth() + 1).padStart(2, "0")
-            const d = String(setupExp.getDate()).padStart(2, "0")
-            return `${y}-${m}-${d}`
-          }
-        }
+      const existingExp = String(agRes.rows[0].subscription_expires_at).trim()
+      const expDate = new Date(existingExp)
+      expDate.setHours(23, 59, 59, 999)
+      if (!isNaN(expDate.getTime()) && Date.now() <= expDate.getTime()) {
+        return existingExp
       }
     }
   } catch (err) {
     console.warn("resolveAgencyDefaultExpiry notice:", err)
   }
 
+  // Once billing enforcement is active and CCC has no active trial, new agencies start with expired/past date
+  // so they are prompted to subscribe via Razorpay paywall.
   return fallback
 }
 

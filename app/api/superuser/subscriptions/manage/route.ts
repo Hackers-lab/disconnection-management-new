@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
       if (targetType === "agency") {
         const agId = targetId.replace("agency_", "")
         const agRes = await db.execute({
-          sql: `SELECT id, name, ccc_id, subscription_expires_at FROM agencies WHERE id = ?`,
+          sql: `SELECT a.id, a.name, a.vendor_code, a.ccc_id, a.subscription_expires_at, c.ccc_code 
+                FROM agencies a
+                LEFT JOIN ccc_registry c ON a.ccc_id = c.id
+                WHERE a.id = ?`,
           args: [agId],
         })
 
@@ -41,8 +44,26 @@ export async function POST(request: NextRequest) {
           args: [newExpiryStr, agId],
         })
 
+        // Also update corresponding agency user in users table
+        try {
+          await db.execute({
+            sql: `UPDATE users 
+                  SET subscription_status = 'active', 
+                      subscription_expires_at = ?, 
+                      updated_at = CURRENT_TIMESTAMP 
+                  WHERE ccc_id = ? AND role = 'agency' AND (
+                    full_name = ? COLLATE NOCASE 
+                    OR username = ? COLLATE NOCASE 
+                    OR agencies LIKE ?
+                  )`,
+            args: [newExpiryStr, agency.ccc_id, agency.name, agency.name, `%${agency.name}%`]
+          })
+        } catch (uSyncErr) {
+          console.warn("[Extend Subscription] User sync warning:", uSyncErr)
+        }
+
         // Invalidate in-memory cache
-        invalidateAgencyCache()
+        invalidateAgencyCache(agency.ccc_code)
 
         return NextResponse.json({
           success: true,
@@ -52,7 +73,10 @@ export async function POST(request: NextRequest) {
       } else {
         const uId = targetId.replace("user_", "")
         const uRes = await db.execute({
-          sql: `SELECT id, username, subscription_expires_at FROM users WHERE id = ?`,
+          sql: `SELECT u.id, u.username, u.full_name, u.ccc_id, u.agencies, u.subscription_expires_at, c.ccc_code 
+                FROM users u
+                LEFT JOIN ccc_registry c ON u.ccc_id = c.id
+                WHERE u.id = ?`,
           args: [uId],
         })
 
@@ -71,10 +95,90 @@ export async function POST(request: NextRequest) {
           args: [newExpiryStr, uId],
         })
 
+        // Also update corresponding agency in agencies table
+        try {
+          const userAgencies = user.agencies ? String(user.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+          const agencyCandidates = userAgencies.length > 0 ? userAgencies : [user.full_name || user.username]
+          for (const ag of agencyCandidates) {
+            if (!ag) continue
+            await db.execute({
+              sql: `UPDATE agencies 
+                    SET subscription_status = 'active', 
+                        subscription_expires_at = ?, 
+                        updated_at = CURRENT_TIMESTAMP 
+                    WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
+              args: [newExpiryStr, user.ccc_id, ag, ag]
+            })
+          }
+          invalidateAgencyCache(user.ccc_code)
+        } catch (agSyncErr) {
+          console.warn("[Extend Subscription] Agency sync warning:", agSyncErr)
+        }
+
         return NextResponse.json({
           success: true,
           message: `Extended ${user.username} by ${days} days until ${newExpiryStr}`,
           newExpiry: newExpiryStr,
+        })
+      }
+    } else if (action === "expire_now") {
+      const today = new Date().toISOString().split("T")[0]
+      if (targetType === "agency") {
+        const agId = targetId.replace("agency_", "")
+        const agRes = await db.execute({
+          sql: `SELECT a.id, a.name, a.ccc_id, c.ccc_code FROM agencies a LEFT JOIN ccc_registry c ON a.ccc_id = c.id WHERE a.id = ?`,
+          args: [agId],
+        })
+        if (!agRes.rows || agRes.rows.length === 0) {
+          return NextResponse.json({ error: "Agency not found" }, { status: 404 })
+        }
+        const agency: any = agRes.rows[0]
+        await db.execute({
+          sql: `UPDATE agencies SET subscription_status = 'expired', subscription_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          args: [today, agId],
+        })
+        try {
+          await db.execute({
+            sql: `UPDATE users SET subscription_status = 'expired', subscription_expires_at = ?, updated_at = CURRENT_TIMESTAMP 
+                  WHERE ccc_id = ? AND role = 'agency' AND (full_name = ? COLLATE NOCASE OR username = ? COLLATE NOCASE OR agencies LIKE ?)`,
+            args: [today, agency.ccc_id, agency.name, agency.name, `%${agency.name}%`]
+          })
+        } catch (e) {}
+        invalidateAgencyCache(agency.ccc_code)
+        return NextResponse.json({
+          success: true,
+          message: `Subscription for ${agency.name} has been expired immediately`,
+        })
+      } else {
+        const uId = targetId.replace("user_", "")
+        const uRes = await db.execute({
+          sql: `SELECT u.id, u.username, u.full_name, u.ccc_id, u.agencies, c.ccc_code FROM users u LEFT JOIN ccc_registry c ON u.ccc_id = c.id WHERE u.id = ?`,
+          args: [uId],
+        })
+        if (!uRes.rows || uRes.rows.length === 0) {
+          return NextResponse.json({ error: "User not found" }, { status: 404 })
+        }
+        const user: any = uRes.rows[0]
+        await db.execute({
+          sql: `UPDATE users SET subscription_status = 'expired', subscription_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          args: [today, uId],
+        })
+        try {
+          const userAgencies = user.agencies ? String(user.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
+          const agencyCandidates = userAgencies.length > 0 ? userAgencies : [user.full_name || user.username]
+          for (const ag of agencyCandidates) {
+            if (!ag) continue
+            await db.execute({
+              sql: `UPDATE agencies SET subscription_status = 'expired', subscription_expires_at = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE ccc_id = ? AND (name = ? COLLATE NOCASE OR vendor_code = ? COLLATE NOCASE)`,
+              args: [today, user.ccc_id, ag, ag]
+            })
+          }
+          invalidateAgencyCache(user.ccc_code)
+        } catch (e) {}
+        return NextResponse.json({
+          success: true,
+          message: `Subscription for ${user.username} has been expired immediately`,
         })
       }
     } else if (action === "toggle_bypass") {
@@ -108,10 +212,11 @@ export async function POST(request: NextRequest) {
       }
 
       const refund = await razorpay.payments.refund(paymentId, refundOptions)
+      const refAmt = typeof refund?.amount === "number" ? refund.amount / 100 : 0
 
       return NextResponse.json({
         success: true,
-        message: `Refund of ₹${refund.amount / 100} initiated successfully (Refund ID: ${refund.id})`,
+        message: `Refund of ₹${refAmt} initiated successfully (Refund ID: ${refund.id})`,
         refund,
       })
     } else if (action === "delete_payment") {

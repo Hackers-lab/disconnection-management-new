@@ -115,6 +115,9 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Agency name already exists" }, { status: 400 })
     }
 
+    const oldNameUpper = existingAgency.name?.trim().toUpperCase()
+    const newNameUpper = name ? name.trim().toUpperCase() : oldNameUpper
+
     await updateAgency({ 
       id, 
       name: name.toUpperCase(), 
@@ -126,8 +129,53 @@ export const PUT = withTenant(async function PUT(request: NextRequest) {
 
     console.log(`🏢 [AGENCY UPDATED] ${name.toUpperCase()} (Vendor Code: ${vendorCode || "N/A"}) in CCC ${session.cccCode}`)
 
-    const tenantId = request.headers.get("x-tenant-id") || "default"
+    const tenantId = request.headers.get("x-tenant-id") || session.cccCode || "default"
     await incrKV(getTenantKey(tenantId, "agencies:version"))
+
+    // Cascade agency rename to AgencyZoneMap & consumer sheet if name changed
+    if (oldNameUpper && newNameUpper && oldNameUpper !== newNameUpper) {
+      try {
+        const { getSpreadsheetId } = await import("@/lib/google-sheets-api")
+        const { sheets: googleSheets } = await import("@googleapis/sheets")
+        const { auth } = await import("@/lib/google-drive")
+        const sheetsClient = googleSheets({ version: "v4", auth })
+        const sheetId = getSpreadsheetId()
+        const resp = await sheetsClient.spreadsheets.values.get({ spreadsheetId: sheetId, range: "AgencyZoneMap!A:D" })
+        const existingZoneRows = (resp.data.values || []).slice(1)
+        let hasChange = false
+        const updatedZoneMap = new Map<string, string>()
+        const newZoneRows = existingZoneRows.map(r => {
+          const mru = String(r[0] || "").trim().toUpperCase()
+          let ag = String(r[1] || "").trim().toUpperCase()
+          if (ag === oldNameUpper) {
+            ag = newNameUpper
+            hasChange = true
+          }
+          if (mru && ag) updatedZoneMap.set(mru, ag)
+          return [mru, ag, r[2] || "", r[3] || ""]
+        })
+        if (hasChange) {
+          await sheetsClient.spreadsheets.values.clear({ spreadsheetId: sheetId, range: "AgencyZoneMap!A2:D" })
+          await sheetsClient.spreadsheets.values.update({
+            spreadsheetId: sheetId,
+            range: "AgencyZoneMap!A2:D",
+            valueInputOption: "RAW",
+            requestBody: { values: newZoneRows },
+          })
+          const { syncConsumersWithZoneMap } = await import("@/lib/zone-map-sync")
+          const { compactBaseVersion } = await import("@/lib/version-engine")
+          await syncConsumersWithZoneMap({
+            spreadsheetId: sheetId,
+            changedBy: session.userId || "admin",
+            tenantId,
+            zoneAgencyMap: updatedZoneMap,
+          })
+          await compactBaseVersion(tenantId, "zone-map")
+        }
+      } catch (cascadeErr) {
+        console.warn("Cascade agency rename to zone map notice:", cascadeErr)
+      }
+    }
     return NextResponse.json({ success: true, message: "Agency updated successfully" })
   } catch (error) {
     console.error("Error updating agency:", error)
