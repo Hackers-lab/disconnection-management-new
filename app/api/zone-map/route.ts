@@ -80,7 +80,15 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const { rows } = await request.json() as { rows: ZoneRow[] }
+    const { rows, clearHistory } = await request.json() as { rows: ZoneRow[]; clearHistory?: boolean }
+    
+    // Safety guard: Limit to 500 zones per CCC to prevent accidental consumer ID list uploads
+    if (rows && rows.length > 500) {
+      return NextResponse.json({
+        error: `Zone map limit exceeded: Received ${rows.length} entries (Maximum limit: 500). Please ensure you are uploading MRU/Zone codes, not Consumer IDs.`,
+      }, { status: 400 })
+    }
+
     const id = getSpreadsheetId()
 
     await ensureTabsExist(id, [
@@ -141,8 +149,10 @@ export const POST = withTenant(async function POST(request: NextRequest) {
       })
     }
 
-    // 3. Append history asynchronously without blocking the client response
-    if (historyEntries.length > 0) {
+    // 3. Clear or append history
+    if (clearHistory) {
+      await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${HISTORY_TAB}'!A2:E` })
+    } else if (historyEntries.length > 0) {
       sheets.spreadsheets.values.append({
         spreadsheetId: id,
         range: `'${HISTORY_TAB}'!A:E`,

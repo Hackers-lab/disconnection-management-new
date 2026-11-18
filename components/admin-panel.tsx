@@ -426,6 +426,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     const [mruSearch, setMruSearch] = useState("");
     const [resyncing, setResyncing] = useState(false);
     const [resyncResult, setResyncResult] = useState<{ scanned: number; reassigned: number; skippedProtected: number; unchanged: number; unmapped: number } | null>(null);
+    const [showClearZoneDialog, setShowClearZoneDialog] = useState(false);
+    const [clearZoneHistory, setClearZoneHistory] = useState(true);
+    const [zoneUploadWarning, setZoneUploadWarning] = useState("");
+    const [zoneUploadError, setZoneUploadError] = useState("");
 
     // Auto-suggest the column mapping using a 3-tier match:
     //  1. exact header-name match (synonyms, normalized)
@@ -840,13 +844,13 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     }
   }
 
-  const saveZoneMap = async (rows: { zone: string; agency: string; address?: string }[]) => {
+  const saveZoneMap = async (rows: { zone: string; agency: string; address?: string }[], clearHistory = false) => {
     setZoneMapSaving(true)
     try {
       const resp = await fetch("/api/zone-map", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows, clearHistory }),
       })
       const data = await resp.json().catch(() => ({}))
       if (resp.ok && data.success !== false) {
@@ -854,7 +858,13 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         setZoneMapRows(updated)
         // Update cache immediately with new data so next open is instant.
         await saveToCache(ZONE_MAP_CACHE_KEY, updated)
-        setMessage({ type: "success", text: `Zone map saved successfully (${rows.length} mappings).` })
+        setMessage({
+          type: "success",
+          text: rows.length === 0
+            ? "Zone map cleared successfully."
+            : `Zone map saved successfully (${rows.length} mappings).`
+        })
+        setShowClearZoneDialog(false)
       } else {
         setMessage({ type: "error", text: data?.error || "Failed to save zone map" })
       }
@@ -863,6 +873,26 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       setMessage({ type: "error", text: err?.message || "Failed to communicate with server to save zone map" })
     } finally {
       setZoneMapSaving(false)
+    }
+  }
+
+  const processParsedZoneRows = (parsed: { zone: string; agency: string; address?: string }[]) => {
+    setZoneUploadRows(parsed)
+
+    // Check for consumer IDs (8-10 digit numbers)
+    const consumerIds = parsed.filter(r => /^\d{8,10}$/.test(r.zone))
+    if (consumerIds.length > 0) {
+      const sample = consumerIds[0].zone
+      setZoneUploadError(`❌ Warning: Found ${consumerIds.length} Consumer IDs in the MRU column (e.g. "${sample}"). Zone Map is for MRU codes (e.g. "FOA01QMR"), NOT Consumer IDs!`)
+    } else {
+      setZoneUploadError("")
+    }
+
+    // Check 500 limit
+    if (parsed.length > 500) {
+      setZoneUploadWarning(`⚠️ High Zone Count: File contains ${parsed.length} entries (Recommended limit: 500 zones per CCC). Please verify that this file contains MRU codes and not a consumer list.`)
+    } else {
+      setZoneUploadWarning("")
     }
   }
 
@@ -897,11 +927,15 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       complete: (res: any) => {
         const rows = res.data as any[][]
         if (!rows || rows.length < 2) return
-        // Expect: Zone (col 0), Agency (col 1)
+        // Expect: Zone (col 0), Agency (col 1), Address (col 2)
         const parsed = rows.slice(1)
-          .map(r => ({ zone: String(r[0] || "").trim().toUpperCase(), agency: String(r[1] || "").trim().toUpperCase() }))
+          .map(r => ({
+            zone: String(r[0] || "").trim().toUpperCase(),
+            agency: String(r[1] || "").trim().toUpperCase(),
+            address: String(r[2] || "").trim(),
+          }))
           .filter(r => r.zone && r.agency)
-        setZoneUploadRows(parsed)
+        processParsedZoneRows(parsed)
       },
       error: () => setMessage({ type: "error", text: "Failed to parse zone map CSV" }),
     })
@@ -3256,6 +3290,11 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Re-syncing…</>
                   : <>Re-sync agencies</>}
               </Button>
+              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                disabled={zoneMapSaving || zoneMapLoading || zoneMapRows.length === 0}
+                onClick={() => setShowClearZoneDialog(true)} title="Clear all zones and history if mistakes were made">
+                <Trash2 className="h-4 w-4 mr-1 text-red-500" /> Clear Zones
+              </Button>
               <Button size="sm" variant="outline" onClick={async () => {
                 const XLSX = await import("xlsx")
                 const wb = XLSX.utils.book_new()
@@ -3393,7 +3432,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                                 agency:  String(r[1] || "").trim().toUpperCase(),
                                 address: String(r[2] || "").trim(),
                               })).filter(r => r.zone && r.agency)
-                              setZoneUploadRows(parsed)
+                              processParsedZoneRows(parsed)
                             }
                             reader.readAsArrayBuffer(file)
                           } else {
@@ -3402,16 +3441,43 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                         }}
                       />
                       {zoneUploadFileName && <p className="text-xs text-gray-500">{zoneUploadFileName}</p>}
+                      {zoneUploadError && (
+                        <Alert variant="destructive" className="py-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-xs">{zoneUploadError}</AlertDescription>
+                        </Alert>
+                      )}
+                      {zoneUploadWarning && (
+                        <Alert className="border-amber-300 bg-amber-50 py-2">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <AlertDescription className="text-xs text-amber-800">{zoneUploadWarning}</AlertDescription>
+                        </Alert>
+                      )}
                       {zoneUploadRows.length > 0 && (
                         <Button size="sm" disabled={zoneMapSaving}
                           onClick={() => {
+                            if (zoneUploadError) {
+                              if (!confirm(
+                                "Warning: Numerical Consumer IDs were detected in your file instead of MRU codes.\n\n" +
+                                "Zone Map is strictly for MRUs (e.g. 'AB01MR'). Are you sure you want to proceed?"
+                              )) return
+                            }
                             const incoming = new Map(zoneUploadRows.map(r => [r.zone, r]))
                             const merged = [
                               ...zoneMapRows.filter(r => !incoming.has(r.zone)),
                               ...zoneUploadRows,
                             ].sort((a, b) => a.zone.localeCompare(b.zone))
+
+                            if (merged.length > 500) {
+                              if (!confirm(
+                                `Warning: Total zones will reach ${merged.length}, which exceeds the 500 zone limit.\n\n` +
+                                `A typical CCC has 20 to 150 zones.\n\n` +
+                                `Are you sure you want to proceed?`
+                              )) return
+                            }
+
                             saveZoneMap(merged)
-                            setZoneUploadRows([]); setZoneUploadFileName("")
+                            setZoneUploadRows([]); setZoneUploadFileName(""); setZoneUploadWarning(""); setZoneUploadError("")
                           }}
                         >
                           {zoneMapSaving ? (
@@ -3937,6 +4003,58 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             >
               <Save className="h-4 w-4 mr-2" />
               Save Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Zone Map Dialog */}
+      <Dialog open={showClearZoneDialog} onOpenChange={setShowClearZoneDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Clear All Zone Mappings
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm text-gray-600">
+            <p>
+              Are you sure you want to clear all <strong>{zoneMapRows.length}</strong> zone mappings?
+              This will erase all zone rows from the Google Sheet.
+            </p>
+            <div className="flex items-center space-x-2 pt-2 border-t">
+              <input
+                type="checkbox"
+                id="clearZoneHistoryCheckbox"
+                checked={clearZoneHistory}
+                onChange={(e) => setClearZoneHistory(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+              />
+              <label htmlFor="clearZoneHistoryCheckbox" className="text-xs font-medium text-gray-700 cursor-pointer">
+                Also clear ZoneMapHistory sheet
+              </label>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowClearZoneDialog(false)} disabled={zoneMapSaving}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={zoneMapSaving}
+              onClick={() => saveZoneMap([], clearZoneHistory)}
+            >
+              {zoneMapSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Clearing…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Yes, Clear Everything
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
