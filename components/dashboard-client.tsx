@@ -40,6 +40,7 @@ const SubscriptionExpiryAlertModal = dynamic(() => import("@/components/subscrip
 
 import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck, Receipt } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
+import { useOnboardingGuide, notifyOnboardingUpdated } from "@/components/onboarding-spotlight"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
 import { PaymentCelebrationModal } from "@/components/payment-celebration-modal"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
@@ -84,6 +85,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
   const [showGuideModal, setShowGuideModal] = useState(false)
   const [adminInitialView, setAdminInitialView] = useState<any>(undefined)
+  const onboarding = useOnboardingGuide(role)
+  const prevCoreLockedRef = useRef<boolean | null>(null)
 
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(initialProfile?.isSubscribed ?? true)
@@ -235,66 +238,46 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     checkTenantStatus()
   }, [role])
 
-  // Check onboarding checklist and success param on mount
+  // Handle Google OAuth success param and workspace unlock transitions
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       if (params.get("success") === "true") {
         setShowSuccessModal(true)
-        setShowGuideModal(true)
+        notifyOnboardingUpdated()
         // Clean up search params to avoid popping up again on refresh
         const cleanUrl = window.location.pathname + window.location.hash
         window.history.replaceState(null, "", cleanUrl)
       }
     }
-
-    if (role === "admin") {
-      const checkOnboardingGuide = async () => {
-        try {
-          if (typeof window !== "undefined") {
-            const seen = sessionStorage.getItem("setup_guide_dismissed")
-            const completed = sessionStorage.getItem("admin_onboarding_completed")
-            if (completed === "true" || seen) return
-
-            const cached = sessionStorage.getItem("admin_onboarding_data")
-            if (cached) {
-              try {
-                const data = JSON.parse(cached)
-                if (data.isLinked && !data.allCompleted) {
-                  setShowGuideModal(true)
-                }
-                return
-              } catch {
-                sessionStorage.removeItem("admin_onboarding_data")
-              }
-            }
-          }
-
-          const res = await fetch("/api/admin/onboarding-checklist")
-          if (res.ok) {
-            const data = await res.json()
-            if (typeof window !== "undefined") {
-              if (data.allCompleted) {
-                sessionStorage.setItem("admin_onboarding_completed", "true")
-                sessionStorage.removeItem("admin_onboarding_data")
-              } else {
-                sessionStorage.setItem("admin_onboarding_data", JSON.stringify(data))
-              }
-            }
-            if (data.isLinked && !data.allCompleted) {
-              const seen = sessionStorage.getItem("setup_guide_dismissed")
-              if (!seen) {
-                setShowGuideModal(true)
-              }
-            }
-          }
-        } catch (e) {
-          console.error("Failed to check onboarding checklist", e)
-        }
-      }
-      checkOnboardingGuide()
-    }
   }, [role])
+
+  // Celebrate when core setup unlocks (1 Agency + 1 User created)
+  useEffect(() => {
+    if (!onboarding.loaded) return
+    if (prevCoreLockedRef.current === true && !onboarding.isCoreSetupLocked) {
+      toast({
+        title: "Workspace Unlocked!",
+        description: "All operational modules are now enabled. Continue with Zone Map & DC List whenever ready.",
+      })
+    }
+    prevCoreLockedRef.current = onboarding.isCoreSetupLocked
+  }, [onboarding.loaded, onboarding.isCoreSetupLocked])
+
+  // Keep locked admins focused on Home or Admin Panel until 1 Agency + 1 User exist
+  useEffect(() => {
+    if (
+      onboarding.isCoreSetupLocked &&
+      activeView !== "home" &&
+      activeView !== "admin" &&
+      activeView !== "profile"
+    ) {
+      setActiveViewInternal("home")
+      if (typeof window !== "undefined" && window.location.hash) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search)
+      }
+    }
+  }, [onboarding.isCoreSetupLocked, activeView])
 
   const handleGuideNavigate = (targetView: string) => {
     if (targetView.startsWith("admin:")) {
@@ -304,11 +287,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
       if (typeof window !== "undefined") {
         window.history.pushState(null, "", `#admin/${subView}`)
       }
-    } else if (targetView === "consumerMaster") {
-      setActiveViewInternal("consumerMaster")
-      if (typeof window !== "undefined") {
-        window.history.pushState(null, "", "#consumerMaster")
-      }
+    } else if (targetView === "consumerMaster" || targetView === "consumer-master") {
+      setActiveView("consumer-master")
     } else {
       setActiveView(targetView as any)
     }
@@ -316,6 +296,22 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
   // Handle setting active view and updating hash/history
   const setActiveView = (newView: ViewType | "home") => {
+    if (
+      onboarding.isCoreSetupLocked &&
+      newView !== "home" &&
+      newView !== "admin" &&
+      newView !== "profile"
+    ) {
+      toast({
+        title: "Quick Setup Required",
+        description: "Please add at least 1 Agency and 1 User in Admin Panel to unlock all modules.",
+      })
+      setActiveViewInternal("home")
+      return
+    }
+    if (newView !== "admin") {
+      setAdminInitialView(undefined)
+    }
     setActiveViewInternal(newView)
     if (typeof window === "undefined") return
 
@@ -1495,6 +1491,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         onDownloadExcel={downloadExcel}
         onDownloadDefaulters={() => openDownloadDialog("defaulters")}
         permissions={permissions}
+        isSetupLocked={onboarding.isCoreSetupLocked}
       >
         {/* DOWNLOAD DIALOG */}
         <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
@@ -1608,7 +1605,14 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         {role === "division_viewer" ? (
           <DivisionalDashboard userRole={role} username={profileCccCode || role} cccCode={profileCccCode} />
         ) : activeView === "home" ? (
-          <DashboardMenu onSelect={setActiveView} userRole={role} userAgencies={agencies} permissions={permissions} />
+          <DashboardMenu
+            onSelect={setActiveView}
+            userRole={role}
+            userAgencies={agencies}
+            permissions={permissions}
+            onboarding={onboarding}
+            onNavigateToStep={handleGuideNavigate}
+          />
         ) : null}
 
         {activeView === "disconnection" && (
@@ -1777,6 +1781,10 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                setActiveView("home")
              }} 
              initialView={adminInitialView}
+             onNavigateToConsumerMaster={() => {
+               setAdminInitialView(undefined)
+               setActiveView("consumer-master")
+             }}
            />
         )}
 
@@ -2306,11 +2314,12 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
               <Button 
                 onClick={() => {
                   setShowSuccessModal(false)
-                  setShowGuideModal(true)
+                  setActiveView("home")
+                  notifyOnboardingUpdated()
                 }} 
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl interactive-tap"
               >
-                Start Setup Checklist (5 Steps) →
+                Start Guided Setup →
               </Button>
               <Button 
                 variant="ghost"

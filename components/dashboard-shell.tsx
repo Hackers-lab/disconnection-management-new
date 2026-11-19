@@ -24,6 +24,7 @@ interface DashboardShellProps {
   onDownloadExcel?: () => void
   onDownloadDefaulters?: () => void
   permissions?: Record<string, string[]>
+  isSetupLocked?: boolean
 }
 
 const SIDEBAR_COLLAPSED_KEY = "dm_sidebar_collapsed"
@@ -44,6 +45,7 @@ export function DashboardShell({
   onDownloadExcel,
   onDownloadDefaulters,
   permissions,
+  isSetupLocked = false,
 }: DashboardShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false)
@@ -100,7 +102,8 @@ export function DashboardShell({
         activeView={activeView}
         setActiveView={setActiveView}
         permissions={permissions}
-        onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
+        onOpenQuickSwitcher={isSetupLocked ? undefined : () => setQuickSwitcherOpen(true)}
+        isSetupLocked={isSetupLocked}
       />
 
       {/* Persistent Desktop Sidebar (hidden on fullscreen GIS Camera) */}
@@ -114,6 +117,7 @@ export function DashboardShell({
           userRole={role}
           agencies={agencies}
           permissions={permissions}
+          isSetupLocked={isSetupLocked}
         />
       )}
 
@@ -147,14 +151,16 @@ export function DashboardShell({
       </div>
 
       {/* Cmd/Ctrl+K Quick Module Switcher */}
-      <QuickModuleSwitcher
-        open={quickSwitcherOpen}
-        onOpenChange={setQuickSwitcherOpen}
-        activeView={activeView}
-        onSelect={setActiveView}
-        userRole={role}
-        permissions={permissions}
-      />
+      {!isSetupLocked && (
+        <QuickModuleSwitcher
+          open={quickSwitcherOpen}
+          onOpenChange={setQuickSwitcherOpen}
+          activeView={activeView}
+          onSelect={setActiveView}
+          userRole={role}
+          permissions={permissions}
+        />
+      )}
 
       <PushNotificationManager />
     </div>

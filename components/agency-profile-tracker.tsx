@@ -210,8 +210,8 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
     }
   }
 
-  const toggleExpandCCC = (code: string) => {
-    setExpandedCCCs((prev) => ({ ...prev, [code]: !prev[code] }))
+  const toggleExpandCCC = (code: string, currentlyExpanded: boolean) => {
+    setExpandedCCCs((prev) => ({ ...prev, [code]: !currentlyExpanded }))
   }
 
   const expandAllCCCs = () => {
@@ -219,11 +219,21 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
     cccList.forEach((c) => {
       next[c.cccCode] = true
     })
+    groupedByCCC.forEach(({ ccc }) => {
+      next[ccc.cccCode] = true
+    })
     setExpandedCCCs(next)
   }
 
   const collapseAllCCCs = () => {
-    setExpandedCCCs({})
+    const next: Record<string, boolean> = {}
+    cccList.forEach((c) => {
+      next[c.cccCode] = false
+    })
+    groupedByCCC.forEach(({ ccc }) => {
+      next[ccc.cccCode] = false
+    })
+    setExpandedCCCs(next)
   }
 
   // Filtered agencies
@@ -286,8 +296,12 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
     return Object.values(groups).filter((g) => g.items.length > 0)
   }, [cccList, filteredAgencies, selectedCCC])
 
-  // Export CSV
+  // Export CSV safely via Blob (handles special characters like # and %)
   const handleExportCSV = () => {
+    if (filteredAgencies.length === 0) {
+      toast({ variant: "destructive", title: "Nothing to Export", description: "No agencies match the current filter." })
+      return
+    }
     const headers = [
       "Agency Name",
       "CCC Code",
@@ -314,21 +328,25 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
       a.vendorCodeValid && a.mobileNumberValid ? "Completed" : "Pending",
     ])
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n")
-    const encodedUri = encodeURI(csvContent)
+    const csvText = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n")
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    link.setAttribute("href", encodedUri)
-    link.setAttribute(
-      "download",
-      `agency_profile_completion_report_${new Date().toISOString().slice(0, 10)}.csv`
-    )
+    link.href = url
+    link.download = `agency_profile_completion_report_${new Date().toISOString().slice(0, 10)}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast({ title: "CSV Exported", description: `Downloaded ${filteredAgencies.length} agency records.` })
   }
 
-  const copyPendingSummary = () => {
+  const copyPendingSummary = async () => {
     const pendingList = filteredAgencies.filter((a) => !a.vendorCodeValid || !a.mobileNumberValid)
+    if (pendingList.length === 0) {
+      toast({ title: "All Agencies Complete", description: "No pending agencies in the current view." })
+      return
+    }
     const text = `PENDING AGENCY UPDATES REPORT (${pendingList.length} Agencies):\n\n` +
       pendingList
         .map(
@@ -339,9 +357,14 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
         )
         .join("\n")
 
-    navigator.clipboard.writeText(text)
-    setCopiedNotification(true)
-    setTimeout(() => setCopiedNotification(false), 2500)
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedNotification(true)
+      setTimeout(() => setCopiedNotification(false), 2500)
+      toast({ title: "Pending Summary Copied", description: `Copied ${pendingList.length} pending agencies to clipboard.` })
+    } catch {
+      toast({ variant: "destructive", title: "Copy Failed", description: "Clipboard access was blocked by the browser." })
+    }
   }
 
   if (loading) {
@@ -448,11 +471,16 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
         </div>
       </div>
 
-      {/* KPI METRIC CARDS */}
+      {/* KPI METRIC CARDS (Clickable Filters) */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {/* Card 1: Overall Completed */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden">
+          <Card
+            onClick={() => setFilterTab((prev) => (prev === "completed" ? "all" : "completed"))}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden cursor-pointer card-interactive transition-all ${
+              filterTab === "completed" ? "ring-2 ring-emerald-500/40 border-emerald-400" : ""
+            }`}
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500">Overall Completed</span>
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
@@ -468,7 +496,6 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
             <p className="text-[11px] text-slate-500 mt-1">
               out of {summary.totalAgencies} total agencies
             </p>
-            {/* Progress bar */}
             <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
               <div
                 className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500"
@@ -478,7 +505,12 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
           </Card>
 
           {/* Card 2: Pending / Incomplete */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden">
+          <Card
+            onClick={() => setFilterTab((prev) => (prev === "pending" ? "all" : "pending"))}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden cursor-pointer card-interactive transition-all ${
+              filterTab === "pending" ? "ring-2 ring-amber-500/40 border-amber-400" : ""
+            }`}
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500">Pending Updates</span>
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-100">
@@ -503,7 +535,12 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
           </Card>
 
           {/* Card 3: Vendor Code Status */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden">
+          <Card
+            onClick={() => setFilterTab((prev) => (prev === "missing_vendor" ? "all" : "missing_vendor"))}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden cursor-pointer card-interactive transition-all ${
+              filterTab === "missing_vendor" ? "ring-2 ring-blue-500/40 border-blue-400" : ""
+            }`}
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500">Vendor Codes (6-Digit)</span>
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
@@ -527,7 +564,12 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
           </Card>
 
           {/* Card 4: Mobile Number Status */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden">
+          <Card
+            onClick={() => setFilterTab((prev) => (prev === "missing_mobile" ? "all" : "missing_mobile"))}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 relative overflow-hidden cursor-pointer card-interactive transition-all ${
+              filterTab === "missing_mobile" ? "ring-2 ring-purple-500/40 border-purple-400" : ""
+            }`}
+          >
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500">Mobile Numbers (10-Digit)</span>
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-purple-50 text-purple-600 border border-purple-100">
@@ -722,7 +764,7 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
                 >
                   {/* CCC Card Header */}
                   <div
-                    onClick={() => toggleExpandCCC(ccc.cccCode)}
+                    onClick={() => toggleExpandCCC(ccc.cccCode, isExpanded)}
                     className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 cursor-pointer hover:bg-slate-50/70 transition-colors"
                   >
                     <div className="flex items-center gap-3">
@@ -780,7 +822,7 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
 
                   {/* Expandable Agency List */}
                   {isExpanded && (
-                    <div className="border-t border-slate-100 bg-slate-50/40 p-2 sm:p-3 space-y-2">
+                    <div className="border-t border-slate-100 bg-slate-50/40 p-2 sm:p-3 space-y-2 animate-panel-reveal">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
@@ -890,7 +932,7 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
 
       {/* VIEW MODE 2: ALL TABLE */}
       {viewMode === "all_table" && (
-        <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl overflow-hidden">
+        <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl overflow-hidden animate-tab-enter">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -1014,22 +1056,34 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
             )}
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Vendor Code (SAP / Contractor 6-Digits)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-slate-700">Vendor Code (SAP / Contractor 6-Digits)</Label>
+                <span className={`text-[10px] font-mono ${editVendorCode.length === 6 ? "text-emerald-600 font-bold" : "text-slate-400"}`}>
+                  {editVendorCode.length}/6 digits
+                </span>
+              </div>
               <Input
                 type="text"
+                inputMode="numeric"
                 placeholder="e.g. 504105 (6 digits)"
-                maxLength={10}
+                maxLength={6}
                 value={editVendorCode}
-                onChange={(e) => setEditVendorCode(e.target.value)}
+                onChange={(e) => setEditVendorCode(e.target.value.replace(/\D/g, ""))}
                 className="text-xs font-mono rounded-xl h-9"
               />
               <p className="text-[10px] text-slate-400">Must be a valid 6-digit vendor code number.</p>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-700">Mobile Number (10 Digits)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-slate-700">Mobile Number (10 Digits)</Label>
+                <span className={`text-[10px] font-mono ${editMobileNumber.length === 10 ? "text-emerald-600 font-bold" : "text-slate-400"}`}>
+                  {editMobileNumber.length}/10 digits
+                </span>
+              </div>
               <Input
                 type="tel"
+                inputMode="numeric"
                 placeholder="e.g. 9876543210 (10 digits)"
                 maxLength={10}
                 value={editMobileNumber}

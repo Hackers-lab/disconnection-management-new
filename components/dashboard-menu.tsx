@@ -42,15 +42,31 @@ import {
   getRecentModules,
 } from "@/lib/module-catalog"
 import { Clock, AlertTriangle, Sparkles } from "lucide-react"
+import {
+  GuidedJourneyBar,
+  HandGesturePointer,
+  LockedModulesPreview,
+  ResumeGuideBanner,
+  type OnboardingGuideState,
+} from "@/components/onboarding-spotlight"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
   userRole: string
   userAgencies?: string[]
   permissions?: Record<string, string[]>
+  onboarding?: OnboardingGuideState
+  onNavigateToStep?: (targetView: string) => void
 }
 
-export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissions }: DashboardMenuProps) {
+export function DashboardMenu({
+  onSelect,
+  userRole,
+  userAgencies = [],
+  permissions,
+  onboarding,
+  onNavigateToStep,
+}: DashboardMenuProps) {
   const { theme } = useModuleTheme()
   const [recentModuleIds, setRecentModuleIds] = useState<ViewType[]>([])
   const [latestUpdateDate, setLatestUpdateDate] = useState<string>("")
@@ -1163,8 +1179,104 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
     onSelect(id)
   }
 
+  const isCoreSetupLocked = Boolean(onboarding?.isCoreSetupLocked)
+  const activeStepId = onboarding?.activeStepId ?? null
+  const isGuiding = Boolean(onboarding?.isGuiding)
+
+  // Focused Guided Onboarding Mode: Show ONLY Admin Panel until at least 1 Agency and 1 User exist
+  if (isCoreSetupLocked && onboarding) {
+    const adminMod = accessibleModulesWithCounts.find((m) => m.id === "admin")
+    const AdminIcon = adminMod?.icon || Settings
+    const stepNumber = onboarding.hasAgencies ? 2 : 1
+    const handLabel = onboarding.hasAgencies
+      ? "Step 2: Open to Create User"
+      : "Step 1: Open to Add Agency"
+
+    return (
+      <div className="relative max-w-5xl mx-auto space-y-5 sm:space-y-6 pb-8">
+        {/* 5-Step Guided Journey Stepper */}
+        <GuidedJourneyBar
+          onboarding={onboarding}
+          onNavigateToStep={onNavigateToStep}
+          context="dashboard"
+        />
+
+        {/* Spotlighted Admin Panel Hero Card with Pointing Hand Gesture */}
+        <section className="animate-fade-slide-up">
+          <div className="flex items-center justify-between px-0.5 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse" />
+              <h2 className="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                Step {stepNumber} of 2 to Unlock Workspace
+              </h2>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-500">
+              Tap the highlighted card below
+            </span>
+          </div>
+
+          <div className="max-w-lg">
+            <button
+              type="button"
+              onClick={() => handleOpenModule("admin")}
+              className="animate-spotlight-ring group relative w-full text-left cursor-pointer rounded-2xl bg-gradient-to-br from-white via-blue-50/40 to-indigo-50/60 border-2 border-blue-600 p-5 sm:p-6 flex items-center justify-between gap-4 card-interactive select-none"
+            >
+              <div className="flex items-start sm:items-center gap-4 min-w-0 pr-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-600/25 flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105">
+                  <AdminIcon className="h-7 w-7" />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-600 text-white">
+                      <Sparkles className="h-2.5 w-2.5" />
+                      Start Here
+                    </span>
+                    <span className="text-[11px] font-semibold text-blue-700">
+                      Step {stepNumber} of 5
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight group-hover:text-blue-700 transition-colors">
+                    {adminMod?.title || "Admin Panel"}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    {onboarding.hasAgencies
+                      ? "Great! Your first agency is ready. Open Admin Panel → Manage Users to create your first login user and unlock all modules."
+                      : "Open Admin Panel → Manage Agencies to add your first contractor agency, then create your first user."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="hidden sm:flex h-10 w-10 rounded-xl bg-blue-100 text-blue-700 items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <ArrowRight className="h-5 w-5" />
+              </div>
+
+              <HandGesturePointer label={handLabel} placement="bottom-right" />
+            </button>
+          </div>
+        </section>
+
+        {/* Locked Operational Modules Preview */}
+        <LockedModulesPreview
+          modules={accessibleModulesWithCounts}
+          hasAgencies={onboarding.hasAgencies}
+          hasUsers={onboarding.hasUsers}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="relative max-w-6xl mx-auto space-y-5 sm:space-y-6 pb-4">
+      {/* 0. Post-Unlock Guided Journey (Steps 3-5) or Resume Pill */}
+      {onboarding && isGuiding && (
+        <GuidedJourneyBar
+          onboarding={onboarding}
+          onNavigateToStep={onNavigateToStep}
+          context="dashboard"
+        />
+      )}
+      {onboarding && !isGuiding && <ResumeGuideBanner onboarding={onboarding} />}
+
       {/* 1. Admin Setup Guide Banner (Now visible on BOTH mobile & desktop) */}
       {((userRole || "").toLowerCase() === "admin" || (userRole || "").toLowerCase() === "superuser") && (
         <div className="animate-fade-slide-up">
@@ -1301,15 +1413,29 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                   const semanticLabel = formatSemanticCount(mod, false)
                   const compactLabel = formatSemanticCount(mod, true)
 
+                  // Highlight next guided setup module for Steps 3, 4, and 5 once unlocked
+                  const guidedCardHint =
+                    isGuiding && mod.id === "admin" && activeStepId === "zoneMap"
+                      ? "Step 3: Add Zone Map"
+                      : isGuiding && mod.id === "admin" && activeStepId === "dcList"
+                      ? "Step 4: Upload DC List"
+                      : isGuiding && mod.id === "consumer-master" && activeStepId === "masterData"
+                      ? "Step 5: Upload Master"
+                      : null
+
                   return (
                     <button
                       key={mod.id}
                       type="button"
                       onClick={() => handleOpenModule(mod.id)}
-                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-left cursor-pointer rounded-2xl bg-white/95 backdrop-blur-sm border border-slate-200/90 ${styles.cardBorder} shadow-xs hover:shadow-md p-3.5 sm:p-4 flex flex-col justify-between min-h-[116px] sm:min-h-[136px] overflow-hidden card-interactive select-none`}
+                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-left cursor-pointer rounded-2xl bg-white/95 backdrop-blur-sm border ${
+                        guidedCardHint
+                          ? "border-blue-600 ring-2 ring-blue-500/30 animate-spotlight-ring overflow-visible z-10"
+                          : `border-slate-200/90 ${styles.cardBorder} overflow-hidden`
+                      } shadow-xs hover:shadow-md p-3.5 sm:p-4 flex flex-col justify-between min-h-[116px] sm:min-h-[136px] card-interactive select-none`}
                     >
                       {/* Subtle Watermark Icon on Desktop */}
-                      <div className="hidden sm:block absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity duration-300 pointer-events-none">
+                      <div className="hidden sm:block absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity duration-300 pointer-events-none overflow-hidden rounded-br-2xl">
                         <Icon className={styles.watermark} />
                       </div>
 
@@ -1319,7 +1445,12 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                           <Icon className="h-5 w-5" />
                         </div>
 
-                        {mod.hasCount && (
+                        {guidedCardHint ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-xs">
+                            <Sparkles className="h-2.5 w-2.5" />
+                            Next Step
+                          </span>
+                        ) : mod.hasCount ? (
                           <span
                             className={`notranslate tabular-nums inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold border transition-transform duration-200 group-hover:scale-105 ${styles.badgeClass}`}
                           >
@@ -1332,7 +1463,7 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                               </>
                             )}
                           </span>
-                        )}
+                        ) : null}
                       </div>
 
                       {/* Bottom Row: Title, Description & Mobile Semantic Hint */}
@@ -1344,6 +1475,10 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
                           {mod.description}
                         </p>
                       </div>
+
+                      {guidedCardHint && (
+                        <HandGesturePointer label={guidedCardHint} placement="bottom-right" compact />
+                      )}
                     </button>
                   )
                 })}

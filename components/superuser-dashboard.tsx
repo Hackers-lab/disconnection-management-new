@@ -18,6 +18,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "@/hooks/use-toast"
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
@@ -173,6 +183,9 @@ export function SuperuserDashboard() {
   const [showBroadcastModal, setShowBroadcastModal] = useState(false)
   const [submittingTenant, setSubmittingTenant] = useState(false)
   const [submittingUser, setSubmittingUser] = useState(false)
+  const [submittingEditUser, setSubmittingEditUser] = useState(false)
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<{ id: string; username: string } | null>(null)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
   // Forms
   const [newTenant, setNewTenant] = useState({ cccCode: "", cccName: "", spreadsheetId: "", contactPerson: "", mobileNumber: "" })
@@ -291,8 +304,9 @@ export function SuperuserDashboard() {
       const res = await fetch("/api/superuser/online-users", { cache: "no-store" })
       if (res.ok) {
         const d = await res.json()
-        if (typeof d?.totalOnline === "number") {
-          setOnlineUserCount(d.totalOnline)
+        const count = typeof d?.activeNowCount === "number" ? d.activeNowCount : d?.totalOnline
+        if (typeof count === "number") {
+          setOnlineUserCount(count)
         }
       }
     } catch {
@@ -358,10 +372,15 @@ export function SuperuserDashboard() {
     }
     setSubmittingTenant(true)
     try {
+      const normalizedTenant = {
+        ...newTenant,
+        cccCode: newTenant.cccCode.trim().toUpperCase(),
+        cccName: newTenant.cccName.trim(),
+      }
       const res = await fetch("/api/superuser/tenants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTenant)
+        body: JSON.stringify(normalizedTenant)
       })
       const data = await res.json()
       if (res.ok && data.success) {
@@ -424,19 +443,29 @@ export function SuperuserDashboard() {
     }
   }
 
-  const handleDeleteUser = async (id: string, username: string) => {
-    if (!confirm(`Are you sure you want to delete access for '${username}'?`)) return
+  const handleDeleteUser = (id: string, username: string) => {
+    setPendingDeleteUser({ id, username })
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!pendingDeleteUser) return
+    const { id, username } = pendingDeleteUser
+    setDeletingUserId(id)
     try {
       const res = await fetch(`/api/superuser/users?id=${id}`, { method: "DELETE" })
       const data = await res.json()
       if (res.ok && data.success) {
         toast({ title: "User Deleted", description: `Removed access for '${username}'.` })
+        setPendingDeleteUser(null)
         await fetchUsers()
       } else {
         toast({ variant: "destructive", title: "Delete Failed", description: data.error || "Failed to delete user." })
       }
     } catch (e) {
       console.error(e)
+      toast({ variant: "destructive", title: "Delete Failed", description: "Network error deleting user." })
+    } finally {
+      setDeletingUserId(null)
     }
   }
 
@@ -462,6 +491,7 @@ export function SuperuserDashboard() {
       toast({ variant: "destructive", title: "Missing Required Fields", description: "Username, role, and CCC code are required." })
       return
     }
+    setSubmittingEditUser(true)
     try {
       const payload = {
         ...editForm,
@@ -485,6 +515,8 @@ export function SuperuserDashboard() {
       }
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err?.message || "Failed to update user." })
+    } finally {
+      setSubmittingEditUser(false)
     }
   }
 
@@ -948,17 +980,17 @@ export function SuperuserDashboard() {
         </div>
 
         {activeTab === "revenue_analytics" ? (
-          <SuperuserRevenueAnalytics onBackToDashboard={() => setActiveTab("overview")} />
+          <SuperuserRevenueAnalytics onBackToDashboard={() => handleTabChange("overview")} />
         ) : activeTab === "subscriptions" ? (
-          <SuperuserSubscriptions onBackToDashboard={() => setActiveTab("overview")} />
+          <SuperuserSubscriptions onBackToDashboard={() => handleTabChange("overview")} />
         ) : activeTab === "agency_tracker" ? (
-          <AgencyProfileTracker onBackToDashboard={() => setActiveTab("overview")} />
+          <AgencyProfileTracker onBackToDashboard={() => handleTabChange("overview")} />
         ) : activeTab === "online_users" ? (
-          <SuperuserOnlineUsers onBackToDashboard={() => setActiveTab("overview")} />
+          <SuperuserOnlineUsers onBackToDashboard={() => handleTabChange("overview")} />
         ) : activeTab === "module_versions" ? (
-          <SupplyModuleVersionsReport onBackToDashboard={() => setActiveTab("overview")} />
+          <SupplyModuleVersionsReport onBackToDashboard={() => handleTabChange("overview")} />
         ) : activeTab === "vercel_usage" ? (
-          <VercelUsageMonitor onBackToDashboard={() => setActiveTab("overview")} />
+          <VercelUsageMonitor onBackToDashboard={() => handleTabChange("overview")} />
         ) : activeTab === "registrations" ? (
           !hasLoadedData ? (
             <Card className="bg-white border-slate-200/90 shadow-sm rounded-2xl p-6 sm:p-10 text-center my-6">
@@ -1281,21 +1313,21 @@ export function SuperuserDashboard() {
           <>
             {/* VERCEL USAGE SPIKE ALERT BANNER IF SPIKES > 0 */}
             {vercelSpikeCount !== null && vercelSpikeCount > 0 && (
-              <div className="bg-amber-950/30 border border-amber-800/60 p-3 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+              <div className="bg-amber-50 border border-amber-300/90 p-3 rounded-xl flex items-center justify-between gap-3 shadow-xs">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400 shrink-0">
+                  <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 shrink-0">
                     <Flame className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-xs font-semibold text-amber-200 truncate">
-                      Vercel Quota Alert ({vercelSpikeCount} metric &gt; 50%)
+                    <h3 className="text-xs font-bold text-amber-900 truncate">
+                      Vercel Quota Alert ({vercelSpikeCount} {vercelSpikeCount === 1 ? "metric" : "metrics"} &gt; 50%)
                     </h3>
                   </div>
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => setActiveTab("vercel_usage")}
-                  className="bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs h-7 px-2.5 shrink-0 rounded-lg"
+                  onClick={() => handleTabChange("vercel_usage")}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs h-7 px-2.5 shrink-0 rounded-lg cursor-pointer"
                 >
                   View
                 </Button>
@@ -2427,13 +2459,39 @@ export function SuperuserDashboard() {
               <Button type="button" variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3" onClick={() => setShowEditUserModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9 px-3">
-                Save Changes
+              <Button type="submit" disabled={submittingEditUser} className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9 px-3 cursor-pointer">
+                {submittingEditUser ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Saving...</> : "Save Changes"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation AlertDialog (replaces native confirm) */}
+      <AlertDialog open={!!pendingDeleteUser} onOpenChange={(open) => { if (!open && !deletingUserId) setPendingDeleteUser(null) }}>
+        <AlertDialogContent className="rounded-2xl bg-white border-slate-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900">Delete user access?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600 text-sm">
+              Are you sure you want to permanently remove login access for{" "}
+              <strong className="font-mono text-slate-900">{pendingDeleteUser?.username}</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingUserId} className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                confirmDeleteUser()
+              }}
+              disabled={!!deletingUserId}
+              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl cursor-pointer"
+            >
+              {deletingUserId ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Deleting...</> : "Delete User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Broadcast Push Alert Modal */}
       <BroadcastPushModal

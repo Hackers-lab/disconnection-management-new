@@ -1,23 +1,20 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Users,
-  Building2,
   Activity,
   RefreshCw,
   Search,
-  Laptop,
-  Smartphone,
-  Tablet,
-  Shield,
   FileSpreadsheet,
   UserCheck,
   Radio,
+  X,
+  AlertCircle,
 } from "lucide-react"
 import type { ActiveUserInfo, OnlineUsersReport, OfficeOnlineSummary } from "@/lib/presence-service"
 import { toast } from "@/hooks/use-toast"
@@ -43,56 +40,11 @@ function formatTimeOnly(ts: number): string {
   })
 }
 
-function getRoleBadgeColor(role: string): string {
-  switch (role.toLowerCase()) {
-    case "superuser":
-      return "bg-purple-950/80 text-purple-300 border-purple-800/60"
-    case "admin":
-      return "bg-blue-950/80 text-blue-300 border-blue-800/60"
-    case "executive":
-      return "bg-emerald-950/80 text-emerald-300 border-emerald-800/60"
-    case "agency":
-      return "bg-amber-950/80 text-amber-300 border-amber-800/60"
-    case "monitor":
-      return "bg-cyan-950/80 text-cyan-300 border-cyan-800/60"
-    default:
-      return "bg-slate-900 text-slate-300 border-slate-700"
-  }
-}
-
-function getModuleBadgeColor(mod?: string): string {
-  if (!mod) return "bg-slate-900 text-slate-400 border-slate-800"
-  switch (mod.toLowerCase()) {
-    case "icds":
-      return "bg-emerald-950/80 text-emerald-300 border-emerald-700/60"
-    case "consumer":
-    case "disconnection":
-      return "bg-blue-950/80 text-blue-300 border-blue-700/60"
-    case "reconnection":
-      return "bg-indigo-950/80 text-indigo-300 border-indigo-700/60"
-    case "dd":
-    case "deemed":
-      return "bg-amber-950/80 text-amber-300 border-amber-700/60"
-    case "safety":
-      return "bg-rose-950/80 text-rose-300 border-rose-700/60"
-    case "nsc":
-      return "bg-cyan-950/80 text-cyan-300 border-cyan-700/60"
-    case "meter":
-    case "meters":
-    case "meter-replacement":
-      return "bg-orange-950/80 text-orange-300 border-orange-700/60"
-    case "dtr":
-    case "material":
-      return "bg-violet-950/80 text-violet-300 border-violet-700/60"
-    default:
-      return "bg-slate-900 text-slate-300 border-slate-700"
-  }
-}
-
 export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsersProps) {
   const [report, setReport] = useState<OnlineUsersReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date())
   const [clientNow, setClientNow] = useState<number>(Date.now())
@@ -103,28 +55,35 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "offline">("all")
 
   const [showStatsDrawer, setShowStatsDrawer] = useState(false)
+  const hasLoadedRef = useRef(false)
 
   const fetchData = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true)
-    else if (!report) setLoading(true)
+    else if (!hasLoadedRef.current) setLoading(true)
 
     try {
       const res = await fetch("/api/superuser/online-users", { cache: "no-store" })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success) {
-          setReport(data)
-          setLastRefreshedAt(new Date())
-          setClientNow(Date.now())
-        }
+      if (!res.ok) {
+        throw new Error(`Failed to load online activity (${res.status})`)
       }
-    } catch (err) {
+      const data = await res.json()
+      if (data.success) {
+        hasLoadedRef.current = true
+        setReport(data)
+        setError(null)
+        setLastRefreshedAt(new Date())
+        setClientNow(Date.now())
+      } else {
+        throw new Error(data.error || "Unable to fetch user presence")
+      }
+    } catch (err: any) {
       console.error("Failed to fetch online users:", err)
+      setError(err?.message || "Failed to fetch live presence data.")
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [report])
+  }, [])
 
   useEffect(() => {
     fetchData()
@@ -132,8 +91,10 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setClientNow(Date.now())
-    }, 2500)
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        setClientNow(Date.now())
+      }
+    }, 5000)
     return () => clearInterval(timer)
   }, [])
 
@@ -200,14 +161,15 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
   }, [report?.onlineUsers, searchTerm, selectedOffice, selectedRole, statusFilter])
 
   const handleExportExcel = async () => {
-    if (!report?.onlineUsers || report.onlineUsers.length === 0) {
-      toast({ variant: "destructive", title: "Nothing to Export", description: "No active users available to export." })
+    const exportList = filteredUsers.length > 0 ? filteredUsers : report?.onlineUsers || []
+    if (exportList.length === 0) {
+      toast({ variant: "destructive", title: "Nothing to Export", description: "No user records available to export." })
       return
     }
 
     try {
       const XLSX = await import("xlsx")
-      const rows = report.onlineUsers.map(u => ({
+      const rows = exportList.map(u => ({
         "User ID": u.userId,
         Username: u.username,
         Name: u.name || "-",
@@ -240,7 +202,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
       ]
       XLSX.utils.book_append_sheet(wb, ws, "Online Users")
       XLSX.writeFile(wb, `Online_Users_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`)
-      toast({ title: "Export Ready", description: `Exported ${report.onlineUsers.length} user records to Excel.` })
+      toast({ title: "Export Ready", description: `Exported ${exportList.length} user records to Excel.` })
     } catch (e) {
       console.error("Export error:", e)
       toast({ variant: "destructive", title: "Export Failed", description: "Failed to export online users." })
@@ -269,12 +231,27 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAutoRefresh(prev => !prev)}
+            className={`h-7 text-xs px-2 shadow-2xs interactive-tap ${
+              autoRefresh
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700 font-medium"
+                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-500"
+            }`}
+            title={autoRefresh ? "Auto-refresh every 60s (click to pause)" : "Auto-refresh paused (click to enable)"}
+          >
+            <Radio className={`h-3 w-3 ${autoRefresh ? "text-emerald-600" : "text-slate-400"}`} />
+            <span className="hidden sm:inline ml-1">{autoRefresh ? "Live" : "Paused"}</span>
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShowStatsDrawer(!showStatsDrawer)}
-            className={`h-7 text-xs px-2.5 shadow-2xs ${
+            className={`h-7 text-xs px-2.5 shadow-2xs interactive-tap ${
               showStatsDrawer
                 ? "bg-blue-50 border-blue-200 text-blue-700 font-semibold"
                 : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
@@ -289,7 +266,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
             variant="outline"
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            className="h-7 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 shadow-2xs"
+            className="h-7 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 shadow-2xs interactive-tap"
           >
             <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin text-emerald-600" : ""}`} />
             <span className="hidden sm:inline ml-1">{refreshing ? "Syncing..." : "Refresh"}</span>
@@ -299,7 +276,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-7 text-xs border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2 shadow-2xs"
+            className="h-7 text-xs border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2 shadow-2xs interactive-tap"
           >
             <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
             <span className="hidden sm:inline ml-1">Export</span>
@@ -318,9 +295,22 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
         </div>
       </div>
 
+      {/* Inline Error Banner */}
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 px-3 py-2.5 rounded-xl flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+            <span className="truncate">{error}</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => fetchData(true)} className="h-7 text-xs border-rose-300 bg-white text-rose-700 hover:bg-rose-100 shrink-0">
+            Retry
+          </Button>
+        </div>
+      )}
+
       {/* ── COLLAPSIBLE STATS DRAWER (Collapsed by Default) ── */}
       {showStatsDrawer && (
-        <div className="bg-slate-50 border border-slate-200/90 p-2.5 sm:p-3 rounded-xl space-y-2.5 shadow-2xs animate-in fade-in duration-200">
+        <div className="bg-slate-50 border border-slate-200/90 p-2.5 sm:p-3 rounded-xl space-y-2.5 shadow-2xs animate-panel-reveal">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
               Network Analytics & Office Breakdown
@@ -416,8 +406,18 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
             placeholder="Search user, office, role..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="pl-8 bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 text-xs h-8 rounded-lg"
+            className="pl-8 pr-8 bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 text-xs h-8 rounded-lg"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -473,9 +473,6 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
                           {(user.name || user.username || "U").slice(0, 2)}
                         </div>
                         <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                          {user.isLive && (
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          )}
                           <span
                             className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-white ${
                               user.isLive ? "bg-emerald-500" : "bg-slate-400"

@@ -35,6 +35,7 @@ import {
   Calendar,
   Layers,
   Edit3,
+  ArrowLeft,
 } from "lucide-react"
 import type { VercelMetricItem, VercelUsageResponse } from "@/app/api/superuser/vercel-usage/route"
 
@@ -54,7 +55,7 @@ function getProgressColor(percent: number): string {
 function getSeverityBadge(severity: "normal" | "warning" | "high" | "critical", percent: number) {
   if (severity === "critical" || percent >= 90) {
     return (
-      <Badge variant="outline" className="bg-rose-950/90 border-rose-600 text-rose-300 font-mono text-[10px] font-bold px-2 py-0.5 animate-pulse flex items-center gap-1">
+      <Badge variant="outline" className="bg-rose-950/90 border-rose-600 text-rose-300 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
         <Flame className="h-3 w-3 text-rose-400" />
         CRITICAL {percent}%
       </Badge>
@@ -113,10 +114,12 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
   const [testingToken, setTestingToken] = useState(false)
   const [configMsg, setConfigMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
-  // Quick Manual Readings modal (e.g. Fast Origin Transfer = 9.44 GB)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Quick Manual Readings modal
   const [showReadingsModal, setShowReadingsModal] = useState(false)
   const [readingsForm, setReadingsForm] = useState({
-    fastOriginTransfer: "9.44",
+    fastOriginTransfer: "",
     bandwidth: "",
     serverlessExecution: "",
     serverlessInvocations: "",
@@ -129,34 +132,35 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
   const fetchUsage = async (isManual = false) => {
     if (isManual) setRefreshing(true)
     else setLoading(true)
+    setLoadError(null)
 
     try {
       const res = await fetch("/api/superuser/vercel-usage")
-      if (res.ok) {
-        const result: VercelUsageResponse = await res.json()
-        setData(result)
+      if (!res.ok) throw new Error(`Failed to fetch usage (${res.status})`)
+      const result: VercelUsageResponse = await res.json()
+      setData(result)
 
-        // Initialize readings form with current values
-        if (result.metrics) {
-          const m = result.metrics
-          const origin = m.find(x => x.id === "fast_origin_transfer")?.used
-          const bw = m.find(x => x.id === "bandwidth")?.used
-          const fn = m.find(x => x.id === "serverless_execution")?.used
-          const inv = m.find(x => x.id === "serverless_invocations")?.used
-          const img = m.find(x => x.id === "image_optimization")?.used
+      // Initialize readings form with current values (no hardcoded fallback)
+      if (result.metrics) {
+        const m = result.metrics
+        const origin = m.find(x => x.id === "fast_origin_transfer")?.used
+        const bw = m.find(x => x.id === "bandwidth")?.used
+        const fn = m.find(x => x.id === "serverless_execution")?.used
+        const inv = m.find(x => x.id === "serverless_invocations")?.used
+        const img = m.find(x => x.id === "image_optimization")?.used
 
-          setReadingsForm({
-            fastOriginTransfer: origin ? String(origin) : "9.44",
-            bandwidth: bw ? String(bw) : "",
-            serverlessExecution: fn ? String(fn) : "",
-            serverlessInvocations: inv ? String(inv) : "",
-            imageOptimization: img ? String(img) : "",
-            edgeRequests: "",
-          })
-        }
+        setReadingsForm({
+          fastOriginTransfer: typeof origin === "number" ? String(origin) : "",
+          bandwidth: typeof bw === "number" ? String(bw) : "",
+          serverlessExecution: typeof fn === "number" ? String(fn) : "",
+          serverlessInvocations: typeof inv === "number" ? String(inv) : "",
+          imageOptimization: typeof img === "number" ? String(img) : "",
+          edgeRequests: "",
+        })
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to fetch Vercel usage:", e)
+      setLoadError(e?.message || "Failed to load Vercel usage metrics.")
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -238,20 +242,28 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
 
     try {
       const payload: Record<string, number> = {}
-      if (readingsForm.fastOriginTransfer) {
-        payload.fastOriginTransfer = parseFloat(readingsForm.fastOriginTransfer)
+      const parseNonNeg = (val: string, label: string, integer = false): number | null => {
+        const trimmed = val.trim()
+        if (!trimmed) return null
+        const n = integer ? parseInt(trimmed, 10) : parseFloat(trimmed)
+        if (!Number.isFinite(n) || n < 0) {
+          throw new Error(`${label} must be a valid non-negative number`)
+        }
+        return n
       }
-      if (readingsForm.bandwidth) {
-        payload.bandwidth = parseFloat(readingsForm.bandwidth)
-      }
-      if (readingsForm.serverlessExecution) {
-        payload.serverlessExecution = parseFloat(readingsForm.serverlessExecution)
-      }
-      if (readingsForm.serverlessInvocations) {
-        payload.serverlessInvocations = parseInt(readingsForm.serverlessInvocations, 10)
-      }
-      if (readingsForm.imageOptimization) {
-        payload.imageOptimization = parseInt(readingsForm.imageOptimization, 10)
+      const originVal = parseNonNeg(readingsForm.fastOriginTransfer, "Fast Origin Transfer")
+      if (originVal !== null) payload.fastOriginTransfer = originVal
+      const bwVal = parseNonNeg(readingsForm.bandwidth, "Bandwidth")
+      if (bwVal !== null) payload.bandwidth = bwVal
+      const fnVal = parseNonNeg(readingsForm.serverlessExecution, "Function Execution")
+      if (fnVal !== null) payload.serverlessExecution = fnVal
+      const invVal = parseNonNeg(readingsForm.serverlessInvocations, "Function Invocations", true)
+      if (invVal !== null) payload.serverlessInvocations = invVal
+      const imgVal = parseNonNeg(readingsForm.imageOptimization, "Image Optimization", true)
+      if (imgVal !== null) payload.imageOptimization = imgVal
+
+      if (Object.keys(payload).length === 0) {
+        throw new Error("Enter at least one metric value to save.")
       }
 
       const res = await fetch("/api/superuser/vercel-usage", {
@@ -296,10 +308,21 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
   const billing = data?.billingPeriod
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-tab-enter">
       {/* ── TOP HEADER & CONTROLS ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/80 p-3.5 sm:p-4 rounded-2xl border border-slate-800 backdrop-blur shadow-sm">
         <div className="flex items-center gap-3">
+          {onBackToDashboard && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBackToDashboard}
+              title="Back to Overview"
+              className="h-8 w-8 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white shrink-0 cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
           <div className="bg-gradient-to-tr from-amber-600 to-rose-500 p-2.5 rounded-xl text-white shadow-md shadow-amber-500/20">
             <Flame className="h-5 w-5" />
           </div>
@@ -309,7 +332,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                 Vercel Usage & Spike Monitor
               </h2>
               {spikedCount > 0 ? (
-                <Badge variant="outline" className="bg-amber-500/15 text-amber-300 border-amber-500/40 text-[10px] font-mono font-bold animate-pulse">
+                <Badge variant="outline" className="bg-amber-500/15 text-amber-300 border-amber-500/40 text-[10px] font-mono font-bold">
                   {spikedCount} Spikes &gt; 50%
                 </Badge>
               ) : (
@@ -329,7 +352,10 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setShowReadingsModal(true)}
+            onClick={() => {
+              setReadingsMsg(null)
+              setShowReadingsModal(true)
+            }}
             className="h-8 text-xs border-amber-700/50 bg-amber-950/30 hover:bg-amber-900/40 text-amber-300 px-2.5 cursor-pointer"
             title="Update or sync current Vercel readings"
           >
@@ -340,7 +366,10 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setShowConfigModal(true)}
+            onClick={() => {
+              setConfigMsg(null)
+              setShowConfigModal(true)
+            }}
             className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5 cursor-pointer"
             title="Configure Vercel API Token"
           >
@@ -373,6 +402,18 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
           </a>
         </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs text-rose-800">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+            {loadError}
+          </span>
+          <Button size="sm" variant="outline" onClick={() => fetchUsage(true)} className="h-7 text-xs border-rose-300 text-rose-700 hover:bg-rose-100 cursor-pointer">
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* ── KPI METRICS CARDS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">

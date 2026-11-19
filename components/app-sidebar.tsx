@@ -7,6 +7,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronRight,
+  Lock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -56,6 +57,7 @@ interface AppSidebarProps {
   onToggleCollapse?: () => void
   agencies?: string[]
   permissions?: Record<string, string[]>
+  isSetupLocked?: boolean
 }
 
 export function AppSidebar({
@@ -67,6 +69,7 @@ export function AppSidebar({
   onToggleCollapse,
   agencies = [],
   permissions,
+  isSetupLocked = false,
 }: AppSidebarProps) {
   const [open, setOpen] = useState(false)
   const [counts, setCounts] = useState<Record<string, number>>({})
@@ -304,7 +307,10 @@ export function AppSidebar({
           {/* Categorized Modules */}
           {MODULE_CATEGORIES.map((category) => {
             const items = MODULE_CATALOG.filter(
-              (m) => m.category === category.id && canAccessModule(m.id, userRole, permissions)
+              (m) =>
+                m.category === category.id &&
+                canAccessModule(m.id, userRole, permissions) &&
+                (!isSetupLocked || m.id === "admin")
             )
             if (items.length === 0) return null
 
@@ -383,6 +389,18 @@ export function AppSidebar({
               </div>
             )
           })}
+
+          {isSetupLocked && !isCompact && (
+            <div className="mx-1 mt-3 rounded-xl border border-dashed border-blue-200 bg-blue-50/70 p-3 text-left space-y-1">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-800">
+                <Lock className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                <span>Modules Locked</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-snug">
+                Add 1 Agency &amp; 1 User in <strong>Admin Panel</strong> to unlock all operational modules.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Bottom Sticky Footer */}

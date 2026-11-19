@@ -48,6 +48,9 @@ export function BroadcastPushModal({
       setTitle("")
       setMessage("")
       setTargetCcc(isSuperuser ? "all" : currentCccCode)
+      setTargetRole("all")
+      setTargetUrl("/dashboard")
+      setPriority("normal")
     }
   }, [isOpen, isSuperuser, currentCccCode])
 
@@ -165,12 +168,16 @@ export function BroadcastPushModal({
 
           {/* Title */}
           <div>
-            <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-              Notification Title
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-slate-600">
+                Notification Title
+              </label>
+              <span className="text-[10px] text-slate-400 font-mono">{title.length}/80</span>
+            </div>
             <Input
               placeholder="e.g. Urgent Disconnection List Updated"
               value={title}
+              maxLength={80}
               onChange={e => setTitle(e.target.value)}
               className="bg-slate-50 border-slate-200 text-slate-900 text-xs h-8 rounded-lg"
             />
@@ -178,12 +185,16 @@ export function BroadcastPushModal({
 
           {/* Message */}
           <div>
-            <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-              Message Content
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-slate-600">
+                Message Content
+              </label>
+              <span className="text-[10px] text-slate-400 font-mono">{message.length}/240</span>
+            </div>
             <Textarea
               placeholder="Type your message here (will buzz and appear on Android notification shade)..."
               value={message}
+              maxLength={240}
               onChange={e => setMessage(e.target.value)}
               rows={3}
               className="bg-slate-50 border-slate-200 text-slate-900 text-xs rounded-lg resize-none"
@@ -250,8 +261,10 @@ export function BroadcastPushModal({
           <Button
             size="sm"
             onClick={handleSend}
-            disabled={sending}
-            className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-sm"
+            disabled={sending || !title.trim() || !message.trim()}
+            className={`h-8 text-xs text-white font-semibold shadow-sm interactive-tap ${
+              priority === "urgent" ? "bg-rose-600 hover:bg-rose-500" : "bg-blue-600 hover:bg-blue-500"
+            }`}
           >
             {sending ? (
               <>
@@ -261,7 +274,7 @@ export function BroadcastPushModal({
             ) : (
               <>
                 <Send className="h-3.5 w-3.5 mr-1.5" />
-                Send Push Notification
+                {priority === "urgent" ? "Send Urgent Alert" : "Send Push Notification"}
               </>
             )}
           </Button>

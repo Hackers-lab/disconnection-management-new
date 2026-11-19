@@ -37,6 +37,8 @@ import {
   Flame,
   ArrowUpDown,
   Filter,
+  X,
+  ArrowLeft,
 } from "lucide-react"
 import type {
   SupplyVersionReportItem,
@@ -126,25 +128,30 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
   const [selectedSupply, setSelectedSupply] = useState<SupplyVersionReportItem | null>(null)
   const [selectedModuleDetail, setSelectedModuleDetail] = useState<SupplyModuleVersionDetail | null>(null)
   const [resettingBase, setResettingBase] = useState(false)
+  const [confirmingReset, setConfirmingReset] = useState(false)
   const [resetFeedbackMsg, setResetFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const fetchData = async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true)
     else setLoading(true)
+    setLoadError(null)
 
     try {
       const res = await fetch("/api/superuser/module-versions")
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success) {
-          setSupplies(data.supplies || [])
-          setGlobalSummary(data.globalSummary || null)
-          setModulesList(data.modulesList || [])
-          setLastRefreshedAt(new Date())
-        }
+      if (!res.ok) throw new Error(`Request failed (${res.status})`)
+      const data = await res.json()
+      if (data.success) {
+        setSupplies(data.supplies || [])
+        setGlobalSummary(data.globalSummary || null)
+        setModulesList(data.modulesList || [])
+        setLastRefreshedAt(new Date())
+      } else {
+        throw new Error(data.error || "Failed to load module versions")
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to fetch supply module versions:", e)
+      setLoadError(e?.message || "Failed to fetch supply module versions.")
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -229,18 +236,16 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
     setSelectedSupply(supply)
     setSelectedModuleDetail(moduleDetail)
     setResetFeedbackMsg(null)
+    setConfirmingReset(false)
     setInspectModalOpen(true)
   }
 
   const handleResetBaseVersion = async () => {
     if (!selectedSupply || !selectedModuleDetail) return
-    const confirmed = confirm(
-      `Are you sure you want to reset the base version for "${selectedModuleDetail.moduleLabel}" on Supply ${selectedSupply.cccCode}? This will increment base version to v${selectedModuleDetail.baseVersion + 1}.0 and clear patch logs.`
-    )
-    if (!confirmed) return
 
     setResettingBase(true)
     setResetFeedbackMsg(null)
+    setConfirmingReset(false)
     try {
       const res = await fetch("/api/superuser/module-versions", {
         method: "POST",
@@ -430,10 +435,21 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-tab-enter">
       {/* ── TOP BANNER & ACTION BAR ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/80 p-3 sm:p-4 rounded-2xl border border-slate-800 backdrop-blur shadow-sm">
         <div className="flex items-center gap-3">
+          {onBackToDashboard && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onBackToDashboard}
+              title="Back to Overview"
+              className="h-8 w-8 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white shrink-0 cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
           <div className="bg-gradient-to-tr from-blue-600 to-indigo-500 p-2.5 rounded-xl text-white shadow-md shadow-blue-500/20">
             <Layers className="h-5 w-5" />
           </div>
@@ -493,6 +509,18 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
           </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs text-rose-800">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+            {loadError}
+          </span>
+          <Button size="sm" variant="outline" onClick={() => fetchData(true)} className="h-7 text-xs border-rose-300 text-rose-700 hover:bg-rose-100 cursor-pointer">
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* ── KPI METRICS CARDS ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
@@ -661,8 +689,18 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
             placeholder="Search CCC code, subdivision name..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="pl-8 bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500 text-xs h-8.5 rounded-lg"
+            className="pl-8 pr-8 bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500 text-xs h-8.5 rounded-lg"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-200 cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Filter Pills */}
@@ -716,6 +754,32 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
               </option>
             ))}
           </select>
+
+          {/* Sort selector */}
+          <div className="flex items-center gap-1 shrink-0">
+            <select
+              value={sortField}
+              onChange={e => setSortField(e.target.value as SortField)}
+              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs h-7.5 px-2 rounded-lg outline-none cursor-pointer hover:border-slate-600"
+              title="Sort supplies by"
+            >
+              <option value="today">Sort: Today</option>
+              <option value="updates">Sort: Patches</option>
+              <option value="lifetime">Sort: Cumulative</option>
+              <option value="recent">Sort: Most Recent</option>
+              <option value="code">Sort: CCC Code</option>
+              <option value="name">Sort: Name</option>
+            </select>
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => setSortAsc(prev => !prev)}
+              className="h-7.5 w-7.5 border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800 cursor-pointer"
+              title={sortAsc ? "Ascending order" : "Descending order"}
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+            </Button>
+          </div>
 
           {/* View Mode Toggle Buttons */}
           <div className="flex items-center border border-slate-700 rounded-lg p-0.5 bg-slate-950 ml-auto sm:ml-2 shrink-0">
@@ -1259,25 +1323,56 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                 )}
               </div>
 
-              <DialogFooter className="mt-2 flex flex-row items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetBaseVersion}
-                  disabled={resettingBase}
-                  className="border-rose-800/60 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs h-8 px-2.5"
-                  title="Force base compaction reset for this module"
-                >
-                  <RotateCcw className={`h-3.5 w-3.5 mr-1 ${resettingBase ? "animate-spin" : ""}`} />
-                  Reset Base Version
-                </Button>
+              <DialogFooter className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                {confirmingReset ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-700/70 bg-rose-950/60 px-3 py-2 text-xs text-rose-200 w-full sm:w-auto">
+                    <span>
+                      Bump to <strong className="font-mono">v{selectedModuleDetail.baseVersion + 1}.0</strong> &amp; clear patches?
+                    </span>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmingReset(false)}
+                        className="h-7 px-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleResetBaseVersion}
+                        disabled={resettingBase}
+                        className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                      >
+                        {resettingBase ? "Resetting..." : "Confirm Reset"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmingReset(true)}
+                    disabled={resettingBase}
+                    className="border-rose-800/60 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs h-8 px-2.5 cursor-pointer"
+                    title="Force base compaction reset for this module"
+                  >
+                    <RotateCcw className={`h-3.5 w-3.5 mr-1 ${resettingBase ? "animate-spin" : ""}`} />
+                    Reset Base Version
+                  </Button>
+                )}
 
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => setInspectModalOpen(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs h-8 px-3"
+                  onClick={() => {
+                    setConfirmingReset(false)
+                    setInspectModalOpen(false)
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs h-8 px-3 cursor-pointer"
                 >
                   Close
                 </Button>

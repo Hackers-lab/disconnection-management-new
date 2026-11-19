@@ -14,12 +14,19 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, AlertTriangle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell, UserPlus } from "lucide-react"
+import { Users, Building2, Upload, List, ArrowLeft, Trash2, Edit, Plus, X, Save, AlertCircle, AlertTriangle, CheckCircle2, Loader2, Eye, EyeOff, KeyRound, Filter, ChevronDown, ChevronRight, ShieldCheck, ShieldAlert, Bell, UserPlus, Sparkles, ArrowRight, Unlock } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Condition, Group, Operator, rowMatchesGroups, isNumericOp, OPERATOR_LABELS } from "@/lib/upload-filter"
 import { userStorage } from "@/lib/user-storage";
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import { AdminSetupGuideBanner } from "@/components/admin-setup-guide"
+import {
+  useOnboardingGuide,
+  notifyOnboardingUpdated,
+  GuidedJourneyBar,
+  HandGesturePointer,
+  ResumeGuideBanner,
+} from "@/components/onboarding-spotlight"
 import { expandRolePermissions } from "@/lib/permission-utils"
 
 // Optional filter-only source columns (mapped for filtering/conflict, never uploaded).
@@ -162,6 +169,7 @@ const normalizeHeader = (s: string) => String(s || "").toLowerCase().replace(/[^
 interface AdminPanelProps {
   onClose: () => void
   initialView?: ViewType
+  onNavigateToConsumerMaster?: () => void
 }
 
 type ViewType = "menu" | "users" | "agencies" | "payments" | "dcList" | "zoneMap" | "roles" | "google-onboarding"
@@ -195,7 +203,7 @@ interface Agency {
 
 
 
-export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
+export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }: AdminPanelProps) {
     const [showPushModal, setShowPushModal] = useState(false);
     const [sheetName, setSheetName] = useState("Sheet1"); // Default sheet name
     const [isUploading, setIsUploading] = useState(false);
@@ -290,6 +298,8 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             };
 
             setDcUploadResult(finalSummary);
+            setDcListJustUploaded(true);
+            notifyOnboardingUpdated();
             setMessage({
                 type: "success",
                 text: isAppendMode
@@ -579,6 +589,25 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
 
   const [agencyFilter, setAgencyFilter] = useState<"all" | "missing" | "completed">("all")
   const [agencyCreatedPrompt, setAgencyCreatedPrompt] = useState<{ name: string; mobileNumber: string } | null>(null)
+  const onboarding = useOnboardingGuide("admin")
+  const [justUnlockedWorkspace, setJustUnlockedWorkspace] = useState(false)
+  const [zoneMapJustSaved, setZoneMapJustSaved] = useState(false)
+  const [dcListJustUploaded, setDcListJustUploaded] = useState(false)
+
+  const handleOnboardingJump = (targetView: string) => {
+    if (targetView.startsWith("admin:")) {
+      const sub = targetView.split(":")[1] as ViewType
+      setView(sub)
+      setShowAddUser(false)
+      setShowAddAgency(false)
+    } else if (targetView === "consumerMaster" || targetView === "consumer-master") {
+      if (onNavigateToConsumerMaster) {
+        onNavigateToConsumerMaster()
+      } else {
+        onClose()
+      }
+    }
+  }
 
   // --- PAYMENT UPLOAD STATE (items 3 + 13) ---
   type PaymentParsed = { consumerId: string; paidAmount: number; paidDate: string }
@@ -870,6 +899,10 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             ? "Zone map cleared successfully."
             : `Zone map saved successfully (${rows.length} mappings)${reassignedInfo}.`
         })
+        if (rows.length > 0) {
+          setZoneMapJustSaved(true)
+        }
+        notifyOnboardingUpdated()
         setShowClearZoneDialog(false)
       } else {
         setMessage({ type: "error", text: data?.error || "Failed to save zone map" })
@@ -1120,10 +1153,15 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
       })
 
       if (response.ok) {
+        const wasLockedBefore = onboarding.isCoreSetupLocked || !onboarding.hasUsers
         setNewUser({ username: "", password: "", role: "agency", agencies: [], mobileNumber: "" })
         setShowAddUser(false)
         const usersResponse = await fetch("/api/admin/users")
         setUsers(await usersResponse.json())
+        notifyOnboardingUpdated()
+        if (wasLockedBefore && onboarding.hasAgencies) {
+          setJustUnlockedWorkspace(true)
+        }
         setMessage({ type: "success", text: "User added successfully" })
       } else {
         const error = await response.json()
@@ -1228,6 +1266,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         fetch("/api/admin/users").then((r) => r.ok && r.json()).then((data) => { if (data) setUsers(data) }).catch(() => {})
 
         setAgencyCreatedPrompt({ name: addedName, mobileNumber: addedMobile })
+        notifyOnboardingUpdated()
         setMessage({ type: "success", text: `Agency '${addedName}' added successfully!` })
       } else {
         const error = await response.json()
@@ -1525,8 +1564,24 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         </Alert>
       )}
 
+      {/* Guided Onboarding Journey Stepper */}
+      {onboarding.isGuiding && (
+        <div className="mb-4">
+          <GuidedJourneyBar
+            onboarding={onboarding}
+            onNavigateToStep={handleOnboardingJump}
+            context="admin"
+          />
+        </div>
+      )}
+      {!onboarding.isGuiding && (
+        <div className="mb-4">
+          <ResumeGuideBanner onboarding={onboarding} />
+        </div>
+      )}
+
       {/* Interactive Guidance Banner for missing mobile number / officer profile details */}
-      <AdminSetupGuideBanner />
+      {!onboarding.isCoreSetupLocked && <AdminSetupGuideBanner />}
 
       {view === "menu" && (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
@@ -1535,48 +1590,72 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             bgColor="bg-blue-50"
             title="Manage Users"
             onClick={() => setView("users")}
+            highlighted={onboarding.isGuiding && onboarding.activeStepId === "users"}
+            stepBadge={onboarding.isGuiding && onboarding.activeStepId === "users" ? "Step 2" : undefined}
+            handLabel={onboarding.isGuiding && onboarding.activeStepId === "users" ? "Tap to Create User" : undefined}
+            completed={onboarding.isGuiding && onboarding.hasUsers}
+            dimmed={onboarding.isCoreSetupLocked && onboarding.activeStepId !== "users"}
           />
           <DashboardCard
             icon={<Building2 className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />}
             bgColor="bg-emerald-50"
             title="Manage Agencies"
             onClick={() => setView("agencies")}
+            highlighted={onboarding.isGuiding && onboarding.activeStepId === "agencies"}
+            stepBadge={onboarding.isGuiding && onboarding.activeStepId === "agencies" ? "Step 1" : undefined}
+            handLabel={onboarding.isGuiding && onboarding.activeStepId === "agencies" ? "Tap to Add Agency" : undefined}
+            completed={onboarding.isGuiding && onboarding.hasAgencies}
+            dimmed={onboarding.isCoreSetupLocked && onboarding.activeStepId !== "agencies"}
           />
           <DashboardCard
             icon={<Upload className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />}
             bgColor="bg-purple-50"
             title="Upload Payment Data"
-            onClick={() => setView("payments")} 
+            onClick={() => setView("payments")}
+            dimmed={onboarding.isCoreSetupLocked}
           />
           <DashboardCard
             icon={<List className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />}
             bgColor="bg-amber-50"
             title="Upload DC List"
             onClick={() => setView("dcList")}
+            highlighted={onboarding.isGuiding && onboarding.activeStepId === "dcList"}
+            stepBadge={onboarding.isGuiding && onboarding.activeStepId === "dcList" ? "Step 4" : undefined}
+            handLabel={onboarding.isGuiding && onboarding.activeStepId === "dcList" ? "Tap to Upload DC List" : undefined}
+            completed={onboarding.isGuiding && onboarding.hasDcList}
+            dimmed={onboarding.isCoreSetupLocked}
           />
           <DashboardCard
             icon={<Building2 className="h-5 w-5 md:h-6 md:w-6 text-teal-600" />}
             bgColor="bg-teal-50"
             title="Agency Zone Map"
             onClick={() => setView("zoneMap")}
+            highlighted={onboarding.isGuiding && onboarding.activeStepId === "zoneMap"}
+            stepBadge={onboarding.isGuiding && onboarding.activeStepId === "zoneMap" ? "Step 3" : undefined}
+            handLabel={onboarding.isGuiding && onboarding.activeStepId === "zoneMap" ? "Tap to Add Zone Map" : undefined}
+            completed={onboarding.isGuiding && onboarding.hasZoneMap}
+            dimmed={onboarding.isCoreSetupLocked}
           />
           <DashboardCard
             icon={<ShieldCheck className="h-5 w-5 md:h-6 md:w-6 text-rose-600" />}
             bgColor="bg-rose-50"
             title="Manage Roles"
             onClick={() => setView("roles")}
+            dimmed={onboarding.isCoreSetupLocked}
           />
           <DashboardCard
             icon={<Bell className="h-5 w-5 md:h-6 md:w-6 text-cyan-600" />}
             bgColor="bg-cyan-50"
             title="Broadcast Alert"
             onClick={() => setShowPushModal(true)}
+            dimmed={onboarding.isCoreSetupLocked}
           />
           <DashboardCard
             icon={<KeyRound className="h-5 w-5 md:h-6 md:w-6 text-indigo-600" />}
             bgColor="bg-indigo-50"
             title="Google Integration"
             onClick={() => setView("google-onboarding")}
+            dimmed={onboarding.isCoreSetupLocked}
           />
         </div>
       )}
@@ -1698,11 +1777,69 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Manage Users</h2>
-        <Button onClick={() => setShowAddUser(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add User
-        </Button>
+        <div className="relative">
+          <Button
+            onClick={() => setShowAddUser(true)}
+            className={
+              onboarding.isGuiding && onboarding.activeStepId === "users" && !showAddUser
+                ? "animate-spotlight-ring bg-blue-600 hover:bg-blue-700 text-white"
+                : undefined
+            }
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+          {onboarding.isGuiding && onboarding.activeStepId === "users" && !showAddUser && (
+            <HandGesturePointer label="Create 1st User" placement="bottom-right" compact />
+          )}
+        </div>
       </div>
+
+      {/* Celebratory Workspace Unlocked Transition Banner */}
+      {justUnlockedWorkspace && (
+        <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-blue-50/80 border border-emerald-300/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-panel-reveal">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Unlock className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">
+                All Dashboard Modules Unlocked!
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Great job! Next, configure <strong>Step 3: Agency Zone Map</strong> so uploaded DC lists auto-assign to your agencies.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setJustUnlockedWorkspace(false)
+                onClose()
+              }}
+              className="text-xs h-8 rounded-xl cursor-pointer"
+            >
+              Go to Dashboard
+            </Button>
+            <div className="relative">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setJustUnlockedWorkspace(false)
+                  setView("zoneMap")
+                }}
+                className="animate-spotlight-ring bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer"
+              >
+                Step 3: Add Zone Map
+                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+              <HandGesturePointer placement="bottom-right" compact />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add User Form */}
       {showAddUser && (
@@ -2166,25 +2303,39 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
         <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold">Manage Agencies</h2>
-            <Button onClick={() => setShowAddAgency(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Agency
-            </Button>
+            <div className="relative">
+              <Button
+                onClick={() => setShowAddAgency(true)}
+                className={
+                  onboarding.isGuiding && onboarding.activeStepId === "agencies" && !showAddAgency
+                    ? "animate-spotlight-ring bg-blue-600 hover:bg-blue-700 text-white"
+                    : undefined
+                }
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Agency
+              </Button>
+              {onboarding.isGuiding && onboarding.activeStepId === "agencies" && !showAddAgency && (
+                <HandGesturePointer label="Create 1st Agency" placement="bottom-right" compact />
+              )}
+            </div>
           </div>
 
           {/* Post-Agency Creation Prompt to Add Login User */}
           {agencyCreatedPrompt && (
-            <div className="mb-4 p-3.5 sm:p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in-50 duration-200">
+            <div className="mb-4 p-3.5 sm:p-4 rounded-2xl bg-indigo-50/90 border border-indigo-300/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-panel-reveal">
               <div className="flex items-start sm:items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 sm:mt-0">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 sm:mt-0 shadow-xs">
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <p className="text-xs sm:text-sm font-bold text-slate-900">
                     Agency &lsquo;{agencyCreatedPrompt.name}&rsquo; added!
                   </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Would you like to create a login user account with this agency auto-assigned?
+                  <p className="text-[11px] sm:text-xs text-slate-600">
+                    {!onboarding.hasUsers
+                      ? "Step 2 next: Create a login user for this agency to unlock all dashboard modules."
+                      : "Would you like to create a login user account with this agency auto-assigned?"}
                   </p>
                 </div>
               </div>
@@ -2193,31 +2344,38 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => setAgencyCreatedPrompt(null)}
-                  className="text-xs h-8 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                  className="text-xs h-8 text-slate-500 hover:text-slate-800 cursor-pointer"
                 >
                   Dismiss
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const targetAgency = agencyCreatedPrompt.name
-                    const targetMobile = agencyCreatedPrompt.mobileNumber || ""
-                    setAgencyCreatedPrompt(null)
-                    setView("users")
-                    setShowAddUser(true)
-                    setNewUser({
-                      username: targetMobile || targetAgency.toLowerCase().replace(/[^a-z0-9]/g, ''),
-                      password: "",
-                      role: "agency",
-                      agencies: [targetAgency],
-                      mobileNumber: targetMobile,
-                    })
-                  }}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer"
-                >
-                  <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-                  Create Login Account
-                </Button>
+                <div className="relative">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const targetAgency = agencyCreatedPrompt.name
+                      const targetMobile = agencyCreatedPrompt.mobileNumber || ""
+                      setAgencyCreatedPrompt(null)
+                      setView("users")
+                      setShowAddUser(true)
+                      setNewUser({
+                        username: targetMobile || targetAgency.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                        password: "",
+                        role: "agency",
+                        agencies: [targetAgency],
+                        mobileNumber: targetMobile,
+                      })
+                    }}
+                    className={`${
+                      !onboarding.hasUsers ? "animate-spotlight-ring " : ""
+                    }bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                    {!onboarding.hasUsers ? "Step 2: Create User" : "Create Login Account"}
+                  </Button>
+                  {!onboarding.hasUsers && (
+                    <HandGesturePointer label="Next Step" placement="bottom-right" compact />
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2873,8 +3031,48 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </CardContent>
           </Card>
 
-          <Card>
+          {dcListJustUploaded && !onboarding.hasMasterData && (
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-blue-50/80 border border-emerald-300/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-panel-reveal">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900">DC List Uploaded!</p>
+                  <p className="text-xs text-slate-600">
+                    Final Step: Upload Consumer Master for instant search &amp; GPS coordinates.
+                  </p>
+                </div>
+              </div>
+              <div className="relative self-end sm:self-auto shrink-0">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setDcListJustUploaded(false)
+                    if (onNavigateToConsumerMaster) onNavigateToConsumerMaster()
+                    else onClose()
+                  }}
+                  className="animate-spotlight-ring bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer"
+                >
+                  Step 5: Consumer Master
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+                <HandGesturePointer placement="bottom-right" compact />
+              </div>
+            </div>
+          )}
+
+          <Card
+            className={
+              onboarding.isGuiding && onboarding.activeStepId === "dcList" && rawHeaders.length === 0 && !dcUploadResult
+                ? "relative border-2 border-blue-600 animate-spotlight-ring overflow-visible"
+                : undefined
+            }
+          >
             <CardContent className="pt-5 space-y-4">
+              {onboarding.isGuiding && onboarding.activeStepId === "dcList" && rawHeaders.length === 0 && !dcUploadResult && (
+                <HandGesturePointer label="Step 4: Select DC File" placement="top-right" compact />
+              )}
               <div className="space-y-2">
                 <Label>DC List File (CSV or Excel)</Label>
                 <Input
@@ -3350,9 +3548,48 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
             </Card>
           )}
 
+          {zoneMapJustSaved && !onboarding.hasDcList && (
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-blue-50/80 border border-emerald-300/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-panel-reveal">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900">Zone Map Saved!</p>
+                  <p className="text-xs text-slate-600">
+                    Next Step: Upload your Disconnection (DC) List to auto-assign consumers to agencies.
+                  </p>
+                </div>
+              </div>
+              <div className="relative self-end sm:self-auto shrink-0">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setZoneMapJustSaved(false)
+                    setView("dcList")
+                  }}
+                  className="animate-spotlight-ring bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 font-semibold rounded-xl cursor-pointer"
+                >
+                  Step 4: Upload DC List
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+                <HandGesturePointer placement="bottom-right" compact />
+              </div>
+            </div>
+          )}
+
           {/* Add row + CSV upload tabs */}
-          <Card>
+          <Card
+            className={
+              onboarding.isGuiding && onboarding.activeStepId === "zoneMap" && zoneMapRows.length === 0
+                ? "relative border-2 border-blue-600 animate-spotlight-ring overflow-visible"
+                : undefined
+            }
+          >
             <CardContent className="pt-4 space-y-4">
+              {onboarding.isGuiding && onboarding.activeStepId === "zoneMap" && zoneMapRows.length === 0 && (
+                <HandGesturePointer label="Step 3: Add or Upload Zone Map" placement="top-right" compact />
+              )}
               {zoneMapLoading ? (
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -4129,11 +4366,21 @@ function DashboardCard({
   bgColor = "bg-slate-50",
   title,
   onClick,
+  highlighted = false,
+  stepBadge,
+  handLabel,
+  completed = false,
+  dimmed = false,
 }: {
   icon: React.ReactNode
   bgColor?: string
   title: string
   onClick: () => void
+  highlighted?: boolean
+  stepBadge?: string
+  handLabel?: string
+  completed?: boolean
+  dimmed?: boolean
 }) {
   return (
     <div
@@ -4141,8 +4388,25 @@ function DashboardCard({
         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
         onClick()
       }}
-      className="group relative cursor-pointer transition-all duration-300 hover:-translate-y-1 active:scale-95 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] hover:border-black/[0.22] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] p-3.5 md:p-6 flex flex-col justify-between md:justify-center md:items-center md:text-center min-h-[96px] md:min-h-[175px] select-none overflow-hidden"
+      className={`group relative cursor-pointer transition-all duration-300 hover:-translate-y-1 active:scale-95 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 p-3.5 md:p-6 flex flex-col justify-between md:justify-center md:items-center md:text-center min-h-[96px] md:min-h-[175px] select-none ${
+        highlighted
+          ? "border-2 border-blue-600 animate-spotlight-ring overflow-visible z-20"
+          : "border border-black/[0.08] hover:border-black/[0.22] shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden"
+      } ${dimmed && !highlighted ? "opacity-55 hover:opacity-95" : ""}`}
     >
+      {/* Top-right Step / Done badge */}
+      {stepBadge ? (
+        <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-600 text-white shadow-xs">
+          <Sparkles className="h-2.5 w-2.5" />
+          {stepBadge}
+        </span>
+      ) : completed ? (
+        <span className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+          <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+          Done
+        </span>
+      ) : null}
+
       {/* Icon Container */}
       <div className="flex items-start md:items-center justify-between md:justify-center w-full">
         <div className={`w-10 h-10 md:w-16 md:h-16 rounded-[10px] md:rounded-2xl ${bgColor} border border-black/[0.04] flex items-center justify-center shrink-0 shadow-2xs transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 [&_svg]:h-5 [&_svg]:w-5 md:[&_svg]:h-8 md:[&_svg]:w-8`}>
@@ -4154,6 +4418,11 @@ function DashboardCard({
       <h3 className="text-xs sm:text-sm md:text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug mt-2 md:mt-4 tracking-tight line-clamp-2">
         {title}
       </h3>
+
+      {/* Animated Pointing Hand Gesture */}
+      {highlighted && handLabel && (
+        <HandGesturePointer label={handLabel} placement="bottom-right" compact />
+      )}
     </div>
   )
 }

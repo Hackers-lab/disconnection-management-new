@@ -101,7 +101,8 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
   // Modals
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null)
   const [extendTarget, setExtendTarget] = useState<SubscriberItem | null>(null)
-  const [extendDays, setExtendDays] = useState<number>(30)
+  const [extendDaysInput, setExtendDaysInput] = useState<string>("30")
+  const [togglingBypassId, setTogglingBypassId] = useState<string | null>(null)
 
   // Helper to safely parse and display date/time in IST (Indian Standard Time)
   const formatTxToIST = (dateStr?: string) => {
@@ -188,8 +189,19 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
     })
   }
 
+  const parsedExtendDays = parseInt(extendDaysInput, 10)
+  const isExtendDaysValid = !isNaN(parsedExtendDays) && parsedExtendDays >= 1 && parsedExtendDays <= 365
+
   const handleExtendDays = async () => {
     if (!extendTarget) return
+    if (!isExtendDaysValid) {
+      toast({
+        title: "Invalid Duration",
+        description: "Please enter a valid number of days between 1 and 365.",
+        variant: "destructive",
+      })
+      return
+    }
     setIsProcessingAction(true)
     try {
       const res = await fetch("/api/superuser/subscriptions/manage", {
@@ -199,7 +211,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
           action: "extend_days",
           targetId: extendTarget.id,
           targetType: extendTarget.type,
-          days: extendDays,
+          days: parsedExtendDays,
         }),
       })
       const result = await res.json()
@@ -230,7 +242,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
       })
       return
     }
+    if (togglingBypassId) return
 
+    setTogglingBypassId(subscriber.id)
     try {
       const nextBypass = !subscriber.bypassSubscription
       const res = await fetch("/api/superuser/subscriptions/manage", {
@@ -249,28 +263,44 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         title: nextBypass ? "Free Pass Activated 🛡️" : "Free Pass Removed",
         description: result.message,
       })
-      fetchData()
+      await fetchData()
     } catch (e: any) {
       toast({
         title: "Action Failed",
         description: e.message,
         variant: "destructive",
       })
+    } finally {
+      setTogglingBypassId(null)
     }
   }
 
+  const parsedRefundAmount = parseFloat(refundAmount)
+  const isRefundAmountValid =
+    !!refundTarget &&
+    !isNaN(parsedRefundAmount) &&
+    parsedRefundAmount > 0 &&
+    parsedRefundAmount <= refundTarget.amount
+
   const handleRefund = async () => {
     if (!refundTarget) return
+    if (!isRefundAmountValid) {
+      toast({
+        title: "Invalid Refund Amount",
+        description: `Amount must be between ₹1 and ₹${refundTarget.amount}.`,
+        variant: "destructive",
+      })
+      return
+    }
     setIsProcessingAction(true)
     try {
-      const amountNum = refundAmount ? parseFloat(refundAmount) : undefined
       const res = await fetch("/api/superuser/subscriptions/manage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "refund_payment",
           paymentId: refundTarget.razorpay_payment_id,
-          refundAmount: amountNum,
+          refundAmount: parsedRefundAmount,
         }),
       })
       const result = await res.json()
@@ -521,10 +551,15 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         </div>
       </div>
 
-      {/* KPI Metrics Dashboard Cards */}
+      {/* KPI Metrics Dashboard Cards (Interactive) */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* 1. Total Revenue */}
-        <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4">
+        <Card
+          onClick={() => setActiveView("transactions")}
+          className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 cursor-pointer card-interactive transition-all ${
+            activeView === "transactions" ? "ring-2 ring-emerald-500/30 border-emerald-400" : ""
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-medium">Total Revenue</span>
             <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -543,7 +578,15 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         </Card>
 
         {/* 2. Razorpay Paid Subscriptions */}
-        <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4">
+        <Card
+          onClick={() => {
+            setActiveView("subscribers")
+            setSubscriberFilter("paid")
+          }}
+          className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 cursor-pointer card-interactive transition-all ${
+            activeView === "subscribers" && subscriberFilter === "paid" ? "ring-2 ring-amber-500/30 border-amber-400" : ""
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-medium">Paid (Razorpay)</span>
             <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -559,7 +602,15 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         </Card>
 
         {/* 3. Database Active (No Razorpay) - KEY REQUEST */}
-        <Card className="bg-white border-blue-200/80 bg-blue-50/20 shadow-2xs rounded-2xl p-4">
+        <Card
+          onClick={() => {
+            setActiveView("subscribers")
+            setSubscriberFilter("db_active")
+          }}
+          className={`bg-white border-blue-200/80 bg-blue-50/20 shadow-2xs rounded-2xl p-4 cursor-pointer card-interactive transition-all ${
+            activeView === "subscribers" && subscriberFilter === "db_active" ? "ring-2 ring-blue-500/40 border-blue-400" : ""
+          }`}
+        >
           <div className="flex items-center justify-between text-blue-700 text-xs mb-1">
             <span className="font-bold">DB Active (No Razorpay)</span>
             <div className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
@@ -575,7 +626,15 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         </Card>
 
         {/* 4. Expired / Lapsed */}
-        <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4">
+        <Card
+          onClick={() => {
+            setActiveView("subscribers")
+            setSubscriberFilter("expired")
+          }}
+          className={`bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 cursor-pointer card-interactive transition-all ${
+            activeView === "subscribers" && subscriberFilter === "expired" ? "ring-2 ring-rose-500/30 border-rose-400" : ""
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-medium">Expired / Due</span>
             <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -591,7 +650,10 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
         </Card>
 
         {/* 5. Total Orders */}
-        <Card className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 col-span-2 lg:col-span-1">
+        <Card
+          onClick={() => setActiveView("transactions")}
+          className="bg-white border-slate-200/90 shadow-2xs rounded-2xl p-4 col-span-2 lg:col-span-1 cursor-pointer card-interactive transition-all"
+        >
           <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
             <span className="font-medium">Total Orders</span>
             <div className="w-6 h-6 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -843,7 +905,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
 
                       {/* Tenant Table Body */}
                       {!isCollapsed && (
-                        <div className="border-t border-slate-200/80 overflow-x-auto">
+                        <div className="border-t border-slate-200/80 overflow-x-auto animate-panel-reveal">
                           <table className="w-full text-left text-xs">
                             <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                               <tr>
@@ -960,9 +1022,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                         size="sm"
                                         onClick={() => {
                                           setExtendTarget(sub)
-                                          setExtendDays(30)
+                                          setExtendDaysInput("30")
                                         }}
-                                        className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300 cursor-pointer"
+                                        className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300 cursor-pointer interactive-tap"
                                         title="Extend subscription validity by 30/60/90 days"
                                       >
                                         <Plus className="w-3 h-3 mr-1" />
@@ -973,8 +1035,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                         <Button
                                           variant={sub.bypassSubscription ? "destructive" : "outline"}
                                           size="sm"
+                                          disabled={togglingBypassId === sub.id}
                                           onClick={() => handleToggleBypass(sub)}
-                                          className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer ${
+                                          className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer interactive-tap ${
                                             sub.bypassSubscription
                                               ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
                                               : "text-slate-700 hover:text-emerald-600 hover:border-emerald-300"
@@ -985,7 +1048,13 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                               : "Grant Permanent Free Pass (Bypass Subscription)"
                                           }
                                         >
-                                          {sub.bypassSubscription ? "Revoke Pass" : "Free Pass"}
+                                          {togglingBypassId === sub.id ? (
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                          ) : sub.bypassSubscription ? (
+                                            "Revoke Pass"
+                                          ) : (
+                                            "Free Pass"
+                                          )}
                                         </Button>
                                       )}
                                     </div>
@@ -1128,9 +1197,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                               size="sm"
                               onClick={() => {
                                 setExtendTarget(sub)
-                                setExtendDays(30)
+                                setExtendDaysInput("30")
                               }}
-                              className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300 cursor-pointer"
+                              className="h-7 text-[11px] font-semibold rounded-lg px-2 text-slate-700 hover:text-blue-600 hover:border-blue-300 cursor-pointer interactive-tap"
                               title="Extend subscription validity by 30/60/90 days"
                             >
                               <Plus className="w-3 h-3 mr-1" />
@@ -1141,8 +1210,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                               <Button
                                 variant={sub.bypassSubscription ? "destructive" : "outline"}
                                 size="sm"
+                                disabled={togglingBypassId === sub.id}
                                 onClick={() => handleToggleBypass(sub)}
-                                className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer ${
+                                className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer interactive-tap ${
                                   sub.bypassSubscription
                                     ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
                                     : "text-slate-700 hover:text-emerald-600 hover:border-emerald-300"
@@ -1153,7 +1223,13 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                     : "Grant Permanent Free Pass (Bypass Subscription)"
                                 }
                               >
-                                {sub.bypassSubscription ? "Revoke Pass" : "Free Pass"}
+                                {togglingBypassId === sub.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : sub.bypassSubscription ? (
+                                  "Revoke Pass"
+                                ) : (
+                                  "Free Pass"
+                                )}
                               </Button>
                             )}
                           </div>
@@ -1418,9 +1494,19 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                     <Receipt className="w-4 h-4 text-emerald-600" />
                     Payment Transaction Receipt
                   </DialogTitle>
-                  <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] font-bold">
-                    Captured & Verified
-                  </Badge>
+                  {selectedTx.refund_status || (selectedTx.amount_refunded && selectedTx.amount_refunded > 0) ? (
+                    <Badge className="bg-rose-50 text-rose-800 border-rose-200 text-[10px] font-bold">
+                      Refunded (₹{selectedTx.amount_refunded || selectedTx.amount})
+                    </Badge>
+                  ) : selectedTx.status === "captured" ? (
+                    <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                      Captured & Verified
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-[10px] font-bold capitalize">
+                      {selectedTx.status}
+                    </Badge>
+                  )}
                 </div>
                 <DialogDescription className="text-xs text-slate-500">
                   Detailed payment breakdown from Razorpay & Turso database.
@@ -1560,9 +1646,9 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                     <button
                       key={d}
                       type="button"
-                      onClick={() => setExtendDays(d)}
-                      className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                        extendDays === d
+                      onClick={() => setExtendDaysInput(String(d))}
+                      className={`py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer interactive-tap ${
+                        parsedExtendDays === d
                           ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
                           : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                       }`}
@@ -1574,16 +1660,20 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
 
                 <div className="pt-2">
                   <label className="text-[11px] font-medium text-slate-500 block mb-1">
-                    Or enter custom days:
+                    Or enter custom days (1–365):
                   </label>
                   <Input
                     type="number"
                     min="1"
                     max="365"
-                    value={extendDays}
-                    onChange={(e) => setExtendDays(parseInt(e.target.value) || 30)}
+                    value={extendDaysInput}
+                    onChange={(e) => setExtendDaysInput(e.target.value)}
+                    placeholder="e.g. 45"
                     className="h-9 text-xs bg-slate-50 border-slate-200 rounded-xl"
                   />
+                  {!isExtendDaysValid && extendDaysInput !== "" && (
+                    <p className="text-[10px] text-rose-600 mt-1">Enter a number between 1 and 365 days.</p>
+                  )}
                 </div>
               </div>
 
@@ -1598,7 +1688,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                 </Button>
                 <Button
                   size="sm"
-                  disabled={isProcessingAction}
+                  disabled={isProcessingAction || !isExtendDaysValid}
                   onClick={handleExtendDays}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 rounded-xl shadow-xs"
                 >
@@ -1608,7 +1698,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                       Extending...
                     </>
                   ) : (
-                    `Grant +${extendDays} Days`
+                    `Grant +${isExtendDaysValid ? parsedExtendDays : 0} Days`
                   )}
                 </Button>
               </DialogFooter>
@@ -1642,12 +1732,18 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                 <label className="text-xs font-semibold text-slate-700 block">Refund Amount (₹):</label>
                 <Input
                   type="number"
+                  min="1"
                   step="1"
                   max={refundTarget.amount}
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
                   className="h-9 text-xs bg-slate-50 border-slate-200 rounded-xl font-bold"
                 />
+                {!isRefundAmountValid && refundAmount !== "" && (
+                  <p className="text-[10px] text-rose-600">
+                    Enter an amount between ₹1 and ₹{refundTarget.amount}.
+                  </p>
+                )}
               </div>
 
               <DialogFooter className="pt-2">
@@ -1661,7 +1757,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                 </Button>
                 <Button
                   size="sm"
-                  disabled={isProcessingAction}
+                  disabled={isProcessingAction || !isRefundAmountValid}
                   onClick={handleRefund}
                   className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs h-9 px-4 rounded-xl shadow-xs"
                 >
@@ -1671,7 +1767,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                       Processing...
                     </>
                   ) : (
-                    `Confirm Refund ₹${refundAmount}`
+                    `Confirm Refund ₹${isRefundAmountValid ? parsedRefundAmount : 0}`
                   )}
                 </Button>
               </DialogFooter>

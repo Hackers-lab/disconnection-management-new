@@ -24,14 +24,16 @@ import {
   Layers,
   CreditCard,
   UserX,
-  UserPlus
+  UserPlus,
+  X,
+  FileSpreadsheet
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { toast } from "@/hooks/use-toast"
 
 export interface RevenueCohortItem {
   userId: string
@@ -73,6 +75,7 @@ interface Props {
 
 export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [data, setData] = useState<{
     months: MonthlyRevenueData[]
     cohorts: Record<string, RevenueCohortItem[]>
@@ -88,10 +91,11 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
   const [cohortFilter, setCohortFilter] = useState<"all" | "paid" | "expiring_soon" | "expired_will_pay" | "deemed">("all")
   const [searchQuery, setSearchQuery] = useState("")
 
-  const fetchData = async () => {
-    setLoading(true)
+  const fetchData = async (isManual = false) => {
+    if (isManual) setRefreshing(true)
+    else setLoading(true)
     try {
-      const res = await fetch("/api/superuser/subscriptions")
+      const res = await fetch("/api/superuser/subscriptions", { cache: "no-store" })
       if (!res.ok) throw new Error("Failed to fetch subscription data")
       const json = await res.json()
 
@@ -367,17 +371,19 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
       })
 
       if (sortedMonthKeys.length > 0) {
-        setSelectedMonth(sortedMonthKeys[0])
+        setSelectedMonth((prev) => (prev && sortedMonthKeys.includes(prev) ? prev : sortedMonthKeys[0]))
       }
     } catch (e: any) {
       console.error("Superuser revenue analytics error:", e)
+      toast({ variant: "destructive", title: "Failed to Load Analytics", description: e?.message || "Please try again." })
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
   useEffect(() => {
-    fetchData()
+    fetchData(false)
   }, [])
 
   const currentMonthData = useMemo(() => {
@@ -411,6 +417,40 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
     })
   }, [data, selectedMonth, cohortFilter, searchQuery])
 
+  const handleExportCohortExcel = async () => {
+    if (currentCohorts.length === 0) {
+      toast({ variant: "destructive", title: "Nothing to Export", description: "No accounts match the active cohort filter." })
+      return
+    }
+    try {
+      const XLSX = await import("xlsx")
+      const rows = currentCohorts.map((u) => ({
+        Name: u.fullName || u.username,
+        Username: u.username,
+        Role: u.role,
+        "CCC Code": u.cccCode,
+        "Care Center": u.cccName || "",
+        "Cohort Status": u.cohortLabel,
+        "Expiry Date": u.subscriptionExpiresAt || "None",
+        "Expired Days Ago": u.expiredDaysAgo && u.expiredDaysAgo > 0 ? u.expiredDaysAgo : 0,
+        "Month Paid (INR)": u.lastPaymentAmount || 0,
+        "Lifetime Paid (INR)": u.totalPaidAmount || 0,
+      }))
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      ws["!cols"] = [
+        { wch: 24 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 24 },
+        { wch: 26 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 18 },
+      ]
+      XLSX.utils.book_append_sheet(wb, ws, "Revenue Cohort")
+      XLSX.writeFile(wb, `Revenue_Cohort_${selectedMonth || "report"}_${cohortFilter}.xlsx`)
+      toast({ title: "Cohort Exported", description: `Downloaded ${currentCohorts.length} accounts for ${currentMonthData?.monthLabel || selectedMonth}.` })
+    } catch (err) {
+      console.error("Cohort export error:", err)
+      toast({ variant: "destructive", title: "Export Failed", description: "Could not generate Excel file." })
+    }
+  }
+
   if (loading) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200/90 p-12 text-center shadow-xs space-y-3">
@@ -428,7 +468,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
       <div className="bg-white rounded-2xl border border-slate-200/90 p-8 text-center shadow-xs">
         <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
         <p className="text-sm font-semibold text-slate-800">Failed to load revenue analytics</p>
-        <Button size="sm" onClick={fetchData} className="mt-3 text-xs bg-blue-600 hover:bg-blue-500 text-white">
+        <Button size="sm" onClick={() => fetchData(false)} className="mt-3 text-xs bg-blue-600 hover:bg-blue-500 text-white">
           Retry
         </Button>
       </div>
@@ -436,44 +476,85 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
   }
 
   return (
-    <div className="space-y-4 animate-in fade-in-50 duration-200">
+    <div className="space-y-4 animate-tab-enter">
       {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-300">
-              <TrendingUp className="h-4 w-4" />
-            </span>
-            <h2 className="text-base sm:text-lg font-black tracking-tight">Monthly Revenue & User Health Check</h2>
-            <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/40 text-[10px] font-bold">
-              Live Audited
-            </Badge>
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="p-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-300">
+                <TrendingUp className="h-4 w-4" />
+              </span>
+              <h2 className="text-base sm:text-lg font-black tracking-tight">Monthly Revenue & User Health Check</h2>
+              <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/40 text-[10px] font-bold">
+                Live Audited
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-300 max-w-2xl">
+              Track collected revenue month-by-month, pinpoint users ready to renew, and auto-flag dormant accounts (&gt;2 months expired).
+            </p>
           </div>
-          <p className="text-xs text-slate-300 max-w-2xl">
-            Track collected revenue month-by-month, pinpoint users who paid last month and are ready to renew, and auto-flag deemed dormant accounts (&gt;2 months expired).
-          </p>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            size="sm"
-            onClick={fetchData}
-            variant="outline"
-            className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/20 font-semibold cursor-pointer"
-          >
-            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-            <span>Recalculate</span>
-          </Button>
-          {onBackToDashboard && (
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <Button
               size="sm"
-              onClick={onBackToDashboard}
+              onClick={handleExportCohortExcel}
               variant="outline"
-              className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/20 font-semibold cursor-pointer"
+              className="h-8 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 border-emerald-400/30 font-semibold cursor-pointer interactive-tap"
+              title="Export filtered cohort list to Excel"
             >
-              <span>Back</span>
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+              <span>Export</span>
             </Button>
-          )}
+            <Button
+              size="sm"
+              onClick={() => fetchData(true)}
+              disabled={refreshing}
+              variant="outline"
+              className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/20 font-semibold cursor-pointer interactive-tap"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
+              <span>{refreshing ? "Syncing..." : "Recalculate"}</span>
+            </Button>
+            {onBackToDashboard && (
+              <Button
+                size="sm"
+                onClick={onBackToDashboard}
+                variant="outline"
+                className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/20 font-semibold cursor-pointer interactive-tap"
+              >
+                <span>Back</span>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* All-Time Macro Summary Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2.5 border-t border-white/10 text-xs">
+          <div className="bg-white/10 rounded-xl px-3 py-2 backdrop-blur-xs">
+            <div className="text-[10px] text-emerald-200/80 font-medium">All-Time Collected</div>
+            <div className="text-sm sm:text-base font-black text-white font-mono">
+              ₹{data.overallMetrics.allTimeRevenue.toLocaleString("en-IN")}
+            </div>
+          </div>
+          <div className="bg-white/10 rounded-xl px-3 py-2 backdrop-blur-xs">
+            <div className="text-[10px] text-emerald-200/80 font-medium">Total Paid Orders</div>
+            <div className="text-sm sm:text-base font-black text-white font-mono">
+              {data.overallMetrics.totalTransactions.toLocaleString("en-IN")}
+            </div>
+          </div>
+          <div className="bg-white/10 rounded-xl px-3 py-2 backdrop-blur-xs">
+            <div className="text-[10px] text-emerald-200/80 font-medium">Active Accounts</div>
+            <div className="text-sm sm:text-base font-black text-emerald-300 font-mono">
+              {data.overallMetrics.currentActiveUsers.toLocaleString("en-IN")}
+            </div>
+          </div>
+          <div className="bg-white/10 rounded-xl px-3 py-2 backdrop-blur-xs">
+            <div className="text-[10px] text-emerald-200/80 font-medium">Dormant (&gt;60d Exp)</div>
+            <div className="text-sm sm:text-base font-black text-rose-300 font-mono">
+              {data.overallMetrics.totalDeemedUsers.toLocaleString("en-IN")}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -519,11 +600,16 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
         </div>
       </div>
 
-      {/* Selected Month Summary KPIs (4 Cards Grid) */}
+      {/* Selected Month Summary KPIs (4 Interactive Filter Cards) */}
       {currentMonthData && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* 1. Monthly Revenue */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-xl">
+          {/* 1. Monthly Revenue -> All Cohorts */}
+          <Card
+            onClick={() => setCohortFilter("all")}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-xl cursor-pointer card-interactive transition-all ${
+              cohortFilter === "all" ? "ring-2 ring-emerald-500/40 border-emerald-400" : ""
+            }`}
+          >
             <CardContent className="p-3.5 space-y-1">
               <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
                 <span>Revenue ({currentMonthData.monthLabel})</span>
@@ -540,8 +626,13 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
             </CardContent>
           </Card>
 
-          {/* 2. Paid Users in Month */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-xl">
+          {/* 2. Paid Users in Month -> Paid Filter */}
+          <Card
+            onClick={() => setCohortFilter("paid")}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-xl cursor-pointer card-interactive transition-all ${
+              cohortFilter === "paid" ? "ring-2 ring-blue-500/40 border-blue-400" : ""
+            }`}
+          >
             <CardContent className="p-3.5 space-y-1">
               <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
                 <span>Paid Users</span>
@@ -557,7 +648,12 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
           </Card>
 
           {/* 3. Expired Last Month / Will Pay (Target Conversion) */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-xl border-l-4 border-l-amber-500">
+          <Card
+            onClick={() => setCohortFilter("expired_will_pay")}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-xl border-l-4 border-l-amber-500 cursor-pointer card-interactive transition-all ${
+              cohortFilter === "expired_will_pay" ? "ring-2 ring-amber-500/40 border-amber-400" : ""
+            }`}
+          >
             <CardContent className="p-3.5 space-y-1">
               <div className="flex items-center justify-between text-[11px] font-semibold text-amber-800">
                 <span>Paid Last Mo. • Expired (Will Pay)</span>
@@ -573,7 +669,12 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
           </Card>
 
           {/* 4. Deemed Users (Dormant >2 months expired) */}
-          <Card className="bg-white border-slate-200/90 shadow-2xs rounded-xl border-l-4 border-l-rose-500">
+          <Card
+            onClick={() => setCohortFilter("deemed")}
+            className={`bg-white border-slate-200/90 shadow-2xs rounded-xl border-l-4 border-l-rose-500 cursor-pointer card-interactive transition-all ${
+              cohortFilter === "deemed" ? "ring-2 ring-rose-500/40 border-rose-400" : ""
+            }`}
+          >
             <CardContent className="p-3.5 space-y-1">
               <div className="flex items-center justify-between text-[11px] font-semibold text-rose-800">
                 <span>Deemed Users (Dormant)</span>
@@ -610,8 +711,18 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
               placeholder="Search user, CCC code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-xs bg-white border-slate-200 text-slate-900 rounded-lg"
+              className="pl-8 pr-8 h-8 text-xs bg-white border-slate-200 text-slate-900 rounded-lg"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </CardHeader>
 
@@ -722,7 +833,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
                               ✓ Paid This Month
                             </Badge>
                           ) : u.cohortStatus === "expired_will_pay" ? (
-                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold animate-pulse px-2 py-0.5">
+                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold px-2 py-0.5">
                               ⚡ Will Pay
                             </Badge>
                           ) : u.cohortStatus === "expiring_soon" ? (
@@ -848,7 +959,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
                                 ✓ Paid This Month
                               </Badge>
                             ) : u.cohortStatus === "expired_will_pay" ? (
-                              <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold animate-pulse">
+                              <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold">
                                 ⚡ Paid Last Mo • Will Pay
                               </Badge>
                             ) : u.cohortStatus === "expiring_soon" ? (

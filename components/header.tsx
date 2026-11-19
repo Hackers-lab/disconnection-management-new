@@ -117,6 +117,7 @@ interface HeaderProps {
   setActiveView: (view: ViewType | "home") => void
   permissions?: Record<string, string[]>
   onOpenQuickSwitcher?: () => void
+  isSetupLocked?: boolean
 }
 
 export function Header({
@@ -133,6 +134,7 @@ export function Header({
   setActiveView: propsSetActiveView,
   permissions,
   onOpenQuickSwitcher,
+  isSetupLocked = false,
 }: HeaderProps) {
   const { toast } = useToast()
   const dashboard = useDashboard()
@@ -1194,6 +1196,7 @@ export function Header({
               userRole={userRole} 
               agencies={userAgencies}
               permissions={permissions}
+              isSetupLocked={isSetupLocked}
             />
 
             {/* Home Brand Button (preserves 2s long press for SpotAI) */}

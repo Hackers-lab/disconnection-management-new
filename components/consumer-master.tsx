@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { getFromCache, saveToCache, getCacheAgeMs, getCccPrefix } from "@/lib/indexed-db"
 import { Search, X, User, MapPin, Phone, Monitor, Map, ChevronDown, ChevronUp, Upload, ExternalLink, Database, Smartphone, Gauge, ShieldCheck, AlertTriangle, Layers, Activity, ChevronRight } from "lucide-react"
+import { notifyOnboardingUpdated, useOnboardingGuide, HandGesturePointer } from "@/components/onboarding-spotlight"
 import dynamic from "next/dynamic"
 
 const NearbyConsumerMap = dynamic(
@@ -235,6 +236,15 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
   const [dataLoaded, setDataLoaded]       = useState(false)
   const [selectedConsumer, setSelectedConsumer] = useState<ConsumerMasterRow | null>(null)
   const [showUpload, setShowUpload]       = useState(false)
+  const onboarding = useOnboardingGuide(role)
+  const isStep5Guiding = isAdmin && onboarding.isGuiding && onboarding.activeStepId === "masterData"
+
+  useEffect(() => {
+    if (isStep5Guiding) {
+      setShowUpload(true)
+    }
+  }, [isStep5Guiding])
+
   const [showNearbyMap, setShowNearbyMap] = useState(false)
   const timerRef                          = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -481,6 +491,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
           variant: "destructive",
         })
       } else {
+        notifyOnboardingUpdated()
         toast({ title: `Uploaded ${serverConfirmed.toLocaleString()} consumers successfully` })
       }
     } catch (e: any) {
@@ -859,9 +870,18 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
 
       {/* Upload section (admin only) — collapsible */}
       {isAdmin && (
-        <div className="border rounded-xl overflow-hidden">
+        <div
+          className={`border rounded-xl ${
+            isStep5Guiding && !fileName
+              ? "relative border-2 border-blue-600 animate-spotlight-ring overflow-visible"
+              : "overflow-hidden"
+          }`}
+        >
+          {isStep5Guiding && !fileName && (
+            <HandGesturePointer label="Step 5: Upload Master CSV" placement="top-right" compact />
+          )}
           <button
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700 rounded-t-xl"
             onClick={() => setShowUpload(!showUpload)}
           >
             <span className="flex items-center gap-2"><Upload className="h-4 w-4" />Upload Consumer Data (CSV)</span>
