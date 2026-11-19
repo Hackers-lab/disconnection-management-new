@@ -15,7 +15,7 @@ A Next.js web application for managing consumer disconnection data with real-tim
 - 🖼️ **Image upload** support (with Vercel Blob)
 - 🔐 **Secure authentication** with JWT sessions
 
-## Quick Start
+## Quick Start..
 
 ### Prerequisites
 
