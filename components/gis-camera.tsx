@@ -31,6 +31,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "@/hooks/use-toast"
+import {
   getGisPhotos,
   saveGisPhoto,
   deleteGisPhoto,
@@ -111,6 +122,8 @@ export function GisCamera({
   const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBatchSharing, setIsBatchSharing] = useState(false)
+  const [pendingDeletePhoto, setPendingDeletePhoto] = useState<GisPhotoRecord | null>(null)
+  const [confirmBatchDeleteOpen, setConfirmBatchDeleteOpen] = useState(false)
 
   // Effective Office & User resolution
   const effectiveOffice =
@@ -564,10 +577,14 @@ export function GisCamera({
     }
   }
 
-  // Batch Delete Selected Photos
-  const handleBatchDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedIds.size} selected photos?`)) return
+  // Batch Delete Selected Photos (triggered after AlertDialog confirmation)
+  const handleBatchDelete = () => {
+    if (selectedIds.size === 0) return
+    setConfirmBatchDeleteOpen(true)
+  }
 
+  const executeBatchDelete = async () => {
+    setConfirmBatchDeleteOpen(false)
     try {
       const idsToDelete = Array.from(selectedIds)
       for (const id of idsToDelete) {
@@ -582,8 +599,10 @@ export function GisCamera({
       setPhotos(prev => prev.filter(p => !selectedIds.has(p.id)))
       setSelectedIds(new Set())
       setIsSelectMode(false)
+      toast({ title: "Photos Deleted", description: `Removed ${idsToDelete.length} selected photo${idsToDelete.length > 1 ? "s" : ""}.` })
     } catch (err) {
       console.error("Batch delete error:", err)
+      toast({ variant: "destructive", title: "Delete Failed", description: "Could not delete selected photos." })
     }
   }
 
@@ -1254,11 +1273,9 @@ export function GisCamera({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                if (confirm("Delete this photo?")) {
-                                  handleDeletePhoto(photo)
-                                }
+                                setPendingDeletePhoto(photo)
                               }}
-                              className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50"
+                              className="p-1 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50 interactive-tap"
                               title="Delete"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -1443,6 +1460,47 @@ export function GisCamera({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Confirm Single or Batch Photo Deletion */}
+      <AlertDialog
+        open={!!pendingDeletePhoto || confirmBatchDeleteOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeletePhoto(null)
+            setConfirmBatchDeleteOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmBatchDeleteOpen ? `Delete ${selectedIds.size} Selected Photos?` : "Delete GIS Photo?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmBatchDeleteOpen
+                ? "The selected photos will be permanently removed from this device and cloud storage."
+                : "This photo will be permanently removed from your device gallery and cloud backup."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (confirmBatchDeleteOpen) {
+                  executeBatchDelete()
+                } else if (pendingDeletePhoto) {
+                  const target = pendingDeletePhoto
+                  setPendingDeletePhoto(null)
+                  handleDeletePhoto(target)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

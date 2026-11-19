@@ -192,17 +192,27 @@ export function GisPhotoViewer({
     setZoomLevel(prev => (prev > 1 ? 1 : 2))
   }
 
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  // Reset inline delete confirmation when changing slides
+  useEffect(() => {
+    setConfirmingDelete(false)
+  }, [currentIndex, isOpen])
+
   // Handle photo deletion
   const handleDeleteCurrent = async () => {
     if (!currentPhoto || !onDeletePhoto) return
-    if (confirm("Are you sure you want to delete this photo?")) {
-      const nextIdx = currentIndex > 0 ? currentIndex - 1 : 0
-      await onDeletePhoto(currentPhoto)
-      if (photos.length <= 1) {
-        onClose()
-      } else {
-        onIndexChange(nextIdx)
-      }
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      return
+    }
+    setConfirmingDelete(false)
+    const nextIdx = currentIndex > 0 ? currentIndex - 1 : 0
+    await onDeletePhoto(currentPhoto)
+    if (photos.length <= 1) {
+      onClose()
+    } else {
+      onIndexChange(nextIdx)
     }
   }
 
@@ -282,15 +292,33 @@ export function GisPhotoViewer({
             {zoomLevel > 1 ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
           </button>
 
-          {/* Delete Photo */}
+          {/* Delete Photo (Two-step inline confirmation) */}
           {onDeletePhoto && (
-            <button
-              onClick={handleDeleteCurrent}
-              className="h-9 w-9 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 active:scale-95 backdrop-blur-md flex items-center justify-center transition-all cursor-pointer border border-red-500/30 shrink-0"
-              title="Delete Photo"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            confirmingDelete ? (
+              <div className="flex items-center gap-1 bg-red-600/90 backdrop-blur-md rounded-full pl-2.5 pr-1 py-0.5 border border-red-400/50 animate-chip-in shrink-0">
+                <span className="text-[11px] font-bold text-white">Delete?</span>
+                <button
+                  onClick={handleDeleteCurrent}
+                  className="h-7 px-2.5 rounded-full bg-white text-red-700 hover:bg-red-50 text-[11px] font-bold transition-colors cursor-pointer"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  className="h-7 px-2 rounded-full bg-red-700/80 text-white hover:bg-red-800 text-[11px] font-medium transition-colors cursor-pointer"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleDeleteCurrent}
+                className="h-9 w-9 rounded-full bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 active:scale-95 backdrop-blur-md flex items-center justify-center transition-all cursor-pointer border border-red-500/30 shrink-0"
+                title="Delete Photo"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )
           )}
 
           {/* Toggle Details Info */}

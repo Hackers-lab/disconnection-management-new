@@ -12,6 +12,7 @@ import { ArrowLeft, Loader2, CheckCircle2, XCircle, RotateCcw, FileText, Clipboa
 import { NSC_STATUS_COLORS, NSC_STATUS_LABELS } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { getFromCache } from "@/lib/indexed-db"
+import { useToast } from "@/hooks/use-toast"
 
 interface Props {
   app:        NSCApplication
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export function NscProcessForm({ app, agencies, onSave, onCancel }: Props) {
+  const { toast } = useToast()
   const [adminDecision, setAdminDecision] = useState<"accepted" | "rejected" | "">(
     (app.adminDecision as any) || app.agencyDecision as any || ""
   )
@@ -52,20 +54,20 @@ export function NscProcessForm({ app, agencies, onSave, onCancel }: Props) {
   const isDecisionChanged = adminDecision !== app.agencyDecision
 
   const handleSubmit = async () => {
-    if (!finalAction) { alert("Select an action to proceed."); return }
-    if (!adminDecision && finalAction !== "reassign") { alert("Select Accept or Reject."); return }
+    if (!finalAction) { toast({ variant: "destructive", title: "Action required", description: "Select an action to proceed." }); return }
+    if (!adminDecision && finalAction !== "reassign") { toast({ variant: "destructive", title: "Decision required", description: "Select Accept or Reject." }); return }
     if (finalAction === "quotation" && adminDecision === "rejected") {
-      alert("Cannot issue quotation for a rejected application. Please select 'Accept' under Admin Decision if quotation is to be issued.");
+      toast({ variant: "destructive", title: "Invalid combination", description: "Cannot issue quotation for a rejected application. Select 'Accept' under Admin Decision." })
       return
     }
     if (finalAction === "dispute_letter" && adminDecision === "accepted") {
-      alert("Cannot issue a dispute letter for an accepted application. Please select 'Reject' under Admin Decision if a dispute letter is to be issued.");
+      toast({ variant: "destructive", title: "Invalid combination", description: "Cannot issue a dispute letter for an accepted application. Select 'Reject' under Admin Decision." })
       return
     }
-    if (isDecisionChanged && !adminRemarks.trim()) { alert("Remarks required when overriding agency decision."); return }
-    if (finalAction === "quotation"      && applicationNo.trim().length !== 10) { alert("Application No must be exactly 10 digits."); return }
-    if (finalAction === "dispute_letter" && !memoNo.trim()) { alert("Memo No is required."); return }
-    if (finalAction === "reassign"       && !newAgency)     { alert("Select agency to reassign."); return }
+    if (isDecisionChanged && !adminRemarks.trim()) { toast({ variant: "destructive", title: "Remarks required", description: "Remarks are required when overriding agency decision." }); return }
+    if (finalAction === "quotation"      && applicationNo.trim().length !== 10) { toast({ variant: "destructive", title: "Invalid Application No", description: "Application No must be exactly 10 digits." }); return }
+    if (finalAction === "dispute_letter" && !memoNo.trim()) { toast({ variant: "destructive", title: "Memo No required", description: "Memo No is required to issue a dispute letter." }); return }
+    if (finalAction === "reassign"       && !newAgency)     { toast({ variant: "destructive", title: "Agency required", description: "Select an agency to reassign." }); return }
 
     setSubmitting(true)
     try {
@@ -85,7 +87,7 @@ export function NscProcessForm({ app, agencies, onSave, onCancel }: Props) {
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
       onSave()
-    } catch (e: any) { alert(e.message) }
+    } catch (e: any) { toast({ variant: "destructive", title: "Processing failed", description: e.message || "Failed to process NSC application." }) }
     finally { setSubmitting(false) }
   }
 

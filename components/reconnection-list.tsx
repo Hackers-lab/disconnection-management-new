@@ -532,7 +532,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
       {tab !== "reports" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {paginated.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 col-span-full">
+          <div className="text-center py-16 text-gray-400 col-span-full animate-fade-slide-up">
             <RotateCcw className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p>No reconnection requests found</p>
           </div>
@@ -540,7 +540,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
           const overdueFlag = r.isOverdue
           const hrs = r.overdueHours
           return (
-            <Card key={r.requestId} className={`shadow-md hover:shadow-lg transition-all duration-200 overflow-hidden max-w-full ${overdueFlag ? "ring-2 ring-red-500 border-red-300" : "hover:border-blue-200"
+            <Card key={r.requestId} className={`shadow-sm card-interactive overflow-hidden max-w-full ${overdueFlag ? "ring-2 ring-red-500 border-red-300" : "hover:border-blue-200"
               }`}>
               <CardHeader className="pb-3 break-words whitespace-normal">
                 <div className="flex items-start justify-between w-full gap-2">
@@ -799,7 +799,7 @@ function ReconnectionReports({
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead className="bg-gray-50 border-b">
-            <tr>{headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-gray-650 font-semibold">{h}</th>)}</tr>
+            <tr>{headers.map((h, i) => <th key={i} className="px-3 py-2 text-left text-gray-600 font-semibold">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y">
             {rows.map((row, i) => (
@@ -829,7 +829,7 @@ function ReconnectionReports({
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <StatCard label="Total Requests" value={total} color="border-gray-200" />
-        <StatCard label="Pending Reconnection" value={pending} color="border-yellow-250 bg-yellow-50/10" />
+        <StatCard label="Pending Reconnection" value={pending} color="border-yellow-200 bg-yellow-50/10" />
         <StatCard label="Overdue Requests" value={overdue} color="border-red-200 bg-red-50/10" />
         <StatCard label="Reconnected" value={reconnected} color="border-green-200 bg-green-50/10" />
         <StatCard label="Door Locked" value={doorLocked} color="border-orange-200 bg-orange-50/10" />

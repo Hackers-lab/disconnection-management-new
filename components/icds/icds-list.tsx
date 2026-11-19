@@ -610,7 +610,7 @@ export function IcdsList({
             <Filter className="h-3.5 w-3.5 mr-1.5 text-slate-400" />
             Filters
             {activeFiltersCount > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 bg-blue-500 text-white rounded-full text-[10px] font-extrabold">
+              <span className="ml-1.5 px-1.5 py-0.5 bg-blue-500 text-white rounded-full text-[10px] font-extrabold animate-badge-pop">
                 {activeFiltersCount}
               </span>
             )}
@@ -753,7 +753,7 @@ export function IcdsList({
               >
                 <span className="hidden sm:inline">{s.label}</span>
                 <span className="sm:hidden">{s.shortLabel}</span>
-                <span className={`text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full transition-colors ${
+                <span className={`text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full transition-colors ${
                   isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
                 }`}>
                   {s.count}

@@ -22,6 +22,10 @@ import { MaterialHistoryDialog } from "./material-history-dialog"
 import { useHashState } from "@/hooks/use-hash-state"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const CACHE_KEY = "material_data_cache"
 
@@ -65,6 +69,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
   // Dialogs
   const [historyMaterial, setHistoryMaterial] = useState<MaterialStock | null>(null)
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{ type: "receive" | "issue" | "catalogue"; id: string; title: string; description: string } | null>(null)
 
   // Add material states
   const [newMatDesc, setNewMatDesc] = useState("")
@@ -217,7 +222,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
     const first = itemsToPrint[0]
     const win = window.open("", "_blank")
     if (!win) {
-      alert("Pop-up blocked. Please allow pop-ups.")
+      toast({ variant: "destructive", title: "Pop-up blocked", description: "Please allow pop-ups in your browser to print slips." })
       return
     }
 
@@ -561,43 +566,57 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
       cancelEditMaterial()
       fetchData(true)
     } catch (e: any) {
-      alert(e.message)
+      toast({ variant: "destructive", title: "Save failed", description: e.message || "Failed to save material." })
     } finally {
       setAddingMaterial(false)
     }
   }
 
   // ── Delete Transactions ───────────────────────────────────────────────────────
-  const handleDeleteReceive = async (receiveId: string) => {
-    if (!confirm("Are you sure you want to delete this receive transaction? This will restore stock levels.")) return
-    try {
-      const res = await fetch(`/api/material/receive?receiveId=${receiveId}`, { method: "DELETE" })
-      if (!res.ok) throw new Error((await res.json()).error || "Delete failed")
-      fetchData(true)
-    } catch (e: any) {
-      alert(e.message)
-    }
+  const handleDeleteReceive = (receiveId: string) => {
+    setPendingDelete({
+      type: "receive",
+      id: receiveId,
+      title: "Delete Receive Transaction?",
+      description: "This will permanently delete this inward receipt and adjust stock levels accordingly.",
+    })
   }
 
-  const handleDeleteIssue = async (issueId: string) => {
-    if (!confirm("Are you sure you want to delete this issue transaction? This will return materials to stock.")) return
-    try {
-      const res = await fetch(`/api/material/issue?issueId=${issueId}`, { method: "DELETE" })
-      if (!res.ok) throw new Error((await res.json()).error || "Delete failed")
-      fetchData(true)
-    } catch (e: any) {
-      alert(e.message)
-    }
+  const handleDeleteIssue = (issueId: string) => {
+    setPendingDelete({
+      type: "issue",
+      id: issueId,
+      title: "Delete Issue Transaction?",
+      description: "This will permanently delete this outward handover and return the materials to stock.",
+    })
   }
 
-  const handleDeleteCatalogueItem = async (materialId: string) => {
-    if (!confirm("Are you sure you want to delete this material from the catalogue?")) return
+  const handleDeleteCatalogueItem = (materialId: string) => {
+    setPendingDelete({
+      type: "catalogue",
+      id: materialId,
+      title: "Delete Material from Catalogue?",
+      description: "This removes the item from your active material catalogue.",
+    })
+  }
+
+  const executeConfirmedDelete = async () => {
+    if (!pendingDelete) return
+    const { type, id } = pendingDelete
+    setPendingDelete(null)
     try {
-      const res = await fetch(`/api/material/catalogue?materialId=${materialId}`, { method: "DELETE" })
+      const endpoint =
+        type === "receive"
+          ? `/api/material/receive?receiveId=${id}`
+          : type === "issue"
+          ? `/api/material/issue?issueId=${id}`
+          : `/api/material/catalogue?materialId=${id}`
+      const res = await fetch(endpoint, { method: "DELETE" })
       if (!res.ok) throw new Error((await res.json()).error || "Delete failed")
+      toast({ title: "Deleted", description: "Record removed and stock refreshed." })
       fetchData(true)
     } catch (e: any) {
-      alert(e.message)
+      toast({ variant: "destructive", title: "Delete failed", description: e.message || "Could not delete record." })
     }
   }
 
@@ -655,9 +674,10 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(issueRows), "Issued History")
 
       XLSX.writeFile(wb, `Material_Stock_Report_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast({ title: "Excel exported", description: "Material Stock Report downloaded." })
     } catch (e) {
       console.error(e)
-      alert("Failed to export Excel report")
+      toast({ variant: "destructive", title: "Export failed", description: "Failed to export Excel report." })
     }
   }
 
@@ -697,9 +717,10 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
       })
 
       doc.save(`Material_Stock_Register_${new Date().toISOString().slice(0, 10)}.pdf`)
+      toast({ title: "PDF exported", description: "Material Stock Register downloaded." })
     } catch (e) {
       console.error(e)
-      alert("Failed to export PDF report")
+      toast({ variant: "destructive", title: "Export failed", description: "Failed to export PDF report." })
     }
   }
 
@@ -996,7 +1017,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                                 )}
                                 <span>Out of Stock Items ({outOfStockItems.length})</span>
                               </div>
-                              <span className="text-[10px] bg-slate-200/80 text-slate-650 px-2 py-0.5 rounded-full font-mono font-medium">
+                              <span className="text-[10px] bg-slate-200/80 text-slate-600 px-2 py-0.5 rounded-full font-mono font-medium">
                                 {showOutOfStock ? "Click to collapse" : "Click to expand"}
                               </span>
                             </div>
@@ -1025,7 +1046,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                                   </div>
                                 )}
                                 <span 
-                                  className="text-blue-655 hover:text-blue-855 hover:underline cursor-pointer font-semibold"
+                                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-semibold"
                                   onClick={() => setHistoryMaterial(s)}
                                 >
                                   {s.description}
@@ -1083,7 +1104,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                 <select
                   value={historyMaterialFilter}
                   onChange={e => setHistoryMaterialFilter(e.target.value)}
-                  className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold hover:bg-gray-55 transition-colors shrink-0 outline-none max-w-[250px]"
+                  className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold hover:bg-gray-50 transition-colors shrink-0 outline-none max-w-[250px]"
                 >
                   <option value="all">All Materials</option>
                   {catalogue.map(m => (
@@ -1095,7 +1116,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                 <select
                   value={historyTypeFilter}
                   onChange={e => setHistoryTypeFilter(e.target.value as any)}
-                  className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold hover:bg-gray-55 transition-colors shrink-0 outline-none w-[130px]"
+                  className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold hover:bg-gray-50 transition-colors shrink-0 outline-none w-[130px]"
                 >
                   <option value="all">All Types</option>
                   <option value="receive">📥 Inward (Receive)</option>
@@ -1133,7 +1154,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                   <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm col-span-2 md:col-span-1 flex flex-col justify-between">
                     <div>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Available Balance</span>
-                      <p className={`text-2xl font-bold mt-1 ${ledgerMetrics.currentStock < ledgerMetrics.threshold ? "text-red-650" : "text-gray-900"}`}>
+                      <p className={`text-2xl font-bold mt-1 ${ledgerMetrics.currentStock < ledgerMetrics.threshold ? "text-red-600" : "text-gray-900"}`}>
                         {ledgerMetrics.currentStock} {ledgerMetrics.unit}
                       </p>
                     </div>
@@ -1170,7 +1191,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-blue-650 hover:text-blue-855 hover:bg-blue-50 absolute top-3 right-3"
+                                className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50 absolute top-3 right-3"
                                 onClick={() => setPreviewImage({ url: getGoogleDriveDirectLink(r.photoUrl || ""), title: r.materialDesc })}
                                 title="View Attached Photo"
                               >
@@ -1178,7 +1199,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                               </Button>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-450 border-t pt-1.5 border-dashed border-slate-100">
+                          <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-400 border-t pt-1.5 border-dashed border-slate-100">
                             <div><span className="font-semibold text-slate-600">Challan:</span> {r.ref || "—"}</div>
                             <div><span className="font-semibold text-slate-600">From:</span> {r.party}</div>
                             <div><span className="font-semibold text-slate-600">Date:</span> {r.date}</div>
@@ -1192,7 +1213,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                         </div>
                       ))}
                       {filteredUnifiedHistory.filter(h => h.type === "receive").length === 0 && (
-                        <p className="text-center py-10 text-xs text-slate-450 bg-white border border-dashed rounded-xl">No inward records found</p>
+                        <p className="text-center py-10 text-xs text-slate-400 bg-white border border-dashed rounded-xl">No inward records found</p>
                       )}
                     </div>
                   </div>
@@ -1220,7 +1241,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-blue-650 hover:text-blue-855 hover:bg-blue-50"
+                                  className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                                   onClick={() => setPreviewImage({ url: getGoogleDriveDirectLink(i.photoUrl || ""), title: i.materialDesc })}
                                   title="View Attached Photo"
                                 >
@@ -1238,7 +1259,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                               </Button>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-450 border-t pt-1.5 border-dashed border-slate-100">
+                          <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-400 border-t pt-1.5 border-dashed border-slate-100">
                             <div><span className="font-semibold text-slate-600">To:</span> {i.party}</div>
                             <div><span className="font-semibold text-slate-600">Purpose:</span> {i.ref || "—"}</div>
                             <div><span className="font-semibold text-slate-600">Date:</span> {i.date}</div>
@@ -1252,7 +1273,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                         </div>
                       ))}
                       {filteredUnifiedHistory.filter(h => h.type === "issue").length === 0 && (
-                        <p className="text-center py-10 text-xs text-slate-450 bg-white border border-dashed rounded-xl">No outward records found</p>
+                        <p className="text-center py-10 text-xs text-slate-400 bg-white border border-dashed rounded-xl">No outward records found</p>
                       )}
                     </div>
                   </div>
@@ -1663,6 +1684,25 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           )}
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent className="rounded-2xl max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900">{pendingDelete?.title}</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600">
+              {pendingDelete?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeConfirmedDelete}
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

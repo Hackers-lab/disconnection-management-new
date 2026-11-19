@@ -30,8 +30,10 @@ interface Props {
 }
 
 import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
+import { useToast } from "@/hooks/use-toast"
 
 export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: Props) {
+  const { toast } = useToast()
   const [painting, setPainting] = useState<string>("Done")
   const [imageUrl, setImageUrl] = useState(dtr.paintingImage || "")
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -53,7 +55,7 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
       streamRef.current = s
       setCameraOn(true)
       requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = s })
-    } catch { alert("Camera unavailable.") }
+    } catch { toast({ variant: "destructive", title: "Camera unavailable", description: "Please allow camera permissions to capture photos." }) }
   }
 
   const stopCamera = () => {
@@ -202,20 +204,20 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
         <Card className="border border-slate-200 shadow-sm rounded-2xl">
           <CardContent className="p-5 space-y-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-650">Painting Work Status</Label>
+              <Label className="text-xs font-bold text-slate-600">Painting Work Status</Label>
               <div className="grid grid-cols-2 gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setPainting("Pending")}
-                  className={`h-12 rounded-xl text-xs font-bold transition-all duration-300 border flex items-center justify-center gap-1.5 ${
+                  className={`h-12 rounded-xl text-xs font-bold transition-all duration-200 border flex items-center justify-center gap-1.5 interactive-tap ${
                     painting === "Pending"
                       ? "bg-orange-50 text-orange-700 border-orange-300 ring-2 ring-orange-500/10 shadow-sm"
                       : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                   }`}
                   disabled={submitting}
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${painting === "Pending" ? "bg-orange-500 animate-pulse" : "bg-slate-350"}`} />
+                  <span className={`h-2.5 w-2.5 rounded-full ${painting === "Pending" ? "bg-orange-500" : "bg-slate-300"}`} />
                   Pending (Not Painted)
                 </Button>
                 
@@ -223,15 +225,14 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
                   type="button"
                   variant="outline"
                   onClick={() => setPainting("Done")}
-                  className={`h-12 rounded-xl text-xs font-bold transition-all duration-300 border flex items-center justify-center gap-1.5 ${
+                  className={`h-12 rounded-xl text-xs font-bold transition-all duration-200 border flex items-center justify-center gap-1.5 interactive-tap ${
                     painting === "Done"
                       ? "bg-green-50 text-green-700 border-green-300 ring-2 ring-green-500/10 shadow-sm"
                       : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                   }`}
                   disabled={submitting}
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${painting === "Done" ? "bg-green-500 animate-ping absolute" : ""}`} />
-                  <span className={`h-2.5 w-2.5 rounded-full relative ${painting === "Done" ? "bg-green-600" : "bg-slate-350"}`} />
+                  <span className={`h-2.5 w-2.5 rounded-full relative ${painting === "Done" ? "bg-green-600" : "bg-slate-300"}`} />
                   Done (Completed)
                 </Button>
               </div>
@@ -242,7 +243,7 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
         {/* Painting Evidence Image Card */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl">
           <div className="px-5 py-4 border-b bg-slate-50/50 rounded-t-2xl flex items-center gap-2">
-            <Camera className="h-4.5 w-4.5 text-indigo-650" />
+            <Camera className="h-4 w-4 text-indigo-600" />
             <h3 className="text-sm font-bold text-slate-800">Mandatory Painting Photo</h3>
           </div>
           <CardContent className="p-5 space-y-4">
@@ -258,10 +259,10 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
               <div className="relative rounded-2xl overflow-hidden bg-black aspect-video border">
                 <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4">
-                  <Button type="button" onClick={capturePhoto} className="bg-red-600 hover:bg-red-700 text-white rounded-full h-12 px-6">
+                  <Button type="button" onClick={capturePhoto} className="bg-red-600 hover:bg-red-700 text-white rounded-full h-12 px-6 interactive-tap">
                     Capture
                   </Button>
-                  <Button type="button" variant="secondary" onClick={stopCamera} className="rounded-full h-12 px-6">
+                  <Button type="button" variant="secondary" onClick={stopCamera} className="rounded-full h-12 px-6 interactive-tap">
                     Cancel
                   </Button>
                 </div>
@@ -271,22 +272,22 @@ export function DTRPaintingForm({ dtr, username, userRole, onSave, onCancel }: P
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="h-14 rounded-2xl border-dashed border-slate-300 hover:bg-slate-50 flex items-center justify-center font-semibold text-xs"
+                  className="h-14 rounded-2xl border-dashed border-slate-300 hover:bg-slate-50 flex items-center justify-center font-semibold text-xs interactive-tap"
                   onClick={startCamera} 
                   disabled={uploading || submitting}
                 >
-                  <Camera className="h-4.5 w-4.5 mr-2 text-indigo-600 animate-pulse" />
+                  <Camera className="h-4 w-4 mr-2 text-indigo-600" />
                   Capture Photo
                 </Button>
                 
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="h-14 rounded-2xl border-dashed border-slate-300 hover:bg-slate-50 flex items-center justify-center font-semibold text-xs"
+                  className="h-14 rounded-2xl border-dashed border-slate-300 hover:bg-slate-50 flex items-center justify-center font-semibold text-xs interactive-tap"
                   onClick={() => fileRef.current?.click()} 
                   disabled={uploading || submitting}
                 >
-                  <Upload className="h-4.5 w-4.5 mr-2 text-blue-600" />
+                  <Upload className="h-4 w-4 mr-2 text-blue-600" />
                   Upload Photo
                 </Button>
               </div>

@@ -364,7 +364,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
       <DDStats consumers={filteredConsumers} />
 
       {/* Controls */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border sticky top-[64px] z-30">
+      <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-sm border border-slate-200/80 sticky top-14 z-30">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -389,12 +389,12 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
                 <Filter className="h-4 w-4" />
               </Button>
             </SheetTrigger>
-            <SheetContent>
-              <SheetHeader>
+            <SheetContent className="flex flex-col p-0 gap-0">
+              <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-100 shrink-0">
                 <SheetTitle>Filters</SheetTitle>
                 <SheetDescription>Filter Deemed Visit list</SheetDescription>
               </SheetHeader>
-              <div className="space-y-4 mt-6">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Agency</label>
                   <Select value={filters.agency} onValueChange={v => setFilters(p => ({ ...p, agency: v }))}>
@@ -453,8 +453,13 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
                     </Button>
                   </div>
                 </div>
-                <Button variant="destructive" className="w-full" onClick={() => { setFilters({ agency: "All Agencies", status: "All Status", baseClass: "All Classes" }); setDateFilter({ from: null, to: null, isActive: false }) }}>
-                  Clear Filters
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 bg-white shrink-0 flex gap-2">
+                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => { setFilters({ agency: "All Agencies", status: "All Status", baseClass: "All Classes" }); setDateFilter({ from: null, to: null, isActive: false }) }}>
+                  Clear All
+                </Button>
+                <Button className="flex-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white" onClick={() => setIsFilterOpen(false)}>
+                  Show {filteredConsumers.length}
                 </Button>
               </div>
             </SheetContent>
@@ -493,9 +498,9 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
               if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
               setShowNearbyMap(v => !v)
             }}
-            className="w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white"
+            className="w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-200 interactive-tap bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
           >
-            <MapPin className="h-4.5 w-4.5 animate-bounce" />
+            <MapPin className="h-4 w-4" />
             {showNearbyMap ? "Hide Navigation Radar" : "Locate Nearby Consumers"}
           </Button>
         </div>
@@ -537,7 +542,7 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           {paginatedConsumers.map(consumer => (
             <Card
               key={consumer.consumerId}
-              className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${
+              className={`shadow-sm card-interactive overflow-hidden max-w-full ${
                 consumer._syncStatus === 'error' ? "border-red-400 border-2" : ""
               }`}
             >

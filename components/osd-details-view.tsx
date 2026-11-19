@@ -764,7 +764,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                       <div className="p-3 bg-rose-50/50 border border-rose-200/70 rounded-xl">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-bold uppercase text-rose-800">1. Must Pay (Excl. LPSC)</div>
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-rose-600 text-white rounded">MUST PAY</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-rose-600 text-white rounded">MUST PAY</span>
                         </div>
                         <div className="text-sm font-bold font-mono text-rose-700 mt-1">
                           ₹{mustPayPrincipal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -776,7 +776,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-bold uppercase text-slate-500">2. Future Due Date</div>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                             futureDueDateAmt > 0 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
                           }`}>
                             {futureDueDateAmt > 0 ? "IN GRACE" : "NO FUTURE DUE"}
@@ -796,7 +796,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                       <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-bold uppercase text-slate-500">3. Live LPSC</div>
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded">
                             LPSC (L4)
                           </span>
                         </div>
@@ -812,7 +812,7 @@ export function OsdDetailsView({ onBack, initialConsumerId }: OsdDetailsViewProp
                       <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-bold uppercase text-blue-900">4. Total (Incl. LPSC)</div>
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 bg-blue-600 text-white rounded">TOTAL</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-600 text-white rounded">TOTAL</span>
                         </div>
                         <div className="text-sm font-bold font-mono text-blue-900 mt-1">
                           ₹{totalDemand.toLocaleString("en-IN", { minimumFractionDigits: 2 })}

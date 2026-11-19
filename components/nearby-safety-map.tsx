@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, MapPin, Navigation, ArrowLeft, RefreshCw, X, ShieldAlert, CheckCircle2 } from "lucide-react"
 import type { SafetyTicket } from "@/lib/safety-service"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   tickets: SafetyTicket[]
@@ -42,7 +43,7 @@ export function NearbySafetyMap({ tickets, onClose, onGoToTicket }: Props) {
   const getUserLocation = () => {
     setLoadingLocation(true)
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.")
+      toast({ variant: "destructive", title: "GPS unavailable", description: "Geolocation is not supported by your browser." })
       setLoadingLocation(false)
       return
     }

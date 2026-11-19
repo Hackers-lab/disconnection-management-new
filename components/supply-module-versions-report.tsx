@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toast } from "@/hooks/use-toast"
 import {
   Activity,
   Layers,
@@ -345,9 +346,10 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
       XLSX.utils.book_append_sheet(wb, wsKPI, "Executive KPIs")
 
       XLSX.writeFile(wb, `Supply_Module_Versions_Report_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast({ title: "Excel Export Ready", description: "Supply module versions report downloaded." })
     } catch (e) {
       console.error("Excel export error:", e)
-      alert("Failed to export Excel report.")
+      toast({ variant: "destructive", title: "Export Failed", description: "Failed to export Excel report." })
     }
   }
 
@@ -420,9 +422,10 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
       })
 
       doc.save(`Supply_Module_Versions_${new Date().toISOString().slice(0, 10)}.pdf`)
+      toast({ title: "PDF Export Ready", description: "Supply module versions PDF downloaded." })
     } catch (e) {
       console.error("PDF export error:", e)
-      alert("Failed to export PDF report.")
+      toast({ variant: "destructive", title: "Export Failed", description: "Failed to export PDF report." })
     }
   }
 

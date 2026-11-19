@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Loader2, Calculator, CheckCircle2, AlertTriangle, RotateCcw, ArrowRight } from "lucide-react"
 import type { MeterIssue } from "@/lib/meter-types"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   issue: MeterIssue
@@ -44,7 +45,7 @@ export function CheckMeterDialog({ issue, isOpen, onClose, onSuccess }: Props) {
 
   const handleSaveCrossCheck = async () => {
     if (!existingReading.trim() || !checkReading.trim() || !crossCheckDate) {
-      alert("Please enter readings and cross-check date.")
+      toast({ variant: "destructive", title: "Missing Details", description: "Please enter both readings and the cross-check date." })
       return
     }
 
@@ -69,7 +70,7 @@ export function CheckMeterDialog({ issue, isOpen, onClose, onSuccess }: Props) {
       onSuccess()
       onClose()
     } catch (e: any) {
-      alert(e.message || "Save cross check failed")
+      toast({ variant: "destructive", title: "Save Failed", description: e.message || "Failed to save cross-check reading." })
     } finally {
       setSubmitting(false)
     }
@@ -92,7 +93,7 @@ export function CheckMeterDialog({ issue, isOpen, onClose, onSuccess }: Props) {
       onSuccess()
       onClose()
     } catch (e: any) {
-      alert(e.message || "Finalize failed")
+      toast({ variant: "destructive", title: "Finalize Failed", description: e.message || "Failed to finalize check meter." })
     } finally {
       setSubmitting(false)
     }

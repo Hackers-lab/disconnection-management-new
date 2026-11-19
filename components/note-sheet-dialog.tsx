@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Loader2, FileText } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface Props {
   issueId?: string
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function NoteSheetDialog({ issueId, issueIds, replacementId, replacementIds, currentNoteSheetNo = "", workOrderNo = "", isOpen, onClose, onSuccess }: Props) {
+  const { toast } = useToast()
   const [noteSheetNo, setNoteSheetNo] = useState(currentNoteSheetNo)
   const [submitting, setSubmitting]   = useState(false)
 
@@ -35,7 +37,7 @@ export function NoteSheetDialog({ issueId, issueIds, replacementId, replacementI
 
   const handleSubmit = async () => {
     if (!noteSheetNo.trim()) {
-      alert("Please enter a Note Sheet Number.")
+      toast({ variant: "destructive", title: "Note Sheet required", description: "Please enter a Note Sheet Number." })
       return
     }
 
@@ -50,10 +52,11 @@ export function NoteSheetDialog({ issueId, issueIds, replacementId, replacementI
         })
       })
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
+      toast({ title: "Note Sheet saved", description: `Saved Note Sheet ${noteSheetNo.trim()}.` })
       onSuccess()
       onClose()
     } catch (e: any) {
-      alert(e.message || "Failed to save Note Sheet Number")
+      toast({ variant: "destructive", title: "Save failed", description: e.message || "Failed to save Note Sheet Number" })
     } finally {
       setSubmitting(false)
     }

@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, ArrowDownToLine, Plus, Trash2, Camera, Upload, Pack
 import type { Material } from "@/lib/material-types"
 
 import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   catalogue: Material[]
@@ -121,7 +122,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
       setPhotoPreview(null)
       onSuccess()
     } catch (e: any) {
-      alert(e.message)
+      toast({ variant: "destructive", title: "Submission Failed", description: e.message || "Failed to submit material inward challan." })
     } finally {
       setSubmitting(false)
     }
@@ -209,21 +210,21 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
             <Button 
               type="button" 
               variant="outline"
-              className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
+              className="h-11 rounded-xl border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 interactive-tap"
               onClick={triggerCamera}
               disabled={submitting}
             >
-              <Camera className="h-4.5 w-4.5 text-slate-550" />
+              <Camera className="h-4 w-4 text-slate-500" />
               <span>Camera (Live)</span>
             </Button>
             <Button 
               type="button" 
               variant="outline"
-              className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
+              className="h-11 rounded-xl border border-slate-200 text-slate-700 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 interactive-tap"
               onClick={triggerGallery}
               disabled={submitting}
             >
-              <Upload className="h-4.5 w-4.5 text-slate-550" />
+              <Upload className="h-4 w-4 text-slate-500" />
               <span>Gallery</span>
             </Button>
           </div>
@@ -289,7 +290,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
                     <img src={getGoogleDriveDirectLink(selectedTempMat.photoUrl)} alt="" className="h-8 w-8 rounded object-cover border bg-white shrink-0" />
                   ) : (
                     <div className="h-8 w-8 rounded border bg-white flex items-center justify-center shrink-0 text-gray-400">
-                      <Package className="h-4.5 w-4.5" />
+                      <Package className="h-4 w-4" />
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
@@ -297,7 +298,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
                     <p className="text-[10px] text-emerald-700 font-mono mt-0.5">{selectedTempMat.materialNo || selectedTempMat.materialId} · {selectedTempMat.unit}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="text-[10px] h-7 ml-2 text-emerald-800 bg-white border border-emerald-250 hover:bg-emerald-100/50 shrink-0 rounded-lg" onClick={() => setTempMaterialId("")}>Change</Button>
+                <Button variant="ghost" size="sm" className="text-[10px] h-7 ml-2 text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-100/50 shrink-0 rounded-lg interactive-tap" onClick={() => setTempMaterialId("")}>Change</Button>
               </div>
             )}
           </div>
@@ -331,7 +332,7 @@ export function MaterialReceiveForm({ catalogue, onSuccess, onCancel }: Props) {
         <CardContent className="p-5 space-y-4">
           <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block flex items-center justify-between">
             <span>Selected Items List</span>
-            <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded-full text-slate-650 font-bold">{items.length} items</span>
+            <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded-full text-slate-600 font-bold">{items.length} items</span>
           </Label>
           {items.length === 0 ? (
             <div className="text-center py-6 text-xs text-gray-400">

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, MapPin, Navigation, ArrowLeft, RefreshCw } from "lucide-react"
 import type { DTRRecord } from "@/lib/dtr-service"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   records: DTRRecord[]
@@ -52,7 +53,7 @@ export function NearbyDtrMap({ records, onClose }: Props) {
   const fetchLocation = () => {
     setLoadingLocation(true)
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.")
+      toast({ variant: "destructive", title: "GPS Unavailable", description: "Geolocation is not supported by your browser. Using default coordinates." })
       setUserCoords([25.452202, 88.021090])
       setLoadingLocation(false)
       return
@@ -64,7 +65,7 @@ export function NearbyDtrMap({ records, onClose }: Props) {
         setLoadingLocation(false)
       },
       () => {
-        alert("GPS location access denied. Centering on default coordinate.")
+        toast({ title: "GPS Permission Denied", description: "Centering DTR radar on default office coordinates." })
         setUserCoords([25.452202, 88.021090])
         setLoadingLocation(false)
       },

@@ -11,6 +11,7 @@ import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, XCircle, RefreshCw, M
 import { NSC_CLASSES } from "@/lib/nsc-types"
 import type { NSCApplication } from "@/lib/nsc-types"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { useToast } from "@/hooks/use-toast"
 
 interface Props {
   app: NSCApplication
@@ -86,6 +87,7 @@ function ImageSlot({ label, required = false, url, onUrl, tag, latlong = "" }: {
   tag:      string
   latlong?: string
 }) {
+  const { toast } = useToast()
   const [preview, setPreview]     = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [cameraOn, setCameraOn]   = useState(false)
@@ -98,7 +100,7 @@ function ImageSlot({ label, required = false, url, onUrl, tag, latlong = "" }: {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       streamRef.current = s; setCameraOn(true)
       requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = s })
-    } catch { alert("Camera unavailable.") }
+    } catch { toast({ variant: "destructive", title: "Camera unavailable", description: "Unable to access camera. Check permissions." }) }
   }
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null
@@ -136,7 +138,7 @@ function ImageSlot({ label, required = false, url, onUrl, tag, latlong = "" }: {
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const d = await res.json()
       if (d.success) onUrl(d.url)
-    } catch { alert("Upload failed.") }
+    } catch { toast({ variant: "destructive", title: "Upload failed", description: "Could not upload photo. Please try again." }) }
     finally { setUploading(false) }
   }
 
@@ -184,6 +186,7 @@ function ImageSlot({ label, required = false, url, onUrl, tag, latlong = "" }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function NscInspectForm({ app, onSave, onCancel }: Props) {
+  const { toast } = useToast()
   // GPS Location
   const [latitude, setLatitude]   = useState<string>(app.latitude || "")
   const [longitude, setLongitude] = useState<string>(app.longitude || "")
@@ -251,16 +254,16 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
 
   const handleSubmit = async () => {
     if (!verifyName || !verifyCO || !verifyAddress || !verifyClass) {
-      alert("Please verify all applicant details (mark each as Correct or enter correction)."); return
+      toast({ variant: "destructive", title: "Verification incomplete", description: "Please verify all applicant details (mark each as Correct or enter correction)." }); return
     }
-    if (!existingMeter)  { alert("Please answer: Existing meter?"); return }
-    if (!validPartition) { alert("Please answer: Valid partition?"); return }
-    if (!load.trim())    { alert("Applied load (kW) is required."); return }
-    if (poleRequired === "yes" && !poleDrawingImg) { alert("Pole / Line Drawing is required for pole cases."); return }
-    if (!dtrCapacity.trim()) { alert("DTR Capacity is required."); return }
-    if (!siteImg)        { alert("Site image is required."); return }
-    if (!inspectionFormImg) { alert("Inspection form image is required."); return }
-    if (!agencyDecision) { alert("Please select Accepted or Rejected."); return }
+    if (!existingMeter)  { toast({ variant: "destructive", title: "Field required", description: "Please answer: Existing meter?" }); return }
+    if (!validPartition) { toast({ variant: "destructive", title: "Field required", description: "Please answer: Valid partition?" }); return }
+    if (!load.trim())    { toast({ variant: "destructive", title: "Field required", description: "Applied load (kW) is required." }); return }
+    if (poleRequired === "yes" && !poleDrawingImg) { toast({ variant: "destructive", title: "Drawing required", description: "Pole / Line Drawing is required for pole cases." }); return }
+    if (!dtrCapacity.trim()) { toast({ variant: "destructive", title: "Field required", description: "DTR Capacity is required." }); return }
+    if (!siteImg)        { toast({ variant: "destructive", title: "Photo required", description: "Site image is required." }); return }
+    if (!inspectionFormImg) { toast({ variant: "destructive", title: "Photo required", description: "Inspection form image is required." }); return }
+    if (!agencyDecision) { toast({ variant: "destructive", title: "Decision required", description: "Please select Accepted or Rejected." }); return }
 
     let normalizedLoad = load.trim()
     const numLoad = parseFloat(normalizedLoad)
@@ -297,7 +300,7 @@ export function NscInspectForm({ app, onSave, onCancel }: Props) {
       if (!res.ok) throw new Error((await res.json()).error || "Failed")
       window.dispatchEvent(new Event("notif-refresh"))
       onSave()
-    } catch (e: any) { alert(e.message) }
+    } catch (e: any) { toast({ variant: "destructive", title: "Submission failed", description: e.message || "Could not submit inspection." }) }
     finally { setSubmitting(false) }
   }
 

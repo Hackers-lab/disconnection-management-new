@@ -25,6 +25,7 @@ import {
 import { notifyCacheUpdate } from "@/lib/indexed-db"
 import type { DTRRecord } from "@/lib/dtr-service"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   dtr: DTRRecord
@@ -123,7 +124,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
       streamRef.current = s
       setCameraOn(true)
       requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = s })
-    } catch { alert("Camera unavailable.") }
+    } catch { toast({ variant: "destructive", title: "Camera Unavailable", description: "Unable to access device camera." }) }
   }
 
   const stopCamera = () => {
@@ -181,7 +182,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
   // ── Geolocation ───────────────────────────────────────────────────────────
   const getGeolocation = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.")
+      toast({ variant: "destructive", title: "GPS Unsupported", description: "Geolocation is not supported by your browser." })
       return
     }
     setFetchingLocation(true)
@@ -350,13 +351,13 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
         {/* CARD 1: GENERAL DTR ASSET DETAILS */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl">
           <div className="px-5 py-4 border-b bg-slate-50/50 rounded-t-2xl flex items-center gap-2">
-            <Info className="h-4.5 w-4.5 text-blue-600" />
+            <Info className="h-4 w-4 text-blue-600" />
             <h3 className="text-sm font-bold text-slate-800">1. DTR Asset Specifications</h3>
           </div>
           <CardContent className="p-5 space-y-4">
             {/* DTR Code (Editable for Admin only) */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-650 flex items-center gap-1.5">
+              <Label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
                 DTR Code {isAdmin && <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">Admin Update</span>}
               </Label>
               {isAdmin ? (
@@ -387,7 +388,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
               <>
                 {/* Feeder Selector dropdown */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="actualFeeder" className="text-xs font-semibold text-slate-650">Actual Feeder Name</Label>
+                  <Label htmlFor="actualFeeder" className="text-xs font-semibold text-slate-600">Actual Feeder Name</Label>
                   <Select value={feederSelectValue} onValueChange={handleFeederSelection}>
                     <SelectTrigger id="actualFeeder" className="h-11 rounded-xl bg-white border-slate-200">
                       <SelectValue placeholder="Select Feeder" />
@@ -414,7 +415,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
                 <div className="grid grid-cols-2 gap-4">
                   {/* Rating / Capacity */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="actualRating" className="text-xs font-semibold text-slate-650">Actual KV Rating</Label>
+                    <Label htmlFor="actualRating" className="text-xs font-semibold text-slate-600">Actual KV Rating</Label>
                     <Input
                       id="actualRating"
                       placeholder="e.g. 25, 63, 100"
@@ -427,7 +428,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
 
                   {/* Supply Office */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="supplyOffice" className="text-xs font-semibold text-slate-650">Supply Office</Label>
+                    <Label htmlFor="supplyOffice" className="text-xs font-semibold text-slate-600">Supply Office</Label>
                     <Input
                       id="supplyOffice"
                       value={supplyOffice}
@@ -440,7 +441,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
 
                 {/* Actual Location Landmark */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="actualLocation" className="text-xs font-semibold text-slate-650">Actual Location / Landmark</Label>
+                  <Label htmlFor="actualLocation" className="text-xs font-semibold text-slate-600">Actual Location / Landmark</Label>
                   <Input
                     id="actualLocation"
                     placeholder="Where is the transformer located?"
@@ -455,7 +456,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
                 {isAdmin && (
                   <div className="grid grid-cols-2 gap-4 pt-3 border-t">
                     <div className="space-y-1.5">
-                      <Label htmlFor="paintingAgency" className="text-xs font-bold text-indigo-650 flex items-center gap-1.5">
+                      <Label htmlFor="paintingAgency" className="text-xs font-bold text-indigo-600 flex items-center gap-1.5">
                         Assign Painting Agency
                       </Label>
                       <Input
@@ -468,7 +469,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="auditAgency" className="text-xs font-bold text-indigo-650 flex items-center gap-1.5">
+                      <Label htmlFor="auditAgency" className="text-xs font-bold text-indigo-600 flex items-center gap-1.5">
                         Assign Audit Agency
                       </Label>
                       <Input
@@ -491,12 +492,12 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
         {!isPainter && (
           <Card className="border border-slate-200 shadow-sm rounded-2xl">
             <div className="px-5 py-4 border-b bg-slate-50/50 rounded-t-2xl flex items-center gap-2">
-              <MapPin className="h-4.5 w-4.5 text-red-650" />
+              <MapPin className="h-4 w-4 text-red-600" />
               <h3 className="text-sm font-bold text-slate-800">2. GPS Coordinates & Mapping</h3>
             </div>
             <CardContent className="p-5 space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="latlong" className="text-xs font-semibold text-slate-650">GPS Coordinates (Latitude, Longitude)</Label>
+                <Label htmlFor="latlong" className="text-xs font-semibold text-slate-600">GPS Coordinates (Latitude, Longitude)</Label>
                 <div className="flex gap-2">
                   <Input
                     id="latlong"
@@ -554,7 +555,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
         {/* CARD 3: PHYSICAL INSPECTION AND PAINTING */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl">
           <div className="px-5 py-4 border-b bg-slate-50/50 rounded-t-2xl flex items-center gap-2">
-            <Brush className="h-4.5 w-4.5 text-orange-655" />
+            <Brush className="h-4 w-4 text-orange-600" />
             <h3 className="text-sm font-bold text-slate-800">
               {isPainter ? "2. Painting Work Status" : "3. Physical Inspections & Painting"}
             </h3>
@@ -563,20 +564,20 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Painting Status (Always Editable) */}
               <div className="space-y-2 col-span-1 sm:col-span-2">
-                <Label className="text-xs font-bold text-slate-650">DTR Painting Status</Label>
+                <Label className="text-xs font-bold text-slate-600">DTR Painting Status</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setPainting("Pending")}
-                    className={`h-11 rounded-xl text-xs font-bold transition-all duration-300 border flex items-center justify-center gap-1.5 ${
+                    className={`h-11 rounded-xl text-xs font-bold transition-all duration-200 interactive-tap border flex items-center justify-center gap-1.5 ${
                       painting === "Pending"
                         ? "bg-orange-50 text-orange-700 border-orange-300 ring-2 ring-orange-500/10 shadow-sm"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
                     disabled={submitting}
                   >
-                    <span className={`h-2 w-2 rounded-full ${painting === "Pending" ? "bg-orange-500 animate-pulse" : "bg-slate-350"}`} />
+                    <span className={`h-2 w-2 rounded-full ${painting === "Pending" ? "bg-orange-500" : "bg-slate-300"}`} />
                     Pending (Not Painted)
                   </Button>
                   
@@ -584,15 +585,14 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
                     type="button"
                     variant="outline"
                     onClick={() => setPainting("Done")}
-                    className={`h-11 rounded-xl text-xs font-bold transition-all duration-300 border flex items-center justify-center gap-1.5 ${
+                    className={`h-11 rounded-xl text-xs font-bold transition-all duration-200 interactive-tap border flex items-center justify-center gap-1.5 ${
                       painting === "Done"
                         ? "bg-green-50 text-green-700 border-green-300 ring-2 ring-green-500/10 shadow-sm"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
                     disabled={submitting}
                   >
-                    <span className={`h-2 w-2 rounded-full ${painting === "Done" ? "bg-green-500 animate-ping absolute" : ""}`} />
-                    <span className={`h-2 w-2 rounded-full relative ${painting === "Done" ? "bg-green-600" : "bg-slate-350"}`} />
+                    <span className={`h-2 w-2 rounded-full ${painting === "Done" ? "bg-green-600" : "bg-slate-300"}`} />
                     Done (Completed)
                   </Button>
                 </div>
@@ -600,7 +600,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
 
               {/* Painting Agency assignment (Editable for Admin / Inspector) */}
               <div className="space-y-1.5">
-                <Label htmlFor="paintingAgency" className="text-xs font-semibold text-slate-650">Painting Agency / Vendor</Label>
+                <Label htmlFor="paintingAgency" className="text-xs font-semibold text-slate-600">Painting Agency / Vendor</Label>
                 {isPainter ? (
                   <div className="bg-slate-100 border border-slate-200 text-slate-600 p-2.5 rounded-xl text-sm font-semibold">
                     {paintingAgency || "None / Self"}
@@ -623,7 +623,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
               <div className="grid grid-cols-3 gap-4 pt-3 border-t">
                 {/* Kiosk status */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="kiosk" className="text-xs font-semibold text-slate-650">Kiosk Box</Label>
+                  <Label htmlFor="kiosk" className="text-xs font-semibold text-slate-600">Kiosk Box</Label>
                   <Select value={kiosk} onValueChange={setKiosk} disabled={submitting}>
                     <SelectTrigger id="kiosk" className="h-11 rounded-xl bg-white border-slate-200">
                       <SelectValue placeholder="Kiosk Box" />
@@ -639,7 +639,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
 
                 {/* LA status */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="la" className="text-xs font-semibold text-slate-650">LA (Arrester)</Label>
+                  <Label htmlFor="la" className="text-xs font-semibold text-slate-600">LA (Arrester)</Label>
                   <Select value={la} onValueChange={setLa} disabled={submitting}>
                     <SelectTrigger id="la" className="h-11 rounded-xl bg-white border-slate-200">
                       <SelectValue placeholder="LA status" />
@@ -654,7 +654,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
 
                 {/* NE status */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="ne" className="text-xs font-semibold text-slate-650">NE (Earthing)</Label>
+                  <Label htmlFor="ne" className="text-xs font-semibold text-slate-600">NE (Earthing)</Label>
                   <Select value={ne} onValueChange={setNe} disabled={submitting}>
                     <SelectTrigger id="ne" className="h-11 rounded-xl bg-white border-slate-200">
                       <SelectValue placeholder="NE status" />
@@ -675,13 +675,13 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
         {!isPainter && (
           <Card className="border border-slate-200 shadow-sm rounded-2xl">
             <div className="px-5 py-4 border-b bg-slate-50/50 rounded-t-2xl flex items-center gap-2">
-              <Zap className="h-4.5 w-4.5 text-yellow-600" />
+              <Zap className="h-4 w-4 text-yellow-600" />
               <h3 className="text-sm font-bold text-slate-800">4. Electrical Phase Loads (Amps)</h3>
             </div>
             <CardContent className="p-5 space-y-4">
               <div className="grid grid-cols-4 gap-3 text-center">
                 <div>
-                  <Label htmlFor="loadR" className="text-[10px] text-red-550 font-bold uppercase block mb-1">R-Phase</Label>
+                  <Label htmlFor="loadR" className="text-[10px] text-red-600 font-bold uppercase block mb-1">R-Phase</Label>
                   <Input
                     id="loadR"
                     type="number"
@@ -736,7 +736,7 @@ export function DTRInspectionForm({ dtr, userRole, username, onSave, onCancel, f
         {/* CARD 5: EVIDENCE IMAGE CAPTURE */}
         <Card className="border border-slate-200 shadow-sm rounded-2xl">
           <div className="px-5 py-4 border-b bg-slate-50/50 rounded-t-2xl flex items-center gap-2">
-            <Camera className="h-4.5 w-4.5 text-indigo-650" />
+            <Camera className="h-4 w-4 text-indigo-600" />
             <h3 className="text-sm font-bold text-slate-800">
               {isPainter ? "3. Painting Site Photo" : "5. DTR Photographic Verification"}
             </h3>

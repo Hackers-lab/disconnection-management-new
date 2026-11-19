@@ -11,6 +11,7 @@ import type { MeterIssue } from "@/lib/meter-types"
 import { getFromCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { useToast } from "@/hooks/use-toast"
 
 const PURPOSE_LABELS: Record<string, string> = {
   faulty_replacement: "Faulty/Defective Replacement",
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
+  const { toast } = useToast()
   const isNSC         = issue.purpose === "nsc"
   const isReplacement = !isNSC
 
@@ -125,7 +127,7 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       streamRef.current = s; setCameraFor(slot)
       requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = s })
-    } catch { alert("Camera unavailable.") }
+    } catch { toast({ variant: "destructive", title: "Camera unavailable", description: "Please allow camera permissions to capture photos." }) }
   }
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -164,34 +166,37 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
       fd.append("module", "meter_replacement")
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const data = await res.json()
-      if (data.success) setUrl(data.url)
-    } catch { alert("Upload failed.") }
+      if (data.success) {
+        setUrl(data.url)
+        toast({ title: "Photo uploaded", description: `${slot === "before" ? "Before" : "After"} photo linked.` })
+      }
+    } catch { toast({ variant: "destructive", title: "Upload failed", description: "Could not upload photo. Please try again." }) }
     finally { setUploading(null) }
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!afterImageUrl) { alert("After-installation image is required."); return }
-    if (isReplacement && !beforeImageUrl) { alert("Before image is required for replacements."); return }
+    if (!afterImageUrl) { toast({ variant: "destructive", title: "After photo required", description: "After-installation image is required." }); return }
+    if (isReplacement && !beforeImageUrl) { toast({ variant: "destructive", title: "Before photo required", description: "Before image is required for replacements." }); return }
 
     let finalLastReading = lastReading.trim()
     let finalNewReading  = newReading.trim()
 
     if (is3Phase) {
       if (isReplacement && (!lastCU.trim() && !lastN.trim())) {
-        alert("3-Phase Old Meter Readings (N, P, O, CU) are required."); return
+        toast({ variant: "destructive", title: "Old readings required", description: "3-Phase Old Meter Readings (N, P, O, CU) are required." }); return
       }
       if (!newCU.trim() && !newN.trim()) {
-        alert("3-Phase New Meter Initial Readings (N, P, O, CU) are required."); return
+        toast({ variant: "destructive", title: "New readings required", description: "3-Phase New Meter Initial Readings (N, P, O, CU) are required." }); return
       }
       finalLastReading = `N:${lastN.trim()} | P:${lastP.trim()} | O:${lastO.trim()} | CU:${lastCU.trim()}`
       finalNewReading  = `N:${newN.trim()} | P:${newP.trim()} | O:${newO.trim()} | CU:${newCU.trim()}`
     } else {
-      if (isReplacement && !finalLastReading) { alert("Last meter reading is required."); return }
-      if (!finalNewReading) { alert("New meter initial reading is required."); return }
+      if (isReplacement && !finalLastReading) { toast({ variant: "destructive", title: "Reading required", description: "Last meter reading is required." }); return }
+      if (!finalNewReading) { toast({ variant: "destructive", title: "Reading required", description: "New meter initial reading is required." }); return }
     }
 
-    if (!installationDate) { alert("Installation date is required."); return }
+    if (!installationDate) { toast({ variant: "destructive", title: "Date required", description: "Installation date is required." }); return }
 
     let formattedInstDate = ""
     if (installationDate) {
@@ -242,7 +247,7 @@ export function MeterCompleteForm({ issue, onSave, onCancel }: Props) {
 
       window.dispatchEvent(new Event("notif-refresh"))
       onSave()
-    } catch (e: any) { alert(e.message) }
+    } catch (e: any) { toast({ variant: "destructive", title: "Submission failed", description: e.message || "Could not save completion." }) }
     finally { setSubmitting(false) }
   }
 

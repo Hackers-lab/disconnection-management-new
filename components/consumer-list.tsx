@@ -1157,50 +1157,54 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
       <DashboardStats consumers={filteredConsumers} loading={false} />
 
       {/* Search and Filter Controls */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border sticky top-[64px] z-30">
-        <div className="flex flex-col gap-3">
+      <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-xl shadow-sm border border-slate-200/80 sticky top-14 z-30 transition-shadow">
+        <div className="flex flex-col gap-2.5">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
               <Input
-                placeholder="Search id, name, address..."
+                placeholder="Search ID, name, address..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-8"
+                className="pl-10 pr-8 h-10 rounded-lg border-slate-200 focus-visible:ring-blue-500"
               />
               {searchTerm && (
-                <X
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500 cursor-pointer hover:text-red-700"
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                   onClick={() => setSearchTerm("")}
-                />
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
 
             <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="relative shrink-0">
+                <Button variant="outline" size="icon" className="relative h-10 w-10 rounded-lg border-slate-200 shrink-0 interactive-tap">
                   <Filter className="h-4 w-4" />
                   {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.listStatus.length > 0 || filters.address !== "" || filters.name !== "" || filters.consumerId !== "" ||
                     minOsd > 0 ||
                     dateFilter.isActive ||
                     issueDateFilter.isActive ||
                     sortByOSD !== "desc" || sortByMRU) && (
-                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-600 rounded-full border-2 border-white" />
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-blue-600 rounded-full border-2 border-white animate-badge-pop" />
                   )}
                 </Button>
               </SheetTrigger>
             <SheetContent
-              className="w-[300px] sm:w-[400px] overflow-y-auto"
+              className="w-[310px] sm:w-[400px] p-0 flex flex-col h-full"
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
-              <SheetHeader className="mb-6">
-                <SheetTitle>Filters & Sort</SheetTitle>
-                <SheetDescription>
-                  Filter consumers by agency, status, and other criteria.
+              <SheetHeader className="px-5 pt-5 pb-3.5 border-b border-slate-100 shrink-0">
+                <SheetTitle className="text-base font-bold text-slate-900">Filters & Sort</SheetTitle>
+                <SheetDescription className="text-xs">
+                  Filter consumers by agency, status, dues, or date range.
                 </SheetDescription>
               </SheetHeader>
               
-              <div className="space-y-4 pb-20">
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
                 {/* OSD Range */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-4">
@@ -1435,30 +1439,32 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   </Button>
                 </div>
 
-                {/* Clear Filters */}
-                <Button 
-                  variant="destructive"
-                  className="w-full mt-4"
+              </div>
+
+              {/* Sticky Filter Sheet Footer */}
+              <div className="px-5 py-3.5 border-t border-slate-100 bg-white/95 backdrop-blur-sm shrink-0 flex items-center gap-2.5">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-10 text-xs font-semibold text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 interactive-tap"
                   onClick={() => clearFilters()}
                 >
-                  <X className="mr-2 h-4 w-4" /> Clear All Filters
+                  <X className="mr-1.5 h-3.5 w-3.5" /> Clear All
                 </Button>
-
                 <Button
-                  className="w-full mt-2 bg-slate-950 hover:bg-slate-900 text-white"
+                  className="flex-[1.5] h-10 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white interactive-tap"
                   onClick={() => setIsFilterOpen(false)}
                 >
-                  OK
+                  Show {sortedConsumers.length.toLocaleString("en-IN")} Results
                 </Button>
               </div>
             </SheetContent>
           </Sheet>
 
-            <div className="flex items-center border rounded-md bg-white ml-2 shrink-0">
+            <div className="flex items-center border border-slate-200 rounded-lg bg-white shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-9 w-9 rounded-none rounded-l-md ${viewMode === "card" ? "bg-gray-100 text-blue-600" : "text-gray-500"}`}
+                className={`h-10 w-10 rounded-none rounded-l-lg transition-colors ${viewMode === "card" ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:text-slate-800"}`}
                 onClick={() => {
                   if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   setViewMode("card")
@@ -1468,11 +1474,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
-              <div className="w-px h-5 bg-gray-200" />
+              <div className="w-px h-5 bg-slate-200" />
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-9 w-9 rounded-none rounded-r-md ${viewMode === "list" ? "bg-gray-100 text-blue-600" : "text-gray-500"}`}
+                className={`h-10 w-10 rounded-none rounded-r-lg transition-colors ${viewMode === "list" ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:text-slate-800"}`}
                 onClick={() => {
                   if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   setViewMode("list")
@@ -1485,36 +1491,39 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
             </div>
           </div>
 
-          {/* Nearby Consumer Radar button — full width below search row */}
-          {
-            <Button
-              type="button"
-              onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                setShowNearbyMap(v => !v)
-              }}
-              className={`w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white`}
-            >
-              <MapPin className="h-4.5 w-4.5 animate-bounce" />
-              {showNearbyMap ? "Hide Navigation Radar" : "Locate Nearby Consumers"}
-            </Button>
-          }
+          {/* Nearby Consumer Radar button — sleek compact bar */}
+          <Button
+            type="button"
+            onClick={() => {
+              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+              setShowNearbyMap(v => !v)
+            }}
+            className={`w-full h-10 rounded-xl font-bold flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm transition-all duration-200 interactive-tap ${
+              showNearbyMap
+                ? "bg-slate-900 hover:bg-slate-800 text-white"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+            }`}
+          >
+            <MapPin className="h-4 w-4" />
+            {showNearbyMap ? "Hide Navigation Radar" : "Locate Nearby Consumers"}
+          </Button>
         </div>
 
         {/* Summary Footer in Sticky Header */}
-        <div className="pt-3 border-t flex justify-between items-center mt-2 text-xs text-gray-500">
+        <div className="pt-2.5 border-t border-slate-100 flex justify-between items-center mt-2.5 text-xs text-slate-500">
            <div className="flex items-center gap-2">
-              <span>{sortedConsumers.length} consumers</span>
+              <span className="font-semibold text-slate-700">{sortedConsumers.length.toLocaleString("en-IN")}</span>
+              <span>consumers</span>
 
               <button
                 onClick={handleManualRefresh}
                 disabled={syncStatus === 'checking' || syncStatus === 'syncing'}
-                className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors disabled:cursor-not-allowed ${
+                className={`flex items-center gap-1 rounded-full px-2.5 py-1 border transition-all duration-200 disabled:cursor-not-allowed ${
                   syncStatus === 'checking' ? 'border-yellow-400 bg-yellow-50 text-yellow-600 animate-pulse' :
                   syncStatus === 'found'    ? 'border-orange-400 bg-orange-50 text-orange-500 animate-pulse' :
                   syncStatus === 'syncing'  ? 'border-blue-400 bg-blue-50 text-blue-500' :
                   syncStatus === 'updated'  ? 'border-green-500 bg-green-50 text-green-600' :
-                  'border-blue-300 bg-blue-50 text-blue-500 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 active:scale-95 cursor-pointer'
+                  'border-blue-200 bg-blue-50/70 text-blue-600 hover:border-blue-400 hover:bg-blue-100 hover:text-blue-700 interactive-tap cursor-pointer'
                 }`}
                 title={
                   syncStatus === 'checking' ? 'Checking for updates...' :
@@ -1540,16 +1549,103 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               minOsd > 0 ||
               dateFilter.isActive ||
               issueDateFilter.isActive ||
-              sortByOSD !== "desc") && (
-              <div className="flex items-center gap-1">
-                <span className="text-blue-600 font-medium">Filters Active</span>
-                <X
-                  className="h-4 w-4 text-red-500 cursor-pointer hover:text-red-700"
-                  onClick={clearFilters}
-                />
-              </div>
+              sortByOSD !== "desc" || sortByMRU) && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-md transition-colors interactive-tap"
+              >
+                <span>Clear all</span>
+                <X className="h-3.5 w-3.5" />
+              </button>
            )}
         </div>
+
+        {/* Removable Active Filter Chips */}
+        {(filters.agency.length > 0 || filters.mru.length > 0 || filters.status.length > 0 || filters.baseClass.length > 0 || filters.listStatus.length > 0 || minOsd > 0 || dateFilter.isActive || issueDateFilter.isActive || sortByMRU || sortByOSD !== "desc") && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2">
+            {filters.agency.map((a) => (
+              <span key={`ag-${a}`} className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>Agency: {a}</span>
+                <button type="button" onClick={() => setFilters((p) => ({ ...p, agency: p.agency.filter((x) => x !== a) }))} className="hover:text-blue-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {filters.status.map((s) => (
+              <span key={`st-${s}`} className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>Status: {s}</span>
+                <button type="button" onClick={() => setFilters((p) => ({ ...p, status: p.status.filter((x) => x !== s) }))} className="hover:text-indigo-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {filters.mru.map((m) => (
+              <span key={`mru-${m}`} className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-0.5 text-[11px] font-medium font-mono">
+                <span>MRU: {m}</span>
+                <button type="button" onClick={() => setFilters((p) => ({ ...p, mru: p.mru.filter((x) => x !== m) }))} className="hover:text-slate-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {filters.baseClass.map((b) => (
+              <span key={`bc-${b}`} className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200/80 text-teal-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>Class: {b}</span>
+                <button type="button" onClick={() => setFilters((p) => ({ ...p, baseClass: p.baseClass.filter((x) => x !== b) }))} className="hover:text-teal-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {filters.listStatus.map((ls) => (
+              <span key={`ls-${ls}`} className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>List: {ls}</span>
+                <button type="button" onClick={() => setFilters((p) => ({ ...p, listStatus: p.listStatus.filter((x) => x !== ls) }))} className="hover:text-amber-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {minOsd > 0 && (
+              <span className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200/80 text-red-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>OSD ≥ ₹{minOsd.toLocaleString("en-IN")}</span>
+                <button type="button" onClick={() => setMinOsd(0)} className="hover:text-red-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {dateFilter.isActive && (
+              <span className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200/80 text-purple-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>Discon Date</span>
+                <button type="button" onClick={() => setDateFilter({ from: null, to: null, isActive: false })} className="hover:text-purple-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {issueDateFilter.isActive && (
+              <span className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-200/80 text-orange-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>Issue Date</span>
+                <button type="button" onClick={() => setIssueDateFilter({ from: null, to: null, isActive: false })} className="hover:text-orange-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {sortByMRU && (
+              <span className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>Sort: MRU A–Z</span>
+                <button type="button" onClick={() => setSortByMRU(false)} className="hover:text-slate-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {sortByOSD !== "desc" && (
+              <span className="animate-chip-in inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-0.5 text-[11px] font-medium">
+                <span>OSD: {sortByOSD === "asc" ? "Low → High" : "Default"}</span>
+                <button type="button" onClick={() => setSortByOSD("desc")} className="hover:text-slate-950">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Consumer Cards */}
@@ -1573,7 +1669,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               <Card
                 id={`consumer-card-${consumer.consumerId}`}
                 key={consumer.consumerId}
-                className={`h-full flex flex-col justify-between shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 overflow-hidden border border-slate-200/80 bg-white rounded-xl ${
+                className={`h-full flex flex-col justify-between shadow-sm card-interactive animate-card-enter overflow-hidden border border-slate-200/80 bg-white rounded-xl ${
                   isUrgent ? "ring-2 ring-red-500 border-red-300 shadow-red-100" : ""
                 }`}
               >
@@ -1713,9 +1809,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
                   {/* 3. Footer Action Toolbar & Primary CTA without dividing line */}
                   <div className="space-y-2 pt-1">
-                    {/* Quick Utility Icon Strip */}
+                    {/* Quick Utility Icon Strip (Thumb-friendly 32px+ targets) */}
                     <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -1723,10 +1819,10 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                             setOsdTargetId(consumer.consumerId)
                             setShowOsdModal(true)
                           }}
-                          className="px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold flex items-center gap-1 text-[11px] transition-colors"
+                          className="h-8 px-2.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold flex items-center gap-1 text-xs transition-colors interactive-tap"
                           title="Check Live OSD"
                         >
-                          <Zap className="h-3 w-3 fill-blue-600 text-blue-600" />
+                          <Zap className="h-3.5 w-3.5 fill-blue-600 text-blue-600" />
                           <span>Live</span>
                         </button>
                         <button
@@ -1735,21 +1831,23 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                             if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                             setActiveHistoryConsumer(consumer)
                           }}
-                          className="p-1 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors interactive-tap"
                           title="View History"
+                          aria-label="View History"
                         >
-                          <History className="h-3.5 w-3.5" />
+                          <History className="h-4 w-4" />
                         </button>
                         <button
                           onClick={(e) => handleShareConsumer(consumer, e)}
                           disabled={sharingConsumerId === consumer.consumerId}
-                          className="p-1 rounded text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                          className="h-8 w-8 rounded-lg flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50 interactive-tap"
                           title="Share Status Card"
+                          aria-label="Share Status Card"
                         >
                           {sharingConsumerId === consumer.consumerId ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Share2 className="h-3.5 w-3.5" />
+                            <Share2 className="h-4 w-4" />
                           )}
                         </button>
                         {hasImage && (
@@ -1764,10 +1862,11 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                                 consumerId: consumer.consumerId,
                               })
                             }}
-                            className="p-1 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+                            className="h-8 w-8 rounded-lg flex items-center justify-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors interactive-tap"
                             title="View Uploaded Image"
+                            aria-label="View Uploaded Image"
                           >
-                            <ImageIcon className="h-3.5 w-3.5" />
+                            <ImageIcon className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -1778,10 +1877,10 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                           e.stopPropagation()
                           setPreviewConsumer(consumer)
                         }}
-                        className="px-2 py-1 rounded text-[11px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-1"
+                        className="h-8 px-2.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1 transition-colors interactive-tap"
                         title="More Consumer Details"
                       >
-                        <Eye className="h-3 w-3" />
+                        <Eye className="h-3.5 w-3.5" />
                         <span>Details</span>
                       </button>
                     </div>
@@ -1792,7 +1891,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                         setSelectedConsumer(consumer)
                       }}
-                      className={`w-full h-8 text-xs font-semibold ${
+                      className={`w-full h-9 rounded-lg text-xs font-semibold interactive-tap ${
                         isReadOnlyMode
                           ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"
                           : "bg-slate-900 hover:bg-slate-800 text-white"
@@ -1802,12 +1901,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     >
                       {isReadOnlyMode ? (
                         <>
-                          <Eye className="h-3.5 w-3.5 mr-1 text-slate-600" />
+                          <Eye className="h-3.5 w-3.5 mr-1.5 text-slate-600" />
                           View Details
                         </>
                       ) : (
                         <>
-                          <Edit className="h-3.5 w-3.5 mr-1" />
+                          <Edit className="h-3.5 w-3.5 mr-1.5" />
                           {reconnBlocked ? "⚠ Update Status" : "Update Status"}
                         </>
                       )}
@@ -1877,7 +1976,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       <td className="px-4 py-3 max-w-[200px]">
                         <div className="truncate text-gray-600" title={consumer.address}>{consumer.address}</div>
                         {consumer.agency && (
-                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.2 rounded-full mt-0.5 truncate max-w-[120px] ${getAgencyColor(consumer.agency)}`}>
+                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 truncate max-w-[120px] ${getAgencyColor(consumer.agency)}`}>
                             {consumer.agency}
                           </span>
                         )}

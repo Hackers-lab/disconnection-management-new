@@ -5,6 +5,7 @@ import { MessageSquarePlus, Star, X, Send, Loader2, CheckCircle2 } from "lucide-
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { toast } from "@/hooks/use-toast"
 
 interface FeedbackFloatingButtonProps {
   username?: string
@@ -60,7 +61,7 @@ export function FeedbackFloatingButton({ username, onFeedbackSaved }: FeedbackFl
         setSubmittedSuccess(false)
       }, 2000)
     } catch (e: any) {
-      alert(e.message || "Failed to submit feedback")
+      toast({ variant: "destructive", title: "Submission Failed", description: e.message || "Failed to submit feedback." })
     } finally {
       setSubmitting(false)
     }
@@ -71,10 +72,10 @@ export function FeedbackFloatingButton({ username, onFeedbackSaved }: FeedbackFl
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200 cursor-pointer font-medium text-sm border border-blue-400/30"
+        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer font-medium text-sm border border-blue-400/30 interactive-tap"
         title="Give App Feedback"
       >
-        <MessageSquarePlus className="h-5 w-5 animate-pulse" />
+        <MessageSquarePlus className="h-5 w-5" />
         <span>Feedback</span>
       </button>
 
@@ -90,8 +91,8 @@ export function FeedbackFloatingButton({ username, onFeedbackSaved }: FeedbackFl
             </button>
 
             {submittedSuccess ? (
-              <div className="py-8 text-center space-y-3">
-                <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto animate-bounce" />
+              <div className="py-8 text-center space-y-3 animate-fade-slide-up">
+                <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto animate-badge-pop" />
                 <h3 className="text-xl font-bold text-slate-800">Thank You!</h3>
                 <p className="text-sm text-slate-500">Your feedback has been saved to the Master Registry.</p>
               </div>

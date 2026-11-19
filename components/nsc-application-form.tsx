@@ -17,6 +17,7 @@ import type { NSCApplication } from "@/lib/nsc-types"
 import { NscCameraModal } from "@/components/nsc-camera-modal"
 import { NscCropDialog } from "@/components/nsc-crop-dialog"
 import { applyCamScannerMagicColor, detectDocumentCorners, warpPerspective } from "@/lib/document-scanner"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   initialApp?: NSCApplication
@@ -323,13 +324,13 @@ export function NscApplicationForm({ initialApp, agencies, onSave, onCancel }: P
   }
 
   const handleSubmit = async () => {
-    if (!applicantName.trim()) { alert("Applicant name is required."); return }
-    if (!address.trim())       { alert("Address is required."); return }
-    if (!mobile.trim())        { alert("Mobile number is required."); return }
-    if (!appliedClass)         { alert("Applied class is required."); return }
-    if (!phase)                { alert("Phase is required."); return }
-    if (!agency)               { alert("Please assign an agency."); return }
-    if (!applicationFormUrl && !isEditing) { alert("Please upload or compile the Application Form PDF first."); return }
+    if (!applicantName.trim()) { toast({ variant: "destructive", title: "Applicant Name Required", description: "Please enter the applicant's name." }); return }
+    if (!address.trim())       { toast({ variant: "destructive", title: "Address Required", description: "Please enter the applicant's address." }); return }
+    if (!mobile.trim())        { toast({ variant: "destructive", title: "Mobile Required", description: "Please enter a valid mobile number." }); return }
+    if (!appliedClass)         { toast({ variant: "destructive", title: "Applied Class Required", description: "Please select the applied tariff class." }); return }
+    if (!phase)                { toast({ variant: "destructive", title: "Phase Required", description: "Please select 1-Phase or 3-Phase." }); return }
+    if (!agency)               { toast({ variant: "destructive", title: "Agency Required", description: "Please assign an agency." }); return }
+    if (!applicationFormUrl && !isEditing) { toast({ variant: "destructive", title: "Application Form Required", description: "Please upload or compile the Application Form PDF first." }); return }
 
     setSubmitting(true)
     try {
@@ -376,7 +377,7 @@ export function NscApplicationForm({ initialApp, agencies, onSave, onCancel }: P
         onSave(data.receiveNo)
       }
     } catch (e: any) {
-      alert(e.message || "Failed to save application")
+      toast({ variant: "destructive", title: "Save Failed", description: e.message || "Failed to save NSC application." })
     } finally { setSubmitting(false) }
   }
 

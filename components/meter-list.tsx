@@ -23,6 +23,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import type { MeterStock, MeterIssue, StockSummary, MeterTypeLabel } from "@/lib/meter-types"
@@ -185,6 +193,12 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
   const [selectedForBulkNoteSheet, setSelectedForBulkNoteSheet] = useState<Set<string>>(new Set())
   const [bulkNoteSheetDialogOpen, setBulkNoteSheetDialogOpen]   = useState(false)
+
+  // Return-to-Stock modal state (replaces native prompt/confirm)
+  const [returnStockIssue, setReturnStockIssue] = useState<MeterIssue | null>(null)
+  const [returnStockRemarks, setReturnStockRemarks] = useState("")
+  const [returnStockFaulty, setReturnStockFaulty] = useState(false)
+  const [returningStock, setReturningStock] = useState(false)
 
   // Timeline dropdown & multi-select for replacement cards
   const [expandedTimeline, setExpandedTimeline]   = useState<Set<string>>(new Set())
@@ -710,21 +724,40 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
   }
 
   // ── Return handler ────────────────────────────────────────────────────────
-  const handleReturn = async (issue: MeterIssue) => {
-    const remarks = prompt("Return remarks (required):")
-    if (!remarks) return
-    const faulty = confirm("Mark meter as Faulty? OK = Faulty, Cancel = Back to Available")
+  const handleReturn = (issue: MeterIssue) => {
+    setReturnStockIssue(issue)
+    setReturnStockRemarks("")
+    setReturnStockFaulty(false)
+  }
+
+  const executeReturnToStock = async () => {
+    if (!returnStockIssue) return
+    const remarks = returnStockRemarks.trim()
+    if (!remarks) {
+      toast({ title: "Return remarks required", description: "Please enter a brief reason for returning this meter.", variant: "destructive" })
+      return
+    }
+    setReturningStock(true)
     try {
       const res = await fetch("/api/meters/return", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ issueId: issue.issueId, remarks, faulty }),
+        body: JSON.stringify({ issueId: returnStockIssue.issueId, remarks, faulty: returnStockFaulty }),
       })
       if (!res.ok) throw new Error((await res.json()).error)
-      toast({ title: "Meter returned to stock" })
+      toast({
+        title: returnStockFaulty ? "Meter marked as Faulty" : "Meter returned to Available stock",
+        description: `Serial ${returnStockIssue.serialNo} updated successfully.`,
+      })
+      setReturnStockIssue(null)
+      setReturnStockRemarks("")
       window.dispatchEvent(new Event("notif-refresh"))
       load(true)
-    } catch (e: any) { toast({ title: e.message, variant: "destructive" }) }
+    } catch (e: any) {
+      toast({ title: e.message || "Failed to return meter", variant: "destructive" })
+    } finally {
+      setReturningStock(false)
+    }
   }
 
   // ── Bulk finalize handler — single API call ───────────────────────────────
@@ -2775,6 +2808,80 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
           }}
         />
       )}
+      {/* Return Meter to Stock Dialog */}
+      <Dialog open={!!returnStockIssue} onOpenChange={(open) => { if (!open && !returningStock) setReturnStockIssue(null) }}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <RotateCcw className="h-4 w-4 text-amber-600" />
+              Return Meter to Stock
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {returnStockIssue ? (
+                <>Serial <span className="font-mono font-bold text-slate-800">{returnStockIssue.serialNo}</span> ({returnStockIssue.agency})</>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">Return Condition</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReturnStockFaulty(false)}
+                  className={`p-2.5 rounded-xl border text-left transition-all interactive-tap ${
+                    !returnStockFaulty
+                      ? "bg-emerald-50 border-emerald-500 text-emerald-900 ring-1 ring-emerald-500/20"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="text-xs font-bold">Back to Available</div>
+                  <div className="text-[10px] opacity-80 mt-0.5">Ready for re-issue</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReturnStockFaulty(true)}
+                  className={`p-2.5 rounded-xl border text-left transition-all interactive-tap ${
+                    returnStockFaulty
+                      ? "bg-rose-50 border-rose-500 text-rose-900 ring-1 ring-rose-500/20"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="text-xs font-bold">Mark as Faulty</div>
+                  <div className="text-[10px] opacity-80 mt-0.5">Quarantine defective unit</div>
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="meter-return-remarks" className="text-xs font-semibold text-slate-700">
+                Return Remarks <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="meter-return-remarks"
+                value={returnStockRemarks}
+                onChange={(e) => setReturnStockRemarks(e.target.value)}
+                placeholder="Reason for returning meter (e.g. consumer denied, defective display)..."
+                rows={3}
+                className="rounded-xl text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => setReturnStockIssue(null)} disabled={returningStock}>
+              Cancel
+            </Button>
+            <Button
+              onClick={executeReturnToStock}
+              disabled={returningStock || !returnStockRemarks.trim()}
+              className={`rounded-xl text-white ${returnStockFaulty ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+            >
+              {returningStock && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+              {returnStockFaulty ? "Confirm Faulty Return" : "Return to Available"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Bulk NSC Upload Modal */}
       <BulkNscUploadModal
         open={bulkNscModalOpen}
@@ -3856,15 +3963,15 @@ function AddStockForm({ onSave, onCancel }: { onSave: () => void; onCancel: () =
   }
 
   const handleSubmit = async () => {
-    if (!typeLabel) { alert("Select meter type."); return }
+    if (!typeLabel) { toast({ title: "Meter Type Required", description: "Please select a meter type.", variant: "destructive" }); return }
     let meters: { serialNo: string; typeLabel: MeterTypeLabel; batchRemarks?: string }[] = []
     if (mode === "individual") {
-      if (!serial.trim()) { alert("Enter serial number."); return }
+      if (!serial.trim()) { toast({ title: "Serial Number Required", description: "Please enter the meter serial number.", variant: "destructive" }); return }
       meters = [{ serialNo: serial.trim(), typeLabel, batchRemarks }]
     } else {
       const s = parseInt(rangeStart, 10), e = parseInt(rangeEnd, 10)
-      if (isNaN(s) || isNaN(e) || e < s) { alert("Invalid range."); return }
-      if (!prefix.trim()) { alert("Enter prefix."); return }
+      if (isNaN(s) || isNaN(e) || e < s) { toast({ title: "Invalid Range", description: "End number must be greater than or equal to start number.", variant: "destructive" }); return }
+      if (!prefix.trim()) { toast({ title: "Prefix Required", description: "Please enter the serial prefix for the batch.", variant: "destructive" }); return }
       const pad = Math.max(rangeStart.length, rangeEnd.length)
       for (let i = s; i <= e; i++) meters.push({ serialNo: prefix + String(i).padStart(pad, "0"), typeLabel, batchRemarks })
     }

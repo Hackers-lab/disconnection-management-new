@@ -472,7 +472,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
           })).filter((r: any) => r.dtrCode)
 
           if (rows.length === 0) {
-            alert("No valid rows found in the CSV. Make sure DTR Code is present.")
+            toast({ variant: "destructive", title: "Empty CSV", description: "No valid rows found in the CSV. Make sure DTR Code is present." })
             setUploading(false)
             return
           }
@@ -493,13 +493,13 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
           setShowUpload(false)
           load()
         } catch (e: any) {
-          alert(e.message || "Failed to process CSV file.")
+          toast({ variant: "destructive", title: "Upload Failed", description: e.message || "Failed to process CSV file." })
         } finally {
           setUploading(false)
         }
       },
       error: (err: any) => {
-        alert("Error parsing CSV: " + err.message)
+        toast({ variant: "destructive", title: "CSV Parse Error", description: err.message })
         setUploading(false)
       }
     })
@@ -766,7 +766,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                 type="button" 
                 onClick={() => csvInputRef.current?.click()} 
                 disabled={uploading}
-                className="w-full h-14 bg-indigo-600 hover:bg-indigo-750 text-white rounded-2xl border-2 border-dashed border-indigo-200"
+                className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl border-2 border-dashed border-indigo-200 interactive-tap"
               >
                 {uploading ? (
                   <>
@@ -955,9 +955,13 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
         <Button
           type="button"
           onClick={() => setShowMap(!showMap)}
-          className={`w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white`}
+          className={`w-full h-10 rounded-xl font-bold flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm transition-all duration-200 interactive-tap ${
+            showMap
+              ? "bg-slate-900 hover:bg-slate-800 text-white"
+              : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+          }`}
         >
-          <MapPin className="h-4.5 w-4.5 animate-bounce" />
+          <MapPin className="h-4 w-4" />
           {showMap ? "Hide Navigation Radar" : "Locate Nearby DTR"}
         </Button>
 
@@ -995,8 +999,8 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
             return (
               <Card 
                 key={r.dtrCode} 
-                className={`overflow-hidden shadow-md hover:shadow-lg transition-all relative border flex flex-col justify-between ${
-                  isVerified ? "border-green-150" : "border-gray-200"
+                className={`overflow-hidden shadow-sm card-interactive animate-card-enter relative border flex flex-col justify-between rounded-xl ${
+                  isVerified ? "border-green-200" : "border-slate-200"
                 }`}
               >
                 <div>
@@ -1123,7 +1127,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                     className={`h-10 w-10 rounded-xl ${
                       currentPage === p 
                         ? "bg-slate-950 hover:bg-slate-900 text-white" 
-                        : "text-gray-650"
+                        : "text-gray-600"
                     }`}
                   >
                     {p}
@@ -1231,7 +1235,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                           </span>
                         </div>
                         <div>
-                          <span className="text-slate-400 block">Kiosk Box Box</span>
+                          <span className="text-slate-400 block">Kiosk Box</span>
                           <strong className={`font-bold block mt-1 ${viewingDtr.kiosk === "Defective" ? "text-red-600" : viewingDtr.kiosk === "Missing" ? "text-rose-600" : "text-green-600"}`}>
                             {viewingDtr.kiosk || "Good"}
                           </strong>
@@ -1351,7 +1355,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
                 {/* Bottom: Audit History logs */}
                 <div className="border-t border-slate-200 pt-6">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                    <History className="h-4.5 w-4.5 text-slate-500" /> DTR Audit Log History
+                    <History className="h-4 w-4 text-slate-500" /> DTR Audit Log History
                   </h3>
                   
                   {loadingHistory ? (

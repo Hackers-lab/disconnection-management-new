@@ -259,7 +259,7 @@ export function DashboardStats({ consumers, loading = false, onStatusSelect }: D
             <span className="p-2 bg-slate-100 text-slate-400 rounded-xl">
               <TrendingUp className="h-5 w-5" />
             </span>
-            <span className="font-bold text-slate-850 text-sm tracking-tight">Dashboard Statistics Breakdown</span>
+            <span className="font-bold text-slate-800 text-sm tracking-tight">Dashboard Statistics Breakdown</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline text-[10px] uppercase font-bold tracking-wider text-slate-300 bg-slate-100 px-2.5 py-1 rounded-full">
@@ -366,7 +366,7 @@ export function DashboardStats({ consumers, loading = false, onStatusSelect }: D
         onClick={() => setIsSliderOpen(!isSliderOpen)}
       >
         <div className="flex items-center gap-3">
-          <span className={`p-2 rounded-xl transition-colors duration-300 ${isSliderOpen ? 'bg-indigo-50 text-indigo-650' : 'bg-slate-100 text-slate-600'}`}>
+          <span className={`p-2 rounded-xl transition-colors duration-300 ${isSliderOpen ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'}`}>
             <TrendingUp className="h-5 w-5" />
           </span>
           <span className="font-bold text-slate-800 text-sm tracking-tight">Dashboard Statistics Breakdown</span>

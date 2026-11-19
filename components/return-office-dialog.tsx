@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Loader2, PackageCheck, AlertCircle } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   issueId: string
@@ -49,7 +50,7 @@ export function ReturnOfficeDialog({ issueId, consumerName, consumerId, oldMeter
 
   const handleSubmit = async () => {
     if (!returnDate) {
-      alert("Please select a return date.")
+      toast({ variant: "destructive", title: "Date Required", description: "Please select a return date." })
       return
     }
 
@@ -69,7 +70,7 @@ export function ReturnOfficeDialog({ issueId, consumerName, consumerId, oldMeter
       onSuccess()
       onClose()
     } catch (e: any) {
-      alert(e.message || "Failed to log returned meter")
+      toast({ variant: "destructive", title: "Update Failed", description: e.message || "Failed to log returned meter." })
     } finally {
       setSubmitting(false)
     }

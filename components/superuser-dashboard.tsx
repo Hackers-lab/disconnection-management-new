@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toast } from "@/hooks/use-toast"
 import { SupplyModuleVersionsReport } from "@/components/supply-module-versions-report"
 import { VercelUsageMonitor } from "@/components/vercel-usage-monitor"
 import { SuperuserOnlineUsers } from "@/components/superuser-online-users"
@@ -429,9 +430,10 @@ export function SuperuserDashboard() {
       const res = await fetch(`/api/superuser/users?id=${id}`, { method: "DELETE" })
       const data = await res.json()
       if (res.ok && data.success) {
+        toast({ title: "User Deleted", description: `Removed access for '${username}'.` })
         await fetchUsers()
       } else {
-        alert(data.error || "Failed to delete user")
+        toast({ variant: "destructive", title: "Delete Failed", description: data.error || "Failed to delete user." })
       }
     } catch (e) {
       console.error(e)
@@ -457,7 +459,7 @@ export function SuperuserDashboard() {
   const handleEditUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editForm.username.trim() || !editForm.role || !editForm.cccCode) {
-      alert("Required fields are missing")
+      toast({ variant: "destructive", title: "Missing Required Fields", description: "Username, role, and CCC code are required." })
       return
     }
     try {
@@ -476,12 +478,13 @@ export function SuperuserDashboard() {
       const data = await res.json()
       if (res.ok && data.success) {
         setShowEditUserModal(false)
+        toast({ title: "User Updated", description: `Saved changes for ${editForm.username}.` })
         await fetchUsers()
       } else {
-        alert(data.error || "Failed to update user")
+        toast({ variant: "destructive", title: "Update Failed", description: data.error || "Failed to update user." })
       }
     } catch (err: any) {
-      alert(err?.message || "Failed to update user")
+      toast({ variant: "destructive", title: "Update Failed", description: err?.message || "Failed to update user." })
     }
   }
 
@@ -1099,7 +1102,7 @@ export function SuperuserDashboard() {
                                   <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Admin Password</span>
                                   {adminUser ? (
                                     <div className="flex items-center gap-1 mt-0.5">
-                                      <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded text-[10px]">
+                                      <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
                                         {isPassVisible ? (adminUser.password || "N/A") : "••••••"}
                                       </span>
                                       <button
@@ -1196,7 +1199,7 @@ export function SuperuserDashboard() {
                                       <div className="space-y-1">
                                         <span className="font-mono text-slate-700 font-medium">{adminUser.username}</span>
                                         <div className="flex items-center gap-1">
-                                          <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded text-[10px]">
+                                          <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
                                             {isPassVisible ? (adminUser.password || "N/A") : "••••••"}
                                           </span>
                                           <button
@@ -1680,13 +1683,13 @@ export function SuperuserDashboard() {
 
                                               if (isExempt) {
                                                 return (
-                                                  <span className="text-[8px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-1 py-0.2 rounded">
+                                                  <span className="text-[8px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-1 py-0.5 rounded">
                                                     Free Pass
                                                   </span>
                                                 )
                                               } else if (isTrial) {
                                                 return (
-                                                  <span className="text-[8px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.2 rounded">
+                                                  <span className="text-[8px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.5 rounded">
                                                     Trial Active
                                                   </span>
                                                 )
@@ -1699,19 +1702,19 @@ export function SuperuserDashboard() {
                                                 }
                                                 if (isExpired) {
                                                   return (
-                                                    <span className="text-[8px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1 py-0.2 rounded">
+                                                    <span className="text-[8px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1 py-0.5 rounded">
                                                       Exp ({u.subscriptionExpiresAt})
                                                     </span>
                                                   )
                                                 }
                                                 return (
-                                                  <span className="text-[8px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.2 rounded">
+                                                  <span className="text-[8px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1 py-0.5 rounded">
                                                     Active {u.subscriptionExpiresAt ? `(${u.subscriptionExpiresAt})` : ""}
                                                   </span>
                                                 )
                                               } else {
                                                 return (
-                                                  <span className="text-[8px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1 py-0.2 rounded">
+                                                  <span className="text-[8px] font-semibold bg-rose-100 text-rose-800 border border-rose-200 px-1 py-0.5 rounded">
                                                     Expired
                                                   </span>
                                                 )
@@ -1723,7 +1726,7 @@ export function SuperuserDashboard() {
                                             <span className="text-slate-700">{u.username}</span>
                                             <span>•</span>
                                             <div className="flex items-center gap-1">
-                                              <span className="text-emerald-700 font-semibold bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                                              <span className="text-emerald-700 font-semibold bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
                                                 {isPassVisible ? (u.password || "N/A") : "••••••"}
                                               </span>
                                               <button

@@ -2367,7 +2367,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 }`}
               >
                 <span>Missing Code/Phone</span>
-                <span className="bg-amber-600/20 text-current text-[10px] px-1.5 py-0.2 rounded-full">
+                <span className="bg-amber-600/20 text-current text-[10px] px-1.5 py-0.5 rounded-full">
                   {agencies.filter(a => !a.vendorCode || a.vendorCode.length < 6 || !a.mobileNumber || a.mobileNumber.length < 10).length}
                 </span>
               </button>
@@ -2381,7 +2381,7 @@ export function AdminPanel({ onClose, initialView }: AdminPanelProps) {
                 }`}
               >
                 <span>Completed</span>
-                <span className="bg-emerald-600/20 text-current text-[10px] px-1.5 py-0.2 rounded-full">
+                <span className="bg-emerald-600/20 text-current text-[10px] px-1.5 py-0.5 rounded-full">
                   {agencies.filter(a => a.vendorCode && a.vendorCode.length >= 6 && a.mobileNumber && a.mobileNumber.length >= 10).length}
                 </span>
               </button>

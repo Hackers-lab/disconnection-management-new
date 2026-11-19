@@ -12,6 +12,7 @@ import { getFromCache, saveToCache } from "@/lib/indexed-db"
 import type { ConsumerData } from "@/lib/google-sheets"
 import type { ConsumerMasterRow } from "@/components/consumer-master"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   agencies: string[]
@@ -62,7 +63,10 @@ export function ReconnectionCreateForm({ agencies, onSave, onCancel }: Props) {
   // ── Lookup consumer from IndexedDB cache ─────────────────────────────────
   const handleLookup = async () => {
     const id = consumerId.trim()
-    if (id.length !== 9) { alert("Consumer ID must be 9 digits."); return }
+    if (id.length !== 9) {
+      toast({ variant: "destructive", title: "Invalid Consumer ID", description: "Consumer ID must be exactly 9 digits." })
+      return
+    }
     setLooking(true)
     setFound(null)
     setNotFound(false)
@@ -187,14 +191,22 @@ export function ReconnectionCreateForm({ agencies, onSave, onCancel }: Props) {
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const data = await res.json()
       if (data.success) setRequestImageUrl(data.url)
-    } catch { alert("Image upload failed.") }
+    } catch {
+      toast({ variant: "destructive", title: "Upload Failed", description: "Could not upload the reconnection image. Please try again." })
+    }
     finally { setUploading(false) }
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!agency) { alert("Please select an agency."); return }
-    if (!mobile.trim()) { alert("Mobile number is required."); return }
+    if (!agency) {
+      toast({ variant: "destructive", title: "Agency Required", description: "Please select an agency before submitting." })
+      return
+    }
+    if (!mobile.trim()) {
+      toast({ variant: "destructive", title: "Mobile Required", description: "Consumer mobile number is required." })
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -231,7 +243,7 @@ export function ReconnectionCreateForm({ agencies, onSave, onCancel }: Props) {
       window.dispatchEvent(new Event("notif-refresh"))
       onSave(data.requestId)
     } catch (e: any) {
-      alert(e.message || "Failed to create request")
+      toast({ variant: "destructive", title: "Submission Failed", description: e.message || "Failed to create reconnection request." })
     } finally {
       setSubmitting(false)
     }

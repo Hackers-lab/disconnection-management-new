@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import type { DeemedVisitData } from "@/lib/dd-service"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { toast } from "@/hooks/use-toast"
 
 interface DDFormProps {
   consumer: DeemedVisitData
@@ -98,7 +99,7 @@ export function DDForm({ consumer, onSave, onCancel, userRole }: DDFormProps) {
       }
     } catch (error) {
       console.error("Upload failed", error)
-      alert("Image upload failed. Please try again.")
+      toast({ variant: "destructive", title: "Upload Failed", description: "Image upload failed. Please try again." })
     } finally {
       setUploading(false)
     }
@@ -114,7 +115,7 @@ export function DDForm({ consumer, onSave, onCancel, userRole }: DDFormProps) {
         if (videoRef.current) videoRef.current.srcObject = stream
       })
     } catch (err) {
-      alert("Unable to access camera.")
+      toast({ variant: "destructive", title: "Camera Unavailable", description: "Unable to access device camera. Check browser permissions." })
     }
   }
 
@@ -150,7 +151,7 @@ export function DDForm({ consumer, onSave, onCancel, userRole }: DDFormProps) {
     if (isLocked) return
 
     if (userRole !== "admin" && !formData.imageUrl) {
-      alert("Please upload evidence image.")
+      toast({ variant: "destructive", title: "Evidence Photo Required", description: "Please capture or upload an evidence image first." })
       return
     }
 

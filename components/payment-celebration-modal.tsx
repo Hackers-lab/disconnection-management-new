@@ -102,7 +102,7 @@ export function PaymentCelebrationModal({
           <div className="relative z-10 space-y-2">
             {/* Animated Crown Badge */}
             <div className="inline-flex relative items-center justify-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 p-0.5 shadow-lg shadow-amber-500/20 flex items-center justify-center animate-bounce">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 p-0.5 shadow-lg shadow-amber-500/20 flex items-center justify-center animate-badge-pop">
                 <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
                   <Crown className="h-8 w-8 text-amber-400 fill-amber-400 drop-shadow-md" />
                 </div>

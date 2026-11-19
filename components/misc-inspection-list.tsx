@@ -21,6 +21,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import {
   ClipboardList,
@@ -186,8 +196,16 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
     })
   }, [records, subTab, selectedCategory, selectedPriority, selectedAgency, searchTerm])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Are you sure you want to delete inspection record ${id}?`)) return
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+
+  const handleDelete = (id: string) => {
+    setPendingDeleteId(id)
+  }
+
+  const executeDelete = async () => {
+    if (!pendingDeleteId) return
+    const id = pendingDeleteId
+    setPendingDeleteId(null)
     try {
       // 1. Immediately remove from local state and IndexedDB cache so it disappears instantly
       setRecords(prev => {
@@ -314,7 +332,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       </div>
 
       {/* Control Header Bar (Safety Module Sticky Style) */}
-      <div className="bg-white p-3 rounded-xl shadow-sm border sticky top-[64px] z-30 space-y-2">
+      <div className="bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-sm border border-slate-200/80 sticky top-14 z-30 space-y-2">
         <div className="flex items-center gap-2">
           {/* Search Box */}
           <div className="relative flex-1">
@@ -671,7 +689,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
       {canCreate && (
         <Button
           onClick={() => setShowCreateForm(true)}
-          className="fixed bottom-6 right-6 z-40 rounded-full shadow-xl h-12 px-5 font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 border-2 border-white"
+          className="fixed bottom-6 right-6 z-40 rounded-full shadow-xl h-12 px-5 font-bold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 border-2 border-white interactive-tap"
         >
           <Plus className="h-5 w-5" /> Log Misc Inspection
         </Button>
@@ -693,6 +711,24 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         onSuccess={() => fetchRecords(true)}
         userRole={role}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!pendingDeleteId} onOpenChange={(open) => !open && setPendingDeleteId(null)}>
+        <AlertDialogContent className="rounded-2xl max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900">Delete Inspection Record?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600">
+              Are you sure you want to permanently delete inspection record <span className="font-mono font-semibold text-slate-800">{pendingDeleteId}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDelete} className="rounded-xl bg-red-600 hover:bg-red-700 text-white">
+              Delete Record
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

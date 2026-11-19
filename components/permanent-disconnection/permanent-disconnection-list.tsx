@@ -829,7 +829,7 @@ export function PermanentDisconnectionList({
                 return (
                   <div
                     key={r.pdId}
-                    className={`bg-white rounded-2xl border p-4 space-y-3.5 shadow-sm hover:shadow-md transition-all relative ${
+                    className={`bg-white rounded-2xl border p-4 space-y-3.5 shadow-sm card-interactive relative ${
                       isFullyCompleted
                         ? "border-emerald-200 bg-emerald-50/10"
                         : isClosed

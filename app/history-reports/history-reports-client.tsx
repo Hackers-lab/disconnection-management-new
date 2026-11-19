@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { toast } from "@/hooks/use-toast"
 
 interface HistoryEntry {
   timestamp: string
@@ -433,7 +434,7 @@ export default function HistoryReportsClient({ role, agencies, username }: Histo
       doc.save(`Activity_Report_${fromDateStr}_to_${toDateStr}.pdf`)
     } catch (err) {
       console.error("PDF generation failed:", err)
-      alert("Failed to generate PDF. Check Console.")
+      toast({ variant: "destructive", title: "PDF Generation Failed", description: "Could not generate the activity report PDF. Please try again." })
     }
   }
 

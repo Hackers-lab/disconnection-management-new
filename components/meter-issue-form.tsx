@@ -14,6 +14,7 @@ import type { NSCApplication } from "@/lib/nsc-types"
 import type { MeterStock, IssuePurpose } from "@/lib/meter-types"
 import { METER_TYPES } from "@/lib/meter-types"
 import { ConsumerMasterLookup } from "@/components/consumer-master"
+import { toast } from "@/hooks/use-toast"
 
 const PURPOSE_OPTIONS: { value: IssuePurpose; label: string }[] = [
   { value: "faulty_replacement", label: "Faulty / Defective Replacement" },
@@ -192,16 +193,16 @@ export function MeterIssueForm({ availableStock, agencies, onSave, onCancel, pre
   })
 
   const handleSubmit = async () => {
-    if (!serialNo) { alert("Please select a meter serial number."); return }
-    if (!agency)   { alert("Please select an agency."); return }
-    if (purpose === "nsc" && !workOrderNo.trim()) { alert("Work Order Number is mandatory to issue NSC meter."); return }
-    if (purpose !== "nsc" && !consumerId.trim()) { alert("Consumer ID is required."); return }
-    if (purpose === "nsc" && !isLegacyNsc && !nscSelected) { alert("Please select an NSC application or switch to Legacy / Manual entry."); return }
-    if (purpose === "nsc" && isLegacyNsc && !consumerName.trim()) { alert("Consumer / Applicant name is required for Legacy NSC."); return }
+    if (!serialNo) { toast({ variant: "destructive", title: "Serial Number Required", description: "Please select a meter serial number." }); return }
+    if (!agency)   { toast({ variant: "destructive", title: "Agency Required", description: "Please select an agency." }); return }
+    if (purpose === "nsc" && !workOrderNo.trim()) { toast({ variant: "destructive", title: "Work Order Required", description: "Work Order Number is mandatory to issue an NSC meter." }); return }
+    if (purpose !== "nsc" && !consumerId.trim()) { toast({ variant: "destructive", title: "Consumer ID Required", description: "Please enter a Consumer ID." }); return }
+    if (purpose === "nsc" && !isLegacyNsc && !nscSelected) { toast({ variant: "destructive", title: "NSC Application Required", description: "Select an NSC application or switch to Legacy / Manual entry." }); return }
+    if (purpose === "nsc" && isLegacyNsc && !consumerName.trim()) { toast({ variant: "destructive", title: "Applicant Name Required", description: "Consumer / Applicant name is required for Legacy NSC." }); return }
     if (purpose !== "nsc" && !consumerFoundInDC) {
-      if (!consumerName.trim())    { alert("Consumer name is required."); return }
-      if (!consumerAddress.trim()) { alert("Address is required (consumer not in DC list)."); return }
-      if (!consumerMobile.trim())  { alert("Mobile number is required (consumer not in DC list)."); return }
+      if (!consumerName.trim())    { toast({ variant: "destructive", title: "Consumer Name Required", description: "Please enter the consumer name." }); return }
+      if (!consumerAddress.trim()) { toast({ variant: "destructive", title: "Address Required", description: "Address is required (consumer not in DC list)." }); return }
+      if (!consumerMobile.trim())  { toast({ variant: "destructive", title: "Mobile Required", description: "Mobile number is required (consumer not in DC list)." }); return }
     }
 
     // Hand the API call to the parent — form closes instantly

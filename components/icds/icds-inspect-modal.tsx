@@ -349,7 +349,7 @@ export function IcdsInspectModal({ record, open, onClose, onSuccess, username, o
         <div className="px-5 py-4 bg-slate-900 text-white rounded-t-2xl flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400">
-              <Camera className="h-4.5 w-4.5" />
+              <Camera className="h-4 w-4" />
             </div>
             <div>
               <DialogTitle className="text-base font-black tracking-tight text-white m-0">

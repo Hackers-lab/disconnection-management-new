@@ -814,12 +814,12 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       {tab !== "reports" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {paginated.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 col-span-full">
+            <div className="text-center py-16 text-gray-400 col-span-full animate-fade-slide-up">
               <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>No NSC applications found</p>
             </div>
           ) : paginated.map(app => (
-            <Card key={app.receiveNo} className="hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-200 hover:border-blue-200">
+            <Card key={app.receiveNo} className="shadow-xs card-interactive overflow-hidden border border-gray-200 hover:border-blue-200">
               <CardContent className="p-4">
 
                 {/* Top row: receive no + phase chip + status badge + agency pill */}

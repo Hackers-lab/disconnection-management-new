@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Camera, Upload, Loader2, MapPin, Phone, IndianRupee, Monitor } from "lucide-react"
 import type { ReconnectionRequest } from "@/lib/reconnection-service"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   request: ReconnectionRequest
@@ -38,7 +39,7 @@ export function ReconnectionUpdateForm({ request, userRole, username, onSave, on
       streamRef.current = s
       setCameraOn(true)
       requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = s })
-    } catch { alert("Camera unavailable.") }
+    } catch { toast({ variant: "destructive", title: "Camera Unavailable", description: "Unable to access device camera." }) }
   }
 
   const stopCamera = () => {
@@ -89,14 +90,14 @@ export function ReconnectionUpdateForm({ request, userRole, username, onSave, on
       const res = await fetch("/api/upload-image", { method: "POST", body: fd })
       const data = await res.json()
       if (data.success) setImageUrl(data.url)
-    } catch { alert("Upload failed.") }
+    } catch { toast({ variant: "destructive", title: "Upload Failed", description: "Could not upload evidence image. Please try again." }) }
     finally { setUploading(false) }
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!imageUrl) { alert("Please upload evidence image."); return }
-    if (status === "reconnected" && !reading.trim()) { alert("Meter reading is required for reconnection."); return }
+    if (!imageUrl) { toast({ variant: "destructive", title: "Evidence Required", description: "Please upload an evidence image first." }); return }
+    if (status === "reconnected" && !reading.trim()) { toast({ variant: "destructive", title: "Meter Reading Required", description: "Enter the meter reading for reconnection." }); return }
 
     setSubmitting(true)
     try {
@@ -115,7 +116,7 @@ export function ReconnectionUpdateForm({ request, userRole, username, onSave, on
       window.dispatchEvent(new Event("notif-refresh"))
       onSave()
     } catch (e: any) {
-      alert(e.message || "Failed to update")
+      toast({ variant: "destructive", title: "Update Failed", description: e.message || "Failed to update reconnection status." })
     } finally {
       setSubmitting(false)
     }

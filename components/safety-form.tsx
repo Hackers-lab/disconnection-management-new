@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { compressAndWatermarkImage } from "@/lib/image-processor"
 import type { SafetyTicket } from "@/lib/safety-service"
+import { useToast } from "@/hooks/use-toast"
 
 export const HAZARD_TYPES = [
   { id: "Low Sag", label: "Low Sag", icon: "⚡" },
@@ -39,6 +40,7 @@ interface SafetyFormProps {
 }
 
 export function SafetyForm({ onSave, onCancel, userRole, userAgencies, availableAgencies = [] }: SafetyFormProps) {
+  const { toast } = useToast()
   const [selectedHazards, setSelectedHazards] = useState<string[]>([])
   const [otherHazardText, setOtherHazardText] = useState<string>("")
   const [severity, setSeverity] = useState<"Critical" | "High" | "Medium" | "Low">("Medium")
@@ -133,12 +135,13 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
       const result = await res.json()
       if (res.ok && result.success) {
         setBeforeImageUrl(result.url)
+        toast({ title: "Before photo uploaded", description: "Watermarked hazard photo attached." })
       } else {
-        alert(result.error || "Before photo upload failed. Please try again.")
+        toast({ variant: "destructive", title: "Upload failed", description: result.error || "Before photo upload failed. Please try again." })
       }
     } catch (e: any) {
       console.error(e)
-      alert(e?.message || "Before photo upload failed. Please try again.")
+      toast({ variant: "destructive", title: "Upload failed", description: e?.message || "Before photo upload failed. Please try again." })
     } finally {
       setUploadingImage(false)
     }
@@ -157,12 +160,13 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
       const result = await res.json()
       if (res.ok && result.success) {
         setDrawingUrl(result.url)
+        toast({ title: "Drawing uploaded", description: "Work sketch attached successfully." })
       } else {
-        alert(result.error || "Drawing image upload failed.")
+        toast({ variant: "destructive", title: "Upload failed", description: result.error || "Drawing image upload failed." })
       }
     } catch (e: any) {
       console.error(e)
-      alert(e?.message || "Drawing image upload failed.")
+      toast({ variant: "destructive", title: "Upload failed", description: e?.message || "Drawing image upload failed." })
     } finally {
       setUploadingDrawing(false)
     }
@@ -178,7 +182,7 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
         if (videoRef.current) videoRef.current.srcObject = stream
       })
     } catch (err) {
-      alert("Unable to access camera.")
+      toast({ variant: "destructive", title: "Camera unavailable", description: "Unable to access camera. Please allow camera permissions." })
     }
   }
 
@@ -219,7 +223,7 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
         if (drawingVideoRef.current) drawingVideoRef.current.srcObject = stream
       })
     } catch (err) {
-      alert("Unable to access camera.")
+      toast({ variant: "destructive", title: "Camera unavailable", description: "Unable to access camera. Please allow camera permissions." })
     }
   }
 
@@ -253,23 +257,23 @@ export function SafetyForm({ onSave, onCancel, userRole, userAgencies, available
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (selectedHazards.length === 0) {
-      alert("Please select at least one hazard type.")
+      toast({ variant: "destructive", title: "Hazard type required", description: "Please select at least one hazard type." })
       return
     }
     if (selectedHazards.includes("Others") && !otherHazardText.trim()) {
-      alert("Please specify details for 'Others' hazard.")
+      toast({ variant: "destructive", title: "Details required", description: "Please specify details for 'Others' hazard." })
       return
     }
     if (!latitude || !longitude || isNaN(parseFloat(latitude)) || isNaN(parseFloat(longitude))) {
-      alert("GPS Coordinates (Latitude & Longitude) are MANDATORY.")
+      toast({ variant: "destructive", title: "GPS coordinates required", description: "GPS Coordinates (Latitude & Longitude) are mandatory." })
       return
     }
     if (!address.trim()) {
-      alert("Site address / landmark is required.")
+      toast({ variant: "destructive", title: "Address required", description: "Site address / landmark is required." })
       return
     }
     if (!beforeImageUrl) {
-      alert("Site Before Photo is MANDATORY. Please upload or capture a site hazard photo before submitting.")
+      toast({ variant: "destructive", title: "Before photo required", description: "Please upload or capture a site hazard photo before submitting." })
       return
     }
 

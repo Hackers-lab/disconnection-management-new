@@ -610,7 +610,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
       {/* Main Views Navigation & Filter Controls */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-4 space-y-4 shadow-2xs">
         {/* Segmented View Switcher */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
           <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl max-w-fit">
             <button
               onClick={() => setActiveView("subscribers")}
@@ -843,7 +843,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
 
                       {/* Tenant Table Body */}
                       {!isCollapsed && (
-                        <div className="border-t border-slate-150 overflow-x-auto">
+                        <div className="border-t border-slate-200/80 overflow-x-auto">
                           <table className="w-full text-left text-xs">
                             <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
                               <tr>
@@ -854,7 +854,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                                 <th className="py-2.5 px-3 text-right">Quick Management</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-150">
+                            <tbody className="divide-y divide-slate-100">
                               {group.subscribers.map((sub) => (
                                 <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
                                   {/* Subscriber Name & Role */}
@@ -1014,7 +1014,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                       <th className="py-3 px-3 text-right">Quick Management</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-150">
+                  <tbody className="divide-y divide-slate-100">
                     {filteredSubscribers.map((sub) => (
                       <tr key={sub.id} className="hover:bg-slate-50/70 transition-colors">
                         {/* Subscriber Name & Role */}
@@ -1270,7 +1270,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
                         <th className="py-3 px-3 text-right">Details</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-150">
+                    <tbody className="divide-y divide-slate-100">
                       {filteredTransactions.map((tx) => {
                         const { date, time } = formatTxToIST(tx.created_at)
                         return (
@@ -1428,7 +1428,7 @@ export function SuperuserSubscriptions({ onBackToDashboard }: SuperuserSubscript
               </DialogHeader>
 
               {/* Receipt Summary Card */}
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-150 space-y-3">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <span className="text-xs text-slate-500 font-medium">Total Paid Amount</span>
                   <span className="text-xl font-extrabold text-slate-900">

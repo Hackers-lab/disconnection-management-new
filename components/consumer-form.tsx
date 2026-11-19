@@ -25,6 +25,7 @@ import { triggerHaptic } from "@/lib/utils"
 import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 import { Lock } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface ConsumerFormProps {
   consumer: ConsumerData
@@ -36,6 +37,7 @@ interface ConsumerFormProps {
 }
 
 export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", availableAgencies, permissions }: ConsumerFormProps) {
+  const { toast } = useToast()
   const isReadOnly = permissions
     ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
     : (userRole === "viewer" || userRole === "reader")
@@ -184,14 +186,15 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
 
       if (response.ok && (result.success || result.url)) {
         setFormData(prev => ({ ...prev, imageUrl: result.url || "" }))
+        toast({ title: "Image uploaded", description: "Watermarked evidence attached successfully." })
       } else {
         const errorMsg = result?.error || result?.details || "Upload failed. Please try again."
-        alert(`Image upload error: ${errorMsg}`)
+        toast({ variant: "destructive", title: "Image upload error", description: errorMsg })
         setPreviewUrl(null)
       }
     } catch (error: any) {
       console.error("Upload failed", error)
-      alert(`Image upload failed: ${error?.message || "Please check network and try again."}`)
+      toast({ variant: "destructive", title: "Image upload failed", description: error?.message || "Please check network and try again." })
       setPreviewUrl(null)
     } finally {
       setUploading(false)
@@ -215,7 +218,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
       })
     } catch (err) {
       console.error("Camera error", err)
-      alert("Unable to access camera. Please allow permissions.")
+      toast({ variant: "destructive", title: "Camera unavailable", description: "Unable to access camera. Please allow permissions." })
     }
   }
 
@@ -269,9 +272,9 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
   }
   
   const getStatusChipStyle = (status: string, isActive: boolean) => {
-    const base = "h-11 rounded-xl text-xs font-bold transition-all duration-200 border-2 flex items-center justify-center gap-1.5 flex-1"
+    const base = "h-11 rounded-xl text-xs font-bold transition-all duration-200 border-2 flex items-center justify-center gap-1.5 flex-1 interactive-tap"
     if (!isActive) {
-      return `${base} bg-white text-slate-650 border-slate-200 hover:border-slate-350 hover:bg-slate-50/50`
+      return `${base} bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50/80`
     }
     
     switch (status) {
@@ -284,7 +287,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
       case "office team":
         return `${base} bg-sky-50 text-sky-700 border-sky-500 shadow-sm`
       case "not found":
-        return `${base} bg-slate-100 text-slate-750 border-slate-500 shadow-sm`
+        return `${base} bg-slate-100 text-slate-700 border-slate-500 shadow-sm`
       case "connected":
         return `${base} bg-purple-50 text-purple-700 border-purple-500 shadow-sm`
       default:
@@ -300,30 +303,30 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
       if (formData.disconStatus === "agency paid" || formData.disconStatus === "paid") {
         if (!formData.paidAmount || !formData.paidAmount.trim() || isNaN(Number(formData.paidAmount)) || Number(formData.paidAmount) <= 0) {
           triggerHaptic("error")
-          alert("Paid Amount (₹) is mandatory when status is Paid.")
+          toast({ variant: "destructive", title: "Paid amount required", description: "Paid Amount (₹) is mandatory when status is Paid." })
           return
         }
       } else {
         if (!formData.imageUrl) {
           triggerHaptic("error")
-          alert("Please upload the image first.")
+          toast({ variant: "destructive", title: "Evidence photo required", description: "Please capture or upload an image first." })
           return
         }
         if ((formData.disconStatus === "disconnected" || formData.disconStatus === "bill dispute") && !formData.reading) {
           triggerHaptic("error")
-          alert("Meter reading is required.")
+          toast({ variant: "destructive", title: "Meter reading required", description: "Please enter the current meter reading before saving." })
           return
         }
         if ((formData.disconStatus === "bill dispute" || formData.disconStatus === "office team") && !formData.notes) {
           triggerHaptic("error")
-          alert("Remarks are required for Bill Dispute or Office Team status.")
+          toast({ variant: "destructive", title: "Remarks required", description: "Remarks are required for Bill Dispute or Office Team status." })
           return
         }
       }
     } else {
       if ((formData.disconStatus === "agency paid" || formData.disconStatus === "paid") && (!formData.paidAmount || !formData.paidAmount.trim())) {
         triggerHaptic("error")
-        alert("Please enter the Paid Amount (₹).")
+        toast({ variant: "destructive", title: "Paid amount required", description: "Please enter the Paid Amount (₹)." })
         return
       }
     }
@@ -407,7 +410,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                         {h.oldOsd && (
                           <span className="text-slate-500 font-medium">OSD: ₹{Number(h.oldOsd).toLocaleString("en-IN")}</span>
                         )}
-                        {h.eventDate && <span className="text-slate-455">on {h.eventDate}</span>}
+                        {h.eventDate && <span className="text-slate-400">on {h.eventDate}</span>}
                       </div>
                       {h.oldNotes && (
                         <p className="text-xs text-slate-600 italic">Remarks: {h.oldNotes}</p>
@@ -426,7 +429,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                             <span>View Uploaded Image</span>
                           </button>
                         ) : <span />}
-                        <span className="text-[10px] text-slate-450 font-medium">by {h.changedBy}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">by {h.changedBy}</span>
                       </div>
                     </div>
                   )
@@ -506,7 +509,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
         if (!hasPaymentInfo) return null
 
         return (
-          <Card className="border-emerald-150 bg-emerald-50/30 shadow-sm rounded-2xl overflow-hidden">
+          <Card className="border-emerald-200 bg-emerald-50/40 shadow-sm rounded-2xl overflow-hidden">
             <CardContent className="p-4 space-y-2 text-sm">
               <div className="flex items-center gap-2 text-emerald-800 font-semibold">
                 <IndianRupee className="h-4 w-4" />
@@ -525,7 +528,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                   <div><span className="text-emerald-700 font-semibold">Paid on:</span> <strong>{consumer.paidDate}</strong></div>
                 )}
                 {breakdown.isPaidAfterUpload && consumer.outstandingAfter && Number(consumer.outstandingAfter) > 0 && (
-                  <div className="col-span-2"><span className="text-emerald-700 font-semibold">Outstanding after:</span> <strong className="text-red-750">₹{Number(consumer.outstandingAfter).toLocaleString("en-IN")}</strong></div>
+                  <div className="col-span-2"><span className="text-emerald-700 font-semibold">Outstanding after:</span> <strong className="text-red-700">₹{Number(consumer.outstandingAfter).toLocaleString("en-IN")}</strong></div>
                 )}
                 {!breakdown.isPaidAfterUpload && (
                   <div className="col-span-2 text-[11px] text-amber-800 bg-amber-50/80 p-2 rounded-lg border border-amber-200/60 leading-tight">
@@ -646,10 +649,10 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                   <Button
                     type="button"
                     variant={formData.priority === "urgent" ? "destructive" : "outline"}
-                    className={`w-full h-11 border rounded-xl font-bold text-xs transition-all duration-200 ${
+                    className={`w-full h-11 border rounded-xl font-bold text-xs transition-all duration-200 interactive-tap ${
                       formData.priority === "urgent"
-                        ? "bg-red-600 hover:bg-red-700 text-white border-red-650"
-                        : "border-slate-200 text-slate-650 hover:border-red-400 hover:text-red-600"
+                        ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
+                        : "border-slate-200 text-slate-600 hover:border-red-400 hover:text-red-600"
                     }`}
                     onClick={() =>
                       setFormData(prev => ({
@@ -688,24 +691,24 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                         <Button 
                             type="button" 
                             variant="outline"
-                            className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
+                            className="h-11 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/70 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 interactive-tap"
                             onClick={startCamera}
                             disabled={uploading}
                         >
-                            <Camera className="h-4.5 w-4.5 text-slate-505" />
+                            <Camera className="h-4 w-4 text-slate-500" />
                             <span>Camera (Live)</span>
                         </Button>
                         <Button 
                             type="button" 
                             variant="outline"
-                            className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
+                            className="h-11 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/70 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 interactive-tap"
                             onClick={() => {
                                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                                 fileInputRef.current?.click()
                             }}
                             disabled={uploading}
                         >
-                            <Upload className="h-4.5 w-4.5 text-slate-505" />
+                            <Upload className="h-4 w-4 text-slate-500" />
                             <span>Gallery</span>
                         </Button>
                     </div>
@@ -815,7 +818,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
             <div className="space-y-3 text-xs">
               <div className="flex justify-between items-center py-1 border-b border-slate-50">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">GIS Pole Reference</span>
-                <span className="font-semibold text-slate-850 text-sm">{consumer.gisPole || "N/A"}</span>
+                <span className="font-semibold text-slate-800 text-sm">{consumer.gisPole || "N/A"}</span>
               </div>
               <div className="flex justify-between items-center py-1">
                 <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">GPS Coordinates</span>
@@ -823,7 +826,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
               </div>
             </div>
             <Button
-              className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
+              className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all duration-200 interactive-tap"
               onClick={() => {
                 const url = `https://www.google.com/maps?q=${consumer.latitude},${consumer.longitude}`
                 window.open(url, "_blank")
@@ -839,11 +842,12 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
       {/* Sticky footer is portaled to body so no ancestor transform/filter
           can break its viewport-fixed positioning. */}
       {typeof window !== "undefined" && createPortal(
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 z-[60] flex gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <div className="fixed bottom-0 left-0 right-0 px-4 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200/80 z-[60] shadow-[0_-4px_16px_-4px_rgba(15,23,42,0.08)]">
+          <div className="max-w-3xl mx-auto flex gap-3">
           {isReadOnly ? (
             <Button
               variant="outline"
-              className="w-full h-12 border-gray-300 text-gray-700 font-bold text-base"
+              className="w-full h-11 rounded-xl border-slate-300 text-slate-700 font-bold text-sm interactive-tap"
               onClick={() => {
                 if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                 onCancel()
@@ -855,7 +859,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
             <>
               <Button
                 variant="outline"
-                className="flex-1 h-12 border-gray-300 text-gray-700"
+                className="flex-1 h-11 rounded-xl border-slate-300 text-slate-700 font-semibold interactive-tap"
                 onClick={() => {
                   if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                   onCancel()
@@ -864,7 +868,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
                 Cancel
               </Button>
               <Button
-                className="flex-[2] h-12 text-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white"
+                className="flex-[2] h-11 rounded-xl text-sm font-bold shadow-sm bg-blue-600 hover:bg-blue-700 text-white interactive-tap"
                 onClick={handleSubmit}
                 disabled={uploading}
               >
@@ -872,6 +876,7 @@ export function ConsumerForm({ consumer, onSave, onCancel, userRole = "user", av
               </Button>
             </>
           )}
+          </div>
         </div>,
         document.body
       )}

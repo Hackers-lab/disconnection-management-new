@@ -45,6 +45,10 @@ import {
   Sparkles,
   ShieldCheck,
   Receipt,
+  Search,
+  ChevronRight,
+  ChevronDown,
+  Palette,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { FeedbackDialog } from "@/components/feedback-dialog"
@@ -56,6 +60,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -78,7 +92,8 @@ import { unlockSpotAiSession } from "@/lib/spotai-guard"
 import { LanguageToggle } from "@/components/language-toggle"
 import { useModuleTheme, ModuleTheme } from "@/lib/module-theme"
 import { normalizeCalendarDate } from "@/lib/date-utils"
-import { Palette } from "lucide-react"
+import { getModuleTitle, getModuleIcon } from "@/lib/module-catalog"
+import { useToast } from "@/hooks/use-toast"
 
 interface HeaderProps {
   userRole: string
@@ -101,6 +116,7 @@ interface HeaderProps {
   activeView: ViewType | "home"
   setActiveView: (view: ViewType | "home") => void
   permissions?: Record<string, string[]>
+  onOpenQuickSwitcher?: () => void
 }
 
 export function Header({
@@ -115,12 +131,15 @@ export function Header({
   onDownloadDefaulters,
   activeView: propsActiveView,
   setActiveView: propsSetActiveView,
-  permissions
+  permissions,
+  onOpenQuickSwitcher,
 }: HeaderProps) {
+  const { toast } = useToast()
   const dashboard = useDashboard()
   const setActiveView = dashboard?.setActiveView || propsSetActiveView || (() => {})
   const activeView = dashboard?.activeView || propsActiveView
   const [showAgencyUpdates, setShowAgencyUpdates] = useState(false)
+  const [showGlobalRefreshConfirm, setShowGlobalRefreshConfirm] = useState(false)
   const [agencyLastUpdates, setAgencyLastUpdates] = useState<{name: string, lastUpdate: string; lastUpdateCount: number}[]>([])
   const [loading, setLoading] = useState(false)
   const [isSharingAgencyImage, setIsSharingAgencyImage] = useState(false)
@@ -415,7 +434,7 @@ export function Header({
     try {
         const data = await getFromCache<any[]>("dd_data_cache");
         if (!data || data.length === 0) {
-            alert("No DD data available to generate a report.");
+            toast({ title: "No DD data available", description: "Open Deemed Visit first to load data before exporting.", variant: "destructive" });
             setLoading(false);
             return;
         }
@@ -426,14 +445,14 @@ export function Header({
             : data.filter(item => userAgencies.includes(item.agency));
         
         if (filteredData.length === 0) {
-            alert("No records found for your agency/agencies.");
+            toast({ title: "No records found", description: "No deemed visit records match your assigned agency.", variant: "destructive" });
             setLoading(false);
             return;
         }
 
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
-            alert("Pop-up blocked. Please allow pop-ups for this site to generate reports.");
+            toast({ title: "Pop-up blocked", description: "Please allow pop-ups in your browser to generate reports.", variant: "destructive" });
             setLoading(false);
             return;
         }
@@ -608,7 +627,7 @@ export function Header({
 
     } catch (error) {
         console.error("Failed to generate DD report:", error);
-        alert("An error occurred while generating the report.");
+        toast({ title: "Report generation failed", description: "An unexpected error occurred while creating the DD PDF.", variant: "destructive" });
     } finally {
         setLoading(false);
     }
@@ -697,27 +716,30 @@ export function Header({
     }
   };
 
-  const handleGlobalRefresh = async () => {
+  const handleGlobalRefresh = () => {
     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-    if (confirm("Sync fresh data from server? This will clear cache and reload.")) {
-      if (userRole === "admin" || userRole === "executive" || isAdminUser) {
-        try {
-          const res = await fetch("/api/system/reset-base?moduleKey=all", { method: "POST" })
-          if (res.status === 429) {
-            const json = await res.json().catch(() => ({}))
-            const msg = json.error || "Manual CDN cache refresh is locked. You can refresh only once per hour."
-            alert(`⚠️ Refresh Locked:\n\n${msg}`)
-            return
-          }
-        } catch {}
-      }
-      await clearAllCache()
-      
-      const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
-      localStorage.removeItem(`${prefix}dd_row_count`)
-      sessionStorage.removeItem("consumers_synced_session")
-      window.location.reload()
+    setShowGlobalRefreshConfirm(true)
+  }
+
+  const executeGlobalRefresh = async () => {
+    setShowGlobalRefreshConfirm(false)
+    if (userRole === "admin" || userRole === "executive" || isAdminUser) {
+      try {
+        const res = await fetch("/api/system/reset-base?moduleKey=all", { method: "POST" })
+        if (res.status === 429) {
+          const json = await res.json().catch(() => ({}))
+          const msg = json.error || "Manual CDN cache refresh is locked. You can refresh only once per hour."
+          toast({ title: "Refresh Locked", description: msg, variant: "destructive" })
+          return
+        }
+      } catch {}
     }
+    await clearAllCache()
+
+    const prefix = getCccPrefix() ? `${getCccPrefix()}_` : ""
+    localStorage.removeItem(`${prefix}dd_row_count`)
+    sessionStorage.removeItem("consumers_synced_session")
+    window.location.reload()
   }
 
   const handleUpload = async () => {
@@ -911,7 +933,7 @@ export function Header({
       })
 
       if (filtered.length === 0) {
-          alert("No records found for this date range.")
+          toast({ title: "No records found", description: "Try selecting a broader date range or agency.", variant: "destructive" })
           setLoading(false)
           return
       }
@@ -944,7 +966,7 @@ export function Header({
       // Print Window
       const printWindow = window.open('', '_blank')
       if (!printWindow) {
-          alert("Pop-up blocked. Please allow pop-ups.")
+          toast({ title: "Pop-up blocked", description: "Please allow pop-ups in your browser to print reports.", variant: "destructive" })
           setLoading(false)
           return
       }
@@ -1134,7 +1156,7 @@ export function Header({
 
     } catch (e) {
       console.error(e)
-      alert("Failed to generate report")
+      toast({ title: "Report failed", description: "Could not generate the daily report.", variant: "destructive" })
     } finally {
       setLoading(false)
       setShowReportDialog(false)
@@ -1153,22 +1175,31 @@ export function Header({
     ? (displayAgencyName || profileData?.name || profileData?.username || clientUsername || userRole)
     : (profileData?.name || profileData?.fullName || userName || profileData?.username || clientUsername || userRole);
 
+  const ActiveModuleIcon = getModuleIcon(activeView)
+  const activeModuleTitle = getModuleTitle(activeView, userRole)
+  const hasModuleActions =
+    isDisconnectionView || isDDView || activeView === "dtr" || activeView === "dtr-painting" || activeView === "nsc"
+
   return (
-    <header className="bg-white shadow sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-2.5 sm:py-4">
+    <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-50 h-14 flex items-center">
+      <div className="w-full px-3 sm:px-5 lg:px-6">
+        <div className="flex justify-between items-center gap-2">
           
-          {/* LEFT SIDE: Sidebar & Logo */}
-          <div className="flex items-center space-x-2">
+          {/* LEFT SIDE: Mobile Drawer + Home / Active Module Breadcrumb */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <AppSidebar 
               isMobile={true} 
               activeView={activeView} 
               setActiveView={setActiveView} 
               userRole={userRole} 
+              agencies={userAgencies}
               permissions={permissions}
             />
-            <div 
-              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity select-none"
+
+            {/* Home Brand Button (preserves 2s long press for SpotAI) */}
+            <button
+              type="button"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100/90 transition-colors select-none cursor-pointer interactive-tap shrink-0"
               onClick={handleHomeClick}
               onMouseDown={handleHomeTouchStart}
               onMouseUp={handleHomeTouchEnd}
@@ -1176,57 +1207,242 @@ export function Header({
               onTouchStart={handleHomeTouchStart}
               onTouchEnd={handleHomeTouchEnd}
               onTouchCancel={handleHomeTouchEnd}
-              title="Home (Long press to open SpotAI Intelligence)"
+              title="Dashboard Home (Long press for SpotAI)"
             >
-              <HomeIcon className="h-6 w-6 text-blue-600" />
-              <span className="text-xl font-semibold text-gray-900 hidden xs:inline">Report</span>
-            </div>
+              <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-2xs shrink-0">
+                <HomeIcon className="h-4 w-4" />
+              </div>
+              {activeView === "home" && (
+                <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                  Workspace
+                </span>
+              )}
+            </button>
+
+            {/* Active Module Breadcrumb Context */}
+            {activeView !== "home" && (
+              <div
+                key={activeView}
+                className="flex items-center gap-1.5 min-w-0 animate-fade-slide-up"
+              >
+                <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100/80 border border-slate-200/70 min-w-0">
+                  <ActiveModuleIcon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 truncate max-w-[130px] sm:max-w-[240px]">
+                    {activeModuleTitle}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* RIGHT SIDE: Actions */}
-          <div className="flex items-center space-x-2 sm:space-x-4">
+          {/* RIGHT SIDE: Quick Jump, Module Actions, Language, Profile, Account Menu */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             
+            {/* Quick Module Switcher Trigger (Cmd/Ctrl+K) */}
+            {onOpenQuickSwitcher && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15)
+                    onOpenQuickSwitcher()
+                  }}
+                  className="hidden lg:flex items-center gap-2 h-8 px-3 rounded-xl border border-slate-200 bg-slate-50/80 hover:bg-white hover:border-slate-300 text-xs text-slate-500 transition-all cursor-pointer interactive-tap"
+                  title="Quick jump to any module (Ctrl+K)"
+                >
+                  <Search className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Jump to module...</span>
+                  <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-white border border-slate-200 rounded">
+                    ⌘K
+                  </kbd>
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15)
+                    onOpenQuickSwitcher()
+                  }}
+                  className="lg:hidden h-8 w-8 rounded-xl text-slate-600 hover:bg-slate-100 interactive-tap"
+                  title="Jump to module"
+                  aria-label="Jump to module"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+
+            {/* Desktop Context Module Actions Dropdown (replaces 8+ unlabeled icons) */}
+            {hasModuleActions && (
+              <div className="hidden md:block">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 rounded-xl border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs gap-1.5 shadow-2xs interactive-tap"
+                    >
+                      <Download className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Actions</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60 rounded-xl shadow-lg">
+                    {isDisconnectionView && (
+                      <>
+                        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                          Exports & Reports
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => onDownload && onDownload()}>
+                          <FileText className="mr-2 h-4 w-4 text-red-600" />
+                          <span>Download DC List (PDF)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onDownloadExcel && onDownloadExcel()}>
+                          <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                          <span>Download DC List (Excel)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setShowReportDialog(true)}>
+                          <Download className="mr-2 h-4 w-4 text-slate-600" />
+                          <span>Daily Report (Print)</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onDownloadDefaulters && onDownloadDefaulters()}>
+                          <FileDown className="mr-2 h-4 w-4 text-blue-600" />
+                          <span className="font-medium text-blue-700">Download Report</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setShowHistoryReportDialog(true)}>
+                          <Clock className="mr-2 h-4 w-4 text-indigo-600" />
+                          <span className="font-medium text-indigo-700">History Report</span>
+                        </DropdownMenuItem>
+                        {canSeeAgencyUpdates && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                              Insights & Updates
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={handleUpload} disabled={loading}>
+                              <List className="mr-2 h-4 w-4 text-slate-600" />
+                              <span>Agency Last Updates</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setActiveView("agency-updates")}>
+                              <CalendarDays className="mr-2 h-4 w-4 text-indigo-500" />
+                              <span>Agency Updates Report</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {isAdminUser && (
+                          <>
+                            <DropdownMenuItem onClick={() => setActiveView("analysis")}>
+                              <BarChart3 className="mr-2 h-4 w-4 text-blue-600" />
+                              <span>Analysis Dashboard</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => window.open("/api/sheet-redirect", "_blank")}>
+                              <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                              <span>Edit DC Sheet</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {isDDView && (
+                      <>
+                        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                          Deemed Visit Actions
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={handleGenerateDDReport}>
+                          <Download className="mr-2 h-4 w-4 text-blue-600" />
+                          <span>Download DD List (PDF)</span>
+                        </DropdownMenuItem>
+                        {isAdminUser && (
+                          <DropdownMenuItem onClick={() => window.open("/api/dd-sheet-redirect", "_blank")}>
+                            <FileText className="mr-2 h-4 w-4 text-emerald-600" />
+                            <span>Edit DD Sheet</span>
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+
+                    {activeView === "dtr" && (
+                      <>
+                        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                          DTR Actions
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("dtr-action", { detail: { action: "refresh" } }))}>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          <span>Refresh List</span>
+                        </DropdownMenuItem>
+                        {(userRole === "admin" || (permissions && permissions.dtr?.includes("create"))) && (
+                          <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("dtr-action", { detail: { action: "upload" } }))}>
+                            <Upload className="mr-2 h-4 w-4 text-indigo-600" />
+                            <span className="font-medium text-indigo-700">Upload DTR List</span>
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+
+                    {activeView === "dtr-painting" && (
+                      <>
+                        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                          DTR Painting Actions
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("dtr-painting-action", { detail: { action: "refresh" } }))}>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          <span>Refresh Painting List</span>
+                        </DropdownMenuItem>
+                        {userRole === "admin" && (
+                          <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("dtr-painting-action", { detail: { action: "report" } }))}>
+                            <Building2 className="mr-2 h-4 w-4 text-blue-600" />
+                            <span className="font-medium text-blue-700">Agency Painting Report</span>
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+
+                    {activeView === "nsc" && (
+                      <>
+                        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                          NSC Actions
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("nsc-action", { detail: { action: "export" } }))}>
+                          <Download className="mr-2 h-4 w-4 text-blue-600" />
+                          <span className="font-medium text-blue-700">Export NSC Data</span>
+                        </DropdownMenuItem>
+                        {isAdminUser && (
+                          <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent("nsc-action", { detail: { action: "import-legacy" } }))}>
+                            <Upload className="mr-2 h-4 w-4 text-indigo-600" />
+                            <span className="font-medium text-indigo-700">Import Legacy Apps</span>
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+
             {/* Language Toggle (Bilingual English <-> Bengali) */}
             <LanguageToggle />
 
-            {/* User Info / Profile Link (Available on both desktop & mobile) */}
+            {/* User Info / Profile Link (Calm refined PRO shimmer on hover, no endless spinning comet) */}
             <div 
               onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15)
                 setActiveView("profile")
               }}
-              className={`relative rounded-xl cursor-pointer select-none p-[1.5px] overflow-hidden group transition-all duration-300 ${
-                profileData?.isPaid ? "shadow-xs shadow-amber-500/15 hover:shadow-amber-500/25" : ""
-              }`}
-              title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}${profileData?.isPaid ? " | 👑 PRO SUBSCRIBER" : ""}`}
-            >
-              {profileData?.isPaid ? (
-                <>
-                  {/* Circulating perimeter beam: Spinning conic gradient with radiant comet head */}
-                  <span
-                    className="absolute -inset-[100%] m-auto aspect-square w-[250%] animate-spin opacity-100 transition-opacity"
-                    style={{
-                      background: "conic-gradient(from 0deg, transparent 0deg, transparent 250deg, rgba(245, 158, 11, 0.25) 280deg, rgba(245, 158, 11, 0.8) 315deg, #fef08a 345deg, #ffffff 358deg, #f59e0b 360deg)",
-                      animationDuration: "2.8s",
-                      animationTimingFunction: "linear",
-                    }}
-                  />
-                  {/* Subtle static gold base border track */}
-                  <span className="absolute inset-0 rounded-xl border border-amber-300/40 pointer-events-none" />
-                </>
-              ) : null}
-
-              <div className={`relative flex items-center gap-2 text-right px-2.5 py-1 rounded-[10.5px] transition-colors ${
+              className={`relative rounded-xl cursor-pointer select-none group transition-all duration-200 interactive-tap ${
                 profileData?.isPaid
-                  ? "bg-gradient-to-r from-amber-100/95 via-yellow-100/90 to-amber-100/95 hover:from-amber-200/90 hover:to-yellow-200/85 text-slate-900 border border-amber-300/70"
-                  : "hover:bg-slate-100/80 bg-transparent text-slate-900"
-              }`}>
+                  ? "pro-sheen-sweep bg-gradient-to-r from-amber-50 via-yellow-50/90 to-amber-50 border border-amber-300/80 hover:border-amber-400 shadow-2xs"
+                  : "hover:bg-slate-100/80 border border-transparent hover:border-slate-200/70"
+              }`}
+              title={`User: ${loginDisplayName} | Office (CCC): ${cccCode || "Default"}${profileData?.isPaid ? " | PRO SUBSCRIBER" : ""}`}
+            >
+              <div className="relative flex items-center gap-2 text-right px-2 py-1">
                 <div className="flex flex-col justify-center items-end text-right min-w-0">
-                  <div className="flex items-center gap-1 justify-end">
-                    <span className="text-[11px] font-bold text-amber-950 capitalize truncate max-w-[90px] sm:max-w-[125px] leading-tight">
-                      {loginDisplayName}
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-bold text-slate-900 capitalize truncate max-w-[85px] sm:max-w-[125px] leading-tight">
+                    {loginDisplayName}
+                  </span>
                   {cccCode && (
                     <span className="text-[9px] font-semibold text-blue-700/90 uppercase tracking-wider leading-none mt-0.5">
                       {cccCode}
@@ -1234,21 +1450,21 @@ export function Header({
                   )}
                 </div>
 
-                {/* Avatar with PRO badge */}
+                {/* Avatar with clean PRO badge */}
                 <div className="relative flex flex-col items-center justify-center shrink-0">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
                     profileData?.isPaid
-                      ? "bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 shadow-xs ring-1 ring-amber-300/90"
+                      ? "bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 text-slate-950 shadow-xs ring-1 ring-amber-300"
                       : "bg-blue-100/90 text-blue-600"
                   }`}>
                     {profileData?.isPaid ? (
-                      <Crown className="h-3.5 w-3.5 fill-slate-950 drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]" />
+                      <Crown className="h-3.5 w-3.5 fill-slate-950" />
                     ) : (
                       <User className="h-4 w-4 text-blue-600" />
                     )}
                   </div>
                   {profileData?.isPaid && (
-                    <span className="absolute -bottom-1 px-1 py-[0.5px] rounded-full text-[7.5px] font-black uppercase tracking-wider bg-slate-950 text-amber-300 border border-amber-400/80 leading-none shadow-xs group-hover:border-amber-300 transition-colors">
+                    <span className="absolute -bottom-1 px-1 py-[0.5px] rounded-full text-[7.5px] font-black uppercase tracking-wider bg-slate-900 text-amber-300 border border-amber-400/80 leading-none">
                       PRO
                     </span>
                   )}
@@ -1256,314 +1472,75 @@ export function Header({
               </div>
             </div>
 
-            {/* --- DESKTOP VIEW (Hidden on Mobile) --- */}
-            <div className="hidden md:flex items-center space-x-2">
-              <FeedbackDialog
-                trigger={
+            {/* --- DESKTOP WORKSPACE MENU (Clean consolidated controls) --- */}
+            <div className="hidden md:flex items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    size="sm"
-                    className="h-8 border-amber-300/60 bg-amber-50/60 hover:bg-amber-100/80 text-amber-900 font-semibold gap-1.5 text-xs rounded-full shadow-xs transition-all"
-                    title="View & Edit Your Feedback"
+                    size="icon"
+                    className="h-8 w-8 rounded-xl border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 interactive-tap"
+                    title="Workspace Settings & Account"
+                    aria-label="Workspace Settings & Account"
                   >
-                    <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500 shrink-0" />
-                    <span>My Feedback</span>
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
-                }
-              />
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleHomeClick}
-                onMouseDown={handleHomeTouchStart}
-                onMouseUp={handleHomeTouchEnd}
-                onMouseLeave={handleHomeTouchEnd}
-                onTouchStart={handleHomeTouchStart}
-                onTouchEnd={handleHomeTouchEnd}
-                onTouchCancel={handleHomeTouchEnd}
-                title="Home Dashboard (Long press to open SpotAI Intelligence)"
-              >
-                <LayoutDashboard className="h-4 w-4" />
-              </Button>
-
-              {(showDownloadButton || activeView === "dtr" || activeView === "dtr-painting") && (
-                <div className="relative">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg">
+                  <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-400">
+                    Workspace
+                  </DropdownMenuLabel>
+                  {isAdminUser && onAdminClick && (
+                    <DropdownMenuItem onClick={onAdminClick}>
+                      <Settings className="mr-2 h-4 w-4 text-slate-600" />
+                      <span>Admin Panel</span>
+                    </DropdownMenuItem>
+                  )}
+                  {isAdminUser && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15)
+                        setShowBroadcastPushModal(true)
+                      }}
+                    >
+                      <Bell className="mr-2 h-4 w-4 text-emerald-600" />
+                      <span className="font-medium text-emerald-700">Broadcast Push Alert</span>
+                    </DropdownMenuItem>
+                  )}
+                  {isAdminUser && (
+                    <DropdownMenuItem onClick={handleGlobalRefresh}>
+                      <RefreshCw className="mr-2 h-4 w-4 text-blue-600" />
+                      <span>Sync Fresh Data</span>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
                     onClick={() => {
-                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                      setShowDownloadMenu(!showDownloadMenu)
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15)
+                      setShowThemeModal(true)
                     }}
-                    title={activeView === "dtr" || activeView === "dtr-painting" ? "More Actions" : "Download Options"}
                   >
-                    {activeView === "dtr" || activeView === "dtr-painting" ? (
-                      <MoreVertical className="h-4 w-4" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </Button>
-
-                  {showDownloadMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-50 animate-in fade-in zoom-in-95 duration-200">
-                      {activeView === "dtr" && (
-                        <>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-800"
-                            onClick={() => {
-                              setShowDownloadMenu(false);
-                              window.dispatchEvent(new CustomEvent("dtr-action", { detail: { action: "refresh" } }))
-                            }}
-                          >
-                            Refresh List
-                          </button>
-                          {(userRole === "admin" || (permissions && permissions.dtr?.includes("create"))) && (
-                            <button
-                              type="button"
-                              className="block w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-indigo-650 border-t"
-                              onClick={() => {
-                                setShowDownloadMenu(false);
-                                window.dispatchEvent(new CustomEvent("dtr-action", { detail: { action: "upload" } }))
-                              }}
-                            >
-                              Upload DTR List
-                            </button>
-                          )}
-                        </>
-                      )}
-
-                      {activeView === "dtr-painting" && (
-                        <>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-800"
-                            onClick={() => {
-                              setShowDownloadMenu(false);
-                              window.dispatchEvent(new CustomEvent("dtr-painting-action", { detail: { action: "refresh" } }))
-                            }}
-                          >
-                            Refresh Painting List
-                          </button>
-                          {userRole === "admin" && (
-                            <button
-                              type="button"
-                              className="block w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-blue-650 border-t"
-                              onClick={() => {
-                                setShowDownloadMenu(false);
-                                window.dispatchEvent(new CustomEvent("dtr-painting-action", { detail: { action: "report" } }))
-                              }}
-                            >
-                              Agency Painting Report
-                            </button>
-                          )}
-                        </>
-                      )}
-
-                      {isDisconnectionView && (
-                        <>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm flex items-center justify-between"
-                            onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                              setShowDownloadMenu(false);
-                              onDownload && onDownload();
-                            }}
-                          >
-                            <span className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-red-600" />
-                              <span>Download DC List (PDF)</span>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm flex items-center justify-between"
-                            onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                              setShowDownloadMenu(false);
-                              onDownloadExcel && onDownloadExcel();
-                            }}
-                          >
-                            <span className="flex items-center gap-2">
-                              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                              <span>Download DC List (Excel)</span>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm"
-                            onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                              setShowDownloadMenu(false);
-                              setShowReportDialog(true);
-                            }}
-                          >
-                            Daily Report (Print)
-                          </button>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm font-medium text-blue-700"
-                            onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                              setShowDownloadMenu(false);
-                              onDownloadDefaulters && onDownloadDefaulters();
-                            }}
-                          >
-                            Download Report
-                          </button>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm font-medium text-indigo-700 border-t border-slate-100"
-                            onClick={() => {
-                              if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                              setShowDownloadMenu(false);
-                              setShowHistoryReportDialog(true);
-                            }}
-                          >
-                            History Report
-                          </button>
-                        </>
-                      )}
-                      {isDDView && (
-                        <button
-                          className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm"
-                          onClick={() => { setShowDownloadMenu(false); handleGenerateDDReport(); }}
-                        >
-                          Download DD List (PDF)
-                        </button>
-                      )}
-                      {activeView === "nsc" && (
-                        <>
-                          <button
-                            type="button"
-                            className="block w-full text-left px-4 py-2 hover:bg-blue-50 text-sm font-semibold text-slate-800"
-                            onClick={() => {
-                              setShowDownloadMenu(false);
-                              window.dispatchEvent(new CustomEvent("nsc-action", { detail: { action: "export" } }))
-                            }}
-                          >
-                            Export NSC Data
-                          </button>
-                          {isAdminUser && (
-                            <button
-                              type="button"
-                              className="block w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-indigo-650 border-t"
-                              onClick={() => {
-                                setShowDownloadMenu(false);
-                                window.dispatchEvent(new CustomEvent("nsc-action", { detail: { action: "import-legacy" } }))
-                              }}
-                            >
-                              Import Legacy Apps
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* View-specific Admin buttons */}
-              {isDisconnectionView && (
-                <>
-                  {canSeeAgencyUpdates && (
-                    <Button variant="ghost" size="sm" onClick={handleUpload} title="Agency Last Updates" disabled={loading}>
-                      <List className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canSeeAgencyUpdates && (
-                    <Button variant="ghost" size="sm" onClick={() => setActiveView("agency-updates")} title="Agency Updates Report">
-                      <CalendarDays className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {isAdminUser && (
-                    <Button variant="ghost" size="sm" onClick={() => setActiveView("analysis")} title="Analysis Dashboard">
-                      <BarChart3 className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {isAdminUser && (
-                    <Button variant="ghost" size="sm" onClick={() => window.open("/api/sheet-redirect", "_blank")} title="Edit DC List">
-                      <FileSpreadsheet className="h-4 w-4" />
-                    </Button>
-                  )}
-                </>
-              )}
-
-              {isDDView && (
-                 <>
-                  {isAdminUser && (
-                    <Button variant="ghost" size="sm" onClick={() => window.open("/api/dd-sheet-redirect", "_blank")} title="Edit DD List">
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                  )}
-                </>
-              )}
-              
-              {/* Global Admin Buttons */}
-              {isAdminUser && onAdminClick && (
-                <Button variant="ghost" size="sm" onClick={onAdminClick} title="Admin Panel">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              )}
-
-              {isAdminUser && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                    setShowBroadcastPushModal(true)
-                  }}
-                  title="Broadcast Alert to Office Team"
-                  className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                >
-                  <Bell className="h-4 w-4" />
-                </Button>
-              )}
-
-              {isAdminUser && (
-                 <Button variant="ghost" size="sm" onClick={handleGlobalRefresh} title="Sync Fresh Data">
-                   <RefreshCw className="h-4 w-4" />
-                 </Button>
-              )}
-
-
-
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                  setShowThemeModal(true)
-                }}
-                title="Customize Home Card Theme"
-                className="text-slate-600 hover:text-indigo-600 hover:bg-slate-100"
-              >
-                <Palette className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={openChangePwdDialog}
-                title="Change Password"
-              >
-                <KeyRound className="h-4 w-4" />
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                title="Logout"
-                disabled={loggingOut}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
+                    <Palette className="mr-2 h-4 w-4 text-indigo-600" />
+                    <span>Home Card Theme</span>
+                  </DropdownMenuItem>
+                  <FeedbackDialog
+                    trigger={
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Star className="mr-2 h-4 w-4 text-amber-500 fill-amber-400" />
+                        <span>My Feedback & Rating</span>
+                      </DropdownMenuItem>
+                    }
+                  />
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={openChangePwdDialog}>
+                    <KeyRound className="mr-2 h-4 w-4 text-slate-600" />
+                    <span>Change Password</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* --- MOBILE VIEW (Dropdown Menu) --- */}
@@ -1824,7 +1801,7 @@ export function Header({
           {/* Loading */}
           {loading && (
             <div className="flex flex-col items-center justify-center flex-1 py-10">
-              <div className="h-7 w-7 animate-spin rounded-full border-3 border-blue-600 border-t-transparent mb-3"></div>
+              <div className="h-7 w-7 animate-spin rounded-full border-4 border-blue-600 border-t-transparent mb-3"></div>
               <p className="text-sm text-gray-600">Loading agency updates...</p>
             </div>
           )}
@@ -2037,7 +2014,31 @@ export function Header({
         </DialogContent>
       </Dialog>
 
-      {/* Profile & Subscription Status Dialog */}
+      {/* Global Sync Confirmation AlertDialog (replaces window.confirm) */}
+      <AlertDialog open={showGlobalRefreshConfirm} onOpenChange={setShowGlobalRefreshConfirm}>
+        <AlertDialogContent className="rounded-2xl max-w-md bg-white border-slate-200">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-slate-900">
+              <RefreshCw className="h-5 w-5 text-blue-600" />
+              Sync Fresh Data from Server?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600">
+              This will clear local cached data across modules and reload the workspace with fresh server snapshots.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeGlobalRefresh}
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Sync & Reload
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Profile & Subscription Status Dialog (Unified Clean Light Surface) */}
       <Dialog open={showProfileDialog} onOpenChange={(open) => {
         setShowProfileDialog(open)
         if (open) {
@@ -2047,149 +2048,139 @@ export function Header({
           loadUserProfile()
         }
       }}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-800 text-slate-100 dark">
+        <DialogContent className="sm:max-w-md bg-white border-slate-200 text-slate-900 rounded-2xl shadow-xl">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2 text-base font-bold">
-                <User className="h-5 w-5 text-indigo-400" />
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <User className="h-4 w-4" />
+                </div>
                 My Profile & Workspace Status
               </DialogTitle>
             </div>
           </DialogHeader>
 
           {profileData ? (
-            <div className="space-y-3.5 py-2 text-sm text-slate-300">
-              {/* Basic Details */}
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
-                <span className="text-slate-400 font-medium">Name:</span>
+            <div className="space-y-3.5 py-2 text-sm text-slate-700">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-100 pb-2.5 items-center">
+                <span className="text-slate-500 font-medium">Name:</span>
                 <div className="col-span-2 flex items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-100 truncate">{profileData.name || profileData.fullName || "N/A"}</span>
+                  <span className="font-semibold text-slate-900 truncate">{profileData.name || profileData.fullName || "N/A"}</span>
                   {!isEditingProfile && (
                     <Button
                       size="icon"
                       variant="ghost"
                       onClick={startEditProfile}
-                      className="h-6 w-6 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full shrink-0"
+                      className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full shrink-0"
                       title="Edit Profile Details"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
-                <span className="text-slate-400 font-medium">Office:</span>
-                <span className="col-span-2 font-mono font-semibold text-blue-400">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-100 pb-2.5">
+                <span className="text-slate-500 font-medium">Office:</span>
+                <span className="col-span-2 font-mono font-semibold text-blue-700">
                   {profileData.cccCode} {profileData.cccName && profileData.cccName !== profileData.cccCode ? `(${profileData.cccName})` : ""}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5">
-                <span className="text-slate-400 font-medium">Agency:</span>
-                <span className="col-span-2 text-xs font-semibold text-slate-200">
+              <div className="grid grid-cols-3 gap-2 border-b border-slate-100 pb-2.5">
+                <span className="text-slate-500 font-medium">Agency:</span>
+                <span className="col-span-2 text-xs font-semibold text-slate-800">
                   {profileData.agencies && profileData.agencies.length > 0
                     ? profileData.agencies.join(", ")
                     : "None (All Access)"}
                 </span>
               </div>
 
-              {/* Mobile Number & Vendor Code Display or Edit Form */}
               {!isEditingProfile ? (
                 <>
-                  {/* Personal Login Mobile Number Row */}
-                  <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
-                    <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                      <Phone className="h-3.5 w-3.5 text-purple-400" />
+                  <div className="grid grid-cols-3 gap-2 border-b border-slate-100 pb-2.5 items-center">
+                    <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-indigo-500" />
                       User Ph:
                     </span>
                     <div className="col-span-2 flex items-center justify-between gap-2">
                       {(profileData.userMobile || profileData.mobileNumber) && /^\d{10}$/.test(profileData.userMobile || profileData.mobileNumber) ? (
-                        <span className="font-mono font-bold text-emerald-400 text-xs">
+                        <span className="font-mono font-bold text-emerald-700 text-xs">
                           +91 {profileData.userMobile || profileData.mobileNumber}
                         </span>
                       ) : (
-                        <span className="text-xs text-amber-400 font-medium">Not Set</span>
+                        <span className="text-xs text-amber-600 font-medium">Not Set</span>
                       )}
                       <Button
                         size="icon"
                         variant="ghost"
                         onClick={startEditProfile}
-                        className="h-6 w-6 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full"
+                        className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full"
                         title="Edit Personal Mobile"
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
 
-                  {/* Agency Official Phone (shown if agency user) */}
                   {(profileData.hasAgency || profileData.agencyMobile) && (
-                    <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
-                      <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-emerald-400" />
+                    <div className="grid grid-cols-3 gap-2 border-b border-slate-100 pb-2.5 items-center">
+                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-emerald-600" />
                         Agency Ph:
                       </span>
-                      <div className="col-span-2 flex items-center justify-between gap-2">
+                      <div className="col-span-2">
                         {profileData.agencyMobile && /^\d{10}$/.test(profileData.agencyMobile) ? (
-                          <span className="font-mono font-semibold text-slate-200 text-xs">
+                          <span className="font-mono font-semibold text-slate-800 text-xs">
                             +91 {profileData.agencyMobile}
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-500">Not recorded</span>
+                          <span className="text-xs text-slate-400">Not recorded</span>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* Vendor Code Row (Read-Only) */}
                   {(profileData.hasAgency || profileData.vendorCode) && (
-                    <div className="grid grid-cols-3 gap-2 border-b border-slate-800 pb-2.5 items-center">
-                      <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                        <Hash className="h-3.5 w-3.5 text-blue-400" />
+                    <div className="grid grid-cols-3 gap-2 border-b border-slate-100 pb-2.5 items-center">
+                      <span className="text-slate-500 font-medium flex items-center gap-1.5">
+                        <Hash className="h-3.5 w-3.5 text-blue-600" />
                         Vendor Code:
                       </span>
-                      <div className="col-span-2 flex items-center justify-between gap-2">
+                      <div className="col-span-2">
                         {profileData.vendorCode ? (
-                          <span className="font-mono font-bold text-cyan-400 text-xs bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800">
+                          <span className="font-mono font-bold text-blue-800 text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                             {profileData.vendorCode}
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-500">Not Tagged</span>
+                          <span className="text-xs text-slate-400">Not Tagged</span>
                         )}
                       </div>
                     </div>
                   )}
                 </>
               ) : (
-                /* Inline Edit Profile Section (Personal Login Mobile Only) */
-                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                      <Pencil className="h-3.5 w-3.5" />
-                      Update Personal Login Mobile Number
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400">
-                    This phone number is used for logging into your user account and receiving password reset OTPs. It must be unique to you.
-                  </p>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Pencil className="h-3.5 w-3.5 text-blue-600" />
+                    Update Personal Details
+                  </span>
 
                   {profileSaveError && (
-                    <div className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/80 rounded-lg p-2 flex items-center gap-1.5">
+                    <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-1.5">
                       <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                       <span>{profileSaveError}</span>
                     </div>
                   )}
 
                   {profileSaveSuccess && (
-                    <div className="text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/80 rounded-lg p-2 flex items-center gap-1.5">
+                    <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2 flex items-center gap-1.5">
                       <Check className="h-3.5 w-3.5 shrink-0" />
-                      <span>Mobile number updated successfully!</span>
+                      <span>Profile updated successfully!</span>
                     </div>
                   )}
 
                   <div className="space-y-1">
-                    <Label htmlFor="profile-header-name" className="text-xs text-slate-300 flex items-center gap-1">
-                      <User className="h-3 w-3 text-indigo-400" />
+                    <Label htmlFor="profile-header-name" className="text-xs text-slate-700 flex items-center gap-1">
+                      <User className="h-3 w-3 text-blue-600" />
                       Full Name
                     </Label>
                     <Input
@@ -2198,17 +2189,17 @@ export function Header({
                       placeholder="Your full name"
                       value={profileEditName}
                       onChange={(e) => setProfileEditName(e.target.value)}
-                      className="h-8 text-xs bg-slate-900 border-slate-700 text-white"
+                      className="h-9 text-xs bg-white border-slate-300"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <Label htmlFor="profile-mobile" className="text-xs text-slate-300 flex items-center gap-1">
-                      <Phone className="h-3 w-3 text-purple-400" />
+                    <Label htmlFor="profile-mobile" className="text-xs text-slate-700 flex items-center gap-1">
+                      <Phone className="h-3 w-3 text-indigo-600" />
                       10-Digit Mobile Number
                     </Label>
                     <div className="relative">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">+91</span>
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">+91</span>
                       <Input
                         id="profile-mobile"
                         type="tel"
@@ -2216,182 +2207,47 @@ export function Header({
                         placeholder="10-digit phone"
                         value={profileEditMobile}
                         onChange={(e) => setProfileEditMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                        className="h-8 pl-9 text-xs bg-slate-900 border-slate-700 text-white font-mono"
+                        className="h-9 pl-9 text-xs bg-white border-slate-300 font-mono"
                       />
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-slate-500">
-                    Note: Vendor Code & Company Phone can only be modified by the Station Admin in the CCC Admin Panel.
-                  </p>
-
                   <div className="flex items-center justify-end gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={profileSaving}
-                      onClick={() => setIsEditingProfile(false)}
-                      className="h-7 text-xs text-slate-400 hover:text-white"
-                    >
+                    <Button size="sm" variant="ghost" disabled={profileSaving} onClick={() => setIsEditingProfile(false)} className="h-8 text-xs">
                       Cancel
                     </Button>
                     <Button
                       size="sm"
                       disabled={profileSaving || (profileEditMobile && profileEditMobile.length > 0 && profileEditMobile.length !== 10)}
                       onClick={handleSaveProfileDetails}
-                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
+                      className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                     >
-                      {profileSaving ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-3 w-3 mr-1" />
-                          Save Details
-                        </>
-                      )}
+                      {profileSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                      {profileSaving ? "Saving..." : "Save Details"}
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Subscription Status Section */}
-              <div className="pt-2 border-t border-slate-800">
-                {(() => {
-                  const roleLower = (profileData.role || "").toLowerCase()
-                  const isExempt = roleLower === "admin" || roleLower === "superuser" || roleLower === "monitor" || profileData.bypassSubscription
-
-                  if (isExempt) {
-                    return (
-                      <div className="grid grid-cols-3 gap-2 items-center">
-                        <span className="text-slate-400 font-medium">Subscription:</span>
-                        <div className="col-span-2">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                            Free Pass / Bypassed
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  const rawExp = profileData.subscriptionExpiresAt
-                  const isPaid = Boolean(profileData.isPaid || profileData.subscriptionStatus === "paid")
-
-                  if (rawExp) {
-                    const expDate = new Date(rawExp)
-                    const isExpired = expDate.getTime() < Date.now()
-                    const expFormatted = isNaN(expDate.getTime())
-                      ? rawExp
-                      : expDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-
-                    if (isExpired) {
-                      return (
-                        <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-800/60 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                              <AlertCircle className="w-3 h-3 text-rose-400" />
-                              Subscription Expired
-                            </span>
-                            <span className="text-[10px] text-rose-400/80 font-mono">Expired {expFormatted}</span>
-                          </div>
-                          <p className="text-xs text-rose-300/80">
-                            Your billing term has ended. Please subscribe to restore full sync & operations.
-                          </p>
-                        </div>
-                      )
-                    }
-
-                    if (isPaid) {
-                      return (
-                        <div className="relative overflow-hidden p-3.5 rounded-xl bg-gradient-to-br from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-400/40 shadow-sm space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 text-slate-950 shadow-xs">
-                              <Crown className="w-3 h-3 fill-slate-950" />
-                              PRO SUBSCRIBER
-                            </span>
-                            <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-amber-400" />
-                              Active Plan
-                            </span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <p className="text-xs font-semibold text-slate-100">
-                              {profileData.planName || "Quarterly Vendor Access"}
-                            </p>
-                            <p className="text-[11px] text-amber-200/80">
-                              Subscribed & Verified online • Full validity till <strong className="text-white font-mono">{expFormatted}</strong>
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-800/60 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            Free Trial Active
-                          </span>
-                          <span className="text-[10px] text-indigo-300 font-mono">Till {expFormatted}</span>
-                        </div>
-                        <p className="text-xs text-indigo-200/80">
-                          Operational trial window active. Regular billing commences after {expFormatted}.
-                        </p>
-                      </div>
-                    )
-                  }
-
-                  if (profileData.subscriptionStatus === "active") {
-                    return (
-                      <div className="grid grid-cols-3 gap-2 items-center">
-                        <span className="text-slate-400 font-medium">Subscription:</span>
-                        <div className="col-span-2">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <Check className="w-3 h-3" /> Active
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  return (
-                    <div className="grid grid-cols-3 gap-2 items-center">
-                      <span className="text-slate-400 font-medium">Subscription:</span>
-                      <div className="col-span-2">
-                        <span className="inline-flex px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-red-500/10 text-red-400 border border-red-500/20">
-                          Inactive / Due
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-
-              {/* Payment History Section */}
+              {/* Payment History */}
               {profileData?.paymentHistory && profileData.paymentHistory.length > 0 && (
-                <div className="pt-2 border-t border-slate-800 space-y-2">
+                <div className="pt-2 border-t border-slate-100 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <Receipt className="h-3.5 w-3.5 text-indigo-400" />
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Receipt className="h-3.5 w-3.5 text-blue-600" />
                       Payment History
                     </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
+                    <span className="text-[10px] text-slate-400 font-mono">
                       {profileData.paymentHistory.length} transaction{profileData.paymentHistory.length > 1 ? "s" : ""}
                     </span>
                   </div>
                   <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
                     {profileData.paymentHistory.map((tx: any) => (
-                      <div
-                        key={tx.id || tx.paymentId}
-                        className="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-xs"
-                      >
+                      <div key={tx.id || tx.paymentId} className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
                         <div className="space-y-0.5 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-slate-200 truncate">{tx.planName}</span>
-                            <span className="font-mono text-[9px] text-indigo-300 bg-indigo-950/60 px-1.5 py-0.2 rounded border border-indigo-800">
+                            <span className="font-semibold text-slate-800 truncate">{tx.planName}</span>
+                            <span className="font-mono text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                               {tx.paymentId.slice(0, 10)}...
                             </span>
                           </div>
@@ -2399,9 +2255,7 @@ export function Header({
                             {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}
                           </p>
                         </div>
-                        <span className="font-mono font-bold text-emerald-400 text-xs shrink-0 ml-2">
-                          ₹{tx.amount}
-                        </span>
+                        <span className="font-mono font-bold text-emerald-700 text-xs shrink-0 ml-2">₹{tx.amount}</span>
                       </div>
                     ))}
                   </div>
@@ -2410,23 +2264,23 @@ export function Header({
             </div>
           ) : (
             <div className="flex justify-center items-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
             </div>
           )}
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
-              className="bg-slate-800 text-indigo-300 hover:bg-slate-700 hover:text-indigo-200 border-slate-700 w-full sm:w-auto font-medium text-xs flex items-center justify-center gap-1.5"
+              className="w-full sm:w-auto font-medium text-xs flex items-center justify-center gap-1.5 rounded-xl"
               onClick={() => {
                 setShowProfileDialog(false)
                 openChangePwdDialog()
               }}
             >
-              <KeyRound className="h-3.5 w-3.5 text-indigo-400" />
+              <KeyRound className="h-3.5 w-3.5 text-indigo-600" />
               Change Password
             </Button>
-            <Button className="bg-slate-800 text-white hover:bg-slate-700 w-full sm:w-auto font-semibold text-xs" onClick={() => setShowProfileDialog(false)}>
-              Close Profile
+            <Button className="bg-slate-900 text-white hover:bg-slate-800 w-full sm:w-auto font-semibold text-xs rounded-xl" onClick={() => setShowProfileDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -57,6 +57,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toast } from "@/hooks/use-toast"
 
 // Helper type for PDF generation
 type TableCell = string | { content: string; colSpan?: number; styles?: any };
@@ -558,12 +559,12 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   // --- 1. OPEN DOWNLOAD DIALOG ---
   const openDownloadDialog = (defaultType: "filtered" | "defaulters" | "status" = "filtered") => {
     if (activeView !== "disconnection" || !consumerListRef.current) {
-      alert("Please open the Disconnection List to download data.");
+      toast({ variant: "destructive", title: "Open Disconnection List", description: "Please open the Disconnection List to download data." });
       return;
     }
     const consumers = consumerListRef.current.getCurrentConsumers();
     if (consumers.length === 0) {
-      alert("No consumer data available.");
+      toast({ variant: "destructive", title: "No Data Available", description: "No consumer data available for export." });
       return;
     }
     setReportType(defaultType);
@@ -574,7 +575,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   const handleDownloadConfirm = async () => {
     const topN = parseInt(downloadCount, 10);
     if (!topN || topN <= 0) {
-      alert("Invalid number entered.");
+      toast({ variant: "destructive", title: "Invalid Count", description: "Please enter a valid positive number." });
       return;
     }
 
@@ -735,7 +736,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     }
 
     if (consumers.length === 0) {
-      alert("No consumers found for the selected date range.");
+      toast({ variant: "destructive", title: "No Matching Consumers", description: "No consumers found for the selected date range." });
       return;
     }
 
@@ -863,12 +864,12 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   // --- EXCEL DOWNLOAD FOR CURRENT FILTERED DC LIST ---
   const downloadExcel = async () => {
     if (activeView !== "disconnection" || !consumerListRef.current) {
-      alert("Please open the Disconnection List to download data.");
+      toast({ variant: "destructive", title: "Open Disconnection List", description: "Please open the Disconnection List view first to export data." });
       return;
     }
     const consumers = [...consumerListRef.current.getCurrentConsumers()];
     if (consumers.length === 0) {
-      alert("No consumer data available for export.");
+      toast({ variant: "destructive", title: "No Data to Export", description: "No consumer records match the current filters." });
       return;
     }
 
@@ -953,7 +954,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   // --- STANDARD REPORT PDF ---
   const downloadPDF = async () => {
     if (activeView !== "disconnection" || !consumerListRef.current) {
-      alert("Please open the Disconnection List to download data.");
+      toast({ variant: "destructive", title: "Open Disconnection List", description: "Please open the Disconnection List view first to export PDF." });
       return;
     }
     
@@ -961,7 +962,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     const { default: autoTable } = await import("jspdf-autotable")
     const consumers = [...consumerListRef.current.getCurrentConsumers()];
     if (consumers.length === 0) {
-      alert("No consumer data available for export.");
+      toast({ variant: "destructive", title: "No Data to Export", description: "No consumer records match the current filters." });
       return;
     }
 
@@ -2181,7 +2182,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                             <div className="space-y-0.5 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-slate-800 truncate">{tx.planName}</span>
-                                <span className="font-mono text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                <span className="font-mono text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
                                   {tx.paymentId.slice(0, 10)}...
                                 </span>
                               </div>
@@ -2245,39 +2246,41 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
           </div>
         )}
 
-        {/* Global Onboarding Required Dialog Modal */}
+        {/* Global Onboarding Required Dialog Modal (Unified Light Surface) */}
         <Dialog open={showOnboardingModal} onOpenChange={() => {}}>
-          <DialogContent className="sm:max-w-[425px] bg-slate-900 border-slate-800 text-slate-100 dark" aria-describedby="onboarding-description">
+          <DialogContent className="sm:max-w-[425px] bg-white border-slate-200 text-slate-900 rounded-2xl shadow-xl" aria-describedby="onboarding-description">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-yellow-500 font-bold text-lg">
-                <AlertTriangle className="h-5 w-5 text-yellow-500 animate-bounce" />
+              <DialogTitle className="flex items-center gap-2 text-amber-700 font-bold text-lg">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                </div>
                 Google Integration Required
               </DialogTitle>
-              <DialogDescription id="onboarding-description" className="text-slate-400 pt-2 text-sm leading-relaxed">
+              <DialogDescription id="onboarding-description" className="text-slate-600 pt-2 text-sm leading-relaxed">
                 This subdivision Customer Care Center (CCC) has not been linked to a Google Spreadsheet database or Drive folder yet.
                 {role === "admin" ? (
                   <>
                     <br /><br />
-                    As an <strong>Administrator</strong>, you must authenticate with your Google Account to duplicate the master database template and begin managing consumer records.
+                    As an <strong className="text-slate-900">Administrator</strong>, authenticate with your Google Account to duplicate the master database template and begin managing consumer records.
                   </>
                 ) : (
                   <>
                     <br /><br />
-                    Please request an <strong>Administrator</strong> of your office to log in and authorize the application to link your database.
+                    Please request an <strong className="text-slate-900">Administrator</strong> of your office to log in and authorize the application to link your database.
                   </>
                 )}
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-col">
+            <DialogFooter className="mt-5 flex flex-col gap-2 sm:flex-col">
               {role === "admin" ? (
-                <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2">
+                <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl interactive-tap">
                   <a href="/api/auth/google/login">
                     <KeyRound className="h-4 w-4 mr-2" />
                     Link Google Account Now
                   </a>
                 </Button>
               ) : (
-                <div className="w-full text-center py-2 px-3 bg-slate-800/50 rounded-lg text-slate-400 text-xs italic">
+                <div className="w-full text-center py-2.5 px-3 bg-slate-100 rounded-xl text-slate-500 text-xs font-medium">
                   Awaiting Admin Authentication
                 </div>
               )}
@@ -2285,35 +2288,34 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
           </DialogContent>
         </Dialog>
 
-        {/* Global Onboarding Success Dialog Modal */}
-        <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-          <DialogContent className="sm:max-w-[425px] bg-slate-900 border-slate-800 text-slate-100 dark" aria-describedby="success-description">
+        {/* Global Onboarding Success Dialog Modal (Unified Light Surface) */}
+        <Dialog open={!showOnboardingModal && showSuccessModal} onOpenChange={setShowSuccessModal}>
+          <DialogContent className="sm:max-w-[425px] bg-white border-slate-200 text-slate-900 rounded-2xl shadow-xl" aria-describedby="success-description">
             <DialogHeader className="flex flex-col items-center justify-center text-center">
-              <div className="h-16 w-16 bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 mt-2">
-                <CheckCircle2 className="h-10 w-10 text-emerald-500 animate-pulse" />
+              <div className="h-14 w-14 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center mb-3 mt-1 animate-chip-in">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600" />
               </div>
-              <DialogTitle className="text-xl font-bold text-slate-100 text-center">
+              <DialogTitle className="text-xl font-bold text-slate-900 text-center">
                 Onboarding Completed!
               </DialogTitle>
-              <DialogDescription id="success-description" className="text-slate-400 pt-2 text-sm leading-relaxed text-center">
+              <DialogDescription id="success-description" className="text-slate-600 pt-1.5 text-sm leading-relaxed text-center">
                 Your subdivision Customer Care Center (CCC) database has been set up successfully.
-                <br /><br />
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="mt-6 flex flex-col gap-2 sm:flex-col">
+            <DialogFooter className="mt-5 flex flex-col gap-2 sm:flex-col">
               <Button 
                 onClick={() => {
                   setShowSuccessModal(false)
                   setShowGuideModal(true)
                 }} 
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl interactive-tap"
               >
                 Start Setup Checklist (5 Steps) →
               </Button>
               <Button 
                 variant="ghost"
                 onClick={() => setShowSuccessModal(false)} 
-                className="w-full text-slate-400 hover:text-white text-xs"
+                className="w-full text-slate-500 hover:text-slate-900 text-xs rounded-xl"
               >
                 Dismiss
               </Button>
@@ -2321,23 +2323,23 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
           </DialogContent>
         </Dialog>
 
-        {/* Global Subscription Required Dialog Modal (Strictly for Agency/Vendor accounts) */}
-        <Dialog open={role?.toLowerCase() === "agency" && !isSubscribed && permsLoaded} onOpenChange={() => {}}>
-          <DialogContent className="sm:max-w-[425px] bg-slate-950 border-slate-800 text-slate-100 dark backdrop-blur-md" aria-describedby="subscription-description">
+        {/* Global Subscription Required Dialog Modal (Unified Light Surface) */}
+        <Dialog open={!showOnboardingModal && role?.toLowerCase() === "agency" && !isSubscribed && permsLoaded} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-[440px] bg-white border-slate-200 text-slate-900 rounded-2xl shadow-2xl" aria-describedby="subscription-description">
             <DialogHeader className="flex flex-col items-center justify-center text-center">
-              <div className="h-14 w-14 bg-indigo-500/10 rounded-full flex items-center justify-center mb-4 mt-2 border border-indigo-500/20">
-                <AlertTriangle className="h-7 w-7 text-indigo-400 animate-pulse" />
+              <div className="h-14 w-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-3 mt-1 border border-indigo-200">
+                <AlertTriangle className="h-7 w-7 text-indigo-600" />
               </div>
-              <DialogTitle className="text-xl font-bold tracking-tight text-slate-100 text-center">
+              <DialogTitle className="text-xl font-bold tracking-tight text-slate-900 text-center">
                 Workspace Subscription Required
               </DialogTitle>
-              <DialogDescription id="subscription-description" className="text-slate-400 pt-2 text-sm leading-relaxed text-center">
-                Your account subscription is currently inactive. Please activate to continue accessing your subdivision Customer Care Center (CCC) modules.
+              <DialogDescription id="subscription-description" className="text-slate-500 pt-1.5 text-sm leading-relaxed text-center">
+                Your account subscription is currently inactive. Activate a plan to continue accessing your CCC modules.
               </DialogDescription>
             </DialogHeader>
 
             {/* Multi-Plan Selection Grid */}
-            <div className="my-4 space-y-3 w-full">
+            <div className="my-3 space-y-3 w-full">
               <div className="grid grid-cols-3 gap-2">
                 {dashboardPlans.map((p) => {
                   const isSel = selectedDashboardPlan.id === p.id
@@ -2346,38 +2348,38 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                       key={p.id}
                       type="button"
                       onClick={() => setSelectedDashboardPlan(p)}
-                      className={`relative p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                      className={`relative p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer interactive-tap ${
                         isSel
-                          ? "border-indigo-500 bg-indigo-500/20 ring-1 ring-indigo-500 shadow-md"
-                          : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
+                          ? "border-indigo-600 bg-indigo-50/70 ring-1 ring-indigo-600 shadow-sm"
+                          : "border-slate-200 bg-slate-50/60 hover:border-slate-300"
                       }`}
                     >
                       <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider mb-1 self-start ${
-                        p.popular ? "bg-amber-500 text-slate-950" : "bg-indigo-600/80 text-white"
+                        p.popular ? "bg-amber-400 text-slate-950" : "bg-indigo-600 text-white"
                       }`}>
                         {p.badge}
                       </span>
                       <div>
-                        <span className="text-xs font-bold text-slate-200 block">{p.label}</span>
+                        <span className="text-xs font-bold text-slate-800 block">{p.label}</span>
                         <div className="flex items-baseline gap-1 mt-0.5">
-                          <span className="text-base font-black text-white">{p.price}</span>
-                          <span className="text-[10px] text-slate-500 line-through">{p.originalPrice}</span>
+                          <span className="text-base font-black text-slate-900">{p.price}</span>
+                          <span className="text-[10px] text-slate-400 line-through">{p.originalPrice}</span>
                         </div>
                       </div>
-                      <span className="text-[9px] text-slate-400 mt-1 font-medium">{p.subtext}</span>
+                      <span className="text-[9px] text-slate-500 mt-1 font-medium">{p.subtext}</span>
                     </button>
                   )
                 })}
               </div>
 
               {subscriptionExpiresAt && (
-                <span className="block text-[10px] text-red-400 bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/20 text-center">
+                <span className="block text-[11px] text-red-700 bg-red-50 px-2.5 py-1.5 rounded-xl border border-red-200 text-center font-medium">
                   Last session expired: {subscriptionExpiresAt}
                 </span>
               )}
             </div>
 
-            <DialogFooter className="mt-1 flex flex-col gap-2.5 sm:flex-col w-full">
+            <DialogFooter className="mt-1 flex flex-col gap-2 sm:flex-col w-full">
               <VendorSubscriptionCheckout 
                 amount={selectedDashboardPlan.amount}
                 planName={selectedDashboardPlan.name}
@@ -2390,7 +2392,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                 onSuccess={(res) => {
                   handlePaymentSuccess(res)
                 }}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-lg shadow-md hover:shadow-indigo-500/10 transition-all duration-200"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-xl shadow-sm transition-all duration-200"
               />
               <Button 
                 onClick={async () => {
@@ -2405,7 +2407,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                   window.location.href = "/"
                 }} 
                 variant="outline"
-                className="w-full bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white font-semibold py-2.5 rounded-lg transition-all duration-150"
+                className="w-full border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-semibold py-2.5 rounded-xl"
               >
                 Logout Securely
               </Button>
@@ -2413,41 +2415,55 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
           </DialogContent>
         </Dialog>
 
-        {/* Interactive Setup & Onboarding Guide for Admin */}
-        {role === "admin" && (
-          <OnboardingGuideDialog
-            open={showGuideModal}
-            onOpenChange={setShowGuideModal}
-            onNavigate={handleGuideNavigate}
-            role={role}
-          />
-        )}
+        {/* Startup Modal Queue: Only one secondary startup dialog renders when higher-priority modals are closed */}
+        {(() => {
+          const isPaywallOpen = role?.toLowerCase() === "agency" && !isSubscribed && permsLoaded
+          const hasBlockingModal = showOnboardingModal || showSuccessModal || isPaywallOpen || showCelebrationModal
 
-        {/* New System Features / Update Announcement Popup */}
-        <NewYearPopup />
+          return (
+            <>
+              {/* Interactive Setup & Onboarding Guide for Admin */}
+              {role === "admin" && (
+                <OnboardingGuideDialog
+                  open={!hasBlockingModal && showGuideModal}
+                  onOpenChange={setShowGuideModal}
+                  onNavigate={handleGuideNavigate}
+                  role={role}
+                />
+              )}
 
-        {/* Proactive Subscription & Trial Expiry Warning (3-day countdown, once per day on first open) */}
-        <SubscriptionExpiryAlertModal
-          userId={initialProfile?.username}
-          username={initialProfile?.username}
-          role={role}
-          agencyName={agencies && agencies.length > 0 ? agencies[0] : (profileName || initialProfile?.username)}
-          subscriptionExpiresAt={subscriptionExpiresAt}
-          onSubscriptionRenewed={handlePaymentSuccess}
-        />
+              {/* Announcement Popup — only when no higher-priority modal is open */}
+              {!hasBlockingModal && !showGuideModal && <NewYearPopup />}
 
-        {/* Enthusiastic Payment Celebration & Tremendous Job Modal */}
-        <PaymentCelebrationModal
-          open={showCelebrationModal}
-          onClose={() => setShowCelebrationModal(false)}
-          planName={celebrationDetails.planName}
-          expiresAt={celebrationDetails.expiresAt}
-          paymentId={celebrationDetails.paymentId}
-          amount={celebrationDetails.amount}
-        />
+              {/* Proactive Subscription & Trial Expiry Warning */}
+              {!hasBlockingModal && !showGuideModal && (
+                <SubscriptionExpiryAlertModal
+                  userId={initialProfile?.username}
+                  username={initialProfile?.username}
+                  role={role}
+                  agencyName={agencies && agencies.length > 0 ? agencies[0] : (profileName || initialProfile?.username)}
+                  subscriptionExpiresAt={subscriptionExpiresAt}
+                  onSubscriptionRenewed={handlePaymentSuccess}
+                />
+              )}
 
-        {/* Floating Rating Pill (Only renders if user has not yet submitted feedback) */}
-        <FloatingRatingPill initialHasFeedback={initialHasFeedback} />
+              {/* Payment Celebration Modal */}
+              <PaymentCelebrationModal
+                open={showCelebrationModal}
+                onClose={() => setShowCelebrationModal(false)}
+                planName={celebrationDetails.planName}
+                expiresAt={celebrationDetails.expiresAt}
+                paymentId={celebrationDetails.paymentId}
+                amount={celebrationDetails.amount}
+              />
+
+              {/* Floating Rating Pill (Hidden during active blocking modals or fullscreen GIS camera) */}
+              {!hasBlockingModal && !showGuideModal && activeView !== "gis-camera" && (
+                <FloatingRatingPill initialHasFeedback={initialHasFeedback} />
+              )}
+            </>
+          )
+        })()}
 
       </DashboardShell>
     </DashboardProvider>

@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { toast } from "@/hooks/use-toast"
 import {
   Building2,
   Phone,
@@ -165,12 +166,12 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
     const cleanMobile = editMobileNumber.trim()
 
     if (cleanVendor && !/^\d{6}$/.test(cleanVendor)) {
-      alert("Vendor code should ideally be a 6-digit number.")
+      toast({ variant: "destructive", title: "Invalid Vendor Code", description: "Vendor code should be a 6-digit number." })
       return
     }
 
     if (cleanMobile && !/^\d{10}$/.test(cleanMobile)) {
-      alert("Mobile number should be a 10-digit number.")
+      toast({ variant: "destructive", title: "Invalid Mobile Number", description: "Mobile number should be a 10-digit number." })
       return
     }
 
@@ -203,7 +204,7 @@ export function AgencyProfileTracker({ onBackToDashboard }: AgencyProfileTracker
       // Refresh data in background
       fetchData(true)
     } catch (err: any) {
-      alert("Error updating agency: " + err.message)
+      toast({ variant: "destructive", title: "Update Failed", description: err.message || "Error updating agency." })
     } finally {
       setSavingEdit(false)
     }

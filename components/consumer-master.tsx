@@ -562,9 +562,13 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
               if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
               setShowNearbyMap(v => !v)
             }}
-            className="w-full h-11 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-sm transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white"
+            className={`w-full h-10 rounded-xl font-bold flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm transition-all duration-200 interactive-tap ${
+              showNearbyMap
+                ? "bg-slate-900 hover:bg-slate-800 text-white"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+            }`}
           >
-            <MapPin className="h-4 w-4 animate-bounce" />
+            <MapPin className="h-4 w-4" />
             {showNearbyMap ? "Hide Navigation Radar" : "Locate Nearby Consumers"}
           </Button>
         )}
@@ -572,7 +576,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
           <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {results.map((r, i) => (
               <div key={i}
-                className="border rounded-xl p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all duration-200 bg-white"
+                className="border rounded-xl p-3 cursor-pointer card-interactive bg-white"
                 onClick={() => setSelectedConsumer(r)}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -722,7 +726,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-600">Mobile Coverage</span>
-                  <span className="text-slate-850">{stats.mobile.percent}%</span>
+                  <span className="text-slate-800">{stats.mobile.percent}%</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${stats.mobile.percent}%` }} />
@@ -731,7 +735,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-600">Geotagging Rate</span>
-                  <span className="text-slate-850">{stats.geotagged.percent}%</span>
+                  <span className="text-slate-800">{stats.geotagged.percent}%</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-blue-500 h-full rounded-full" style={{ width: `${stats.geotagged.percent}%` }} />
@@ -740,7 +744,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-600">Meter Linkage</span>
-                  <span className="text-slate-850">{stats.meter.percent}%</span>
+                  <span className="text-slate-800">{stats.meter.percent}%</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                   <div className="bg-amber-500 h-full rounded-full" style={{ width: `${stats.meter.percent}%` }} />
@@ -793,7 +797,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
                           <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 text-indigo-500 transition-all" />
                         </span>
                         <span className="text-slate-500">
-                          {zone.count.toLocaleString()} <span className="text-[10px] text-slate-450 font-normal font-sans">({pct}%)</span>
+                          {zone.count.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal font-sans">({pct}%)</span>
                         </span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -833,7 +837,7 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
                           <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 text-indigo-500 transition-all" />
                         </span>
                         <span className="text-slate-500">
-                          {cls.count.toLocaleString()} <span className="text-[10px] text-slate-450 font-normal font-sans">({pct}%)</span>
+                          {cls.count.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal font-sans">({pct}%)</span>
                         </span>
                       </div>
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">

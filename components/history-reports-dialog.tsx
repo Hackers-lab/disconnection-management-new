@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { getFromCache, saveToCache } from "@/lib/indexed-db"
+import { toast } from "@/hooks/use-toast"
 
 interface HistoryEntry {
   timestamp: string
@@ -450,7 +451,7 @@ export function HistoryReportsDialog({ open, onOpenChange, userRole, userAgencie
       doc.save(`Activity_Report_${fromDateStr}_to_${toDateStr}.pdf`)
     } catch (err) {
       console.error("PDF generation failed:", err)
-      alert("Failed to generate PDF.")
+      toast({ variant: "destructive", title: "PDF Export Failed", description: "Could not generate the activity report PDF." })
     }
   }
 

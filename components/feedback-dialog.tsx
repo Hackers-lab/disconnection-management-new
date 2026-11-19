@@ -192,7 +192,7 @@ export function FeedbackDialog({
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3.5">
               {/* Star Rating Section */}
-              <div className="bg-slate-50/90 border border-slate-150 rounded-xl p-3 flex flex-col items-center gap-2">
+              <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 flex flex-col items-center gap-2">
                 <div className="flex items-center gap-1.5">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button

@@ -35,6 +35,13 @@ import { PlatformSyncEngine } from "@/lib/sync-engine"
 import { parseTs } from "@/lib/date-utils"
 import { matchesAgency } from "@/lib/permission-utils"
 import { useModuleTheme, ModuleTheme } from "@/lib/module-theme"
+import {
+  MODULE_CATALOG,
+  MODULE_CATEGORIES,
+  canAccessModule,
+  getRecentModules,
+} from "@/lib/module-catalog"
+import { Clock, AlertTriangle, Sparkles } from "lucide-react"
 
 interface DashboardMenuProps {
   onSelect: (module: ViewType) => void
@@ -45,6 +52,7 @@ interface DashboardMenuProps {
 
 export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissions }: DashboardMenuProps) {
   const { theme } = useModuleTheme()
+  const [recentModuleIds, setRecentModuleIds] = useState<ViewType[]>([])
   const [latestUpdateDate, setLatestUpdateDate] = useState<string>("")
   const [pendingCount, setPendingCount] = useState<number>(0)
   const [ddPendingCount, setDdPendingCount] = useState<number>(0)
@@ -61,6 +69,13 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const [pdPendingCount, setPdPendingCount] = useState<number>(0)
   const [masterCount, setMasterCount] = useState<number>(0)
   const [loadingModules, setLoadingModules] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setRecentModuleIds(getRecentModules())
+    const onRecentUpdate = () => setRecentModuleIds(getRecentModules())
+    window.addEventListener("recent-modules-updated", onRecentUpdate)
+    return () => window.removeEventListener("recent-modules-updated", onRecentUpdate)
+  }, [])
 
   // Helper to scan all local module caches and find the latest update date
   const refreshGlobalLatestDate = async () => {
@@ -993,131 +1008,135 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
   const ATTENTION_THRESHOLD = 500
   const WARNING_THRESHOLD = 50
 
-  const accessibleModulesWithCounts = modules
-    .filter((module) => {
-      const permKey = module.id.replace(/-/g, "_")
-      if (module.id === "meter-replacement") {
-        return userRole === "admin" || userRole === "executive" || userRole === "superuser"
-      }
-      return (
-        userRole === "admin" ||
-        userRole === "superuser" ||
-        module.id === "home" ||
-        module.id === "gis-camera" ||
-        (permissions &&
-          ((permissions[module.id] && permissions[module.id].length > 0) ||
-            (permissions[permKey] && permissions[permKey].length > 0) ||
-            permissions[module.id]?.includes("read") ||
-            permissions[permKey]?.includes("read") ||
-            (module.id === "material" && permissions[module.id]?.length > 0) ||
-            (module.id === "dtr-painting" &&
-              (permissions["dtr"]?.includes("read") || permissions["dtr"]?.includes("update")))))
-      )
-    })
-    .map((module) => {
-      let count = 0
-      if (module.id === "safety") count = safetyPendingCount
-      else if (module.id === "misc-inspection") count = miscPendingCount
-      else if (module.id === "icds") count = icdsPendingCount
-      else if (module.id === "permanent-disconnection") count = pdPendingCount
-      else if (module.id === "disconnection") count = pendingCount
-      else if (module.id === "deemed") count = ddPendingCount
-      else if (module.id === "reconnection") count = reconnectionPendingCount
-      else if (module.id === "nsc") count = nscPendingCount
-      else if (module.id === "meter") count = meterPendingCount
-      else if (module.id === "meter-replacement") count = replacementPendingCount
-      else if (module.id === "material") count = materialPendingCount
-      else if (module.id === "dtr") count = dtrPendingCount
-      else if (module.id === "dtr-painting") count = dtrPaintingPendingCount
-      else if (module.id === "consumer-master") count = masterCount
+  // Build unified accessible modules from MODULE_CATALOG (single source of truth for icons, categories & badge labels)
+  const countMap: Record<string, number> = {
+    safety: safetyPendingCount,
+    "misc-inspection": miscPendingCount,
+    icds: icdsPendingCount,
+    "permanent-disconnection": pdPendingCount,
+    disconnection: pendingCount,
+    deemed: ddPendingCount,
+    reconnection: reconnectionPendingCount,
+    nsc: nscPendingCount,
+    meter: meterPendingCount,
+    "meter-replacement": replacementPendingCount,
+    material: materialPendingCount,
+    dtr: dtrPendingCount,
+    "dtr-painting": dtrPaintingPendingCount,
+    "consumer-master": masterCount,
+  }
 
-      const isLoading = Boolean(loadingModules[module.id])
-      return { ...module, count, isLoading }
-    })
+  const accessibleModulesWithCounts = MODULE_CATALOG.filter((m) =>
+    canAccessModule(m.id, userRole, permissions)
+  ).map((m) => {
+    const count = countMap[m.id] ?? 0
+    const isLoading = Boolean(loadingModules[m.id])
+    const title = userRole === "agency" && m.agencyTitle ? m.agencyTitle : m.title
+    const description =
+      userRole === "agency" && m.agencyDescription
+        ? m.agencyDescription
+        : m.id === "consumer-master" && userRole === "admin"
+        ? "Upload & search consumer master database"
+        : m.description
+    return {
+      ...m,
+      title,
+      description,
+      count,
+      isLoading,
+    }
+  })
 
-  // Surface any action module exceeding attention threshold (excluding static master DB count)
-  const attentionModules = accessibleModulesWithCounts.filter(
-    (m) => m.id !== "consumer-master" && m.id !== "admin" && m.id !== "osd" && m.count >= ATTENTION_THRESHOLD
-  )
+  // Surface high-volume (>= 500) OR critical operational modules (e.g., safety hazards, overdue reconnections, low stock)
+  const attentionModules = accessibleModulesWithCounts.filter((m) => {
+    if (!m.hasCount || m.id === "consumer-master") return false
+    if (m.criticalThreshold && m.count >= m.criticalThreshold) return true
+    return m.count >= ATTENTION_THRESHOLD
+  })
 
-  // Main 2-column grid contains other modules
-  const gridModules = accessibleModulesWithCounts.filter(
-    (m) => !attentionModules.some((att) => att.id === m.id)
-  )
+  // Quick-access recently visited modules (top 4)
+  const recentModules = recentModuleIds
+    .map((id) => accessibleModulesWithCounts.find((m) => m.id === id))
+    .filter((m): m is (typeof accessibleModulesWithCounts)[number] => Boolean(m))
+    .slice(0, 4)
+
+  const formatSemanticCount = (mod: (typeof accessibleModulesWithCounts)[number], compact = false) => {
+    if (mod.isLoading) return null
+    const formattedNum =
+      mod.id === "consumer-master" && mod.count >= 1000
+        ? `${(mod.count / 1000).toFixed(1)}k`
+        : mod.count.toLocaleString()
+    if (compact || !mod.badgeUnit) return formattedNum
+    return `${formattedNum} ${mod.badgeUnit}`
+  }
 
   // Style generator according to active theme: "slate" | "categorized" | "status" | "minimal-accent"
-  const getThemeStyles = (mod: any) => {
-    const isWarning = mod.count >= WARNING_THRESHOLD && mod.count < ATTENTION_THRESHOLD
-    const isDanger = mod.count >= ATTENTION_THRESHOLD
-
-    // Category mapping for "categorized" theme
-    const isOps = ["disconnection", "reconnection", "deemed", "permanent-disconnection"].includes(mod.id)
-    const isField = ["dtr", "dtr-painting", "safety", "misc-inspection"].includes(mod.id)
-    const isAsset = ["icds", "meter", "nsc", "consumer-master", "meter-replacement", "material"].includes(mod.id)
+  const getThemeStyles = (mod: (typeof accessibleModulesWithCounts)[number]) => {
+    const isDanger =
+      mod.count >= ATTENTION_THRESHOLD ||
+      Boolean(mod.criticalThreshold && mod.count >= mod.criticalThreshold)
+    const isWarning = !isDanger && mod.count >= WARNING_THRESHOLD
 
     switch (theme) {
       case "categorized": {
         let iconBox = "bg-blue-50 text-blue-600 border-blue-200/80 group-hover:bg-blue-100/80"
-        let badge = "bg-blue-100/90 text-blue-800 border-blue-200/80"
-        let desktopWatermark = "text-blue-600"
+        let badge = "bg-blue-50 text-blue-800 border-blue-200/80"
+        let watermark = "text-blue-600"
         let cardBorder = "hover:border-blue-300 hover:shadow-blue-500/10"
 
-        if (isField) {
+        if (mod.category === "field") {
           iconBox = "bg-amber-50 text-amber-600 border-amber-200/80 group-hover:bg-amber-100/80"
-          badge = "bg-amber-100/90 text-amber-900 border-amber-200/80"
-          desktopWatermark = "text-amber-600"
+          badge = "bg-amber-50 text-amber-900 border-amber-200/80"
+          watermark = "text-amber-600"
           cardBorder = "hover:border-amber-300 hover:shadow-amber-500/10"
-        } else if (isAsset) {
+        } else if (mod.category === "assets") {
           iconBox = "bg-emerald-50 text-emerald-600 border-emerald-200/80 group-hover:bg-emerald-100/80"
-          badge = "bg-emerald-100/90 text-emerald-800 border-emerald-200/80"
-          desktopWatermark = "text-emerald-600"
+          badge = "bg-emerald-50 text-emerald-800 border-emerald-200/80"
+          watermark = "text-emerald-600"
           cardBorder = "hover:border-emerald-300 hover:shadow-emerald-500/10"
+        } else if (mod.category === "tools") {
+          iconBox = "bg-slate-100 text-slate-700 border-slate-200/80 group-hover:bg-slate-200/70"
+          badge = "bg-slate-100 text-slate-700 border-slate-200/80"
+          watermark = "text-slate-600"
+          cardBorder = "hover:border-slate-300"
         }
 
         return {
-          iconContainer: `w-10 h-10 md:w-12 md:h-12 rounded-xl ${iconBox} border flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:scale-105`,
-          pillBadge: `notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border flex items-center justify-center min-w-[1.25rem] shadow-xs ${badge}`,
-          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
-            mod.isLoading ? "bg-slate-700 text-white animate-pulse" : badge
-          }`,
-          desktopWatermark: `h-20 w-20 md:h-24 md:w-24 ${desktopWatermark} transition-transform duration-500 group-hover:scale-110`,
-          watermarkOpacity: "opacity-[0.05] group-hover:opacity-[0.10]",
+          iconContainer: `w-10 h-10 rounded-xl ${iconBox} border flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105`,
+          badgeClass: mod.isLoading
+            ? "bg-slate-700 text-white border-slate-700 animate-pulse"
+            : badge,
+          watermark: `h-20 w-20 ${watermark} transition-transform duration-500 group-hover:scale-110`,
           cardBorder,
         }
       }
 
       case "status": {
-        const badgeClass = isDanger
-          ? "bg-red-100/95 text-red-800 border-red-200/90"
+        const badgeClass = mod.isLoading
+          ? "bg-slate-700 text-white border-slate-700 animate-pulse"
+          : isDanger
+          ? "bg-red-50 text-red-700 border-red-200"
           : isWarning
-          ? "bg-amber-100/95 text-amber-900 border-amber-200/90"
-          : "bg-slate-100/90 text-slate-700 border-slate-200/80"
-
-        const desktopBadgeClass = isDanger
-          ? "bg-red-600 text-white shadow-red-600/30"
-          : isWarning
-          ? "bg-amber-500 text-white shadow-amber-500/30"
-          : "bg-slate-800 text-white shadow-slate-800/20"
+          ? "bg-amber-50 text-amber-800 border-amber-200"
+          : "bg-slate-100 text-slate-700 border-slate-200"
 
         return {
-          iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
-          pillBadge: `notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border flex items-center justify-center min-w-[1.25rem] shadow-xs ${badgeClass}`,
-          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${desktopBadgeClass}`,
-          desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-700 transition-transform duration-500 group-hover:scale-110",
-          watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
-          cardBorder: "hover:border-slate-300",
+          iconContainer:
+            "w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900 group-hover:scale-105",
+          badgeClass,
+          watermark: "h-20 w-20 text-slate-700 transition-transform duration-500 group-hover:scale-110",
+          cardBorder: isDanger ? "hover:border-red-300" : "hover:border-slate-300",
         }
       }
 
       case "minimal-accent": {
         return {
-          iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:bg-indigo-100 group-hover:text-indigo-700 group-hover:scale-105",
-          pillBadge: "notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border border-indigo-200/80 bg-indigo-50 text-indigo-700 flex items-center justify-center min-w-[1.25rem] shadow-xs",
-          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
-            mod.isLoading ? "bg-indigo-400 text-white animate-pulse" : "bg-indigo-600 text-white shadow-indigo-600/20"
-          }`,
-          desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-indigo-600 transition-transform duration-500 group-hover:scale-110",
-          watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
+          iconContainer:
+            "w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-indigo-100 group-hover:text-indigo-700 group-hover:scale-105",
+          badgeClass: mod.isLoading
+            ? "bg-indigo-500 text-white border-indigo-500 animate-pulse"
+            : "bg-indigo-50 text-indigo-700 border-indigo-200/80",
+          watermark: "h-20 w-20 text-indigo-600 transition-transform duration-500 group-hover:scale-110",
           cardBorder: "hover:border-indigo-300 hover:shadow-indigo-500/10",
         }
       }
@@ -1125,204 +1144,215 @@ export function DashboardMenu({ onSelect, userRole, userAgencies = [], permissio
       case "slate":
       default: {
         return {
-          iconContainer: "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs transition-colors duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900",
-          pillBadge: "notranslate px-2 py-0.5 rounded-full text-[10px] font-semibold border border-black/80 bg-slate-950 text-white flex items-center justify-center min-w-[1.25rem] shadow-xs",
-          desktopBadge: `notranslate absolute top-1.5 right-1.5 md:top-2 md:right-2 z-20 flex items-center justify-center text-[10px] font-semibold min-w-[1.25rem] h-5 px-1.5 md:min-w-[1.5rem] md:h-5 md:px-2 rounded-full shadow-xs border border-white/90 transition-all duration-300 group-hover:scale-105 ${
-            mod.isLoading ? "bg-slate-800 text-white animate-pulse" : "bg-black text-white shadow-black/20"
-          }`,
-          desktopWatermark: "h-20 w-20 md:h-24 md:w-24 text-slate-800 transition-transform duration-500 group-hover:scale-110",
-          watermarkOpacity: "opacity-[0.04] group-hover:opacity-[0.08]",
+          iconContainer:
+            "w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 group-hover:scale-105",
+          badgeClass: mod.isLoading
+            ? "bg-slate-800 text-white border-slate-800 animate-pulse"
+            : mod.count > 0 && mod.id !== "consumer-master"
+            ? "bg-slate-900 text-white border-slate-900"
+            : "bg-slate-100 text-slate-600 border-slate-200",
+          watermark: "h-20 w-20 text-slate-800 transition-transform duration-500 group-hover:scale-110",
           cardBorder: "hover:border-slate-300",
         }
       }
     }
   }
 
+  const handleOpenModule = (id: ViewType) => {
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(15)
+    onSelect(id)
+  }
+
   return (
-    <>
-      {/* ========================================================================= */}
-      {/* 1. MOBILE TESTING VIEW (< md: screen sizes) */}
-      {/* ========================================================================= */}
-      <div className="block md:hidden relative p-2 sm:p-4 max-w-xl mx-auto flex flex-col justify-between min-h-[calc(100vh-100px)]">
-        <div className="flex-grow space-y-4">
-          {/* Global Fast IndexedDB Consumer Search */}
+    <div className="relative max-w-6xl mx-auto space-y-5 sm:space-y-6 pb-4">
+      {/* 1. Admin Setup Guide Banner (Now visible on BOTH mobile & desktop) */}
+      {((userRole || "").toLowerCase() === "admin" || (userRole || "").toLowerCase() === "superuser") && (
+        <div className="animate-fade-slide-up">
+          <AdminSetupGuideBanner />
+        </div>
+      )}
+
+      {/* 2. Global Consumer Search Bar + Last Updated Meta */}
+      <div className="space-y-2.5 animate-fade-slide-up">
+        <div className="max-w-2xl mx-auto">
           <GlobalConsumerSearch
             onSelectModule={onSelect}
             userRole={userRole}
             permissions={permissions}
           />
-
-          {/* SECTION 1: Needs attention (Full-width dynamic card) */}
-          {attentionModules.length > 0 && (
-            <div>
-              <h2 className="text-xs font-semibold text-slate-500 mb-2">Needs attention</h2>
-              <div className="space-y-3">
-                {attentionModules.map((module) => {
-                  const Icon = module.icon
-                  return (
-                    <div
-                      key={module.id}
-                      onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                        onSelect(module.id as ViewType)
-                      }}
-                      className="rounded-2xl border border-red-500/20 hover:border-red-500/35 bg-gradient-to-b from-white via-red-50/20 to-red-50/40 p-3.5 flex items-center justify-between shadow-[0_4px_14px_rgba(239,68,68,0.08),0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_22px_rgba(239,68,68,0.14)] cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-[10px] bg-red-50 border border-red-200/80 flex items-center justify-center text-red-600 shrink-0 shadow-xs">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-base font-bold text-slate-900 leading-tight">
-                            {module.title}
-                          </h3>
-                        </div>
-                      </div>
-                      <div className="notranslate px-2 py-0.5 rounded-full bg-red-100/90 text-red-800 border border-red-200/80 text-[10px] font-semibold shrink-0 ml-2 shadow-xs">
-                        {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.count.toLocaleString()}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* SECTION 2: Modules (2-Column Grid for Mobile) */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5 px-0.5">
-              <h2 className="text-xs font-semibold text-slate-500">Modules</h2>
-              {latestUpdateDate && (
-                <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                  <Calendar className="h-3 w-3 text-slate-400" />
-                  Last Updated: <span className="font-semibold text-slate-600">{latestUpdateDate}</span>
-                </span>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {gridModules.map((module) => {
-                const Icon = module.icon
-                const styles = getThemeStyles(module)
-
-                return (
-                  <div
-                    key={module.id}
-                    onClick={() => {
-                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                      onSelect(module.id as ViewType)
-                    }}
-                    className={`group relative cursor-pointer transition-all duration-200 hover:-translate-y-0.5 rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/80 border border-black/[0.08] ${styles.cardBorder} shadow-[0_4px_12px_rgba(0,0,0,0.05),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.09)] p-3.5 flex flex-col justify-between min-h-[96px] select-none`}
-                  >
-                    {/* Top Row: Icon (Top-Left) + Dynamic Pill Count Badge (Top-Right) */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className={styles.iconContainer}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-
-                      {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
-                        <span className={styles.pillBadge}>
-                          {module.isLoading ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            module.id === "consumer-master" ? module.count.toLocaleString() : (module.count ?? 0)
-                          )}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Bottom Row: Title Only */}
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug mt-2">
-                      {module.title}
-                    </h3>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
         </div>
+
+        {latestUpdateDate && (
+          <div className="flex items-center justify-center">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full border border-slate-200/80 shadow-2xs">
+              <Calendar className="h-3 w-3 text-blue-500" />
+              Last Synced Activity: <strong className="font-semibold text-slate-800">{latestUpdateDate}</strong>
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* ========================================================================= */}
-      {/* 2. DEFAULT COMMITTED DESKTOP VIEW (>= md: screen sizes - Unchanged) */}
-      {/* ========================================================================= */}
-      <div className="hidden md:flex relative p-4 md:p-6 max-w-7xl mx-auto flex-col justify-between min-h-[calc(100vh-100px)] overflow-hidden">
-        {/* Ambient Background Mesh Blobs */}
-        <div className="absolute top-10 left-1/4 w-72 h-72 bg-blue-400/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" />
-        <div className="absolute bottom-10 right-1/4 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
-        <div className="absolute top-1/2 left-10 w-60 h-60 bg-purple-400/10 rounded-full blur-3xl pointer-events-none -z-10" />
-
-        <div className="flex-grow">
-          {/* Admin Mobile & Agency Mapping Interactive Setup Banner */}
-          {((userRole || "").toLowerCase() === "admin" || (userRole || "").toLowerCase() === "superuser") && (
-            <div className="max-w-4xl mx-auto mb-5">
-              <AdminSetupGuideBanner />
-            </div>
-          )}
-
-          {/* Global Fast IndexedDB Consumer Search */}
-          <div className="max-w-xl mx-auto mb-6">
-            <GlobalConsumerSearch
-              onSelectModule={onSelect}
-              userRole={userRole}
-              permissions={permissions}
-            />
+      {/* 3. Quick Access — Recently Used Strip (1-tap jump for daily workflows) */}
+      {recentModules.length > 0 && (
+        <section className="animate-fade-slide-up space-y-2">
+          <div className="flex items-center gap-1.5 px-0.5">
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            <h2 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Quick Access
+            </h2>
           </div>
-
-          <div className="flex items-center justify-between mb-3.5 px-1">
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Modules</h2>
-            {latestUpdateDate && (
-              <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5 bg-white/70 backdrop-blur-sm px-2.5 py-1 rounded-full border border-slate-200/80 shadow-2xs">
-                <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                Last Updated: <span className="font-bold text-slate-800">{latestUpdateDate}</span>
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
-            {accessibleModulesWithCounts.map((module) => {
-              const Icon = module.icon
-              const styles = getThemeStyles(module)
-
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {recentModules.map((mod, idx) => {
+              const Icon = mod.icon
               return (
-                <Card
-                  key={module.id}
-                  className={`group relative cursor-pointer transition-all duration-300 hover:-translate-y-1.5 border border-black/[0.08] ${styles.cardBorder} bg-white/85 backdrop-blur-xl rounded-2xl shadow-[0_6px_20px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] overflow-hidden`}
-                  onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                    onSelect(module.id as ViewType)
-                  }}
+                <button
+                  key={mod.id}
+                  type="button"
+                  onClick={() => handleOpenModule(mod.id)}
+                  className={`animate-chip-in stagger-${idx + 1} shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/90 hover:border-blue-300 hover:bg-blue-50/40 shadow-2xs text-xs font-semibold text-slate-800 transition-all interactive-tap cursor-pointer`}
                 >
-                  {/* Dynamic Badge Counter */}
-                  {module.id !== "osd" && module.id !== "admin" && module.id !== "gis-camera" && (
-                    <div className={styles.desktopBadge}>
-                      {module.isLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : module.id === "consumer-master" ? module.count.toLocaleString() : (module.count ?? 0)}
-                    </div>
+                  <Icon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  <span>{mod.title}</span>
+                  {mod.hasCount && mod.count > 0 && mod.id !== "consumer-master" && (
+                    <span className="notranslate tabular-nums px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                      {mod.count.toLocaleString()}
+                    </span>
                   )}
-
-                  {/* Faded Background Icon */}
-                  <div className={`absolute top-0 right-0 p-2 md:p-3 ${styles.watermarkOpacity} transition-opacity duration-300`}>
-                    <Icon className={styles.desktopWatermark} />
-                  </div>
-
-                  <CardHeader className="relative pb-2 p-3.5 md:p-5">
-                    <div className={styles.iconContainer}>
-                      <Icon className="h-5 w-5 md:h-6 md:w-6" />
-                    </div>
-                    <CardTitle className="text-sm md:text-lg font-bold text-slate-900 group-hover:text-slate-800 transition-colors tracking-tight">
-                      {module.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="relative p-3.5 pt-0 md:p-5 md:pt-0">
-                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                      {module.description}
-                    </p>
-                  </CardContent>
-                </Card>
+                </button>
               )
             })}
           </div>
-        </div>
+        </section>
+      )}
+
+      {/* 4. Needs Attention Surface (Unified across Mobile & Desktop) */}
+      {attentionModules.length > 0 && (
+        <section className="animate-fade-slide-up space-y-2.5">
+          <div className="flex items-center gap-1.5 px-0.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+            <h2 className="text-[11px] font-bold text-red-600 uppercase tracking-wider">
+              Needs Attention
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+            {attentionModules.map((mod, idx) => {
+              const Icon = mod.icon
+              return (
+                <button
+                  key={mod.id}
+                  type="button"
+                  onClick={() => handleOpenModule(mod.id)}
+                  className={`animate-card-enter stagger-${Math.min(idx + 1, 6)} group text-left rounded-2xl border border-red-200/90 hover:border-red-300 bg-gradient-to-br from-white via-red-50/20 to-red-50/50 p-3.5 flex items-center justify-between gap-3 shadow-xs hover:shadow-md card-interactive cursor-pointer`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-red-100/80 border border-red-200 flex items-center justify-center text-red-600 shrink-0 transition-transform duration-200 group-hover:scale-105">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">
+                        {mod.title}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {mod.description}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="notranslate tabular-nums shrink-0 px-2.5 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold shadow-xs">
+                    {mod.isLoading ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      formatSemanticCount(mod, false)
+                    )}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 5. Categorized Modules Grid */}
+      <div className="space-y-6">
+        {MODULE_CATEGORIES.map((category) => {
+          const items = accessibleModulesWithCounts.filter((m) => m.category === category.id)
+          if (items.length === 0) return null
+
+          return (
+            <section key={category.id} className="space-y-3">
+              <div className="flex items-center justify-between px-0.5">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${category.accentDot}`} />
+                  <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {category.label}
+                  </h2>
+                  <span className="hidden sm:inline text-xs text-slate-400 font-normal">
+                    — {category.description}
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-slate-400">
+                  {items.length} {items.length === 1 ? "module" : "modules"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {items.map((mod, idx) => {
+                  const Icon = mod.icon
+                  const styles = getThemeStyles(mod)
+                  const semanticLabel = formatSemanticCount(mod, false)
+                  const compactLabel = formatSemanticCount(mod, true)
+
+                  return (
+                    <button
+                      key={mod.id}
+                      type="button"
+                      onClick={() => handleOpenModule(mod.id)}
+                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-left cursor-pointer rounded-2xl bg-white/95 backdrop-blur-sm border border-slate-200/90 ${styles.cardBorder} shadow-xs hover:shadow-md p-3.5 sm:p-4 flex flex-col justify-between min-h-[116px] sm:min-h-[136px] overflow-hidden card-interactive select-none`}
+                    >
+                      {/* Subtle Watermark Icon on Desktop */}
+                      <div className="hidden sm:block absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity duration-300 pointer-events-none">
+                        <Icon className={styles.watermark} />
+                      </div>
+
+                      {/* Top Row: Icon + Semantic Count Pill */}
+                      <div className="relative z-10 flex items-start justify-between gap-2 w-full">
+                        <div className={styles.iconContainer}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+
+                        {mod.hasCount && (
+                          <span
+                            className={`notranslate tabular-nums inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold border transition-transform duration-200 group-hover:scale-105 ${styles.badgeClass}`}
+                          >
+                            {mod.isLoading ? (
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                <span className="sm:hidden">{compactLabel}</span>
+                                <span className="hidden sm:inline">{semanticLabel}</span>
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Bottom Row: Title, Description & Mobile Semantic Hint */}
+                      <div className="relative z-10 mt-3 space-y-0.5">
+                        <h3 className="text-sm sm:text-[15px] font-bold text-slate-900 leading-snug tracking-tight group-hover:text-blue-700 transition-colors">
+                          {mod.title}
+                        </h3>
+                        <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                          {mod.description}
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )
+        })}
       </div>
-    </>
+    </div>
   )
 }
+

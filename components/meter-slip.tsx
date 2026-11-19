@@ -1,6 +1,7 @@
 "use client"
 
 import type { MeterIssue } from "@/lib/meter-types"
+import { toast } from "@/hooks/use-toast"
 
 const PURPOSE_LABELS: Record<string, string> = {
   faulty_replacement: "Faulty/Defective Replacement",
@@ -11,7 +12,14 @@ const PURPOSE_LABELS: Record<string, string> = {
 
 export function printMeterSlip(issues: MeterIssue[]) {
   const win = window.open("", "_blank")
-  if (!win) { alert("Pop-up blocked. Please allow pop-ups."); return }
+  if (!win) {
+    toast({
+      variant: "destructive",
+      title: "Pop-up Blocked",
+      description: "Please allow pop-ups in your browser to print the meter requisition slip.",
+    })
+    return
+  }
 
   const rows = issues.map((item, i) => `
     <tr>

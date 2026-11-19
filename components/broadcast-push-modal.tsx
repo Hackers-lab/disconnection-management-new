@@ -15,6 +15,7 @@ import {
   DialogFooter
 } from "@/components/ui/dialog"
 import { triggerHaptic } from "@/lib/utils"
+import { toast } from "@/hooks/use-toast"
 
 interface BroadcastPushModalProps {
   isOpen: boolean
@@ -53,7 +54,7 @@ export function BroadcastPushModal({
   const handleSend = async () => {
     if (!title.trim() || !message.trim()) {
       triggerHaptic("error")
-      alert("Please provide both a notification title and message.")
+      toast({ variant: "destructive", title: "Fields required", description: "Please provide both a notification title and message." })
       return
     }
 

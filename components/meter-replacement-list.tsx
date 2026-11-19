@@ -848,12 +848,12 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       {/* Replacement cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {paginated.length === 0 ? (
-          <div className="col-span-full bg-white text-center py-16 text-gray-400 border rounded-2xl">
+          <div className="col-span-full bg-white text-center py-16 text-gray-400 border rounded-2xl animate-fade-slide-up">
             <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p>No replacement proposals found</p>
           </div>
         ) : paginated.map(r => (
-          <Card key={r.replacementId} className="shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full">
+          <Card key={r.replacementId} className="shadow-sm card-interactive overflow-hidden max-w-full">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
@@ -1606,7 +1606,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
       const rows: any[] = XLSX.utils.sheet_to_json(ws)
 
       if (rows.length === 0) {
-        alert("No rows found in the uploaded Excel file.")
+        toast({ variant: "destructive", title: "Empty Spreadsheet", description: "No rows found in the uploaded Excel file." })
         setLooking(false)
         return
       }
@@ -1675,7 +1675,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
 
       setParsedExcelItems(parsed)
     } catch (err: any) {
-      alert("Failed to parse Excel file: " + (err.message || "Unknown error"))
+      toast({ variant: "destructive", title: "Excel Parse Error", description: err.message || "Failed to parse Excel file." })
     } finally {
       setLooking(false)
     }
@@ -1684,7 +1684,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
   const handleBulkSubmit = async () => {
     const validItems = parsedExcelItems.filter(i => i.isValid && !i.isDeemed && !i.isDuplicate)
     if (validItems.length === 0) {
-      alert("No valid proposal items to submit. Ensure required details are present, connection is not deemed, and there are no active duplicate proposals.")
+      toast({ variant: "destructive", title: "No Valid Proposals", description: "Ensure required details are present, connection is not deemed, and there are no active duplicate proposals." })
       return
     }
 
@@ -1701,7 +1701,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
       window.dispatchEvent(new Event("notif-refresh"))
       onSave(`Bulk ${data.added} Proposals`)
     } catch (err: any) {
-      alert(err.message || "Bulk submission failed")
+      toast({ variant: "destructive", title: "Bulk Submission Failed", description: err.message || "Could not submit bulk proposals." })
     } finally {
       setSubmitting(false)
     }
@@ -1709,7 +1709,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
 
   const handleLookup = async () => {
     const id = consumerId.trim()
-    if (id.length !== 9) { alert("Consumer ID must be 9 digits."); return }
+    if (id.length !== 9) { toast({ variant: "destructive", title: "Invalid Consumer ID", description: "Consumer ID must be exactly 9 digits." }); return }
 
     const activeProposal = existingRecords.find(r => r.consumerId === id && isReplacementIncomplete(r))
     if (activeProposal) {
@@ -1854,10 +1854,10 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
         setAttachmentUrl(data.url)
         setUploadedFileName(processed.name)
       } else {
-        alert("Upload failed: " + (data.error || "unknown error"))
+        toast({ variant: "destructive", title: "Upload Failed", description: data.error || "Unknown upload error." })
       }
     } catch (e) {
-      alert("File upload failed.")
+      toast({ variant: "destructive", title: "Upload Failed", description: "File upload failed. Please try again." })
     } finally {
       setUploading(false)
     }
@@ -1866,20 +1866,28 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!manualName.trim() || !manualAddress.trim()) {
-      alert("Consumer Name and Address are required.")
+      toast({ variant: "destructive", title: "Missing Details", description: "Consumer Name and Address are required." })
       return
     }
 
     const cid = consumerId.trim()
     // Strict block if active duplicate exists
     if (activeExisting) {
-      alert(`Cannot propose replacement: Consumer ${cid} already has an active meter replacement in progress (${activeExisting.replacementId}, Status: ${activeExisting.status.toUpperCase()}). Duplicate entries are not allowed until completed or closed.`)
+      toast({
+        variant: "destructive",
+        title: "Duplicate Proposal Blocked",
+        description: `Consumer ${cid} already has an active meter replacement (${activeExisting.replacementId}, ${activeExisting.status.toUpperCase()}).`,
+      })
       return
     }
 
     // Strict block if deemed
     if (liveOsdResult?.isDeemed) {
-      alert(`Cannot propose replacement: Consumer connection is Deemed Disconnected (${liveOsdResult.connectionStatus}) on WBSEDCL portal.`)
+      toast({
+        variant: "destructive",
+        title: "Deemed Disconnected",
+        description: `Cannot propose replacement: connection is ${liveOsdResult.connectionStatus} on WBSEDCL portal.`,
+      })
       return
     }
 
@@ -1888,7 +1896,11 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
       if (cid.length === 9 && !liveOsdResult && !liveOsdError) {
         const check = await checkLiveStatus(cid)
         if (check?.isDeemed) {
-          alert(`Cannot propose replacement: Consumer connection is Deemed Disconnected (${check.connectionStatus}) on WBSEDCL portal.`)
+          toast({
+            variant: "destructive",
+            title: "Deemed Disconnected",
+            description: `Cannot propose replacement: connection is ${check.connectionStatus} on WBSEDCL portal.`,
+          })
           setSubmitting(false)
           return
         }
@@ -1914,7 +1926,7 @@ function MeterReplacementCreateForm({ agencies, oldMeterMap = {}, existingRecord
       window.dispatchEvent(new Event("notif-refresh"))
       onSave(data.replacementId)
     } catch (err: any) {
-      alert(err.message || "Submit failed")
+      toast({ variant: "destructive", title: "Submission Failed", description: err.message || "Failed to submit proposal." })
     } finally {
       setSubmitting(false)
     }

@@ -20,6 +20,7 @@ import {
   Radio,
 } from "lucide-react"
 import type { ActiveUserInfo, OnlineUsersReport, OfficeOnlineSummary } from "@/lib/presence-service"
+import { toast } from "@/hooks/use-toast"
 
 interface SuperuserOnlineUsersProps {
   onBackToDashboard?: () => void
@@ -200,7 +201,7 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
 
   const handleExportExcel = async () => {
     if (!report?.onlineUsers || report.onlineUsers.length === 0) {
-      alert("No active users to export.")
+      toast({ variant: "destructive", title: "Nothing to Export", description: "No active users available to export." })
       return
     }
 
@@ -239,9 +240,10 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
       ]
       XLSX.utils.book_append_sheet(wb, ws, "Online Users")
       XLSX.writeFile(wb, `Online_Users_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      toast({ title: "Export Ready", description: `Exported ${report.onlineUsers.length} user records to Excel.` })
     } catch (e) {
       console.error("Export error:", e)
-      alert("Failed to export online users.")
+      toast({ variant: "destructive", title: "Export Failed", description: "Failed to export online users." })
     }
   }
 

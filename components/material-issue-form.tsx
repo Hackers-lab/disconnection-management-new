@@ -13,6 +13,7 @@ import { compressAndWatermarkImage } from "@/lib/image-processor"
 
 
 import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
+import { useToast } from "@/hooks/use-toast"
 
 interface Props {
   catalogue: Material[]
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Props) {
+  const { toast } = useToast()
   const [items, setItems] = useState<{ materialId: string; quantity: number }[]>([])
   const [recipientName, setRecipientName] = useState("")
   const [purpose, setPurpose] = useState("")
@@ -90,7 +92,7 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
     if (!tempMaterialId || !tempQuantity || parseFloat(tempQuantity) <= 0) return
     const qty = parseFloat(tempQuantity)
     if (qty > availableQty) {
-      alert("Entered quantity exceeds available stock!")
+      toast({ variant: "destructive", title: "Insufficient stock", description: `Entered quantity exceeds available stock (${availableQty}).` })
       return
     }
     setItems(prev => {
@@ -162,7 +164,7 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
       setPhotoPreview(null)
       onSuccess(result?.issueId)
     } catch (e: any) {
-      alert(e.message || "Failed to submit material issue")
+      toast({ variant: "destructive", title: "Submission failed", description: e.message || "Failed to submit material issue" })
     } finally {
       setSubmitting(false)
     }
@@ -252,21 +254,21 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
             <Button 
               type="button" 
               variant="outline"
-              className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
+              className="h-11 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/70 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 interactive-tap"
               onClick={triggerCamera}
               disabled={submitting}
             >
-              <Camera className="h-4.5 w-4.5 text-slate-550" />
+              <Camera className="h-4 w-4 text-slate-500" />
               <span>Camera (Live)</span>
             </Button>
             <Button 
               type="button" 
               variant="outline"
-              className="h-11 rounded-xl border border-slate-200 text-slate-650 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/50 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200"
+              className="h-11 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:bg-slate-50/70 flex items-center justify-center gap-2 font-bold text-xs transition-all duration-200 interactive-tap"
               onClick={triggerGallery}
               disabled={submitting}
             >
-              <Upload className="h-4.5 w-4.5 text-slate-550" />
+              <Upload className="h-4 w-4 text-slate-500" />
               <span>Gallery</span>
             </Button>
           </div>
@@ -340,7 +342,7 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
                     <img src={getGoogleDriveDirectLink(selectedTempMat.photoUrl)} alt="" className="h-8 w-8 rounded object-cover border bg-white shrink-0" />
                   ) : (
                     <div className="h-8 w-8 rounded border bg-white flex items-center justify-center shrink-0 text-gray-400">
-                      <Package className="h-4.5 w-4.5" />
+                      <Package className="h-4 w-4" />
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
@@ -352,7 +354,7 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
                   <div className="text-[10px] text-gray-500 font-semibold bg-white border px-2 py-1 rounded-md">
                     Stock: {availableQty} {selectedTempMat.unit}
                   </div>
-                  <Button variant="ghost" size="sm" className="text-[10px] h-7 text-orange-800 bg-white border border-orange-250 hover:bg-orange-100/50 rounded-lg shrink-0" onClick={() => setTempMaterialId("")}>Change</Button>
+                  <Button variant="ghost" size="sm" className="text-[10px] h-7 text-orange-800 bg-white border border-orange-200 hover:bg-orange-100/50 rounded-lg shrink-0" onClick={() => setTempMaterialId("")}>Change</Button>
                 </div>
               </div>
             )}
@@ -367,13 +369,13 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
                   placeholder={`Max: ${availableQty}`}
                   value={tempQuantity}
                   onChange={e => setTempQuantity(e.target.value)}
-                  className={`h-10 rounded-xl border-slate-200 focus-visible:ring-orange-500 text-sm font-semibold ${tempOverStock ? "border-red-500 text-red-600 focus-visible:ring-red-550" : ""}`}
+                  className={`h-10 rounded-xl border-slate-200 focus-visible:ring-orange-500 text-sm font-semibold ${tempOverStock ? "border-red-500 text-red-600 focus-visible:ring-red-500" : ""}`}
                 />
               </div>
               <Button
                 onClick={handleAddItem}
                 disabled={!tempQuantity || parseFloat(tempQuantity) <= 0 || tempOverStock}
-                className="bg-orange-600 hover:bg-orange-700 text-white h-10 rounded-xl px-4 flex gap-1 shadow-sm font-bold text-xs"
+                className="bg-orange-600 hover:bg-orange-700 text-white h-10 rounded-xl px-4 flex gap-1 shadow-sm font-bold text-xs interactive-tap"
               >
                 <Plus className="h-4 w-4" /> Add Item
               </Button>
@@ -394,7 +396,7 @@ export function MaterialIssueForm({ catalogue, stock, onSuccess, onCancel }: Pro
         <CardContent className="p-5 space-y-4">
           <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block flex items-center justify-between">
             <span>Selected Items List</span>
-            <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded-full text-slate-650 font-bold">{items.length} items</span>
+            <span className="text-[10px] font-mono bg-slate-100 px-2 py-0.5 rounded-full text-slate-600 font-bold">{items.length} items</span>
           </Label>
           {items.length === 0 ? (
             <div className="text-center py-6 text-xs text-gray-400">

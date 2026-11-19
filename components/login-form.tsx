@@ -81,24 +81,28 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
   const cidRef = useRef<string>("")
   const router = useRouter()
 
-  // Cycle gradient effect every 1 second
+  // Gentle brand gradient shift every 6 seconds (replaces 1s rainbow flash)
   useEffect(() => {
     const interval = setInterval(() => {
       setGradientIndex((prev) => (prev + 1) % TRUSTED_GRADIENTS.length)
-    }, 1000)
+    }, 6000)
     return () => clearInterval(interval)
   }, [])
 
-  // Rotate between English and Bengali every 3 seconds with smooth fade
+  // Rotate between English and Bengali every 5 seconds with smooth fade
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
     const interval = setInterval(() => {
       setTextFade(false)
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setLangIndex((prev) => (prev === 0 ? 1 : 0))
         setTextFade(true)
-      }, 300)
-    }, 3000)
-    return () => clearInterval(interval)
+      }, 280)
+    }, 5000)
+    return () => {
+      clearInterval(interval)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [])
 
   // 1. Fetch public feedbacks if not supplied initially
@@ -581,9 +585,9 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
 
       {/* Loading Overlay */}
       {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/75 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="flex flex-col items-center gap-3">
-            <div className="h-10 w-10 animate-spin rounded-full border-3 border-slate-900 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-900 border-t-transparent" />
             <p className="text-xs font-semibold text-slate-700 animate-pulse">Signing in...</p>
           </div>
         </div>

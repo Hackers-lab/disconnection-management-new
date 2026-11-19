@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { DM_Sans, Noto_Sans_Bengali } from 'next/font/google'
 import localFont from 'next/font/local'
 import { AuthInterceptor } from '@/components/auth-interceptor'
+import { Toaster } from '@/components/ui/toaster'
+import { Toaster as SonnerToaster } from '@/components/ui/sonner'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
@@ -70,6 +72,8 @@ export default function RootLayout({
       <body>
         <AuthInterceptor />
         {children}
+        <Toaster />
+        <SonnerToaster theme="light" richColors position="top-right" />
         <Analytics />
       </body>
     </html>

@@ -129,8 +129,8 @@ export function PushNotificationManager() {
       <div className="bg-white/95 backdrop-blur-md border border-blue-200/90 p-3.5 rounded-2xl shadow-xl space-y-2.5">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 shrink-0">
-              {success ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <BellRing className="h-5 w-5 animate-bounce" />}
+            <div className="p-2 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 shrink-0 animate-badge-pop">
+              {success ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <BellRing className="h-5 w-5" />}
             </div>
             <div>
               <h4 className="text-xs font-bold text-slate-900">

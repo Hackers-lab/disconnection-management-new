@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, MapPin, Navigation, ArrowLeft, RefreshCw, X } from "lucide-react"
 import type { ConsumerData } from "@/lib/google-sheets"
+import { toast } from "@/hooks/use-toast"
 
 interface Props {
   consumers: ConsumerData[]
@@ -114,7 +115,7 @@ export function NearbyConsumerMap({
   const fetchLocation = () => {
     setLoadingLocation(true)
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.")
+      toast({ variant: "destructive", title: "GPS unavailable", description: "Geolocation is not supported by your browser." })
       setUserCoords([25.452202, 88.021090])
       setLoadingLocation(false)
       return
@@ -125,7 +126,7 @@ export function NearbyConsumerMap({
         setLoadingLocation(false)
       },
       () => {
-        alert("GPS location access denied. Centering on default coordinate.")
+        toast({ title: "Location access denied", description: "Centering radar map on default office coordinates." })
         setUserCoords([25.452202, 88.021090])
         setLoadingLocation(false)
       },

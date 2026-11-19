@@ -116,8 +116,8 @@ export function SubscriptionExpiryAlertModal({
           <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-orange-500/15 rounded-full blur-2xl pointer-events-none" />
 
           <div className="relative z-10 space-y-2">
-            <div className="inline-flex items-center justify-center bg-amber-500/15 border border-amber-500/30 p-3 rounded-2xl mb-1 shadow-inner">
-              <AlertTriangle className="h-7 w-7 text-amber-400 animate-bounce" />
+            <div className="inline-flex items-center justify-center bg-amber-500/15 border border-amber-500/30 p-3 rounded-2xl mb-1 shadow-inner animate-badge-pop">
+              <AlertTriangle className="h-7 w-7 text-amber-400" />
             </div>
 
             <div>

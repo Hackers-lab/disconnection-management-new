@@ -249,7 +249,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       setShowCreateForm(false)
       setRefreshKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || "Failed to create safety ticket")
+      toast({ variant: "destructive", title: "Failed to create ticket", description: e.message || "Failed to create safety ticket" })
     }
   }
 
@@ -271,11 +271,12 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       const result = await res.json()
       if (res.ok && result.success) {
         setRectifyDrawingUrl(result.url)
+        toast({ title: "Drawing uploaded", description: "Drawing sketch linked to rectification." })
       } else {
-        alert(result.error || "Drawing upload failed")
+        toast({ variant: "destructive", title: "Upload failed", description: result.error || "Drawing upload failed" })
       }
     } catch (err: any) {
-      alert(err?.message || "Drawing upload failed")
+      toast({ variant: "destructive", title: "Upload failed", description: err?.message || "Drawing upload failed" })
     } finally {
       setUploadingDrawing(false)
     }
@@ -342,7 +343,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       toast({ title: "Excel Report Exported", description: `Exported ${targetList.length} safety records.` })
     } catch (err: any) {
       console.error(err)
-      alert("Excel export failed: " + err.message)
+      toast({ variant: "destructive", title: "Excel export failed", description: err.message })
     }
   }
 
@@ -448,7 +449,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       toast({ title: "Agency Pending Report Downloaded", description: `Exported ${pendingTickets.length} pending safety hazards.` })
     } catch (err: any) {
       console.error(err)
-      alert("Agency pending report export failed: " + err.message)
+      toast({ variant: "destructive", title: "PDF export failed", description: err.message })
     }
   }
 
@@ -458,7 +459,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
   const handleAssignAgencyAction = async () => {
     if (!selectedForEdit) return
     if (selectedForEdit.physicalStatus === "rectified") {
-      alert("Agency cannot be modified after site work is marked rectified.")
+      toast({ variant: "destructive", title: "Action locked", description: "Agency cannot be modified after site work is marked rectified." })
       return
     }
     setSubmitting(true)
@@ -484,7 +485,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       toast({ title: "Agency Assigned", description: `Ticket assigned to ${editAgency || "Unassigned"}.` })
       setRefreshKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || "Failed to assign agency")
+      toast({ variant: "destructive", title: "Assignment failed", description: e.message || "Failed to assign agency" })
     } finally {
       setSubmitting(false)
     }
@@ -493,11 +494,11 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
   const handleRectifySubmit = async () => {
     if (!selectedForEdit) return
     if (selectedForEdit.physicalStatus === "rectified") {
-      alert("Site work proof is sealed and locked from further changes.")
+      toast({ variant: "destructive", title: "Proof locked", description: "Site work proof is sealed and locked from further changes." })
       return
     }
     if (!afterImageUrl) {
-      alert("Rectified GPS photo (After photo) is mandatory.")
+      toast({ variant: "destructive", title: "After photo required", description: "Rectified GPS photo (After photo) is mandatory." })
       return
     }
     setSubmitting(true)
@@ -543,7 +544,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       setSelectedForEdit(null)
       setRefreshKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || "Rectification submit failed")
+      toast({ variant: "destructive", title: "Rectification failed", description: e.message || "Rectification submit failed" })
     } finally {
       setSubmitting(false)
     }
@@ -587,7 +588,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       toast({ title: "Note Sheet Approved", description: `Note Sheet saved for ${selectedForEdit.safetyId}.` })
       setRefreshKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || "Note sheet update failed")
+      toast({ variant: "destructive", title: "Note sheet update failed", description: e.message || "Note sheet update failed" })
     } finally {
       setSubmitting(false)
     }
@@ -625,7 +626,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       setSelectedForEdit(null)
       setRefreshKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || "PO update failed")
+      toast({ variant: "destructive", title: "PO update failed", description: e.message || "PO update failed" })
     } finally {
       setSubmitting(false)
     }
@@ -655,7 +656,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       setSelectedForEdit(null)
       setRefreshKey(k => k + 1)
     } catch (e: any) {
-      alert(e.message || "Action failed")
+      toast({ variant: "destructive", title: "Action failed", description: e.message || "Action failed" })
     } finally {
       setSubmitting(false)
     }
@@ -760,15 +761,19 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
           </div>
         </div>
 
-        {/* Spacious Radar Map Button */}
+        {/* Compact Radar Map Button */}
         <div className="pt-0.5">
           <Button
             type="button"
             onClick={() => setShowNearbyMap(v => !v)}
-            className="w-full h-10 sm:h-11 rounded-xl font-bold flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white cursor-pointer active:scale-[0.99]"
+            className={`w-full h-10 rounded-xl font-bold flex items-center justify-center gap-2 text-xs sm:text-sm shadow-sm transition-all duration-200 cursor-pointer interactive-tap ${
+              showNearbyMap
+                ? "bg-slate-900 hover:bg-slate-800 text-white"
+                : "bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-700 hover:to-orange-700 text-white"
+            }`}
           >
             <div className="p-1 rounded-md bg-white/20">
-              <MapPin className="h-4 w-4 text-white animate-bounce" />
+              <MapPin className="h-3.5 w-3.5 text-white" />
             </div>
             <span>{showNearbyMap ? "Hide Safety Radar Map" : "Locate Safety Hazards on Radar Map"}</span>
           </Button>
@@ -797,7 +802,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                 >
                   <span className="hidden sm:inline">{sub.label}</span>
                   <span className="sm:hidden text-[11px]">{sub.shortLabel}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full transition-colors ${
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors ${
                     isActive ? "bg-slate-900 text-white font-bold" : "bg-slate-100 text-slate-600 font-medium"
                   }`}>
                     {sub.count}
@@ -830,7 +835,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
             const canEdit = isAdmin || ticket.physicalStatus === "pending"
 
             return (
-              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className={`shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden border border-slate-200/90 flex flex-col justify-between rounded-xl bg-white group animate-card-enter stagger-${(idx % 6) + 1}`}>
+              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className={`shadow-xs card-interactive overflow-hidden border border-slate-200/90 flex flex-col justify-between rounded-xl bg-white group animate-card-enter stagger-${(idx % 6) + 1}`}>
                 <div>
                   {/* Card Header */}
                   <CardHeader className="pb-2 p-3 bg-slate-50/80 border-b border-slate-100">
@@ -941,7 +946,7 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
 
                     {/* Administrative PO / Note Sheet Badges */}
                     {(ticket.noteSheetNo || ticket.poNumber || ticket.adminStatus === "not_required") && (
-                      <div className="text-[11px] bg-slate-50 p-1.5 rounded-md space-y-0.5 border border-slate-150">
+                      <div className="text-[11px] bg-slate-50 p-1.5 rounded-md space-y-0.5 border border-slate-200">
                         {ticket.noteSheetNo && <p>Note Sheet: <strong className="font-mono text-purple-700">{ticket.noteSheetNo}</strong></p>}
                         {ticket.poNumber && <p>PO No: <strong className="font-mono text-emerald-700">{ticket.poNumber}</strong></p>}
                         {ticket.adminStatus === "not_required" && <p className="text-slate-600 font-medium">✓ PO Not Required</p>}
@@ -1320,11 +1325,12 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                           const result = await res.json()
                           if (res.ok && result.success) {
                             setAfterImageUrl(result.url)
+                            toast({ title: "After photo uploaded", description: "Rectification proof attached." })
                           } else {
-                            alert(result.error || "Upload failed")
+                            toast({ variant: "destructive", title: "Upload failed", description: result.error || "Upload failed" })
                           }
                         } catch (err: any) {
-                          alert(err?.message || "Upload failed")
+                          toast({ variant: "destructive", title: "Upload failed", description: err?.message || "Upload failed" })
                         } finally {
                           setUploadingAfterImage(false)
                         }
@@ -1350,11 +1356,12 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                           const result = await res.json()
                           if (res.ok && result.success) {
                             setAfterImageUrl(result.url)
+                            toast({ title: "After photo uploaded", description: "Rectification proof attached." })
                           } else {
-                            alert(result.error || "Upload failed")
+                            toast({ variant: "destructive", title: "Upload failed", description: result.error || "Upload failed" })
                           }
                         } catch (err: any) {
-                          alert(err?.message || "Upload failed")
+                          toast({ variant: "destructive", title: "Upload failed", description: err?.message || "Upload failed" })
                         } finally {
                           setUploadingAfterImage(false)
                         }

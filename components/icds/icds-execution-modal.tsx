@@ -481,7 +481,7 @@ export function IcdsExecutionModal({ record, open, onClose, onSuccess, username,
                     <div className="flex items-center justify-between">
                       <Label className="text-[11px] font-semibold">Smart Meter Serial *</Label>
                       {record.meterIssuedNo && (
-                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                           Issued from Store
                         </span>
                       )}

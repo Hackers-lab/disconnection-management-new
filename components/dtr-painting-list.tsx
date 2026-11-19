@@ -737,9 +737,9 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
         <Button
           type="button"
           onClick={() => setShowMap(!showMap)}
-          className={`w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-300 transform hover:scale-[1.01] bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white`}
+          className="w-full h-12 rounded-xl font-extrabold flex items-center justify-center gap-2 text-sm shadow-md transition-all duration-200 interactive-tap bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
         >
-          <MapPin className="h-4.5 w-4.5 animate-bounce" />
+          <MapPin className="h-4 w-4" />
           {showMap ? "Hide Navigation Radar" : "Locate Nearby DTR"}
         </Button>
 
@@ -764,8 +764,8 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
 
       {/* Main List */}
       {paginated.length === 0 ? (
-        <div className="bg-white border rounded-2xl py-20 text-center text-gray-400">
-          <Brush className="h-12 w-12 mx-auto text-gray-300 mb-3 animate-bounce" />
+        <div className="bg-white border rounded-2xl py-20 text-center text-gray-400 animate-fade-slide-up">
+          <Brush className="h-12 w-12 mx-auto text-gray-300 mb-3" />
           <p className="text-base font-medium">No painting rows assigned or matched</p>
         </div>
       ) : (
@@ -776,8 +776,8 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
             return (
               <Card 
                 key={r.dtrCode} 
-                className={`overflow-hidden shadow-md hover:shadow-lg transition-all relative border flex flex-col justify-between ${
-                  isPainted ? "border-green-150" : "border-gray-200"
+                className={`overflow-hidden shadow-sm card-interactive relative border flex flex-col justify-between ${
+                  isPainted ? "border-green-200" : "border-gray-200"
                 }`}
               >
                 <div>
@@ -824,7 +824,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
                       <div>
                         <span className="text-gray-400 block text-[9px]">GPS Coordinates</span>
                         {r.latlong ? (
-                          <span className="text-gray-750 font-mono text-[10px] truncate block" title={r.latlong}>
+                          <span className="text-gray-700 font-mono text-[10px] truncate block" title={r.latlong}>
                             {r.latlong}
                           </span>
                         ) : (
@@ -894,7 +894,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
                     className={`h-10 w-10 rounded-xl ${
                       currentPage === p 
                         ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                        : "text-gray-650"
+                        : "text-gray-600"
                     }`}
                   >
                     {p}
@@ -1060,7 +1060,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
                 {/* DTR History logs */}
                 <div className="border-t border-slate-200 pt-6">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                    <History className="h-4.5 w-4.5 text-slate-500" /> DTR Audit Log History
+                    <History className="h-4 w-4 text-slate-500" /> DTR Audit Log History
                   </h3>
                   
                   {loadingHistory ? (

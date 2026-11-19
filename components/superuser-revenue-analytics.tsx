@@ -709,7 +709,7 @@ export function SuperuserRevenueAnalytics({ onBackToDashboard }: Props) {
                           <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span className="text-slate-600 font-semibold">@{u.username}</span>
                             <span>•</span>
-                            <span className="capitalize px-1.5 py-0.2 rounded bg-slate-100 text-slate-700">
+                            <span className="capitalize px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
                               {u.role}
                             </span>
                           </div>
