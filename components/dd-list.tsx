@@ -538,11 +538,11 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
 
       {/* Card View */}
       {viewMode === "card" ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {paginatedConsumers.map(consumer => (
+        <div key="dd-card-grid" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
+          {paginatedConsumers.map((consumer, idx) => (
             <Card
               key={consumer.consumerId}
-              className={`shadow-sm card-interactive overflow-hidden max-w-full ${
+              className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${
                 consumer._syncStatus === 'error' ? "border-red-400 border-2" : ""
               }`}
             >

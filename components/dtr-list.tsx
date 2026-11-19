@@ -700,27 +700,29 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
 
   if (selectedDtr) {
     return (
-      <DTRInspectionForm
-        dtr={selectedDtr}
-        userRole={userRole}
-        username={username}
-        feeders={feeders}
-        onSave={() => {
-          setSelectedDtr(null)
-          load(true)
-          toast({
-            title: "Verification Saved",
-            description: `DTR ${selectedDtr.dtrCode} inspection updated successfully.`
-          })
-        }}
-        onCancel={() => setSelectedDtr(null)}
-      />
+      <div className="animate-form-expand">
+        <DTRInspectionForm
+          dtr={selectedDtr}
+          userRole={userRole}
+          username={username}
+          feeders={feeders}
+          onSave={() => {
+            setSelectedDtr(null)
+            load(true)
+            toast({
+              title: "Verification Saved",
+              description: `DTR ${selectedDtr.dtrCode} inspection updated successfully.`
+            })
+          }}
+          onCancel={() => setSelectedDtr(null)}
+        />
+      </div>
     )
   }
 
   if (showUpload) {
     return (
-      <div className="max-w-xl mx-auto space-y-6 pb-28">
+      <div className="max-w-xl mx-auto space-y-6 pb-28 animate-form-expand">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => setShowUpload(false)} className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
@@ -884,7 +886,7 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
 
         {/* Row 2: Collapsible Filters */}
         {showFilters && (
-          <div className="flex gap-3 pt-3 border-t border-slate-100 flex-wrap animate-in slide-in-from-top-2 duration-200">
+          <div className="flex gap-3 pt-3 border-t border-slate-100 flex-wrap animate-panel-reveal">
             {/* Status Select */}
             <div className="flex flex-col gap-1 w-full sm:w-48">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Audit Status</span>
@@ -986,20 +988,20 @@ export function DTRList({ userRole, userAgencies = [], username, agencies = [], 
 
       {/* Main List */}
       {paginated.length === 0 ? (
-        <div className="bg-white border rounded-2xl py-20 text-center text-gray-400">
+        <div className="bg-white border rounded-2xl py-20 text-center text-gray-400 animate-fade-slide-up">
           <RadioTower className="h-12 w-12 mx-auto text-gray-300 mb-3" />
           <p className="text-base font-medium">No distribution transformers match your filters</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginated.map(r => {
+        <div key={`${tab}-${selectedFeeder}-${selectedPainting}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-tab-enter">
+          {paginated.map((r, idx) => {
             const isVerified = (r.status || "").toUpperCase() === "EXIST"
             const isPainted = (r.painting || "").toLowerCase() === "done"
             
             return (
               <Card 
                 key={r.dtrCode} 
-                className={`overflow-hidden shadow-sm card-interactive animate-card-enter relative border flex flex-col justify-between rounded-xl ${
+                className={`overflow-hidden shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} relative border flex flex-col justify-between rounded-xl ${
                   isVerified ? "border-green-200" : "border-slate-200"
                 }`}
               >

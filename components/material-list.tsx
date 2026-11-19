@@ -773,15 +773,15 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
 
       {/* ── 1. MAIN MENU PANEL ── */}
       {view === "menu" && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 animate-tab-enter">
           {/* Receive Card */}
           {hasReceiveAccess && (
             <Card
-              className="hover:shadow-lg transition-all duration-300 border hover:border-emerald-200 hover:bg-emerald-50/20 cursor-pointer overflow-hidden group"
+              className="card-interactive animate-card-enter stagger-1 hover:shadow-lg border hover:border-emerald-200 hover:bg-emerald-50/20 cursor-pointer overflow-hidden group"
               onClick={() => setView("receive")}
             >
               <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 transition group-hover:scale-105">
+                <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 transition-transform duration-200 group-hover:scale-105">
                   <ArrowDownToLine className="h-6 w-6" />
                 </div>
                 <div>
@@ -795,11 +795,11 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           {/* Issue Card */}
           {hasIssueAccess && (
             <Card
-              className="hover:shadow-lg transition-all duration-300 border hover:border-orange-200 hover:bg-orange-50/20 cursor-pointer overflow-hidden group"
+              className="card-interactive animate-card-enter stagger-2 hover:shadow-lg border hover:border-orange-200 hover:bg-orange-50/20 cursor-pointer overflow-hidden group"
               onClick={() => setView("issue")}
             >
               <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-700 transition group-hover:scale-105">
+                <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-700 transition-transform duration-200 group-hover:scale-105">
                   <ArrowUpFromLine className="h-6 w-6" />
                 </div>
                 <div>
@@ -813,11 +813,11 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           {/* Stock Card */}
           {hasStockAccess && (
             <Card
-              className="hover:shadow-lg transition-all duration-300 border hover:border-amber-200 hover:bg-amber-50/20 cursor-pointer overflow-hidden group col-span-1"
+              className="card-interactive animate-card-enter stagger-3 hover:shadow-lg border hover:border-amber-200 hover:bg-amber-50/20 cursor-pointer overflow-hidden group col-span-1"
               onClick={() => setView("stock")}
             >
               <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 transition group-hover:scale-105">
+                <div className="mx-auto w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 transition-transform duration-200 group-hover:scale-105">
                   <Package className="h-6 w-6" />
                 </div>
                 <div>
@@ -831,11 +831,11 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           {/* Settings Card */}
           {hasSettingsAccess && (
             <Card
-              className="hover:shadow-lg transition-all duration-300 border hover:border-gray-300 hover:bg-gray-50/50 cursor-pointer overflow-hidden group col-span-1"
+              className="card-interactive animate-card-enter stagger-4 hover:shadow-lg border hover:border-gray-300 hover:bg-gray-50/50 cursor-pointer overflow-hidden group col-span-1"
               onClick={() => setView("settings")}
             >
               <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 transition group-hover:scale-105">
+                <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 transition-transform duration-200 group-hover:scale-105">
                   <Settings className="h-6 w-6" />
                 </div>
                 <div>
@@ -850,12 +850,12 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
 
       {/* ── 2. STOCK REGISTER VIEW ── */}
       {view === "stock" && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-tab-enter">
           {/* Sub Tab Selector */}
           <div className="flex gap-2 border-b pb-2">
             <button
               onClick={() => setStockSubTab("register")}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all ${
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-200 interactive-tap ${
                 stockSubTab === "register"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-900 bg-slate-50/50 hover:bg-slate-100"
@@ -865,7 +865,7 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
             </button>
             <button
               onClick={() => setStockSubTab("history")}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all ${
+              className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-200 interactive-tap ${
                 stockSubTab === "history"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-900 bg-slate-50/50 hover:bg-slate-100"
@@ -1635,29 +1635,33 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
 
          {/* ── 4. RECEIVE FORM VIEW ── */}
          {view === "receive" && (
-           <MaterialReceiveForm
-             catalogue={catalogue.filter(m => m.isActive)}
-             onSuccess={() => { setView("menu"); fetchData(true) }}
-             onCancel={() => setView("menu")}
-           />
+           <div className="animate-form-expand">
+             <MaterialReceiveForm
+               catalogue={catalogue.filter(m => m.isActive)}
+               onSuccess={() => { setView("menu"); fetchData(true) }}
+               onCancel={() => setView("menu")}
+             />
+           </div>
          )}
 
          {/* ── 5. ISSUE FORM VIEW ── */}
          {view === "issue" && (
-           <MaterialIssueForm
-             catalogue={catalogue.filter(m => m.isActive)}
-             stock={stock}
-             onSuccess={(issueId) => { 
-                setView("menu")
-                fetchData(true)
-                if (issueId) {
-                  setTimeout(() => {
-                    handlePrintSlip(issueId)
-                  }, 500)
-                }
-              }}
-             onCancel={() => setView("menu")}
-           />
+           <div className="animate-form-expand">
+             <MaterialIssueForm
+               catalogue={catalogue.filter(m => m.isActive)}
+               stock={stock}
+               onSuccess={(issueId) => { 
+                  setView("menu")
+                  fetchData(true)
+                  if (issueId) {
+                    setTimeout(() => {
+                      handlePrintSlip(issueId)
+                    }, 500)
+                  }
+                }}
+               onCancel={() => setView("menu")}
+             />
+           </div>
          )}
 
       <MaterialHistoryDialog

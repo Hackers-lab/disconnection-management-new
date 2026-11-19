@@ -595,20 +595,22 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
 
   if (selectedDtr) {
     return (
-      <DTRPaintingForm
-        dtr={selectedDtr}
-        username={username}
-        userRole={userRole}
-        onSave={() => {
-          setSelectedDtr(null)
-          load(true)
-          toast({
-            title: "Painting Updated",
-            description: `DTR ${selectedDtr.dtrCode} painting status updated successfully.`
-          })
-        }}
-        onCancel={() => setSelectedDtr(null)}
-      />
+      <div className="animate-form-expand">
+        <DTRPaintingForm
+          dtr={selectedDtr}
+          username={username}
+          userRole={userRole}
+          onSave={() => {
+            setSelectedDtr(null)
+            load(true)
+            toast({
+              title: "Painting Updated",
+              description: `DTR ${selectedDtr.dtrCode} painting status updated successfully.`
+            })
+          }}
+          onCancel={() => setSelectedDtr(null)}
+        />
+      </div>
     )
   }
 
@@ -657,16 +659,18 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
       </div>
 
       {tab === "reports" ? (
-        <DTRPaintingReports
-          records={records}
-          agencyStats={agencyStats}
-          exportAgencyPendingPDF={exportAgencyPendingPDF}
-          exportAgencyPendingExcel={exportAgencyPendingExcel}
-          exportAgencyCompletedPDF={exportAgencyCompletedPDF}
-          exportAgencyCompletedExcel={exportAgencyCompletedExcel}
-          userRole={userRole}
-          userAgencies={userAgencies}
-        />
+        <div className="animate-tab-enter">
+          <DTRPaintingReports
+            records={records}
+            agencyStats={agencyStats}
+            exportAgencyPendingPDF={exportAgencyPendingPDF}
+            exportAgencyPendingExcel={exportAgencyPendingExcel}
+            exportAgencyCompletedPDF={exportAgencyCompletedPDF}
+            exportAgencyCompletedExcel={exportAgencyCompletedExcel}
+            userRole={userRole}
+            userAgencies={userAgencies}
+          />
+        </div>
       ) : (
         <>
           {/* Filter and Control Bar */}
@@ -699,7 +703,7 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
 
         {/* Row 2: Collapsible Filters */}
         {showFilters && (
-          <div className="flex gap-3 pt-3 border-t border-slate-100 flex-wrap animate-in slide-in-from-top-2 duration-200">
+          <div className="flex gap-3 pt-3 border-t border-slate-100 flex-wrap animate-panel-reveal">
             {/* Status Select */}
             <div className="flex flex-col gap-1 w-full sm:w-48">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Painting Status</span>
@@ -769,14 +773,14 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
           <p className="text-base font-medium">No painting rows assigned or matched</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginated.map(r => {
+        <div key={`${tab}-${selectedFeeder}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-tab-enter">
+          {paginated.map((r, idx) => {
             const isPainted = (r.painting || "").toLowerCase() === "done"
             
             return (
               <Card 
                 key={r.dtrCode} 
-                className={`overflow-hidden shadow-sm card-interactive relative border flex flex-col justify-between ${
+                className={`overflow-hidden shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} relative border flex flex-col justify-between ${
                   isPainted ? "border-green-200" : "border-gray-200"
                 }`}
               >

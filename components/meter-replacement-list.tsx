@@ -691,18 +691,20 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
 
   if (view === "create") {
     return (
-      <MeterReplacementCreateForm
-        agencies={agencies}
-        oldMeterMap={oldMeterMap}
-        existingRecords={records}
-        downloadProposalTemplate={downloadProposalTemplate}
-        onSave={(id) => {
-          toast({ title: "Proposed replacement created", description: `ID: ${id}` })
-          setView("list")
-          load(true, true)
-        }}
-        onCancel={() => setView("list")}
-      />
+      <div className="animate-form-expand">
+        <MeterReplacementCreateForm
+          agencies={agencies}
+          oldMeterMap={oldMeterMap}
+          existingRecords={records}
+          downloadProposalTemplate={downloadProposalTemplate}
+          onSave={(id) => {
+            toast({ title: "Proposed replacement created", description: `ID: ${id}` })
+            setView("list")
+            load(true, true)
+          }}
+          onCancel={() => setView("list")}
+        />
+      </div>
     )
   }
 
@@ -748,8 +750,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               >
                 <Filter className="h-4 w-4" />
                 {agencyFilter !== "all" && (
-                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 animate-badge-pop">
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600 border border-white"></span>
                   </span>
                 )}
@@ -813,7 +814,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
                 : valid.filter(r => r.status === t).length
               return (
                 <button key={t} onClick={() => setTab(t)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition ${tab === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 interactive-tap ${tab === t ? "bg-blue-600 text-white shadow-xs" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                   {`${STATUS_LABELS[t]} (${count})`}
                 </button>
               )
@@ -825,7 +826,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               size="sm"
               variant="outline"
               onClick={handleSelectAllVisible}
-              className="text-xs h-7 px-2 border-dashed border-slate-300 text-slate-700 hover:bg-slate-50"
+              className="text-xs h-7 px-2 border-dashed border-slate-300 text-slate-700 hover:bg-slate-50 interactive-tap"
               title="Select / Unselect all visible cards"
             >
               <Check className="h-3.5 w-3.5 mr-1" />
@@ -835,7 +836,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
               size="sm"
               variant="outline"
               onClick={() => setBulkCompleteDialogOpen(true)}
-              className="text-xs h-7 px-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+              className="text-xs h-7 px-2 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 interactive-tap"
               title="Bulk Complete via Excel"
             >
               <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
@@ -846,14 +847,14 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       </div>
 
       {/* Replacement cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div key={tab} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
         {paginated.length === 0 ? (
           <div className="col-span-full bg-white text-center py-16 text-gray-400 border rounded-2xl animate-fade-slide-up">
             <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p>No replacement proposals found</p>
           </div>
-        ) : paginated.map(r => (
-          <Card key={r.replacementId} className="shadow-sm card-interactive overflow-hidden max-w-full">
+        ) : paginated.map((r, idx) => (
+          <Card key={r.replacementId} className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full`}>
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
@@ -1051,7 +1052,7 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
         const agencyLabel = hasMultipleAgencies ? "Multiple Agencies" : firstAgency
 
         return (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-slate-700 flex-wrap justify-center max-w-[95vw]">
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-slate-700 flex-wrap justify-center max-w-[95vw] animate-bar-slide-up">
             <span className="text-xs font-bold text-blue-400 pl-1 shrink-0">
               {selectedForBulk.size} selected ({agencyLabel})
             </span>

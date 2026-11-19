@@ -414,32 +414,36 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
   // ── Sub-views ─────────────────────────────────────────────────────────────
   if (view === "create") {
     return (
-      <ReconnectionCreateForm
-        agencies={agencies}
-        onSave={(id) => {
-          toast({ title: "Request created", description: `ID: ${id}` })
-          setView("list")
-          load()
-        }}
-        onCancel={() => setView("list")}
-      />
+      <div className="animate-form-expand">
+        <ReconnectionCreateForm
+          agencies={agencies}
+          onSave={(id) => {
+            toast({ title: "Request created", description: `ID: ${id}` })
+            setView("list")
+            load()
+          }}
+          onCancel={() => setView("list")}
+        />
+      </div>
     )
   }
 
   if (view === "update" && selected) {
     return (
-      <ReconnectionUpdateForm
-        request={selected}
-        userRole={userRole}
-        username={username}
-        onSave={() => {
-          toast({ title: "Updated successfully" })
-          setSelected(null)
-          setView("list")
-          load(true, true)
-        }}
-        onCancel={() => { setSelected(null); setView("list") }}
-      />
+      <div className="animate-form-expand">
+        <ReconnectionUpdateForm
+          request={selected}
+          userRole={userRole}
+          username={username}
+          onSave={() => {
+            toast({ title: "Updated successfully" })
+            setSelected(null)
+            setView("list")
+            load(true, true)
+          }}
+          onCancel={() => { setSelected(null); setView("list") }}
+        />
+      </div>
     )
   }
 
@@ -520,27 +524,29 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
 
       {/* Reports tab */}
       {tab === "reports" && isAdmin && (
-        <ReconnectionReports 
-          records={processedRecords} 
-          agencyStats={agencyStats} 
-          exportAgencyPendingPDF={exportAgencyPendingPDF} 
-          exportAgencyPendingExcel={exportAgencyPendingExcel} 
-        />
+        <div className="animate-tab-enter">
+          <ReconnectionReports 
+            records={processedRecords} 
+            agencyStats={agencyStats} 
+            exportAgencyPendingPDF={exportAgencyPendingPDF} 
+            exportAgencyPendingExcel={exportAgencyPendingExcel} 
+          />
+        </div>
       )}
 
       {/* List */}
       {tab !== "reports" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-tab-enter">
         {paginated.length === 0 ? (
           <div className="text-center py-16 text-gray-400 col-span-full animate-fade-slide-up">
             <RotateCcw className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p>No reconnection requests found</p>
           </div>
-        ) : paginated.map(r => {
+        ) : paginated.map((r, idx) => {
           const overdueFlag = r.isOverdue
           const hrs = r.overdueHours
           return (
-            <Card key={r.requestId} className={`shadow-sm card-interactive overflow-hidden max-w-full ${overdueFlag ? "ring-2 ring-red-500 border-red-300" : "hover:border-blue-200"
+            <Card key={r.requestId} className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${overdueFlag ? "ring-2 ring-red-500 border-red-300" : "hover:border-blue-200"
               }`}>
               <CardHeader className="pb-3 break-words whitespace-normal">
                 <div className="flex items-start justify-between w-full gap-2">
@@ -548,7 +554,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight font-semibold text-gray-900">{r.name}</CardTitle>
                       {overdueFlag && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-1.5 py-0.5 rounded animate-pulse">OVERDUE</span>
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-1.5 py-0.5 rounded animate-badge-pop">OVERDUE</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-600 font-mono mt-1">ID: {r.consumerId}</p>

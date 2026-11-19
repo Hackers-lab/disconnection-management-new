@@ -749,9 +749,9 @@ export function PermanentDisconnectionList({
 
         {/* Active Filter Badges */}
         {(activeFiltersCount > 0 || searchQuery) && (
-          <div className="flex flex-wrap items-center gap-1.5 px-1 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 px-1 text-xs animate-panel-reveal">
             {searchQuery && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-slate-100 text-slate-800">
+              <Badge variant="secondary" className="gap-1 text-[11px] bg-slate-100 text-slate-800 animate-chip-in">
                 "{searchQuery}"
                 <X
                   className="h-3 w-3 cursor-pointer hover:text-red-600"
@@ -763,7 +763,7 @@ export function PermanentDisconnectionList({
               </Badge>
             )}
             {filters.agency !== "all" && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-blue-50 text-blue-800 border border-blue-200">
+              <Badge variant="secondary" className="gap-1 text-[11px] bg-blue-50 text-blue-800 border border-blue-200 animate-chip-in">
                 Agency: {filters.agency}
                 <X
                   className="h-3 w-3 cursor-pointer hover:text-red-600"
@@ -772,7 +772,7 @@ export function PermanentDisconnectionList({
               </Badge>
             )}
             {filters.minOsd > 0 && (
-              <Badge variant="secondary" className="gap-1 text-[11px] bg-rose-50 text-rose-800 border border-rose-200">
+              <Badge variant="secondary" className="gap-1 text-[11px] bg-rose-50 text-rose-800 border border-rose-200 animate-chip-in">
                 Min OSD: ₹{filters.minOsd}
                 <X
                   className="h-3 w-3 cursor-pointer hover:text-red-600"
@@ -786,7 +786,7 @@ export function PermanentDisconnectionList({
 
       {/* 5. Main Content: Redesigned Cards or List Table */}
       {filteredRecords.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200 text-center space-y-3">
+        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl border border-slate-200 text-center space-y-3 animate-fade-slide-up">
           <PowerOff className="h-10 w-10 text-slate-300" />
           <h3 className="text-sm font-bold text-slate-700">No Permanent Disconnection Records Found</h3>
           <p className="text-xs text-slate-500 max-w-sm">
@@ -796,23 +796,23 @@ export function PermanentDisconnectionList({
           </p>
           <div className="flex gap-2">
             {(activeFiltersCount > 0 || searchQuery) && (
-              <Button size="sm" variant="outline" onClick={handleResetFilters} className="text-xs">
+              <Button size="sm" variant="outline" onClick={handleResetFilters} className="text-xs interactive-tap">
                 <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset Filters
               </Button>
             )}
             {canPropose && (
-              <Button size="sm" onClick={() => setProposeOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white text-xs">
+              <Button size="sm" onClick={() => setProposeOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white text-xs interactive-tap">
                 <Plus className="h-3.5 w-3.5 mr-1" /> Propose Consumer for PD
               </Button>
             )}
           </div>
         </div>
       ) : (
-        <div>
+        <div key={`${activeTab}-${viewMode}`} className="animate-tab-enter">
           {viewMode === "card" ? (
             /* Redesigned SVG-Enriched Cards */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {filteredRecords.map(r => {
+              {filteredRecords.map((r, idx) => {
                 const isClosed = r.status === "closed"
                 const isDisconnected = r.status === "disconnected"
                 const isReturned = r.meterReturnStatus === "returned"
@@ -829,7 +829,7 @@ export function PermanentDisconnectionList({
                 return (
                   <div
                     key={r.pdId}
-                    className={`bg-white rounded-2xl border p-4 space-y-3.5 shadow-sm card-interactive relative ${
+                    className={`bg-white rounded-2xl border p-4 space-y-3.5 shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} relative ${
                       isFullyCompleted
                         ? "border-emerald-200 bg-emerald-50/10"
                         : isClosed

@@ -412,7 +412,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
             <button
               key={sub.value}
               onClick={() => setSubTab(sub.value as any)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border transition ${
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border transition-all duration-200 interactive-tap ${
                 subTab === sub.value
                   ? "bg-slate-950 text-white border-slate-950 shadow-sm"
                   : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
@@ -438,7 +438,7 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
             <button
               key={chip.id}
               onClick={() => setSelectedCategory(chip.id)}
-              className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all shrink-0 border ${
+              className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all duration-200 interactive-tap shrink-0 border ${
                 isActive
                   ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                   : "bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200"
@@ -457,16 +457,16 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
           <p className="text-sm font-semibold">Loading inspection tickets...</p>
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground space-y-2 bg-white rounded-xl border">
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground space-y-2 bg-white rounded-xl border animate-fade-slide-up">
           <ClipboardList className="h-10 w-10 text-slate-300" />
           <p className="text-base font-bold text-slate-700">No inspection records found</p>
           <p className="text-xs text-slate-500">Try selecting a different tab or filter category.</p>
         </div>
       ) : viewMode === "card" ? (
         /* Grid Cards View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {filteredRecords.map((r) => (
-            <Card key={r.id} className="overflow-hidden hover:shadow-lg transition-all duration-300 border border-slate-200/90 rounded-2xl bg-white flex flex-col justify-between">
+        <div key={`${subTab}-${selectedCategory}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 animate-tab-enter">
+          {filteredRecords.map((r, idx) => (
+            <Card key={r.id} className={`overflow-hidden card-interactive hover:shadow-lg border border-slate-200/90 rounded-2xl bg-white flex flex-col justify-between animate-card-enter stagger-${(idx % 6) + 1}`}>
               <CardContent className="p-4 space-y-3">
                 {/* Header Row: ID & Category on Left, Agency Name Prominently on TOP RIGHT */}
                 <div className="flex items-start justify-between border-b pb-2.5 gap-2">

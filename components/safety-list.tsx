@@ -664,13 +664,15 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
 
   if (showCreateForm) {
     return (
-      <SafetyForm
-        onSave={handleCreateTicket}
-        onCancel={() => setShowCreateForm(false)}
-        userRole={userRole}
-        userAgencies={userAgencies}
-        availableAgencies={agenciesList}
-      />
+      <div className="animate-form-expand">
+        <SafetyForm
+          onSave={handleCreateTicket}
+          onCancel={() => setShowCreateForm(false)}
+          userRole={userRole}
+          userAgencies={userAgencies}
+          availableAgencies={agenciesList}
+        />
+      </div>
     )
   }
 

@@ -461,7 +461,77 @@ html {
 }
 
 .animate-form-expand {
-  animation: formExpandIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: formExpandIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, opacity;
   transform-origin: center top;
 }
+
+/* Smooth Tab Content Transition (used globally by Radix Tabs & custom tab views) */
+@keyframes tabContentEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-tab-enter {
+  animation: tabContentEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  will-change: transform, opacity;
+}
+
+/* Smooth Filter Panel / Collapsible Tray Reveal */
+@keyframes panelReveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-panel-reveal {
+  animation: panelReveal 0.2s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  will-change: transform, opacity;
+  transform-origin: top center;
+}
+
+/* Floating Bottom Action / Bulk Bar Slide-Up */
+@keyframes barSlideUp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-bar-slide-up {
+  animation: barSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  will-change: transform, opacity;
+}
+
+/* Subtle Horizontal Slide for List Rows & Timeline Items */
+@keyframes rowEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(-6px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-row-enter {
+  animation: rowEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  will-change: transform, opacity;
+}
+

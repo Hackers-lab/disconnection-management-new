@@ -349,56 +349,64 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
   // ── Sub-views ─────────────────────────────────────────────────────────────
   if (view === "create") return (
-    <NscApplicationForm
-      agencies={agencies}
-      onSave={rcvNo => { toast({ title: "Application created", description: `Receive No: ${rcvNo}` }); setView("list"); load(true, true) }}
-      onCancel={() => setView("list")}
-    />
+    <div className="animate-form-expand">
+      <NscApplicationForm
+        agencies={agencies}
+        onSave={rcvNo => { toast({ title: "Application created", description: `Receive No: ${rcvNo}` }); setView("list"); load(true, true) }}
+        onCancel={() => setView("list")}
+      />
+    </div>
   )
 
   if (view === "edit" && selected) return (
-    <NscApplicationForm
-      initialApp={selected}
-      agencies={agencies}
-      onSave={rcvNo => {
-        toast({ title: "Application updated", description: `Receive No: ${rcvNo}` })
-        setSelected(null)
-        setView("list")
-        load(true, true)
-      }}
-      onCancel={() => { setSelected(null); setView("list") }}
-    />
+    <div className="animate-form-expand">
+      <NscApplicationForm
+        initialApp={selected}
+        agencies={agencies}
+        onSave={rcvNo => {
+          toast({ title: "Application updated", description: `Receive No: ${rcvNo}` })
+          setSelected(null)
+          setView("list")
+          load(true, true)
+        }}
+        onCancel={() => { setSelected(null); setView("list") }}
+      />
+    </div>
   )
 
   if (view === "inspect" && selected) return (
-    <NscInspectForm
-      app={selected}
-      onSave={() => {
-        const inspectedReceiveNo = selected.receiveNo
-        setApps(prev => prev.map(a => a.receiveNo === inspectedReceiveNo ? { ...a, status: "inspected" } : a))
-        toast({ title: "Inspection submitted" })
-        setSelected(null)
-        setView("list")
-        load(true, true)
-      }}
-      onCancel={() => { setSelected(null); setView("list") }}
-    />
+    <div className="animate-form-expand">
+      <NscInspectForm
+        app={selected}
+        onSave={() => {
+          const inspectedReceiveNo = selected.receiveNo
+          setApps(prev => prev.map(a => a.receiveNo === inspectedReceiveNo ? { ...a, status: "inspected" } : a))
+          toast({ title: "Inspection submitted" })
+          setSelected(null)
+          setView("list")
+          load(true, true)
+        }}
+        onCancel={() => { setSelected(null); setView("list") }}
+      />
+    </div>
   )
 
   if (view === "process" && selected) return (
-    <NscProcessForm
-      app={selected}
-      agencies={agencies}
-      onSave={() => {
-        const processedReceiveNo = selected.receiveNo
-        setApps(prev => prev.map(a => a.receiveNo === processedReceiveNo ? { ...a, status: "quotation_issued" } : a))
-        toast({ title: "Application processed" })
-        setSelected(null)
-        setView("list")
-        load(true, true)
-      }}
-      onCancel={() => { setSelected(null); setView("list") }}
-    />
+    <div className="animate-form-expand">
+      <NscProcessForm
+        app={selected}
+        agencies={agencies}
+        onSave={() => {
+          const processedReceiveNo = selected.receiveNo
+          setApps(prev => prev.map(a => a.receiveNo === processedReceiveNo ? { ...a, status: "quotation_issued" } : a))
+          toast({ title: "Application processed" })
+          setSelected(null)
+          setView("list")
+          load(true, true)
+        }}
+        onCancel={() => { setSelected(null); setView("list") }}
+      />
+    </div>
   )
 
   // ── Filter Popover content ─────────────────────────────────────────────────
@@ -628,7 +636,7 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
       {/* Collapsible KPI Dashboard */}
       {showKpiDashboard && (
-        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 sm:p-5 space-y-4 animate-panel-reveal">
           <div className="flex items-center justify-between border-b pb-3">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
@@ -784,26 +792,31 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
       )}
 
       {/* Reports tab */}
-      {tab === "reports" && isAdmin && <NscReports apps={apps} />}
+      {tab === "reports" && isAdmin && (
+        <div className="animate-tab-enter">
+          <NscReports apps={apps} />
+        </div>
+      )}
 
       {/* Projects tab */}
       {tab === "projects" && (
-        <div className="space-y-3">
+        <div className="space-y-3 animate-tab-enter">
           {projects.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-gray-400 animate-fade-slide-up">
               <FolderOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>No projects yet</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {projects.map(p => (
-                <ProjectCard
-                  key={p.projectId}
-                  project={p}
-                  userRole={userRole}
-                  userAgencies={userAgencies}
-                  onAction={(proj, action) => { setSelectedProject(proj); setProjectAction(action) }}
-                />
+              {projects.map((p, idx) => (
+                <div key={p.projectId} className={`animate-card-enter stagger-${(idx % 6) + 1}`}>
+                  <ProjectCard
+                    project={p}
+                    userRole={userRole}
+                    userAgencies={userAgencies}
+                    onAction={(proj, action) => { setSelectedProject(proj); setProjectAction(action) }}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -812,14 +825,14 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
       {/* Application cards */}
       {tab !== "reports" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 animate-tab-enter">
           {paginated.length === 0 ? (
             <div className="text-center py-16 text-gray-400 col-span-full animate-fade-slide-up">
               <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>No NSC applications found</p>
             </div>
-          ) : paginated.map(app => (
-            <Card key={app.receiveNo} className="shadow-xs card-interactive overflow-hidden border border-gray-200 hover:border-blue-200">
+          ) : paginated.map((app, idx) => (
+            <Card key={app.receiveNo} className={`shadow-xs card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden border border-gray-200 hover:border-blue-200`}>
               <CardContent className="p-4">
 
                 {/* Top row: receive no + phase chip + status badge + agency pill */}

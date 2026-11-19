@@ -931,31 +931,39 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
   // ── Sub-views ─────────────────────────────────────────────────────────────
   if (view === "issue") return (
-    <MeterIssueForm
-      availableStock={stock}
-      agencies={agencies}
-      prefill={prefill}
-      onSave={apiCall => {
-        setViewRaw(prevView)
-        setPrefill(null)
-        toast({ title: "Issuing meter...", description: "Processing in background" })
-        apiCall()
-          .then(id => { toast({ title: "Meter issued", description: `Issue ID: ${id}` }); load(true) })
-          .catch(err => { toast({ title: "Issue failed — please retry", description: err.message, variant: "destructive" }); load(true) })
-      }}
-      onCancel={() => { setViewRaw(prevView); setPrefill(null) }}
-    />
+    <div className="animate-form-expand">
+      <MeterIssueForm
+        availableStock={stock}
+        agencies={agencies}
+        prefill={prefill}
+        onSave={apiCall => {
+          setViewRaw(prevView)
+          setPrefill(null)
+          toast({ title: "Issuing meter...", description: "Processing in background" })
+          apiCall()
+            .then(id => { toast({ title: "Meter issued", description: `Issue ID: ${id}` }); load(true) })
+            .catch(err => { toast({ title: "Issue failed — please retry", description: err.message, variant: "destructive" }); load(true) })
+        }}
+        onCancel={() => { setViewRaw(prevView); setPrefill(null) }}
+      />
+    </div>
   )
 
   if (view === "complete" && selected) return (
-    <MeterCompleteForm
-      issue={selected}
-      onSave={() => { toast({ title: "Installation completed" }); setSelected(null); setViewRaw(prevView); load(true) }}
-      onCancel={() => { setSelected(null); setViewRaw(prevView) }}
-    />
+    <div className="animate-form-expand">
+      <MeterCompleteForm
+        issue={selected}
+        onSave={() => { toast({ title: "Installation completed" }); setSelected(null); setViewRaw(prevView); load(true) }}
+        onCancel={() => { setSelected(null); setViewRaw(prevView) }}
+      />
+    </div>
   )
 
-  if (view === "addstock") return <AddStockForm onSave={() => { setViewRaw(prevView || "stock"); load(true) }} onCancel={() => setViewRaw(prevView || "stock")} />
+  if (view === "addstock") return (
+    <div className="animate-form-expand">
+      <AddStockForm onSave={() => { setViewRaw(prevView || "stock"); load(true) }} onCancel={() => setViewRaw(prevView || "stock")} />
+    </div>
+  )
 
   // ── Main list ─────────────────────────────────────────────────────────────
   return (
@@ -1719,16 +1727,16 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
       {/* Bulk Note Sheet Action Bar */}
       {selectedForBulkNoteSheet.size > 0 && (
-        <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex items-center justify-between shadow-sm mb-3">
+        <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex items-center justify-between shadow-sm mb-3 animate-panel-reveal">
           <div className="text-xs font-semibold text-blue-900 flex items-center gap-2">
             <FileText className="h-4 w-4 text-blue-600" />
             <span>{selectedForBulkNoteSheet.size} installed meter(s) selected for Note Sheet entry</span>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulkNoteSheet(new Set())} className="text-xs h-8">
+            <Button size="sm" variant="ghost" onClick={() => setSelectedForBulkNoteSheet(new Set())} className="text-xs h-8 interactive-tap">
               Clear Selection
             </Button>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8" onClick={() => setBulkNoteSheetDialogOpen(true)}>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8 interactive-tap" onClick={() => setBulkNoteSheetDialogOpen(true)}>
               <FileText className="h-3.5 w-3.5 mr-1" /> Set Note Sheet No ({selectedForBulkNoteSheet.size})
             </Button>
           </div>
@@ -1737,14 +1745,14 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
       {/* Issue cards — only in NSC, Check, History submodules */}
       {(view === "nsc" || view === "check" || view === "history") && !showReportPanel && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div key={`${view}-${tab}`} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
           {paginated.length === 0 ? (
-            <div className="col-span-full text-center py-16 text-gray-400 bg-white rounded-2xl border">
+            <div className="col-span-full text-center py-16 text-gray-400 bg-white rounded-2xl border animate-fade-slide-up">
               <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>No meter issues found</p>
             </div>
-          ) : paginated.map(issue => (
-            <Card key={issue.issueId} className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${issue.status === "issued" && isAdmin ? "cursor-pointer" : ""}`}>
+          ) : paginated.map((issue, idx) => (
+            <Card key={issue.issueId} className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${issue.status === "issued" && isAdmin ? "cursor-pointer" : ""}`}>
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div>
@@ -2150,7 +2158,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                 const effectiveNoteSheet = rep.noteSheetNo || (isLinkedActive ? linkedIssue.noteSheetNo : "") || ""
 
                 return (
-                  <Card key={rep.replacementId} className={`shadow-md hover:shadow-lg transition-shadow overflow-hidden max-w-full ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>
+                  <Card key={rep.replacementId} className={`shadow-sm card-interactive animate-card-enter overflow-hidden max-w-full ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
                         <div className="flex items-start gap-2 min-w-0">
@@ -2534,7 +2542,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
         const currentAgency = selectedReps[0]?.agency || ""
 
         return (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 flex-wrap justify-center">
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 flex-wrap justify-center animate-bar-slide-up">
             <span className="text-xs font-bold text-blue-400 pl-2">
               {selectedForBulkRep.size} selected {currentAgency ? `(${currentAgency})` : ""}
             </span>
