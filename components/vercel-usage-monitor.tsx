@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -33,14 +33,14 @@ import {
   Filter,
   Flame,
   Calendar,
-  Layers,
   Edit3,
   ArrowLeft,
 } from "lucide-react"
-import type { VercelMetricItem, VercelUsageResponse } from "@/app/api/superuser/vercel-usage/route"
+import type { VercelUsageResponse } from "@/app/api/superuser/vercel-usage/route"
 
 interface VercelUsageMonitorProps {
   onBackToDashboard?: () => void
+  onSpikesChange?: (count: number) => void
 }
 
 type FilterView = "spiked_only" | "all" | "critical_only"
@@ -55,30 +55,42 @@ function getProgressColor(percent: number): string {
 function getSeverityBadge(severity: "normal" | "warning" | "high" | "critical", percent: number) {
   if (severity === "critical" || percent >= 90) {
     return (
-      <Badge variant="outline" className="bg-rose-950/90 border-rose-600 text-rose-300 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
-        <Flame className="h-3 w-3 text-rose-400" />
+      <Badge
+        variant="outline"
+        className="bg-rose-50 border-rose-300 text-rose-700 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1"
+      >
+        <Flame className="h-3 w-3 text-rose-600" />
         CRITICAL {percent}%
       </Badge>
     )
   }
   if (severity === "high" || percent >= 75) {
     return (
-      <Badge variant="outline" className="bg-orange-950/80 border-orange-600 text-orange-300 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
-        <AlertTriangle className="h-3 w-3 text-orange-400" />
+      <Badge
+        variant="outline"
+        className="bg-orange-50 border-orange-300 text-orange-800 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1"
+      >
+        <AlertTriangle className="h-3 w-3 text-orange-600" />
         HIGH {percent}%
       </Badge>
     )
   }
   if (severity === "warning" || percent >= 50) {
     return (
-      <Badge variant="outline" className="bg-amber-950/80 border-amber-600/80 text-amber-300 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1">
-        <AlertCircle className="h-3 w-3 text-amber-400" />
+      <Badge
+        variant="outline"
+        className="bg-amber-50 border-amber-300 text-amber-800 font-mono text-[10px] font-bold px-2 py-0.5 flex items-center gap-1"
+      >
+        <AlertCircle className="h-3 w-3 text-amber-600" />
         SPIKE &gt; 50% ({percent}%)
       </Badge>
     )
   }
   return (
-    <Badge variant="outline" className="bg-emerald-950/40 border-emerald-800 text-emerald-300 font-mono text-[10px] px-1.5 py-0.5">
+    <Badge
+      variant="outline"
+      className="bg-emerald-50 border-emerald-200 text-emerald-700 font-mono text-[10px] font-semibold px-2 py-0.5"
+    >
       NORMAL ({percent}%)
     </Badge>
   )
@@ -87,21 +99,21 @@ function getSeverityBadge(severity: "normal" | "warning" | "high" | "critical", 
 function getCategoryIcon(category: string) {
   switch (category) {
     case "compute":
-      return <Cpu className="h-4 w-4 text-blue-400" />
+      return <Cpu className="h-4 w-4 text-blue-600" />
     case "bandwidth":
-      return <HardDrive className="h-4 w-4 text-amber-400" />
+      return <HardDrive className="h-4 w-4 text-amber-600" />
     case "edge":
-      return <Globe className="h-4 w-4 text-cyan-400" />
+      return <Globe className="h-4 w-4 text-cyan-600" />
     case "media":
-      return <ImageIcon className="h-4 w-4 text-purple-400" />
+      return <ImageIcon className="h-4 w-4 text-purple-600" />
     case "build":
-      return <Zap className="h-4 w-4 text-indigo-400" />
+      return <Zap className="h-4 w-4 text-indigo-600" />
     default:
-      return <Activity className="h-4 w-4 text-slate-400" />
+      return <Activity className="h-4 w-4 text-slate-600" />
   }
 }
 
-export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProps) {
+export function VercelUsageMonitor({ onBackToDashboard, onSpikesChange }: VercelUsageMonitorProps) {
   const [data, setData] = useState<VercelUsageResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -139,15 +151,17 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
       if (!res.ok) throw new Error(`Failed to fetch usage (${res.status})`)
       const result: VercelUsageResponse = await res.json()
       setData(result)
+      if (onSpikesChange && typeof result?.summary?.totalSpikedCount === "number") {
+        onSpikesChange(result.summary.totalSpikedCount)
+      }
 
-      // Initialize readings form with current values (no hardcoded fallback)
       if (result.metrics) {
         const m = result.metrics
-        const origin = m.find(x => x.id === "fast_origin_transfer")?.used
-        const bw = m.find(x => x.id === "bandwidth")?.used
-        const fn = m.find(x => x.id === "serverless_execution")?.used
-        const inv = m.find(x => x.id === "serverless_invocations")?.used
-        const img = m.find(x => x.id === "image_optimization")?.used
+        const origin = m.find((x) => x.id === "fast_origin_transfer")?.used
+        const bw = m.find((x) => x.id === "bandwidth")?.used
+        const fn = m.find((x) => x.id === "serverless_execution")?.used
+        const inv = m.find((x) => x.id === "serverless_invocations")?.used
+        const img = m.find((x) => x.id === "image_optimization")?.used
 
         setReadingsForm({
           fastOriginTransfer: typeof origin === "number" ? String(origin) : "",
@@ -171,7 +185,6 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
     fetchUsage()
   }, [])
 
-  // Test token action
   const handleTestToken = async () => {
     setTestingToken(true)
     setConfigMsg(null)
@@ -189,7 +202,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
       if (res.ok && resData.success) {
         setConfigMsg({
           type: "success",
-          text: `Success! Connected to Vercel account: ${resData.user} (${resData.plan} Plan).`,
+          text: `Connected to Vercel account: ${resData.user} (${resData.plan} Plan).`,
         })
       } else {
         throw new Error(resData.error || "Token test failed")
@@ -201,7 +214,6 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
     }
   }
 
-  // Save Config action
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingConfig(true)
@@ -223,7 +235,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
         setTimeout(() => {
           setShowConfigModal(false)
           fetchUsage(true)
-        }, 1000)
+        }, 900)
       } else {
         throw new Error(resData.error || "Failed to save configuration")
       }
@@ -234,7 +246,6 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
     }
   }
 
-  // Save Manual Readings action
   const handleSaveReadings = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingReadings(true)
@@ -280,7 +291,7 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
         setTimeout(() => {
           setShowReadingsModal(false)
           fetchUsage(true)
-        }, 800)
+        }, 700)
       } else {
         throw new Error(resData.error || "Failed to save readings")
       }
@@ -291,15 +302,10 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
     }
   }
 
-  // Filtered metrics based on toggle
   const displayedMetrics = useMemo(() => {
     if (!data) return []
-    if (filterView === "spiked_only") {
-      return data.spikedMetrics || []
-    }
-    if (filterView === "critical_only") {
-      return (data.metrics || []).filter(m => m.percent >= 75)
-    }
+    if (filterView === "spiked_only") return data.spikedMetrics || []
+    if (filterView === "critical_only") return (data.metrics || []).filter((m) => m.percent >= 75)
     return data.metrics || []
   }, [data, filterView])
 
@@ -308,85 +314,86 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
   const billing = data?.billingPeriod
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-tab-enter">
-      {/* ── TOP HEADER & CONTROLS ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/80 p-3.5 sm:p-4 rounded-2xl border border-slate-800 backdrop-blur shadow-sm">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 sm:space-y-5 animate-tab-enter">
+      {/* TOP HEADER & CONTROLS (Crisp Light Theme) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-3 min-w-0">
           {onBackToDashboard && (
             <Button
+              type="button"
               size="icon"
-              variant="ghost"
+              variant="outline"
               onClick={onBackToDashboard}
-              title="Back to Overview"
-              className="h-8 w-8 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white shrink-0 cursor-pointer"
+              title="Back to Care Centers"
+              className="h-8 w-8 rounded-xl border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 shrink-0 cursor-pointer"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <div className="bg-gradient-to-tr from-amber-600 to-rose-500 p-2.5 rounded-xl text-white shadow-md shadow-amber-500/20">
+          <div className="bg-orange-50 border border-orange-200/80 p-2.5 rounded-xl text-orange-600 shrink-0">
             <Flame className="h-5 w-5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-slate-100">
-                Vercel Usage & Spike Monitor
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                Vercel Usage &amp; Spike Monitor
               </h2>
               {spikedCount > 0 ? (
-                <Badge variant="outline" className="bg-amber-500/15 text-amber-300 border-amber-500/40 text-[10px] font-mono font-bold">
+                <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] font-mono font-bold">
                   {spikedCount} Spikes &gt; 50%
                 </Badge>
               ) : (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] font-mono">
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-mono font-semibold">
                   All &lt; 50% Healthy
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-slate-400">
-              Live monitoring of Vercel resource consumption. Filtered specifically for metrics crossing the <span className="font-semibold text-amber-300">50% plan limit</span>.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Monitoring plan quota consumption and highlighting metrics crossing the{" "}
+              <span className="font-semibold text-amber-700">50% threshold</span>.
             </p>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap shrink-0">
           <Button
+            type="button"
             size="sm"
             variant="outline"
             onClick={() => {
               setReadingsMsg(null)
               setShowReadingsModal(true)
             }}
-            className="h-8 text-xs border-amber-700/50 bg-amber-950/30 hover:bg-amber-900/40 text-amber-300 px-2.5 cursor-pointer"
-            title="Update or sync current Vercel readings"
+            className="h-8 text-xs border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold px-2.5 rounded-lg cursor-pointer"
           >
-            <Edit3 className="h-3.5 w-3.5 mr-1 text-amber-400" />
+            <Edit3 className="h-3.5 w-3.5 mr-1 text-amber-600" />
             <span>Sync Readings</span>
           </Button>
 
           <Button
+            type="button"
             size="sm"
             variant="outline"
             onClick={() => {
               setConfigMsg(null)
               setShowConfigModal(true)
             }}
-            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5 cursor-pointer"
-            title="Configure Vercel API Token"
+            className="h-8 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 rounded-lg cursor-pointer"
           >
-            <KeyRound className="h-3.5 w-3.5 mr-1 text-slate-400" />
+            <KeyRound className="h-3.5 w-3.5 mr-1 text-slate-500" />
             <span className="hidden sm:inline">API Config</span>
             <span className="sm:hidden">Token</span>
           </Button>
 
           <Button
+            type="button"
             size="sm"
             variant="outline"
             onClick={() => fetchUsage(true)}
             disabled={refreshing}
-            className="h-8 text-xs border-slate-700 bg-slate-950/60 hover:bg-slate-800 text-slate-300 px-2.5 cursor-pointer"
-            title="Refresh Live Vercel Usage"
+            className="h-8 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 rounded-lg cursor-pointer"
           >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? "animate-spin text-amber-400" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? "animate-spin text-orange-600" : "text-slate-500"}`} />
             <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
           </Button>
 
@@ -394,293 +401,300 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
             href="https://vercel.com/dashboard/usage"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm transition-all"
-            title="Open official Vercel Dashboard Usage"
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-colors"
           >
-            <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-            <span className="hidden sm:inline">Open Vercel</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Vercel</span>
           </a>
         </div>
       </div>
 
       {loadError && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs text-rose-800">
-          <span className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-800">
+          <span className="flex items-center gap-2 font-medium">
             <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
             {loadError}
           </span>
-          <Button size="sm" variant="outline" onClick={() => fetchUsage(true)} className="h-7 text-xs border-rose-300 text-rose-700 hover:bg-rose-100 cursor-pointer">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => fetchUsage(true)}
+            className="h-7 text-xs border-rose-300 bg-white text-rose-700 hover:bg-rose-100 rounded-lg cursor-pointer"
+          >
             Retry
           </Button>
         </div>
       )}
 
-      {/* ── KPI METRICS CARDS ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-        {/* Card 1: Spiked Resources Count */}
-        <Card className={`border shadow-sm backdrop-blur ${
-          spikedCount > 0 ? "bg-amber-950/20 border-amber-800/60" : "bg-slate-900/70 border-slate-800"
-        }`}>
-          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Spiked Resources (&gt; 50%)
-              <Flame className={`h-3.5 w-3.5 ${spikedCount > 0 ? "text-amber-400" : "text-slate-500"}`} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            {loading ? (
-              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div>
-                <div className={`text-xl sm:text-2xl font-black font-mono ${spikedCount > 0 ? "text-amber-400" : "text-emerald-400"}`}>
-                  {spikedCount}
-                </div>
-                <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-0.5">
-                  {spikedCount > 0 ? "Require Immediate Action" : "All Limits Within Safe Headroom"}
-                </p>
+      {/* KPI METRICS CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <button
+          type="button"
+          onClick={() => setFilterView("spiked_only")}
+          className={`text-left p-3.5 rounded-2xl border bg-white transition-all cursor-pointer interactive-tap ${
+            filterView === "spiked_only"
+              ? "border-amber-500 ring-2 ring-amber-500/15 shadow-sm"
+              : "border-slate-200/80 hover:border-slate-300 shadow-2xs"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Spiked (&gt; 50%)
+            </span>
+            <Flame className={`h-4 w-4 ${spikedCount > 0 ? "text-amber-600" : "text-slate-400"}`} />
+          </div>
+          {loading ? (
+            <div className="h-7 w-16 bg-slate-100 animate-pulse rounded mt-1.5" />
+          ) : (
+            <>
+              <div className={`text-2xl font-extrabold font-mono mt-1 ${spikedCount > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                {spikedCount}
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {spikedCount > 0 ? "Requires optimization review" : "All limits within headroom"}
+              </p>
+            </>
+          )}
+        </button>
 
-        {/* Card 2: Highest Peak Utilization */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
-          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Peak Resource Spike
-              <TrendingUp className="h-3.5 w-3.5 text-rose-400" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            {loading ? (
-              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : data?.summary.highestMetric ? (
-              <div>
-                <div className="text-sm sm:text-base font-bold text-rose-300 truncate">
-                  {data.summary.highestMetric.name}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-xl font-black text-rose-400 font-mono">
-                    {data.summary.highestMetric.percent}%
-                  </span>
-                  <span className="text-[10px] text-slate-400">of quota</span>
-                </div>
+        <button
+          type="button"
+          onClick={() => setFilterView(criticalCount > 0 ? "critical_only" : "all")}
+          className={`text-left p-3.5 rounded-2xl border bg-white transition-all cursor-pointer interactive-tap ${
+            filterView === "critical_only"
+              ? "border-rose-500 ring-2 ring-rose-500/15 shadow-sm"
+              : "border-slate-200/80 hover:border-slate-300 shadow-2xs"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Peak Resource
+            </span>
+            <TrendingUp className="h-4 w-4 text-rose-600" />
+          </div>
+          {loading ? (
+            <div className="h-7 w-16 bg-slate-100 animate-pulse rounded mt-1.5" />
+          ) : data?.summary.highestMetric ? (
+            <div className="mt-1">
+              <div className="text-xs font-bold text-slate-800 truncate">
+                {data.summary.highestMetric.name}
               </div>
-            ) : (
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">0%</div>
-                <p className="text-[10px] text-slate-400 mt-0.5">No usage recorded</p>
+              <div className="flex items-baseline gap-1.5 mt-0.5">
+                <span className="text-2xl font-extrabold text-rose-700 font-mono">
+                  {data.summary.highestMetric.percent}%
+                </span>
+                <span className="text-[11px] text-slate-500">of quota</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          ) : (
+            <>
+              <div className="text-2xl font-extrabold text-emerald-700 font-mono mt-1">0%</div>
+              <p className="text-[11px] text-slate-500 mt-0.5">No usage recorded</p>
+            </>
+          )}
+        </button>
 
-        {/* Card 3: Plan Status & Source */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
-          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
+        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Vercel Plan
-              <ShieldCheck className="h-3.5 w-3.5 text-blue-400" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            {loading ? (
-              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : (
-              <div>
-                <div className="text-base sm:text-lg font-bold text-slate-100">
-                  {data?.plan || "Hobby"}
-                </div>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Badge variant="outline" className={`text-[9px] font-mono ${
-                    data?.source === "live_api"
-                      ? "bg-emerald-950 border-emerald-800 text-emerald-300"
-                      : "bg-blue-950 border-blue-800 text-blue-300"
-                  }`}>
-                    {data?.source === "live_api" ? "● Live API Sync" : "● Stored / Snapshot KV"}
-                  </Badge>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Billing Cycle Reset Countdown */}
-        <Card className="bg-slate-900/70 border-slate-800 shadow-sm backdrop-blur">
-          <CardHeader className="p-2.5 sm:p-3 pb-0.5">
-            <CardTitle className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center justify-between">
-              Monthly Quota Reset
-              <Calendar className="h-3.5 w-3.5 text-cyan-400" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-2.5 sm:p-3 pt-0">
-            {loading ? (
-              <div className="h-7 w-16 bg-slate-800 animate-pulse rounded my-1" />
-            ) : billing ? (
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-cyan-400 font-mono">
-                  {billing.daysRemaining} <span className="text-xs text-slate-400 font-normal">days left</span>
-                </div>
-                <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono mt-0.5">
-                  {billing.percentElapsed}% of Month Elapsed
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 italic my-1">Monthly cycle</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── FILTER TOGGLE BAR ── */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-        <div className="flex items-center gap-2">
-          <Filter className="h-3.5 w-3.5 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-300">View Filter:</span>
+            </span>
+            <ShieldCheck className="h-4 w-4 text-blue-600" />
+          </div>
+          {loading ? (
+            <div className="h-7 w-16 bg-slate-100 animate-pulse rounded mt-1.5" />
+          ) : (
+            <div className="mt-1">
+              <div className="text-lg font-extrabold text-slate-900">{data?.plan || "Hobby"}</div>
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-mono mt-1 ${
+                  data?.source === "live_api"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-blue-50 border-blue-200 text-blue-700"
+                }`}
+              >
+                {data?.source === "live_api" ? "Live API Sync" : "Stored Snapshot KV"}
+              </Badge>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-wrap">
-          <Button
-            size="sm"
-            variant={filterView === "spiked_only" ? "default" : "outline"}
-            onClick={() => setFilterView("spiked_only")}
-            className={`text-xs h-7.5 px-3 rounded-lg cursor-pointer ${
-              filterView === "spiked_only"
-                ? "bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20"
-                : "border-slate-700 text-slate-400 hover:bg-slate-800"
-            }`}
-          >
-            <Flame className="h-3.5 w-3.5 mr-1 text-amber-300" />
-            <span>Spikes &gt; 50% ({spikedCount})</span>
-          </Button>
-
-          <Button
-            size="sm"
-            variant={filterView === "all" ? "default" : "outline"}
-            onClick={() => setFilterView("all")}
-            className={`text-xs h-7.5 px-3 rounded-lg cursor-pointer ${
-              filterView === "all"
-                ? "bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
-                : "border-slate-700 text-slate-400 hover:bg-slate-800"
-            }`}
-          >
-            <span>All Vercel Resources ({data?.metrics.length || 0})</span>
-          </Button>
-
-          {criticalCount > 0 && (
-            <Button
-              size="sm"
-              variant={filterView === "critical_only" ? "default" : "outline"}
-              onClick={() => setFilterView("critical_only")}
-              className={`text-xs h-7.5 px-3 rounded-lg cursor-pointer ${
-                filterView === "critical_only"
-                  ? "bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/20"
-                  : "border-slate-700 text-rose-400 hover:bg-slate-800"
-              }`}
-            >
-              <AlertTriangle className="h-3.5 w-3.5 mr-1" />
-              <span>Critical &gt; 75% ({criticalCount})</span>
-            </Button>
+        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Quota Reset
+            </span>
+            <Calendar className="h-4 w-4 text-cyan-600" />
+          </div>
+          {loading ? (
+            <div className="h-7 w-16 bg-slate-100 animate-pulse rounded mt-1.5" />
+          ) : billing ? (
+            <div className="mt-1">
+              <div className="text-2xl font-extrabold text-cyan-700 font-mono">
+                {billing.daysRemaining} <span className="text-xs text-slate-400 font-normal">days left</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {billing.percentElapsed}% of month elapsed
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic mt-2">Monthly cycle</p>
           )}
         </div>
       </div>
 
-      {/* ── MAIN CONTENT: USAGE CARDS OR ZERO-SPIKE AFFIRMATION ── */}
+      {/* FILTER BAR */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+          <Filter className="h-3.5 w-3.5 text-slate-400" />
+          <span>Metric View:</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setFilterView("spiked_only")}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              filterView === "spiked_only"
+                ? "bg-amber-600 text-white shadow-2xs"
+                : "bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Flame className="h-3.5 w-3.5" />
+            <span>Spikes &gt; 50% ({spikedCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterView("all")}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              filterView === "all"
+                ? "bg-slate-900 text-white shadow-2xs"
+                : "bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <span>All Resources ({data?.metrics.length || 0})</span>
+          </button>
+
+          {criticalCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterView("critical_only")}
+              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                filterView === "critical_only"
+                  ? "bg-rose-600 text-white shadow-2xs"
+                  : "bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100"
+              }`}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>Critical &gt; 75% ({criticalCount})</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* METRICS GRID OR HEALTHY CARD */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-slate-900/40 rounded-2xl border border-slate-800">
-          <RefreshCw className="h-8 w-8 animate-spin text-amber-400" />
-          <p className="text-xs text-slate-400 font-mono">Fetching live Vercel usage metrics...</p>
+        <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+          <RefreshCw className="h-7 w-7 animate-spin text-orange-600" />
+          <p className="text-xs text-slate-500 font-medium">Fetching live Vercel usage metrics...</p>
         </div>
       ) : filterView === "spiked_only" && displayedMetrics.length === 0 ? (
-        /* ── ZERO-SPIKES AFFIRMATION CARD ── */
-        <div className="bg-emerald-950/20 border border-emerald-800/40 rounded-2xl p-6 text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-8 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-emerald-200">
+            <h3 className="text-base font-bold text-emerald-900">
               All Vercel Resources Are Within Safe Limits
             </h3>
-            <p className="text-xs text-emerald-300/80 max-w-md mx-auto mt-1">
-              None of your infrastructure metrics have crossed the <span className="font-semibold text-emerald-100">50% limit threshold</span>. Your application is operating smoothly with plenty of headroom.
+            <p className="text-xs text-emerald-800/80 max-w-md mx-auto mt-1">
+              None of your infrastructure metrics have crossed the{" "}
+              <span className="font-semibold text-emerald-950">50% plan limit threshold</span>.
             </p>
           </div>
 
-          <div className="pt-2 flex items-center justify-center gap-2">
+          <div className="pt-1 flex items-center justify-center gap-2 flex-wrap">
             <Button
+              type="button"
               size="sm"
               variant="outline"
               onClick={() => setFilterView("all")}
-              className="border-emerald-700/60 bg-emerald-950/50 hover:bg-emerald-900 text-emerald-200 text-xs h-8 px-3 cursor-pointer"
+              className="border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 text-xs h-8 px-3 rounded-xl font-semibold cursor-pointer"
             >
-              View Full Breakdown of All {data?.metrics.length || 0} Resources
+              View All {data?.metrics.length || 0} Resources
             </Button>
             <Button
+              type="button"
               size="sm"
               variant="outline"
               onClick={() => setShowReadingsModal(true)}
-              className="border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 text-xs h-8 px-3 cursor-pointer"
+              className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs h-8 px-3 rounded-xl cursor-pointer"
             >
               Update Readings
             </Button>
           </div>
         </div>
       ) : (
-        /* ── RESOURCE USAGE CARDS GRID ── */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayedMetrics.map(metric => {
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {displayedMetrics.map((metric) => {
             const isSpiked = metric.percent >= 50
             const progressColor = getProgressColor(metric.percent)
 
             return (
               <Card
                 key={metric.id}
-                className={`transition-all rounded-2xl overflow-hidden ${
+                className={`transition-all rounded-2xl overflow-hidden shadow-2xs ${
                   metric.percent >= 75
-                    ? "bg-rose-950/20 border-rose-700/70 shadow-lg shadow-rose-950/30"
+                    ? "bg-white border-rose-300 ring-1 ring-rose-500/10"
                     : isSpiked
-                    ? "bg-amber-950/20 border-amber-700/60 shadow-md shadow-amber-950/20"
-                    : "bg-slate-900/70 border-slate-800"
+                    ? "bg-white border-amber-300 ring-1 ring-amber-500/10"
+                    : "bg-white border-slate-200/80"
                 }`}
               >
                 <CardHeader className="p-4 pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 shrink-0">
                         {getCategoryIcon(metric.category)}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-bold text-sm text-slate-100 truncate">
-                          {metric.name}
-                        </h4>
-                        <p className="text-[10px] text-slate-400 capitalize">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">{metric.name}</h4>
+                        <p className="text-[11px] text-slate-500 capitalize">
                           Category: {metric.category}
                         </p>
                       </div>
                     </div>
 
-                    <div className="shrink-0">
-                      {getSeverityBadge(metric.severity, metric.percent)}
-                    </div>
+                    <div className="shrink-0">{getSeverityBadge(metric.severity, metric.percent)}</div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="p-4 pt-1 space-y-3">
-                  {/* Progress Bar & Value Display */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="text-slate-200 font-bold">
-                        {metric.formattedUsed} <span className="text-slate-400 font-normal">/ {metric.formattedLimit}</span>
+                      <span className="text-slate-800 font-bold">
+                        {metric.formattedUsed}{" "}
+                        <span className="text-slate-400 font-normal">/ {metric.formattedLimit}</span>
                       </span>
-                      <span className={`font-black text-sm ${
-                        metric.percent >= 90 ? "text-rose-400" : metric.percent >= 75 ? "text-orange-400" : metric.percent >= 50 ? "text-amber-400" : "text-emerald-400"
-                      }`}>
+                      <span
+                        className={`font-extrabold text-sm ${
+                          metric.percent >= 90
+                            ? "text-rose-600"
+                            : metric.percent >= 75
+                            ? "text-orange-600"
+                            : metric.percent >= 50
+                            ? "text-amber-700"
+                            : "text-emerald-700"
+                        }`}
+                      >
                         {metric.percent}%
                       </span>
                     </div>
 
-                    {/* Visual Progress Track */}
-                    <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
+                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/70">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
                         style={{ width: `${Math.min(100, Math.max(2, metric.percent))}%` }}
@@ -688,17 +702,13 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
                     </div>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-[11px] text-slate-400 leading-snug">
-                    {metric.description}
-                  </p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{metric.description}</p>
 
-                  {/* Actionable Recommendation if Spiked */}
                   {isSpiked && metric.recommendation && (
-                    <div className="bg-slate-950/80 border border-amber-500/20 rounded-xl p-2.5 text-[11px] text-amber-200/90 flex items-start gap-2">
-                      <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="bg-amber-50/80 border border-amber-200/90 rounded-xl p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-semibold text-amber-300">Optimization Tip:</span>{" "}
+                        <span className="font-bold text-amber-950">Optimization Tip:</span>{" "}
                         {metric.recommendation}
                       </div>
                     </div>
@@ -710,122 +720,133 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
         </div>
       )}
 
-      {/* ── MODAL 1: QUICK READINGS SYNC MODAL ── */}
+      {/* MODAL 1: SYNC READINGS (Crisp Light Theme) */}
       <Dialog open={showReadingsModal} onOpenChange={setShowReadingsModal}>
-        <DialogContent className="w-[95vw] sm:max-w-md bg-slate-900 border-slate-800 text-slate-100 dark p-4 sm:p-6 rounded-2xl">
+        <DialogContent className="w-[95vw] sm:max-w-md bg-white border border-slate-200 text-slate-900 p-5 sm:p-6 rounded-2xl shadow-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Edit3 className="h-5 w-5 text-amber-400" />
-              Sync Vercel Usage Readings
+            <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+              <div className="h-8 w-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                <Edit3 className="h-4 w-4 text-amber-600" />
+              </div>
+              <span>Sync Vercel Usage Readings</span>
             </DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs">
-              Quickly sync your current usage numbers from the Vercel dashboard to monitor spikes (&gt; 50%) in real-time.
+            <DialogDescription className="text-slate-500 text-xs">
+              Enter your latest Vercel dashboard numbers to track quota spikes (&gt; 50%).
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveReadings} className="space-y-3 py-2">
+          <form onSubmit={handleSaveReadings} className="space-y-3.5 pt-2">
             {readingsMsg && (
-              <div className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
-                readingsMsg.type === "success" ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300" : "bg-rose-950/60 border border-rose-800 text-rose-300"
-              }`}>
-                {readingsMsg.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+              <div
+                className={`p-2.5 rounded-xl text-xs flex items-center gap-2 font-medium ${
+                  readingsMsg.type === "success"
+                    ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                    : "bg-rose-50 border border-rose-200 text-rose-800"
+                }`}
+              >
+                {readingsMsg.type === "success" ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                )}
                 <span>{readingsMsg.text}</span>
               </div>
             )}
 
-            {/* Fast Origin Transfer */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                  <HardDrive className="h-3.5 w-3.5 text-amber-400" />
+                <Label className="text-xs text-slate-700 font-semibold flex items-center gap-1.5">
+                  <HardDrive className="h-3.5 w-3.5 text-amber-600" />
                   Fast Origin Transfer (GB)
                 </Label>
-                <span className="text-[10px] text-slate-500 font-mono">Limit: 10 GB (Hobby)</span>
+                <span className="text-[10px] text-slate-400 font-mono">Limit: 10 GB</span>
               </div>
               <Input
                 type="number"
                 step="0.01"
-                placeholder="e.g. 9.44"
+                min="0"
+                placeholder="e.g. 6.25"
                 value={readingsForm.fastOriginTransfer}
-                onChange={e => setReadingsForm({ ...readingsForm, fastOriginTransfer: e.target.value })}
-                className="bg-slate-950 border-amber-500/40 text-amber-300 text-xs h-9 font-mono font-bold"
+                onChange={(e) => setReadingsForm({ ...readingsForm, fastOriginTransfer: e.target.value })}
+                className="bg-slate-50/70 border-slate-200 text-slate-900 text-xs h-9 font-mono font-semibold focus-visible:bg-white"
               />
-              <p className="text-[10px] text-slate-400">
-                Current data transfer from Serverless backend origins to Vercel CDN.
-              </p>
             </div>
 
-            {/* Bandwidth / Fast Data Transfer */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Globe className="h-3.5 w-3.5 text-cyan-400" />
+                <Label className="text-xs text-slate-700 font-semibold flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-cyan-600" />
                   Fast Data Transfer / Bandwidth (GB)
                 </Label>
-                <span className="text-[10px] text-slate-500 font-mono">Limit: 100 GB</span>
+                <span className="text-[10px] text-slate-400 font-mono">Limit: 100 GB</span>
               </div>
               <Input
                 type="number"
                 step="0.1"
+                min="0"
                 placeholder="e.g. 45.2"
                 value={readingsForm.bandwidth}
-                onChange={e => setReadingsForm({ ...readingsForm, bandwidth: e.target.value })}
-                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+                onChange={(e) => setReadingsForm({ ...readingsForm, bandwidth: e.target.value })}
+                className="bg-slate-50/70 border-slate-200 text-slate-900 text-xs h-9 font-mono focus-visible:bg-white"
               />
             </div>
 
-            {/* Serverless Function Execution */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Cpu className="h-3.5 w-3.5 text-blue-400" />
+                <Label className="text-xs text-slate-700 font-semibold flex items-center gap-1.5">
+                  <Cpu className="h-3.5 w-3.5 text-blue-600" />
                   Function Execution (GB-Hours)
                 </Label>
-                <span className="text-[10px] text-slate-500 font-mono">Limit: 100 GB-Hrs</span>
+                <span className="text-[10px] text-slate-400 font-mono">Limit: 100 GB-Hrs</span>
               </div>
               <Input
                 type="number"
                 step="0.1"
+                min="0"
                 placeholder="e.g. 68.5"
                 value={readingsForm.serverlessExecution}
-                onChange={e => setReadingsForm({ ...readingsForm, serverlessExecution: e.target.value })}
-                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+                onChange={(e) => setReadingsForm({ ...readingsForm, serverlessExecution: e.target.value })}
+                className="bg-slate-50/70 border-slate-200 text-slate-900 text-xs h-9 font-mono focus-visible:bg-white"
               />
             </div>
 
-            {/* Invocations */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Activity className="h-3.5 w-3.5 text-purple-400" />
+                <Label className="text-xs text-slate-700 font-semibold flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 text-purple-600" />
                   Function Invocations (Calls)
                 </Label>
-                <span className="text-[10px] text-slate-500 font-mono">Limit: 100,000</span>
+                <span className="text-[10px] text-slate-400 font-mono">Limit: 100,000</span>
               </div>
               <Input
                 type="number"
+                min="0"
                 placeholder="e.g. 75000"
                 value={readingsForm.serverlessInvocations}
-                onChange={e => setReadingsForm({ ...readingsForm, serverlessInvocations: e.target.value })}
-                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+                onChange={(e) => setReadingsForm({ ...readingsForm, serverlessInvocations: e.target.value })}
+                className="bg-slate-50/70 border-slate-200 text-slate-900 text-xs h-9 font-mono focus-visible:bg-white"
               />
             </div>
 
-            <DialogFooter className="mt-4 flex gap-2 flex-row justify-end">
+            <DialogFooter className="pt-3 border-t border-slate-100 flex gap-2 flex-row justify-end">
               <Button
                 type="button"
                 variant="outline"
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3"
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs h-9 px-3.5 rounded-xl cursor-pointer"
                 onClick={() => setShowReadingsModal(false)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs h-9 px-3 cursor-pointer shadow-md shadow-amber-600/20"
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs h-9 px-4 rounded-xl cursor-pointer"
                 disabled={savingReadings}
               >
-                {savingReadings ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+                {savingReadings ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                )}
                 Save &amp; Track Usage
               </Button>
             </DialogFooter>
@@ -833,84 +854,109 @@ export function VercelUsageMonitor({ onBackToDashboard }: VercelUsageMonitorProp
         </DialogContent>
       </Dialog>
 
-      {/* ── MODAL 2: API TOKEN CONFIGURATION MODAL ── */}
+      {/* MODAL 2: API TOKEN CONFIGURATION (Crisp Light Theme) */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
-        <DialogContent className="w-[95vw] sm:max-w-md bg-slate-900 border-slate-800 text-slate-100 dark p-4 sm:p-6 rounded-2xl">
+        <DialogContent className="w-[95vw] sm:max-w-md bg-white border border-slate-200 text-slate-900 p-5 sm:p-6 rounded-2xl shadow-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <KeyRound className="h-5 w-5 text-blue-400" />
-              Configure Vercel API Token
+            <DialogTitle className="flex items-center gap-2.5 text-base font-bold text-slate-900">
+              <div className="h-8 w-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0">
+                <KeyRound className="h-4 w-4 text-blue-600" />
+              </div>
+              <span>Configure Vercel API Token</span>
             </DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs">
-              Connect your Vercel Personal Access Token to pull live real-time bandwidth and function execution metrics.
+            <DialogDescription className="text-slate-500 text-xs">
+              Connect your Vercel Personal Access Token to pull real-time bandwidth and function execution metrics.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveConfig} className="space-y-3.5 py-2">
+          <form onSubmit={handleSaveConfig} className="space-y-3.5 pt-2">
             {configMsg && (
-              <div className={`p-2.5 rounded-lg text-xs flex items-center gap-2 ${
-                configMsg.type === "success" ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300" : "bg-rose-950/60 border border-rose-800 text-rose-300"
-              }`}>
-                {configMsg.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+              <div
+                className={`p-2.5 rounded-xl text-xs flex items-center gap-2 font-medium ${
+                  configMsg.type === "success"
+                    ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                    : "bg-rose-50 border border-rose-200 text-rose-800"
+                }`}
+              >
+                {configMsg.type === "success" ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                )}
                 <span>{configMsg.text}</span>
               </div>
             )}
 
-            <div className="space-y-1">
-              <Label className="text-xs text-slate-400 font-medium">Vercel Personal Access Token</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-700 font-semibold">Vercel Personal Access Token</Label>
               <Input
                 type="password"
                 placeholder="••••••••••••••••••••••••"
                 value={configForm.token}
-                onChange={e => setConfigForm({ ...configForm, token: e.target.value })}
-                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+                onChange={(e) => setConfigForm({ ...configForm, token: e.target.value })}
+                className="bg-slate-50/70 border-slate-200 text-slate-900 text-xs h-9 font-mono focus-visible:bg-white"
               />
-              <p className="text-[10px] text-slate-500">
-                Created at <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">vercel.com/account/tokens</a>. Stored securely in system KV.
+              <p className="text-[11px] text-slate-500">
+                Create at{" "}
+                <a
+                  href="https://vercel.com/account/tokens"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  vercel.com/account/tokens
+                </a>
+                . Stored securely in system KV.
               </p>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-slate-400 font-medium">Vercel Team ID (Optional)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-700 font-semibold">
+                Vercel Team ID <span className="text-slate-400 font-normal">(Optional)</span>
+              </Label>
               <Input
-                placeholder="e.g. team_abc123 (Leave blank for personal account)"
+                placeholder="e.g. team_abc123 (blank for personal)"
                 value={configForm.teamId}
-                onChange={e => setConfigForm({ ...configForm, teamId: e.target.value })}
-                className="bg-slate-950 border-slate-700 text-slate-100 text-xs h-9 font-mono"
+                onChange={(e) => setConfigForm({ ...configForm, teamId: e.target.value })}
+                className="bg-slate-50/70 border-slate-200 text-slate-900 text-xs h-9 font-mono focus-visible:bg-white"
               />
             </div>
 
-            <div className="pt-1 flex items-center justify-between">
+            <DialogFooter className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 sm:justify-between">
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleTestToken}
                 disabled={testingToken || !configForm.token}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-2.5"
+                className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs h-9 px-3 rounded-xl cursor-pointer"
               >
-                {testingToken ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1 text-blue-400" />}
-                Test Connection
+                {testingToken ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                )}
+                Test Token
               </Button>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-9 px-3"
                   onClick={() => setShowConfigModal(false)}
+                  className="border-slate-200 text-slate-700 hover:bg-slate-50 text-xs h-9 px-3 rounded-xl cursor-pointer"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9 px-3"
-                  disabled={savingConfig}
+                  disabled={savingConfig || !configForm.token}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 rounded-xl cursor-pointer"
                 >
-                  {savingConfig ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+                  {savingConfig ? <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                   Save Token
                 </Button>
               </div>
-            </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

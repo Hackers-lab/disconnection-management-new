@@ -21,6 +21,7 @@ import { toast } from "@/hooks/use-toast"
 
 interface SuperuserOnlineUsersProps {
   onBackToDashboard?: () => void
+  onCountChange?: (count: number) => void
 }
 
 function formatRelativeSeconds(ts: number, now: number): string {
@@ -40,7 +41,7 @@ function formatTimeOnly(ts: number): string {
   })
 }
 
-export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsersProps) {
+export function SuperuserOnlineUsers({ onBackToDashboard, onCountChange }: SuperuserOnlineUsersProps) {
   const [report, setReport] = useState<OnlineUsersReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -56,6 +57,8 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
 
   const [showStatsDrawer, setShowStatsDrawer] = useState(false)
   const hasLoadedRef = useRef(false)
+  const onCountChangeRef = useRef(onCountChange)
+  onCountChangeRef.current = onCountChange
 
   const fetchData = useCallback(async (isManual = false) => {
     if (isManual) setRefreshing(true)
@@ -70,6 +73,11 @@ export function SuperuserOnlineUsers({ onBackToDashboard }: SuperuserOnlineUsers
       if (data.success) {
         hasLoadedRef.current = true
         setReport(data)
+        const liveCount =
+          typeof data.activeNowCount === "number" ? data.activeNowCount : data.totalOnline
+        if (typeof liveCount === "number" && onCountChangeRef.current) {
+          onCountChangeRef.current(liveCount)
+        }
         setError(null)
         setLastRefreshedAt(new Date())
         setClientNow(Date.now())
