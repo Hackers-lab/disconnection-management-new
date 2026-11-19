@@ -2426,7 +2426,12 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
               {role === "admin" && (
                 <OnboardingGuideDialog
                   open={!hasBlockingModal && showGuideModal}
-                  onOpenChange={setShowGuideModal}
+                  onOpenChange={(nextOpen) => {
+                    setShowGuideModal(nextOpen)
+                    if (!nextOpen && typeof window !== "undefined") {
+                      sessionStorage.setItem("setup_guide_dismissed", "true")
+                    }
+                  }}
                   onNavigate={handleGuideNavigate}
                   role={role}
                 />
