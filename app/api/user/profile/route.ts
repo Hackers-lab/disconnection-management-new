@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/session"
 import { db } from "@/lib/db"
 import { UserStorage } from "@/lib/user-storage"
 import { invalidateAgencyCache } from "@/lib/agency-storage"
+import { pickLaterExpiry } from "@/lib/feedback-reward-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -123,8 +124,8 @@ export async function GET(req: NextRequest) {
       agencyMobile: agencyMobile,
       vendorCode,
       hasAgency: Boolean(agencyNameToCheck || userRole === "agency"),
-      subscriptionStatus: currentSubStatus,
-      subscriptionExpiresAt: String(row.subscription_expires_at || session.subscriptionExpiresAt || ""),
+      subscriptionStatus: session.isSubscribed ? "active" : currentSubStatus,
+      subscriptionExpiresAt: pickLaterExpiry(String(row.subscription_expires_at || ""), String(session.subscriptionExpiresAt || "")),
       bypassSubscription: Boolean(row.bypass_subscription ?? session.bypassSubscription),
       isSubscribed: session.isSubscribed,
       isPaid,

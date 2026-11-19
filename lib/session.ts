@@ -121,11 +121,13 @@ export async function verifySession() {
 
   // Security check: Verify that the user still exists in the database and was not deleted or deactivated.
   // Special exception: virtual division viewer accounts (div-*)
+  let dbUserSubStatus = ""
+  let dbUserSubExpiresAt = ""
   if (!session.userId.startsWith("div-")) {
     try {
       const { db } = await import("./db")
       const userRes = await db.execute({
-        sql: `SELECT id, status FROM users WHERE id = ? LIMIT 1`,
+        sql: `SELECT id, status, subscription_status, subscription_expires_at FROM users WHERE id = ? LIMIT 1`,
         args: [session.userId]
       })
       if (!userRes.rows || userRes.rows.length === 0) {
@@ -139,6 +141,8 @@ export async function verifySession() {
         await deleteSession()
         return null
       }
+      dbUserSubStatus = String(uRow.subscription_status || "").trim().toLowerCase()
+      dbUserSubExpiresAt = String(uRow.subscription_expires_at || "").trim()
     } catch (userCheckErr) {
       // If DB is temporarily unreachable, fall back to JWT signature
       console.warn("[Session Verification] DB existence check warning:", userCheckErr)
@@ -160,45 +164,69 @@ export async function verifySession() {
 
   if (!isExempt) {
     if (roleLower === "agency") {
-      // Dynamic lookup from agencies table (Single Source of Truth)
+      // Dynamic lookup from agencies table AND individual user bonus expiry (MAX of both)
       const rawAgencies = session.agencies || []
       const agencyCandidates = rawAgencies.length > 0 ? rawAgencies : [session.name || session.username]
       const cccCode = session.cccCode || ""
-      
+      const { pickLaterExpiry, isExpiryDateActive } = await import("./feedback-reward-utils")
+
+      const userBonusStatusAllowed =
+        !dbUserSubStatus || dbUserSubStatus === "active" || dbUserSubStatus === "paid"
+      const hasActiveUserBonus = userBonusStatusAllowed && isExpiryDateActive(dbUserSubExpiresAt)
+
       if (cccCode && agencyCandidates.length > 0) {
         try {
           const { isAgencySubscribed } = await import("./agency-storage")
-          let anyActive = false
+          let anyAgencyActive = false
+          let bestAgencyExpiresAt = ""
           let lastSubDetails: any = null
 
           for (const ag of agencyCandidates) {
             if (!ag) continue
             const sub = await isAgencySubscribed(cccCode, ag)
             lastSubDetails = sub
+            if (sub.expiresAt) {
+              bestAgencyExpiresAt = pickLaterExpiry(bestAgencyExpiresAt, sub.expiresAt)
+            }
             if (sub.subscribed) {
-              anyActive = true
-              subscriptionExpiresAt = sub.expiresAt || ""
-              subscriptionStatus = "active"
+              anyAgencyActive = true
               break
             }
           }
 
-          // If the user's direct record in users table was explicitly marked expired/inactive,
-          // user status takes priority
-          if (session.subscriptionStatus && session.subscriptionStatus !== "active") {
-            isSubscribed = false
-            subscriptionStatus = session.subscriptionStatus
-          } else {
-            isSubscribed = anyActive
-          }
+          const effectiveExpiry = pickLaterExpiry(bestAgencyExpiresAt, dbUserSubExpiresAt)
+          const anyActive = anyAgencyActive || hasActiveUserBonus
 
-          if (!anyActive && lastSubDetails) {
-            subscriptionExpiresAt = lastSubDetails.expiresAt || ""
-            subscriptionStatus = lastSubDetails.reason === "expired" ? "expired" : "inactive"
+          // If the user's direct record in users table was explicitly marked inactive/expired
+          // AND they do not have an active personal extension, honor that status
+          const userExplicitlyBlocked =
+            dbUserSubStatus && dbUserSubStatus !== "active" && dbUserSubStatus !== "paid"
+
+          if (userExplicitlyBlocked) {
+            isSubscribed = false
+            subscriptionStatus = dbUserSubStatus
+            subscriptionExpiresAt = effectiveExpiry || subscriptionExpiresAt
+          } else if (anyActive) {
+            isSubscribed = true
+            subscriptionStatus = "active"
+            subscriptionExpiresAt = effectiveExpiry || subscriptionExpiresAt
+          } else {
+            isSubscribed = false
+            subscriptionExpiresAt = effectiveExpiry || lastSubDetails?.expiresAt || subscriptionExpiresAt
+            subscriptionStatus = lastSubDetails?.reason === "expired" ? "expired" : "inactive"
           }
         } catch (subErr) {
           console.warn("Dynamic agency subscription check warning:", subErr)
+          if (hasActiveUserBonus) {
+            isSubscribed = true
+            subscriptionStatus = "active"
+            subscriptionExpiresAt = pickLaterExpiry(subscriptionExpiresAt, dbUserSubExpiresAt)
+          }
         }
+      } else if (hasActiveUserBonus) {
+        isSubscribed = true
+        subscriptionStatus = "active"
+        subscriptionExpiresAt = pickLaterExpiry(subscriptionExpiresAt, dbUserSubExpiresAt)
       }
     } else {
       // Non-agency roles (station staff, executive, store_keeper, reader, viewer, etc.)

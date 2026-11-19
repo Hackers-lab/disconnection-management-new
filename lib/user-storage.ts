@@ -1,4 +1,5 @@
 import { db } from "./db"
+import { pickLaterExpiry, isExpiryDateActive } from "./feedback-reward-utils"
 import { randomUUID } from "crypto"
 
 export interface MasterUser {
@@ -83,13 +84,13 @@ export class UserStorage {
         let finalSubStatus = String(r.subStatus || "active")
         let finalSubExpiresAt = String(r.subExpiresAt || "")
 
-        // For agency users, check agency-level subscription
+        // For agency users, take the later of individual user expiry and agency-level expiry
         const roleLower = String(r.role || "viewer").toLowerCase()
         if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
-          if (r.agencySubStatus) {
-            finalSubStatus = String(r.agencySubStatus)
-            if (r.agencySubExpiresAt) finalSubExpiresAt = String(r.agencySubExpiresAt)
-          } else {
+          let agencyStatus = r.agencySubStatus ? String(r.agencySubStatus) : ""
+          let agencyExpires = r.agencySubExpiresAt ? String(r.agencySubExpiresAt) : ""
+
+          if (!agencyStatus) {
             try {
               const agencyRes = await db.execute({
                 sql: `SELECT subscription_status, subscription_expires_at FROM agencies
@@ -98,10 +99,18 @@ export class UserStorage {
               })
               if (agencyRes.rows && agencyRes.rows.length > 0) {
                 const ag: any = agencyRes.rows[0]
-                if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
-                if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+                if (ag.subscription_status) agencyStatus = String(ag.subscription_status)
+                if (ag.subscription_expires_at) agencyExpires = String(ag.subscription_expires_at)
               }
             } catch {}
+          }
+
+          const mergedExpiry = pickLaterExpiry(finalSubExpiresAt, agencyExpires)
+          finalSubExpiresAt = mergedExpiry
+          if (isExpiryDateActive(mergedExpiry)) {
+            finalSubStatus = "active"
+          } else if (agencyStatus) {
+            finalSubStatus = agencyStatus
           }
         }
 
@@ -160,13 +169,13 @@ export class UserStorage {
         let finalSubStatus = String(r.subStatus || "active")
         let finalSubExpiresAt = String(r.subExpiresAt || "")
 
-        // For agency users, check agency-level subscription
+        // For agency users, take the later of individual user expiry and agency-level expiry
         const roleLower = String(r.role || "viewer").toLowerCase()
         if (roleLower === "agency" && r.cccId && fallbackAgencies.length > 0) {
-          if (r.agencySubStatus) {
-            finalSubStatus = String(r.agencySubStatus)
-            if (r.agencySubExpiresAt) finalSubExpiresAt = String(r.agencySubExpiresAt)
-          } else {
+          let agencyStatus = r.agencySubStatus ? String(r.agencySubStatus) : ""
+          let agencyExpires = r.agencySubExpiresAt ? String(r.agencySubExpiresAt) : ""
+
+          if (!agencyStatus) {
             try {
               const agencyRes = await db.execute({
                 sql: `SELECT subscription_status, subscription_expires_at FROM agencies
@@ -175,10 +184,18 @@ export class UserStorage {
               })
               if (agencyRes.rows && agencyRes.rows.length > 0) {
                 const ag: any = agencyRes.rows[0]
-                if (ag.subscription_status) finalSubStatus = String(ag.subscription_status)
-                if (ag.subscription_expires_at) finalSubExpiresAt = String(ag.subscription_expires_at)
+                if (ag.subscription_status) agencyStatus = String(ag.subscription_status)
+                if (ag.subscription_expires_at) agencyExpires = String(ag.subscription_expires_at)
               }
             } catch {}
+          }
+
+          const mergedExpiry = pickLaterExpiry(finalSubExpiresAt, agencyExpires)
+          finalSubExpiresAt = mergedExpiry
+          if (isExpiryDateActive(mergedExpiry)) {
+            finalSubStatus = "active"
+          } else if (agencyStatus) {
+            finalSubStatus = agencyStatus
           }
         }
 
@@ -457,8 +474,11 @@ export class UserStorage {
           const rawAgencies = r.agencies ? String(r.agencies).split(",").map((s: string) => s.trim()).filter(Boolean) : []
           const fallbackAgencies = rawAgencies.length > 0 ? rawAgencies : (String(r.role).toLowerCase() === "agency" && r.name ? [String(r.name).trim()] : [])
           
-          let finalSubStatus = String(r.agencySubStatus || r.subStatus || "active")
-          let finalSubExpiresAt = String(r.agencySubExpiresAt || r.subExpiresAt || "")
+          const mergedExpiry = pickLaterExpiry(String(r.subExpiresAt || ""), String(r.agencySubExpiresAt || ""))
+          let finalSubExpiresAt = mergedExpiry
+          let finalSubStatus = isExpiryDateActive(mergedExpiry)
+            ? "active"
+            : String(r.agencySubStatus || r.subStatus || "active")
 
           console.log(`⚡ [AUTH SUCCESS - Turso DB] User '${rawInput}' authenticated in ${qDuration}ms (Total: ${totalMs}ms) via Turso DB.`)
           user = {

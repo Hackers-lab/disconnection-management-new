@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySession } from "@/lib/session"
 import { getUserFeedback, addFeedback } from "@/lib/feedback-service"
 import { getTenantRegistry } from "@/lib/tenant-resolver"
+import {
+  getFeedbackRewardStatus,
+  tryGrantFeedbackReward,
+} from "@/lib/feedback-reward-service"
 
 export const dynamic = "force-dynamic"
 
@@ -12,33 +16,48 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const feedback = await getUserFeedback(session.username, session.cccCode)
+    const [feedback, rewardStatus] = await Promise.all([
+      getUserFeedback(session.username, session.cccCode),
+      getFeedbackRewardStatus(session),
+    ])
 
-    if (!feedback || !feedback.comment) {
-      return NextResponse.json({ feedback: null, hasSubmitted: false })
+    const headers = {
+      "Cache-Control": "private, no-store, no-cache, must-revalidate",
     }
 
-    return NextResponse.json({
-      hasSubmitted: true,
-      feedback: {
-        id: feedback.id,
-        cccCode: feedback.cccCode || session.cccCode,
-        username: feedback.username || session.username,
-        name: feedback.name || session.name || "Officer",
-        supplyOffice: feedback.supplyOffice || (session.cccCode ? `${session.cccCode} CCC` : "CCC Office"),
-        rating: feedback.rating || 5,
-        category: "General",
-        feedbackText: feedback.comment,
-        comment: feedback.comment,
+    if (!feedback || !feedback.comment) {
+      return NextResponse.json(
+        { feedback: null, hasSubmitted: false, rewardStatus },
+        { headers }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        hasSubmitted: true,
+        rewardStatus,
+        feedback: {
+          id: feedback.id,
+          cccCode: feedback.cccCode || session.cccCode,
+          username: feedback.username || session.username,
+          name: feedback.name || session.name || "Officer",
+          supplyOffice:
+            feedback.supplyOffice ||
+            (session.cccCode ? `${session.cccCode} CCC` : "CCC Office"),
+          rating: feedback.rating || 5,
+          category: "General",
+          feedbackText: feedback.comment,
+          comment: feedback.comment,
+        },
       },
-    }, {
-      headers: {
-        "Cache-Control": "private, max-age=15, stale-while-revalidate=60",
-      }
-    })
+      { headers }
+    )
   } catch (e: any) {
     console.error("GET Feedback Error:", e)
-    return NextResponse.json({ error: e.message || "Failed to fetch feedback" }, { status: 500 })
+    return NextResponse.json(
+      { error: e.message || "Failed to fetch feedback" },
+      { status: 500 }
+    )
   }
 }
 
@@ -50,11 +69,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const rating = Number(body.rating || 5)
+    const rating = Math.min(5, Math.max(1, Number(body.rating || 5)))
     const comment = String(body.feedbackText || body.comment || "").trim()
+    // Preserve raw user-typed text (before any quick-star auto-fill) for genuine written-review reward validation
+    const rawUserText =
+      typeof body.userWrittenText === "string" ? body.userWrittenText : comment
 
     if (!comment) {
-      return NextResponse.json({ error: "Feedback text is required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Feedback text is required" },
+        { status: 400 }
+      )
     }
 
     const cccCode = String(session.cccCode || "MAIN").trim()
@@ -63,25 +88,33 @@ export async function POST(req: NextRequest) {
     let officialCccName = ""
     try {
       const registry = await getTenantRegistry()
-      officialCccName = registry[cccCode]?.cccName || registry[username]?.cccName || ""
-    } catch (e) {}
+      officialCccName =
+        registry[cccCode]?.cccName || registry[username]?.cccName || ""
+    } catch {}
 
     const name = String(
       body.name ||
-      session.name ||
-      (session as any).agencyName ||
-      (username && !/^\d+$/.test(username) ? username : (officialCccName ? `${officialCccName.replace(/\s*ccc$/i, '')} Officer` : "Officer"))
+        session.name ||
+        (session as any).agencyName ||
+        (username && !/^\d+$/.test(username)
+          ? username
+          : officialCccName
+            ? `${officialCccName.replace(/\s*ccc$/i, "")} Officer`
+            : "Officer")
     ).trim()
 
     let supplyOffice = String(
       body.supplyOffice ||
-      officialCccName ||
-      (session as any).supplyOffice ||
-      (session as any).cccName ||
-      (cccCode ? `${cccCode} CCC` : "CCC Office")
+        officialCccName ||
+        (session as any).supplyOffice ||
+        (session as any).cccName ||
+        (cccCode ? `${cccCode} CCC` : "CCC Office")
     ).trim()
 
-    if (officialCccName && (/^\d+\s*ccc$/i.test(supplyOffice) || /^\d+$/.test(supplyOffice))) {
+    if (
+      officialCccName &&
+      (/^\d+\s*ccc$/i.test(supplyOffice) || /^\d+$/.test(supplyOffice))
+    ) {
       supplyOffice = officialCccName
     }
 
@@ -94,9 +127,31 @@ export async function POST(req: NextRequest) {
       comment,
     })
 
-    return NextResponse.json({ success: true, message: "Feedback saved successfully", feedback: saved })
+    // Evaluate and atomically grant +7 day individual subscription bonus if eligible
+    const reward = await tryGrantFeedbackReward(session, saved.id, rawUserText)
+    const rewardStatus = await getFeedbackRewardStatus({
+      ...session,
+      subscriptionExpiresAt:
+        reward.newExpiresAt || session.subscriptionExpiresAt,
+      subscriptionStatus: reward.granted
+        ? "active"
+        : session.subscriptionStatus,
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: reward.granted
+        ? reward.message
+        : "Feedback saved successfully",
+      feedback: saved,
+      reward,
+      rewardStatus,
+    })
   } catch (e: any) {
     console.error("POST Feedback Error:", e)
-    return NextResponse.json({ error: e.message || "Failed to save feedback" }, { status: 500 })
+    return NextResponse.json(
+      { error: e.message || "Failed to save feedback" },
+      { status: 500 }
+    )
   }
 }

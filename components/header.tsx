@@ -49,10 +49,15 @@ import {
   ChevronRight,
   ChevronDown,
   Palette,
+  Gift,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { FeedbackDialog } from "@/components/feedback-dialog"
+import {
+  FEEDBACK_REWARD_DAYS,
+  FEEDBACK_REWARD_EVENT,
+} from "@/lib/feedback-reward-utils"
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import {
   Dialog,
@@ -190,6 +195,51 @@ export function Header({
   const [clientUsername, setClientUsername] = useState<string>(userName || initialProfile?.username || "")
   const { theme: currentModuleTheme, changeTheme: setModuleTheme, options: moduleThemeOptions } = useModuleTheme()
   const [showThemeModal, setShowThemeModal] = useState(false)
+  const [feedbackRewardEligible, setFeedbackRewardEligible] = useState(false)
+
+  useEffect(() => {
+    const roleLower = String(userRole || "").toLowerCase()
+    if (
+      roleLower === "admin" ||
+      roleLower === "superuser" ||
+      roleLower === "monitor" ||
+      initialProfile?.bypassSubscription
+    ) {
+      setFeedbackRewardEligible(false)
+      return
+    }
+
+    let mounted = true
+    fetch("/api/feedback", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (mounted && data?.rewardStatus) {
+          setFeedbackRewardEligible(Boolean(data.rewardStatus.eligible))
+        }
+      })
+      .catch(() => {})
+
+    const handleFeedbackRewardGranted = (event: Event) => {
+      if (!mounted) return
+      const detail = (event as CustomEvent)?.detail
+      setFeedbackRewardEligible(false)
+      if (detail?.newExpiresAt) {
+        setProfileData((prev: any) => ({
+          ...(prev || {}),
+          subscriptionStatus: "active",
+          subscriptionExpiresAt: detail.newExpiresAt,
+          isSubscribed: true,
+        }))
+      }
+      loadUserProfile()
+    }
+
+    window.addEventListener(FEEDBACK_REWARD_EVENT, handleFeedbackRewardGranted)
+    return () => {
+      mounted = false
+      window.removeEventListener(FEEDBACK_REWARD_EVENT, handleFeedbackRewardGranted)
+    }
+  }, [userRole, initialProfile?.bypassSubscription])
 
   // Profile Edit Modal / Inline State
   const [isEditingProfile, setIsEditingProfile] = useState(false)
@@ -1528,9 +1578,16 @@ export function Header({
                   </DropdownMenuItem>
                   <FeedbackDialog
                     trigger={
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                        <Star className="mr-2 h-4 w-4 text-amber-500 fill-amber-400" />
-                        <span>My Feedback & Rating</span>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="flex items-center justify-between gap-2">
+                        <span className="flex items-center">
+                          <Star className="mr-2 h-4 w-4 text-amber-500 fill-amber-400" />
+                          <span>My Feedback &amp; Rating</span>
+                        </span>
+                        {feedbackRewardEligible && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+                            <Gift className="h-2.5 w-2.5" />+{FEEDBACK_REWARD_DAYS}d
+                          </span>
+                        )}
                       </DropdownMenuItem>
                     }
                   />
@@ -1736,9 +1793,16 @@ export function Header({
                   <DropdownMenuSeparator />
                   <FeedbackDialog
                     trigger={
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                        <MessageSquarePlus className="mr-2 h-4 w-4 text-amber-500" />
-                        <span>My Feedback & Rating</span>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="flex items-center justify-between gap-2">
+                        <span className="flex items-center">
+                          <MessageSquarePlus className="mr-2 h-4 w-4 text-amber-500" />
+                          <span>My Feedback &amp; Rating</span>
+                        </span>
+                        {feedbackRewardEligible && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+                            <Gift className="h-2.5 w-2.5" />+{FEEDBACK_REWARD_DAYS}d
+                          </span>
+                        )}
                       </DropdownMenuItem>
                     }
                   />

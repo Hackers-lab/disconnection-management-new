@@ -38,11 +38,17 @@ const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ d
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 const SubscriptionExpiryAlertModal = dynamic(() => import("@/components/subscription-expiry-alert-modal").then(m => ({ default: m.SubscriptionExpiryAlertModal })), { ssr: false })
 
-import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck, Receipt } from "lucide-react"
+import { Loader2, AlertTriangle, KeyRound, CheckCircle2, User, ArrowLeft, Phone, Hash, Pencil, Check, AlertCircle, Building2, Lock, Crown, Sparkles, ShieldCheck, Receipt, Gift } from "lucide-react"
 import { OnboardingGuideDialog } from "@/components/onboarding-guide-dialog"
 import { useOnboardingGuide, notifyOnboardingUpdated } from "@/components/onboarding-spotlight"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
 import { PaymentCelebrationModal } from "@/components/payment-celebration-modal"
+import { FeedbackDialog } from "@/components/feedback-dialog"
+import {
+  FEEDBACK_REWARD_DAYS,
+  FEEDBACK_REWARD_EVENT,
+  type FeedbackRewardGrantResult,
+} from "@/lib/feedback-reward-utils"
 import { getCurrentSpotAiHashRoute, isValidSpotAiHash, isSpotAiSessionValid, lockSpotAiSession, unlockSpotAiSession } from "@/lib/spotai-guard"
 
 // UI Components for the Dialog
@@ -103,6 +109,8 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
     paymentId?: string
     amount?: number
   }>({})
+  const [showPaywallFeedbackDialog, setShowPaywallFeedbackDialog] = useState(false)
+  const [paywallRewardEligible, setPaywallRewardEligible] = useState(false)
 
   const dashboardPlans = [
     { id: "monthly_79", amount: 7900, name: "1 Month Vendor Access", days: 30, label: "1 Month", price: "₹79", originalPrice: "₹199", badge: "60% OFF", subtext: "₹79 / mo" },
@@ -165,6 +173,42 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
   useEffect(() => {
     fetchFullUserProfile()
   }, [])
+
+  // Live subscription sync whenever a +7 day feedback reward is granted anywhere in the app
+  useEffect(() => {
+    const handleFeedbackReward = (event: Event) => {
+      const detail = (event as CustomEvent<FeedbackRewardGrantResult>)?.detail
+      if (!detail?.granted) return
+      setIsSubscribed(true)
+      if (detail.newExpiresAt) {
+        setSubscriptionExpiresAt(detail.newExpiresAt)
+      }
+      setPaywallRewardEligible(false)
+      fetchFullUserProfile()
+    }
+    window.addEventListener(FEEDBACK_REWARD_EVENT, handleFeedbackReward)
+    return () => window.removeEventListener(FEEDBACK_REWARD_EVENT, handleFeedbackReward)
+  }, [])
+
+  // When an agency user lands on the expired subscription paywall, check if they can unlock +7 free days via review
+  useEffect(() => {
+    if (role?.toLowerCase() !== "agency" || isSubscribed) {
+      setPaywallRewardEligible(false)
+      return
+    }
+    let mounted = true
+    fetch("/api/feedback", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (mounted && data?.rewardStatus) {
+          setPaywallRewardEligible(Boolean(data.rewardStatus.eligible))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [role, isSubscribed])
 
   const startEditProfile = () => {
     setProfileEditName(profileData?.name || profileData?.fullName || profileName || "")
@@ -2333,7 +2377,7 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
         </Dialog>
 
         {/* Global Subscription Required Dialog Modal (Unified Light Surface) */}
-        <Dialog open={!showOnboardingModal && role?.toLowerCase() === "agency" && !isSubscribed && permsLoaded} onOpenChange={() => {}}>
+        <Dialog open={!showOnboardingModal && role?.toLowerCase() === "agency" && !isSubscribed && permsLoaded && !showPaywallFeedbackDialog} onOpenChange={() => {}}>
           <DialogContent className="sm:max-w-[440px] bg-white border-slate-200 text-slate-900 rounded-2xl shadow-2xl" aria-describedby="subscription-description">
             <DialogHeader className="flex flex-col items-center justify-center text-center">
               <div className="h-14 w-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-3 mt-1 border border-indigo-200">
@@ -2403,6 +2447,16 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
                 }}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2.5 rounded-xl shadow-sm transition-all duration-200"
               />
+              {paywallRewardEligible && (
+                <Button
+                  type="button"
+                  onClick={() => setShowPaywallFeedbackDialog(true)}
+                  className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold py-2.5 rounded-xl gap-2 text-xs shadow-xs"
+                >
+                  <Gift className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Need extra time? Review app &amp; unlock +{FEEDBACK_REWARD_DAYS} Free Days</span>
+                </Button>
+              )}
               <Button 
                 onClick={async () => {
                   try {
@@ -2423,6 +2477,21 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {showPaywallFeedbackDialog && (
+          <FeedbackDialog
+            open={showPaywallFeedbackDialog}
+            onOpenChange={setShowPaywallFeedbackDialog}
+            onRewardGranted={(reward: FeedbackRewardGrantResult) => {
+              if (reward.granted) {
+                setIsSubscribed(true)
+                if (reward.newExpiresAt) setSubscriptionExpiresAt(reward.newExpiresAt)
+                setPaywallRewardEligible(false)
+                fetchFullUserProfile()
+              }
+            }}
+          />
+        )}
 
         {/* Startup Modal Queue: Only one secondary startup dialog renders when higher-priority modals are closed */}
         {(() => {

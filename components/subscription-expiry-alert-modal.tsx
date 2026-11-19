@@ -4,14 +4,18 @@ import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { VendorSubscriptionCheckout } from "@/components/vendor-subscription-checkout"
+import { FeedbackDialog } from "@/components/feedback-dialog"
+import {
+  FEEDBACK_REWARD_DAYS,
+  FEEDBACK_REWARD_EVENT,
+  type FeedbackRewardGrantResult,
+} from "@/lib/feedback-reward-utils"
 import {
   AlertTriangle,
   Calendar,
   Clock,
-  CheckCircle2,
   ShieldAlert,
-  ArrowRight,
-  Info,
+  Gift,
 } from "lucide-react"
 
 interface SubscriptionExpiryAlertModalProps {
@@ -45,6 +49,8 @@ export function SubscriptionExpiryAlertModal({
   const [isOpen, setIsOpen] = useState(false)
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null)
   const [formattedExpiryDate, setFormattedExpiryDate] = useState("")
+  const [feedbackRewardEligible, setFeedbackRewardEligible] = useState(false)
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
 
   const plans = [
     { id: "monthly_79", amount: 7900, name: "1 Month Vendor Access", days: 30, label: "1 Mo", price: "₹79", badge: "60% OFF" },
@@ -68,6 +74,7 @@ export function SubscriptionExpiryAlertModal({
 
     // Only alert when 0 <= daysRemaining <= 3
     if (days < 0 || days > 3) {
+      setIsOpen(false)
       return
     }
 
@@ -83,6 +90,31 @@ export function SubscriptionExpiryAlertModal({
       setIsOpen(true)
     }
   }, [subscriptionExpiresAt, userId, username])
+
+  useEffect(() => {
+    if (!isOpen || role === "admin") return
+    let mounted = true
+    fetch("/api/feedback", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (mounted && data?.rewardStatus) {
+          setFeedbackRewardEligible(Boolean(data.rewardStatus.eligible))
+        }
+      })
+      .catch(() => {})
+
+    const handleExternalReward = () => {
+      if (mounted) {
+        setFeedbackRewardEligible(false)
+        setIsOpen(false)
+      }
+    }
+    window.addEventListener(FEEDBACK_REWARD_EVENT, handleExternalReward)
+    return () => {
+      mounted = false
+      window.removeEventListener(FEEDBACK_REWARD_EVENT, handleExternalReward)
+    }
+  }, [isOpen, role])
 
   const handleDismiss = () => {
     const todayStr = new Date().toISOString().split("T")[0]
@@ -100,150 +132,191 @@ export function SubscriptionExpiryAlertModal({
     }
   }
 
-  if (!isOpen || daysRemaining === null) return null
+  const handleFeedbackRewardGranted = (_reward: FeedbackRewardGrantResult) => {
+    setFeedbackRewardEligible(false)
+    handleDismiss()
+  }
+
+  if ((!isOpen || daysRemaining === null) && !showFeedbackDialog) return null
 
   const isAdmin = role === "admin"
-  const isLastDay = daysRemaining <= 0
+  const isLastDay = (daysRemaining ?? 0) <= 0
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="max-w-md w-[92vw] sm:w-full p-0 overflow-hidden rounded-3xl border border-amber-500/30 shadow-2xl [&>button]:hidden flex flex-col bg-white">
-        <DialogTitle className="sr-only">Subscription Expiry Reminder</DialogTitle>
+    <>
+      <Dialog open={isOpen && !showFeedbackDialog} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md w-[92vw] sm:w-full max-h-[92vh] overflow-y-auto p-0 rounded-3xl border border-amber-500/30 shadow-2xl [&>button]:hidden flex flex-col bg-white">
+          <DialogTitle className="sr-only">Subscription Expiry Reminder</DialogTitle>
 
-        {/* --- HEADER --- */}
-        <div className="relative bg-gradient-to-br from-amber-950 via-slate-900 to-slate-950 text-white px-6 pt-6 pb-5 text-center shrink-0 border-b border-amber-500/20 overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-40 h-40 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-orange-500/15 rounded-full blur-2xl pointer-events-none" />
+          {/* --- HEADER --- */}
+          <div className="relative bg-gradient-to-br from-amber-950 via-slate-900 to-slate-950 text-white px-6 pt-6 pb-5 text-center shrink-0 border-b border-amber-500/20 overflow-hidden">
+            <div className="absolute -top-12 -right-12 w-40 h-40 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-orange-500/15 rounded-full blur-2xl pointer-events-none" />
 
-          <div className="relative z-10 space-y-2">
-            <div className="inline-flex items-center justify-center bg-amber-500/15 border border-amber-500/30 p-3 rounded-2xl mb-1 shadow-inner animate-badge-pop">
-              <AlertTriangle className="h-7 w-7 text-amber-400" />
-            </div>
+            <div className="relative z-10 space-y-2">
+              <div className="inline-flex items-center justify-center bg-amber-500/15 border border-amber-500/30 p-3 rounded-2xl mb-1 shadow-inner animate-badge-pop">
+                <AlertTriangle className="h-7 w-7 text-amber-400" />
+              </div>
 
-            <div>
-              <span className="inline-block px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-[11px] font-extrabold tracking-wider text-amber-300 uppercase">
-                {isLastDay ? "Expires Today" : `Expires in ${daysRemaining} Day${daysRemaining > 1 ? "s" : ""}`}
-              </span>
-            </div>
+              <div>
+                <span className="inline-block px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-[11px] font-extrabold tracking-wider text-amber-300 uppercase">
+                  {isLastDay ? "Expires Today" : `Expires in ${daysRemaining} Day${(daysRemaining ?? 0) > 1 ? "s" : ""}`}
+                </span>
+              </div>
 
-            <h2 className="text-xl font-black tracking-tight text-white">
-              {isAdmin ? "Office Trial Period Ending Soon" : "Agency Subscription Ending Soon"}
-            </h2>
+              <h2 className="text-xl font-black tracking-tight text-white">
+                {isAdmin ? "Office Trial Period Ending Soon" : "Agency Subscription Ending Soon"}
+              </h2>
 
-            <p className="text-xs text-slate-300 max-w-xs mx-auto leading-relaxed">
-              {isAdmin ? (
-                <>
-                  Free operational trial for your CCC expires after{" "}
-                  <span className="font-bold text-amber-300">{formattedExpiryDate}</span>.
-                </>
-              ) : (
-                <>
-                  Your active access for{" "}
-                  <span className="font-bold text-amber-300">{agencyName || "your agency"}</span> will expire after{" "}
-                  <span className="font-bold text-amber-300">{formattedExpiryDate}</span>.
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {/* --- BODY --- */}
-        <div className="px-6 py-4 space-y-3 bg-slate-50/50">
-          <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-3 text-left">
-            <Clock className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-950 space-y-0.5">
-              <p className="font-bold text-sm text-amber-900">
-                Subscription Required After {formattedExpiryDate}
-              </p>
-              <p className="text-amber-800/90 leading-relaxed text-[11px]">
-                {isAdmin
-                  ? "Contractor agencies will need an active subscription (starting at ₹79/month) after this date to continue executing disconnections and field updates."
-                  : "To prevent interruption to your disconnection lists and field work, renew your subscription before access closes."}
+              <p className="text-xs text-slate-300 max-w-xs mx-auto leading-relaxed">
+                {isAdmin ? (
+                  <>
+                    Free operational trial for your CCC expires after{" "}
+                    <span className="font-bold text-amber-300">{formattedExpiryDate}</span>.
+                  </>
+                ) : (
+                  <>
+                    Your active access for{" "}
+                    <span className="font-bold text-amber-300">{agencyName || "your agency"}</span> will expire after{" "}
+                    <span className="font-bold text-amber-300">{formattedExpiryDate}</span>.
+                  </>
+                )}
               </p>
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-3 space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span className="flex items-center gap-1.5 font-medium">
-                <Calendar className="h-4 w-4 text-slate-400" /> Expiry Date:
-              </span>
-              <span className="font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
-                {formattedExpiryDate}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span className="flex items-center gap-1.5 font-medium">
-                <ShieldAlert className="h-4 w-4 text-slate-400" /> Grace Window:
-              </span>
-              <span className="font-semibold text-amber-700">
-                Active until 11:59 PM IST
-              </span>
-            </div>
-          </div>
-
-          {!isAdmin && (
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[11px] font-bold text-slate-700 block text-left">Select Renewal Plan:</span>
-              <div className="grid grid-cols-3 gap-2">
-                {plans.map((p) => {
-                  const isSel = selectedPlan.id === p.id
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setSelectedPlan(p)}
-                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                        isSel
-                          ? "border-amber-600 bg-amber-500/10 ring-1 ring-amber-600 shadow-xs"
-                          : "border-slate-200 bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <span className="text-[9px] font-bold uppercase tracking-wider block text-amber-700">{p.badge}</span>
-                      <span className="text-xs font-bold text-slate-800 block">{p.label}</span>
-                      <span className="text-sm font-extrabold text-amber-600 block">{p.price}</span>
-                    </button>
-                  )
-                })}
+          {/* --- BODY --- */}
+          <div className="px-6 py-4 space-y-3 bg-slate-50/50">
+            <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-3 text-left">
+              <Clock className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-950 space-y-0.5">
+                <p className="font-bold text-sm text-amber-900">
+                  Subscription Required After {formattedExpiryDate}
+                </p>
+                <p className="text-amber-800/90 leading-relaxed text-[11px]">
+                  {isAdmin
+                    ? "Contractor agencies will need an active subscription (starting at ₹79/month) after this date to continue executing disconnections and field updates."
+                    : "To prevent interruption to your disconnection lists and field work, renew your subscription before access closes."}
+                </p>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* --- ACTIONS --- */}
-        <div className="px-6 pb-6 pt-3 bg-white border-t border-slate-100 space-y-2.5">
-          {!isAdmin && (
-            <VendorSubscriptionCheckout
-              amount={selectedPlan.amount}
-              planName={selectedPlan.name}
-              days={selectedPlan.days}
-              buttonText={`Renew Now (${selectedPlan.price})`}
-              className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-amber-600/25 justify-center"
-              userPrefill={{
-                name: agencyName || username,
-              }}
-              onSuccess={handleCheckoutSuccess}
-            />
-          )}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-3 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Calendar className="h-4 w-4 text-slate-400" /> Expiry Date:
+                </span>
+                <span className="font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                  {formattedExpiryDate}
+                </span>
+              </div>
 
-          <Button
-            variant={isAdmin ? "default" : "outline"}
-            className={`w-full h-11 rounded-2xl text-xs font-semibold ${
-              isAdmin
-                ? "bg-slate-900 hover:bg-slate-800 text-white shadow-md shadow-slate-900/10"
-                : "border-slate-300 text-slate-700 hover:bg-slate-100"
-            }`}
-            onClick={handleDismiss}
-          >
-            {isAdmin ? "Got It, Continue to Dashboard" : "Remind Me Tomorrow & Continue"}
-          </Button>
-          
-          <p className="text-center text-[10px] text-slate-400 font-medium">
-            This notice appears once per day during the last 3 days of your subscription.
-          </p>
-        </div>
-      </DialogContent>
-    </Dialog>
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <ShieldAlert className="h-4 w-4 text-slate-400" /> Grace Window:
+                </span>
+                <span className="font-semibold text-amber-700">
+                  Active until 11:59 PM IST
+                </span>
+              </div>
+            </div>
+
+            {!isAdmin && feedbackRewardEligible && (
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-200/90 rounded-2xl p-3 flex items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                    <Gift className="w-4 h-4" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <p className="text-xs font-extrabold text-emerald-950">
+                      Get +{FEEDBACK_REWARD_DAYS} Extra Days Free
+                    </p>
+                    <p className="text-[10.5px] text-emerald-800/90 leading-snug">
+                      Write a short review of the app to extend your access immediately.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setShowFeedbackDialog(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] h-8 px-3 rounded-xl shrink-0 shadow-xs"
+                >
+                  Claim +{FEEDBACK_REWARD_DAYS}d
+                </Button>
+              </div>
+            )}
+
+            {!isAdmin && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[11px] font-bold text-slate-700 block text-left">Select Renewal Plan:</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {plans.map((p) => {
+                    const isSel = selectedPlan.id === p.id
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedPlan(p)}
+                        className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          isSel
+                            ? "border-amber-600 bg-amber-500/10 ring-1 ring-amber-600 shadow-xs"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        }`}
+                      >
+                        <span className="text-[9px] font-bold uppercase tracking-wider block text-amber-700">{p.badge}</span>
+                        <span className="text-xs font-bold text-slate-800 block">{p.label}</span>
+                        <span className="text-sm font-extrabold text-amber-600 block">{p.price}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* --- ACTIONS --- */}
+          <div className="px-6 pb-6 pt-3 bg-white border-t border-slate-100 space-y-2.5">
+            {!isAdmin && (
+              <VendorSubscriptionCheckout
+                amount={selectedPlan.amount}
+                planName={selectedPlan.name}
+                days={selectedPlan.days}
+                buttonText={`Renew Now (${selectedPlan.price})`}
+                className="w-full h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-amber-600/25 justify-center"
+                userPrefill={{
+                  name: agencyName || username,
+                }}
+                onSuccess={handleCheckoutSuccess}
+              />
+            )}
+
+            <Button
+              variant={isAdmin ? "default" : "outline"}
+              className={`w-full h-11 rounded-2xl text-xs font-semibold ${
+                isAdmin
+                  ? "bg-slate-900 hover:bg-slate-800 text-white shadow-md shadow-slate-900/10"
+                  : "border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
+              onClick={handleDismiss}
+            >
+              {isAdmin ? "Got It, Continue to Dashboard" : "Remind Me Tomorrow & Continue"}
+            </Button>
+
+            <p className="text-center text-[10px] text-slate-400 font-medium">
+              This notice appears once per day during the last 3 days of your subscription.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {showFeedbackDialog && (
+        <FeedbackDialog
+          open={showFeedbackDialog}
+          onOpenChange={setShowFeedbackDialog}
+          onRewardGranted={handleFeedbackRewardGranted}
+        />
+      )}
+    </>
   )
 }
