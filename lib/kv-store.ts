@@ -76,16 +76,19 @@ async function kvRestCall(command: string, ...args: (string | number)[]): Promis
   if (!rawUrl || !token) return null
 
   const baseUrl = rawUrl.replace(/\/$/, "")
-  const url = `${baseUrl}/${command}/${args.map(a => encodeURIComponent(String(a))).join("/")}`
-  
+
   try {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 1200)
+    const timer = setTimeout(() => controller.abort(), 2500)
 
-    const res = await fetch(url, {
+    // Use POST JSON body to avoid URL length limits (especially for patch_log arrays)
+    const res = await fetch(baseUrl, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify([command.toUpperCase(), ...args.map((a) => String(a))]),
       cache: "no-store",
       signal: controller.signal,
     })
@@ -93,6 +96,34 @@ async function kvRestCall(command: string, ...args: (string | number)[]): Promis
     if (!res.ok) return null
     const data = await res.json()
     return data.result
+  } catch {
+    return null
+  }
+}
+
+async function kvPipelineCall(commands: string[][]): Promise<any[] | null> {
+  const { url: rawUrl, token } = getKvApiConfig()
+  if (!rawUrl || !token || commands.length === 0) return null
+
+  const baseUrl = rawUrl.replace(/\/$/, "")
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 4000)
+
+    const res = await fetch(`${baseUrl}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(commands),
+      cache: "no-store",
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    if (!res.ok) return null
+    const data = await res.json()
+    return Array.isArray(data) ? data : null
   } catch {
     return null
   }
@@ -117,7 +148,7 @@ export async function getKV<T>(key: string): Promise<T | null> {
     }
 
     if (hasExternalKV()) {
-      const result = await withTimeout(kvRestCall("get", key), 1200, null)
+      const result = await withTimeout(kvRestCall("GET", key), 1800, null)
       if (result !== null && result !== undefined) {
         try {
           const parsed = typeof result === "string" ? JSON.parse(result) : (result as T)
@@ -138,7 +169,7 @@ export async function getKV<T>(key: string): Promise<T | null> {
           sql: "SELECT value, expires_at FROM system_kv_store WHERE key = ?",
           args: [key],
         }),
-        1200,
+        1800,
         null
       )
       if (res && res.rows && res.rows.length > 0) {
@@ -178,28 +209,27 @@ export async function setKV<T>(key: string, value: T, ttlSeconds?: number): Prom
     if (hasExternalKV()) {
       const jsonVal = JSON.stringify(value)
       if (ttlSeconds) {
-        withTimeout(kvRestCall("set", key, jsonVal, "EX", ttlSeconds), 1200, null).catch(() => {})
+        await withTimeout(kvRestCall("SET", key, jsonVal, "EX", ttlSeconds), 2000, null)
       } else {
-        withTimeout(kvRestCall("set", key, jsonVal), 1200, null).catch(() => {})
+        await withTimeout(kvRestCall("SET", key, jsonVal), 2000, null)
       }
       return
     }
 
     const turso = getTursoClient()
     if (turso) {
-      ensureTursoTable(turso).then(() => {
-        const jsonVal = JSON.stringify(value)
-        const exp = ttlSeconds ? Date.now() + ttlSeconds * 1000 : null
-        withTimeout(
-          turso.execute({
-            sql: `INSERT INTO system_kv_store (key, value, expires_at) VALUES (?, ?, ?)
-                  ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
-            args: [key, jsonVal, exp],
-          }),
-          1200,
-          null
-        ).catch(() => {})
-      }).catch(() => {})
+      await ensureTursoTable(turso)
+      const jsonVal = JSON.stringify(value)
+      const exp = ttlSeconds ? Date.now() + ttlSeconds * 1000 : null
+      await withTimeout(
+        turso.execute({
+          sql: `INSERT INTO system_kv_store (key, value, expires_at) VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at`,
+          args: [key, jsonVal, exp],
+        }),
+        2000,
+        null
+      )
     }
   } catch (err) {
     console.warn(`[kv-store] Error writing key "${key}":`, err)
@@ -208,8 +238,8 @@ export async function setKV<T>(key: string, value: T, ttlSeconds?: number): Prom
 
 export async function incrKV(key: string): Promise<number> {
   const current = (await getKV<number>(key)) || 0
-  const next = current + 1
-  setKV(key, next).catch(() => {})
+  const next = Number(current) + 1
+  await setKV(key, next)
   return next
 }
 
@@ -217,13 +247,13 @@ export async function deleteKV(key: string): Promise<void> {
   memoryStore.delete(key)
   try {
     if (hasExternalKV()) {
-      withTimeout(kvRestCall("del", key), 1200, null).catch(() => {})
+      await withTimeout(kvRestCall("DEL", key), 1800, null)
       return
     }
 
     const turso = getTursoClient()
     if (turso) {
-      withTimeout(turso.execute({ sql: "DELETE FROM system_kv_store WHERE key = ?", args: [key] }), 1200, null).catch(() => {})
+      await withTimeout(turso.execute({ sql: "DELETE FROM system_kv_store WHERE key = ?", args: [key] }), 1800, null)
     }
   } catch (err) {
     console.warn(`[kv-store] Error deleting key "${key}":`, err)
@@ -233,7 +263,7 @@ export async function deleteKV(key: string): Promise<void> {
 export async function getAllTenantKV(prefix = "tenant_"): Promise<Record<string, any>> {
   const result: Record<string, any> = {}
 
-  // Populate from memory store first
+  // 1. Populate from in-memory store first (baseline fallback)
   for (const [k, v] of memoryStore.entries()) {
     if (k.startsWith(prefix)) {
       if (v.expiresAt && Date.now() > v.expiresAt) continue
@@ -241,6 +271,7 @@ export async function getAllTenantKV(prefix = "tenant_"): Promise<Record<string,
     }
   }
 
+  // 2. Query Turso store (used when external KV is absent or for legacy rows)
   try {
     const turso = getTursoClient()
     if (turso) {
@@ -250,7 +281,7 @@ export async function getAllTenantKV(prefix = "tenant_"): Promise<Record<string,
           sql: "SELECT key, value, expires_at FROM system_kv_store WHERE key LIKE ?",
           args: [`${prefix}%`],
         }),
-        1200,
+        5000,
         null
       )
       if (res && res.rows) {
@@ -269,6 +300,54 @@ export async function getAllTenantKV(prefix = "tenant_"): Promise<Record<string,
     }
   } catch (err) {
     console.warn(`[kv-store] Error in getAllTenantKV Turso query:`, err)
+  }
+
+  // 3. Query External KV (Upstash / Vercel KV) if configured — authoritative source when enabled
+  if (hasExternalKV()) {
+    try {
+      const matchedKeys = new Set<string>()
+      let cursor = "0"
+      const maxIterations = 25
+
+      for (let i = 0; i < maxIterations; i++) {
+        const scanRes = await withTimeout(
+          kvRestCall("SCAN", cursor, "MATCH", `${prefix}*`, "COUNT", 500),
+          4000,
+          null
+        )
+        if (!Array.isArray(scanRes) || scanRes.length < 2) break
+        const nextCursor = String(scanRes[0] ?? "0")
+        const keysBatch = Array.isArray(scanRes[1]) ? scanRes[1] : []
+        for (const k of keysBatch) {
+          if (typeof k === "string" && k.startsWith(prefix)) {
+            matchedKeys.add(k)
+          }
+        }
+        cursor = nextCursor
+        if (cursor === "0") break
+      }
+
+      const allKeys = Array.from(matchedKeys)
+      const batchSize = 100
+      for (let i = 0; i < allKeys.length; i += batchSize) {
+        const slice = allKeys.slice(i, i + batchSize)
+        const pipelineRes = await kvPipelineCall(slice.map((k) => ["GET", k]))
+        if (!pipelineRes) continue
+
+        for (let j = 0; j < slice.length; j++) {
+          const raw = pipelineRes[j]?.result
+          if (raw === null || raw === undefined) continue
+          const key = slice[j]
+          try {
+            result[key] = typeof raw === "string" ? JSON.parse(raw) : raw
+          } catch {
+            result[key] = raw
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[kv-store] Error in getAllTenantKV External KV scan:`, err)
+    }
   }
 
   return result

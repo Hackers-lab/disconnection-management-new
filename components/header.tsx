@@ -51,6 +51,7 @@ import {
   Palette,
 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { BroadcastPushModal } from "@/components/broadcast-push-modal"
 import {
@@ -1902,14 +1903,23 @@ export function Header({
         </DialogContent>
       </Dialog>
 
-      {loggingOut && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white bg-opacity-80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-            <p className="text-lg font-medium text-gray-700">Logging out...</p>
-          </div>
-        </div>
-      )}
+      {loggingOut &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xl px-7 py-6 flex flex-col items-center gap-3.5 max-w-xs w-full text-center">
+              <div className="relative h-12 w-12 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-slate-900">Signing you out...</p>
+                <p className="text-xs text-slate-500">Closing your active session securely</p>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Change Password Dialog — available to all roles */}
       <Dialog open={showChangePwdDialog} onOpenChange={(open) => { if (!open) setShowChangePwdDialog(false) }}>

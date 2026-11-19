@@ -1,19 +1,34 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, User, Lock, ArrowDown, ShieldCheck, FileText, Star, Share2, Check } from "lucide-react"
+import {
+  Eye,
+  EyeOff,
+  User,
+  Lock,
+  ArrowDown,
+  ShieldCheck,
+  FileText,
+  Star,
+  Share2,
+  Check,
+  ArrowRight,
+  Building2,
+  AlertCircle,
+  Loader2,
+} from "lucide-react"
 import { login } from "@/app/actions/auth"
 import { LoginFeedbackDialog } from "@/components/login-feedback-dialog"
 import { RegisterCccDialog } from "@/components/register-ccc-dialog"
 import { ForgotPasswordDialog } from "@/components/forgot-password-dialog"
 import { AnimatedCounter } from "@/components/animated-counter"
 import { triggerHaptic } from "@/lib/haptics"
-
 import type { FeedbackItem } from "@/lib/feedback-service"
 
 const DEFAULT_FEEDBACKS: FeedbackItem[] = [
@@ -41,16 +56,19 @@ const DEFAULT_FEEDBACKS: FeedbackItem[] = [
   },
 ]
 
-const TRUSTED_GRADIENTS = [
-  "from-blue-600 via-indigo-600 to-violet-600",
-  "from-violet-600 via-purple-600 to-fuchsia-600",
-  "from-fuchsia-600 via-pink-600 to-rose-600",
-  "from-rose-600 via-orange-500 to-amber-500",
-  "from-amber-600 via-emerald-600 to-teal-600",
-  "from-teal-600 via-cyan-600 to-blue-600",
-  "from-cyan-600 via-indigo-600 to-purple-600",
-  "from-purple-600 via-rose-600 to-red-500",
-]
+function toBengaliDigits(num: number): string {
+  return String(num)
+    .replace(/0/g, "০")
+    .replace(/1/g, "১")
+    .replace(/2/g, "২")
+    .replace(/3/g, "৩")
+    .replace(/4/g, "৪")
+    .replace(/5/g, "৫")
+    .replace(/6/g, "৬")
+    .replace(/7/g, "৭")
+    .replace(/8/g, "৮")
+    .replace(/9/g, "৯")
+}
 
 interface LoginFormProps {
   initialFeedbacks?: FeedbackItem[]
@@ -75,21 +93,13 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
   const [isStandalone, setIsStandalone] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [isInstallClicked, setIsInstallClicked] = useState(false)
-  const [gradientIndex, setGradientIndex] = useState(0)
-  const [langIndex, setLangIndex] = useState<0 | 1>(0) // 0: English, 1: Bengali
+  const [langIndex, setLangIndex] = useState<0 | 1>(0)
   const [textFade, setTextFade] = useState(true)
+  const [copied, setCopied] = useState(false)
   const cidRef = useRef<string>("")
   const router = useRouter()
 
-  // Gentle brand gradient shift every 6 seconds (replaces 1s rainbow flash)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setGradientIndex((prev) => (prev + 1) % TRUSTED_GRADIENTS.length)
-    }, 6000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Rotate between English and Bengali every 5 seconds with smooth fade
+  // Rotate bilingual trust text on mobile every 5 seconds
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     const interval = setInterval(() => {
@@ -97,7 +107,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
       timeoutId = setTimeout(() => {
         setLangIndex((prev) => (prev === 0 ? 1 : 0))
         setTextFade(true)
-      }, 280)
+      }, 240)
     }, 5000)
     return () => {
       clearInterval(interval)
@@ -105,7 +115,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
     }
   }, [])
 
-  // 1. Fetch public feedbacks if not supplied initially
+  // Fetch public feedbacks if not supplied initially
   useEffect(() => {
     if (initialFeedbacks && initialFeedbacks.length > 0) return
 
@@ -124,7 +134,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
     }
   }, [initialFeedbacks])
 
-  // 2. Fetch visit count
+  // Fetch visit count
   useEffect(() => {
     let cid = ""
     try {
@@ -189,7 +199,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
     }
   }, [])
 
-  // 3. Detect PWA status & listen for install prompt
+  // Detect PWA status & listen for install prompt
   useEffect(() => {
     let id = localStorage.getItem("deviceId")
     if (!id) {
@@ -246,7 +256,6 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
     }
   }
 
-  // Calculate dynamic feedback statistics
   const { averageRating, totalFeedbacks } = useMemo(() => {
     if (!feedbacks || feedbacks.length === 0) {
       return { averageRating: 4.9, totalFeedbacks: 0 }
@@ -258,8 +267,6 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
       totalFeedbacks: feedbacks.length,
     }
   }, [feedbacks])
-
-  const [copied, setCopied] = useState(false)
 
   const handleShareClick = async () => {
     triggerHaptic("medium")
@@ -273,7 +280,7 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
         await navigator.share(shareData)
-      } catch (err) {
+      } catch {
         // User dismissed share
       }
     } else {
@@ -323,17 +330,17 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
 
   return (
     <>
-      {/* Modern Sleek Compact Login Card with Soft Vignette Shadow */}
-      <div className="relative group/card">
-        {/* Soft Vignette Halo Glow behind Card */}
-        <div className="absolute -inset-2 bg-gradient-to-b from-slate-300/40 via-slate-400/25 to-slate-500/20 rounded-[28px] blur-xl opacity-75 pointer-events-none -z-10 transition-opacity duration-500 group-hover/card:opacity-90" />
-
-        <Card className="relative rounded-2xl shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] bg-white/95 backdrop-blur-xl border border-slate-200/90 overflow-hidden">
-          <CardContent className="px-5 sm:px-6 py-5 sm:py-6 space-y-3.5">
-            <div className="text-center pb-0.5">
-              <h2 className="text-sm font-semibold text-slate-900 tracking-tight">Sign in to your account</h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">Enter your official credentials below</p>
-            </div>
+      <div className="w-full space-y-5">
+        {/* Elevated Crisp Sign-In Card */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.10)] p-6 sm:p-8 space-y-5">
+          <div className="space-y-1">
+            <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
+              Welcome back
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500">
+              Sign in with your Username, Mobile Number, or CCC Code
+            </p>
+          </div>
 
           <form
             onSubmit={async (e) => {
@@ -341,222 +348,257 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
               const formData = new FormData(e.currentTarget)
               await handleSubmit(formData)
             }}
-            className="space-y-3"
+            className="space-y-4"
           >
-            {/* Username / CCC Code / Mobile Field */}
-            <div className="relative">
-              <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4 pointer-events-none" />
-              <Input
-                id="username"
-                name="username"
-                type="text"
-                required
-                placeholder="Username, Mobile, or CCC Code"
-                className="pl-10 h-10 sm:h-11 rounded-xl border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 text-xs sm:text-sm font-medium placeholder:text-slate-400 transition-all"
-              />
+            {/* Username / Mobile / CCC Code */}
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-xs font-semibold text-slate-700">
+                Account Identifier
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4 pointer-events-none" />
+                <Input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  required
+                  placeholder="Username, Mobile, or CCC Code"
+                  className="pl-10 h-11 rounded-xl border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 text-sm font-medium placeholder:text-slate-400 transition-all"
+                />
+              </div>
             </div>
 
-            {/* Password Field */}
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4 pointer-events-none" />
-              <Input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                required
-                placeholder="Password"
-                className="pl-10 pr-10 h-10 sm:h-11 rounded-xl border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 text-xs sm:text-sm font-medium placeholder:text-slate-400 transition-all"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic("light")
-                  setShowPassword(!showPassword)
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
-                title={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+            {/* Password */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs font-semibold text-slate-700">
+                  Password
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic("medium")
+                    setShowForgotPasswordDialog(true)
+                  }}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4 pointer-events-none" />
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  placeholder="Enter your password"
+                  className="pl-10 pr-11 h-11 rounded-xl border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 text-sm font-medium placeholder:text-slate-400 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic("light")
+                    setShowPassword(!showPassword)
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+                  title={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             {/* Device fingerprint hidden field */}
             <input type="hidden" name="deviceId" value={deviceId} />
 
             {error && (
-              <Alert variant="destructive" className="border-red-200 bg-red-50/80 rounded-xl py-2 px-3 text-left">
-                <AlertDescription className="text-red-700 text-xs font-medium">{error}</AlertDescription>
+              <Alert variant="destructive" className="border-rose-200 bg-rose-50/90 rounded-xl py-2.5 px-3.5 text-left">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                  <AlertDescription className="text-rose-800 text-xs font-medium leading-relaxed">
+                    {error}
+                  </AlertDescription>
+                </div>
               </Alert>
             )}
 
-            {/* Sleek Sign In Button */}
+            {/* Primary Sign In CTA */}
             <Button
               type="submit"
-              className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm tracking-wide mt-1 cursor-pointer"
+              className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-md shadow-blue-600/20 transition-all duration-200 active:scale-[0.99] text-sm cursor-pointer gap-2"
               disabled={loading}
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
-
-            {/* Auxiliary Links: Forgot Password & Register CCC */}
-            <div className="flex items-center justify-between pt-2 px-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic("medium")
-                  setShowForgotPasswordDialog(true)
-                }}
-                className="text-slate-500 hover:text-slate-900 font-medium transition-colors cursor-pointer"
-              >
-                Forgot Password?
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic("medium")
-                  setShowRegisterDialog(true)
-                }}
-                className="text-slate-700 hover:text-slate-900 font-semibold transition-all hover:translate-x-0.5 cursor-pointer inline-flex items-center gap-1"
-              >
-                <span>Register CCC</span>
-                <span className="text-slate-400 font-bold">→</span>
-              </button>
-            </div>
           </form>
-        </CardContent>
-      </Card>
-      </div>
 
-      {/* Integrated Compact Status Bar: 19266 | 4.9/5* */}
-      <div className="flex items-center justify-center gap-2 pt-0.5 text-xs text-slate-500 font-medium select-none">
-        <span className="text-slate-600 font-medium tracking-tight">
-          <AnimatedCounter value={visitCount} /> visits
-        </span>
-
-        <span className="text-slate-300">|</span>
-
-        {/* Clickable Feedback Rating (Monochrome Black Star) */}
-        <button
-          type="button"
-          onClick={() => {
-            triggerHaptic("medium")
-            setShowFeedbackModal(true)
-          }}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-slate-800 hover:text-black hover:bg-slate-200/60 active:scale-95 transition-all cursor-pointer font-semibold group"
-          title="Click to view officer feedback and ratings"
-        >
-          <span>{averageRating}/5</span>
-          <Star className="w-3 h-3 fill-black text-black group-hover:scale-110 transition-transform" />
-          <span className="text-[10px] text-slate-400 group-hover:text-slate-600 font-normal">
-            ({totalFeedbacks})
-          </span>
-        </button>
-      </div>
-
-      {/* Clean Utility Icon Links */}
-      <div className="flex items-center justify-center gap-3 text-slate-400 text-xs pt-0.5">
-        {/* Privacy Policy */}
-        <a
-          href="/privacy-policy"
-          onClick={() => triggerHaptic("medium")}
-          className="hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-100/70"
-          title="Privacy Policy"
-          aria-label="Privacy Policy"
-        >
-          <ShieldCheck className="w-4 h-4 stroke-[1.8]" />
-        </a>
-
-        <span className="text-slate-200 font-bold">•</span>
-
-        {/* Terms of Service */}
-        <a
-          href="/terms-of-service"
-          onClick={() => triggerHaptic("medium")}
-          className="hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-100/70"
-          title="Terms of Service"
-          aria-label="Terms of Service"
-        >
-          <FileText className="w-4 h-4 stroke-[1.8]" />
-        </a>
-
-        <span className="text-slate-200 font-bold">•</span>
-
-        {/* WhatsApp Group */}
-        <a
-          href="https://chat.whatsapp.com/LZKLg40n8FxCLdnAIO9HGE"
-          onClick={() => triggerHaptic("medium")}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-emerald-600 transition-colors p-1 rounded-md hover:bg-slate-100/70 cursor-pointer"
-          title="WhatsApp Support Group"
-          aria-label="WhatsApp Support Group"
-        >
-          <svg className="w-4 h-4 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-          </svg>
-        </a>
-
-        <span className="text-slate-200 font-bold">•</span>
-
-        {/* Share App Link (WhatsApp / SMS / Native Share) */}
-        <button
-          type="button"
-          onClick={handleShareClick}
-          className="hover:text-slate-900 transition-colors p-1 rounded-md hover:bg-slate-100/70 cursor-pointer text-slate-400 active:scale-95 flex items-center justify-center"
-          title="Share Platform Link via WhatsApp or Message"
-          aria-label="Share Platform Link"
-        >
-          {copied ? (
-            <Check className="w-4 h-4 text-emerald-600 stroke-[2.2] animate-in zoom-in-50 duration-200" />
-          ) : (
-            <Share2 className="w-4 h-4 stroke-[1.8]" />
-          )}
-        </button>
-
-        {!isStandalone && (
-          <>
-            <span className="text-slate-200 font-bold">•</span>
-            {/* Install PWA Button */}
-            <button
+          {/* Divider + New Care Center Onboarding CTA */}
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200/80 flex items-center justify-center shrink-0">
+                <Building2 className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-800 truncate">New Care Center?</div>
+                <div className="text-[11px] text-slate-500 truncate">Self-register your CCC workspace</div>
+              </div>
+            </div>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => {
                 triggerHaptic("medium")
-                handleInstallClick()
+                setShowRegisterDialog(true)
               }}
-              className={`relative inline-flex items-center justify-center p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100/70 transition-all duration-300 active:scale-95 cursor-pointer ${
-                isInstallClicked ? "text-blue-600 scale-110" : ""
-              }`}
-              title="Install Web App"
-              aria-label="Install Web App"
+              className="h-9 px-3 rounded-xl border-blue-200 bg-blue-50/70 hover:bg-blue-100/80 text-blue-700 font-semibold text-xs shrink-0 cursor-pointer"
             >
-              <ArrowDown
-                className={`w-4 h-4 stroke-[1.8] transition-all duration-300 ${
-                  isInstallClicked ? "animate-bounce text-blue-600 stroke-[2.2]" : ""
-                }`}
-              />
-            </button>
-          </>
-        )}
-      </div>
+              Register CCC
+            </Button>
+          </div>
+        </div>
 
-      {/* Rotating Bilingual Trust Line (English & Bengali) with Smooth Fade & Gradient */}
-      <div className="text-center pt-1.5 select-none min-h-[28px] flex items-center justify-center">
-        <p
-          className={`text-[14.5px] sm:text-[15.5px] font-medium tracking-normal transition-opacity duration-300 ${
-            textFade ? "opacity-100 scale-100" : "opacity-0 scale-95"
-          } ${langIndex === 1 ? "font-[family-name:var(--font-bengali)]" : "font-[family-name:var(--font-dm-sans)]"}`}
-        >
-          <span
-            className={`bg-gradient-to-r ${TRUSTED_GRADIENTS[gradientIndex]} bg-clip-text text-transparent drop-shadow-sm transition-all duration-700 inline-block`}
-          >
-            {langIndex === 0
-              ? `Trusted by ${initialTenantCount}+ CCCs`
-              : `${String(initialTenantCount).replace(/0/g, '০').replace(/1/g, '১').replace(/2/g, '২').replace(/3/g, '৩').replace(/4/g, '৪').replace(/5/g, '৫').replace(/6/g, '৬').replace(/7/g, '৭').replace(/8/g, '৮').replace(/9/g, '৯')}+ টি CCC-র বিশ্বস্ত সহযোগী`}
+        {/* Mobile Bilingual Trust Pill (shown below card on screens where left showcase is hidden) */}
+        <div className="lg:hidden flex justify-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-blue-50/80 px-3.5 py-1.5 text-xs font-semibold text-blue-800">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span
+              className={`transition-opacity duration-200 ${textFade ? "opacity-100" : "opacity-0"} ${
+                langIndex === 1 ? "font-[family-name:var(--font-bengali)]" : ""
+              }`}
+            >
+              {langIndex === 0
+                ? `Trusted by ${initialTenantCount}+ CCCs`
+                : `${toBengaliDigits(initialTenantCount)}+ টি CCC-র বিশ্বস্ত সহযোগী`}
+            </span>
+          </div>
+        </div>
+
+        {/* Visits & Officer Rating Trust Strip */}
+        <div className="flex items-center justify-center gap-2.5 text-xs text-slate-500 font-medium select-none">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200/80 px-3 py-1 text-slate-600 shadow-2xs">
+            <span className="font-semibold text-slate-800">
+              <AnimatedCounter value={visitCount} />
+            </span>
+            <span>visits</span>
           </span>
-        </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic("medium")
+              setShowFeedbackModal(true)
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200/80 px-3 py-1 text-slate-800 hover:border-amber-300 hover:bg-amber-50/60 active:scale-95 transition-all cursor-pointer font-semibold shadow-2xs group"
+            title="Click to view officer feedback and ratings"
+          >
+            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 group-hover:scale-110 transition-transform" />
+            <span>{averageRating}/5</span>
+            <span className="text-[11px] text-slate-400 font-normal">({totalFeedbacks})</span>
+          </button>
+        </div>
+
+        {/* Compact Footer Utility Links */}
+        <div className="flex items-center justify-center flex-wrap gap-x-2 gap-y-1.5 text-slate-500 text-xs">
+          <a
+            href="/privacy-policy"
+            onClick={() => triggerHaptic("medium")}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+            title="Privacy Policy"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Privacy</span>
+          </a>
+
+          <span className="text-slate-300">·</span>
+
+          <a
+            href="/terms-of-service"
+            onClick={() => triggerHaptic("medium")}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+            title="Terms of Service"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Terms</span>
+          </a>
+
+          <span className="text-slate-300">·</span>
+
+          <a
+            href="https://chat.whatsapp.com/LZKLg40n8FxCLdnAIO9HGE"
+            onClick={() => triggerHaptic("medium")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+            title="WhatsApp Support Group"
+          >
+            <svg
+              className="w-3.5 h-3.5 stroke-current fill-none"
+              viewBox="0 0 24 24"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            <span>Support</span>
+          </a>
+
+          <span className="text-slate-300">·</span>
+
+          <button
+            type="button"
+            onClick={handleShareClick}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer active:scale-95"
+            title="Share Platform Link"
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Share2 className="w-3.5 h-3.5" />
+            )}
+            <span>{copied ? "Copied" : "Share"}</span>
+          </button>
+
+          {!isStandalone && (
+            <>
+              <span className="text-slate-300">·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic("medium")
+                  handleInstallClick()
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:text-blue-700 hover:bg-blue-50 transition-all cursor-pointer active:scale-95 ${
+                  isInstallClicked ? "text-blue-600" : ""
+                }`}
+                title="Install Web App"
+              >
+                <ArrowDown
+                  className={`w-3.5 h-3.5 ${isInstallClicked ? "animate-bounce text-blue-600" : ""}`}
+                />
+                <span>Install App</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Comprehensive Feedback Reviews Modal Dialog */}
+      {/* Feedback Reviews Modal Dialog */}
       <LoginFeedbackDialog
         open={showFeedbackModal}
         onOpenChange={setShowFeedbackModal}
@@ -564,34 +606,40 @@ export function LoginForm({ initialFeedbacks, initialTenantCount = 90 }: LoginFo
       />
 
       {/* Self-Registration Dialog */}
-      <RegisterCccDialog 
-        open={showRegisterDialog} 
-        onOpenChange={setShowRegisterDialog} 
-      />
+      <RegisterCccDialog open={showRegisterDialog} onOpenChange={setShowRegisterDialog} />
 
       {/* Forgot Password / First-Time Login Password Setup Dialog */}
-      <ForgotPasswordDialog 
-        open={showForgotPasswordDialog} 
+      <ForgotPasswordDialog
+        open={showForgotPasswordDialog}
         onOpenChange={(open) => {
           setShowForgotPasswordDialog(open)
           if (!open) {
             setIsFirstLoginReset(false)
             setResetIdentifier("")
           }
-        }} 
+        }}
         initialIdentifier={resetIdentifier}
         isFirstLogin={isFirstLoginReset}
       />
 
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/75 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-900 border-t-transparent" />
-            <p className="text-xs font-semibold text-slate-700 animate-pulse">Signing in...</p>
-          </div>
-        </div>
-      )}
+      {/* Portaled Full-Viewport Signing In Overlay */}
+      {loading &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xl px-7 py-6 flex flex-col items-center gap-3.5 max-w-xs w-full text-center">
+              <div className="relative h-12 w-12 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-slate-900">Signing you in...</p>
+                <p className="text-xs text-slate-500">Verifying credentials &amp; preparing workspace</p>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   )
 }

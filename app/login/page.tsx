@@ -2,7 +2,7 @@ import { LoginForm } from "@/components/login-form"
 import { fetchApprovedFeedbacks } from "@/lib/feedback-service"
 import { fetchCachedTenantCount } from "@/lib/tenant-resolver"
 import { LoginDynamicHeader } from "@/components/login-dynamic-header"
-import { LoginBackgroundShowcase } from "@/components/login-background-showcase"
+import { LoginShowcasePanel } from "@/components/login-showcase-panel"
 
 export default async function LoginPage() {
   const [initialFeedbacks, tenantCount] = await Promise.all([
@@ -11,25 +11,25 @@ export default async function LoginPage() {
   ])
 
   return (
-    <div className="fixed inset-0 h-screen w-screen overflow-hidden overscroll-none flex flex-col items-center justify-center bg-gradient-to-b from-slate-50 via-slate-100/60 to-slate-50 relative px-4 sm:px-6 select-none">
-      {/* Background Animated SaaS Multi-Column Feature Showcase */}
-      <LoginBackgroundShowcase />
+    <div className="min-h-[100dvh] w-full bg-[#f6f8fb] lg:grid lg:grid-cols-12 overflow-x-hidden">
+      {/* Left Desktop Architectural Showcase Stage */}
+      <LoginShowcasePanel tenantCount={tenantCount} />
 
-      {/* Soft Ambient Vignette & Glow Accents */}
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(15,23,42,0.06)_100%)]" />
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-gradient-to-tr from-blue-400/15 via-indigo-400/10 to-transparent rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute -bottom-20 right-1/4 w-80 h-80 bg-sky-300/10 rounded-full blur-3xl pointer-events-none -z-10" />
+      {/* Right Sign-In Workspace (Full-screen scrollable centered on mobile/tablet) */}
+      <main className="lg:col-span-6 xl:col-span-5 relative flex flex-col items-center justify-center min-h-[100dvh] px-4 py-8 sm:px-8 sm:py-10">
+        {/* Soft Ambient Light Accents */}
+        <div className="pointer-events-none absolute top-0 right-0 h-72 w-72 rounded-full bg-blue-400/[0.08] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-0 h-72 w-72 rounded-full bg-indigo-400/[0.08] blur-3xl" />
 
-      <div className="max-w-[420px] w-full my-auto space-y-3.5 relative z-10">
-        {/* Dynamic Morphing Brand Header */}
-        <LoginDynamicHeader />
+        <div className="w-full max-w-[430px] relative z-10 space-y-5">
+          {/* Dynamic Brand Header (prominent on mobile/tablet where left showcase is hidden) */}
+          <div className="lg:hidden">
+            <LoginDynamicHeader />
+          </div>
 
-        <LoginForm initialFeedbacks={initialFeedbacks} initialTenantCount={tenantCount} />
-      </div>
+          <LoginForm initialFeedbacks={initialFeedbacks} initialTenantCount={tenantCount} />
+        </div>
+      </main>
     </div>
   )
 }
-
-
-
-

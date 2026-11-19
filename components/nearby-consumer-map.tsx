@@ -1,8 +1,19 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
-import { Loader2, MapPin, Navigation, ArrowLeft, RefreshCw, X } from "lucide-react"
+import {
+  Loader2,
+  MapPin,
+  Navigation,
+  ArrowLeft,
+  RefreshCw,
+  Crosshair,
+  Layers,
+  Filter,
+  Compass,
+} from "lucide-react"
 import type { ConsumerData } from "@/lib/google-sheets"
 import { toast } from "@/hooks/use-toast"
 
@@ -20,28 +31,26 @@ interface Props {
 
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3
-  const phi1 = lat1 * Math.PI / 180
-  const phi2 = lat2 * Math.PI / 180
-  const deltaPhi = (lat2 - lat1) * Math.PI / 180
-  const deltaLambda = (lon2 - lon1) * Math.PI / 180
+  const phi1 = (lat1 * Math.PI) / 180
+  const phi2 = (lat2 * Math.PI) / 180
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180
   const a =
     Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) *
-    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2)
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2)
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// Returns a color class string based on disconnection status
 function getStatusColor(status: string): string {
   const s = (status || "").toLowerCase()
-  if (s === "master record") return "#3b82f6"       // Blue marker for Master Records
-  if (s === "connected") return "#ef4444"          // red
-  if (s === "disconnected") return "#22c55e"       // green
-  if (s === "paid" || s === "agency paid") return "#16a34a" // dark green
-  if (s === "visited") return "#f97316"            // orange
-  if (s === "not found") return "#8b5cf6"          // purple
-  if (s === "bill dispute" || s === "office team") return "#0ea5e9" // blue
-  return "#64748b"                                  // slate default
+  if (s === "master record") return "#3b82f6"
+  if (s === "connected") return "#ef4444"
+  if (s === "disconnected") return "#22c55e"
+  if (s === "paid" || s === "agency paid") return "#16a34a"
+  if (s === "visited") return "#f97316"
+  if (s === "not found") return "#8b5cf6"
+  if (s === "bill dispute" || s === "office team") return "#0ea5e9"
+  return "#64748b"
 }
 
 function formatOsdValue(value: string | number | undefined): string {
@@ -58,16 +67,20 @@ function formatOsdMarkerLabel(value: string | number | undefined): string {
   return `₹${Math.round(numeric)}`
 }
 
-export function NearbyConsumerMap({ 
-  consumers, 
-  onClose, 
+function formatRangeLabel(val: number): string {
+  return val >= 1000 ? `${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)} km` : `${val}m`
+}
+
+export function NearbyConsumerMap({
+  consumers,
+  onClose,
   onGoToConsumer,
   defaultRange = 500,
   minRange = 500,
   maxRange = 5000,
   stepRange = 500,
   defaultFilterPending = false,
-  isMasterMode = false
+  isMasterMode = false,
 }: Props) {
   const [range, setRange] = useState<number>(defaultRange)
   const [leafletLoaded, setLeafletLoaded] = useState(false)
@@ -75,15 +88,45 @@ export function NearbyConsumerMap({
   const [loadingLocation, setLoadingLocation] = useState(true)
   const [filterPending, setFilterPending] = useState(defaultFilterPending)
   const [mapType, setMapType] = useState<"roadmap" | "hybrid">("roadmap")
+  const [mounted, setMounted] = useState(false)
 
-  // Store callback in ref so Leaflet popup HTML can call it without stale closure
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const nearestMarkerRef = useRef<any>(null)
   const goToRef = useRef(onGoToConsumer)
-  useEffect(() => { goToRef.current = onGoToConsumer }, [onGoToConsumer])
+  const onCloseRef = useRef(onClose)
 
-  // Expose global bridges so Leaflet popup buttons can trigger navigation or directions
+  useEffect(() => {
+    goToRef.current = onGoToConsumer
+  }, [onGoToConsumer])
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // Mount portal, lock background page scroll, and support Escape to return
+  useEffect(() => {
+    setMounted(true)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCloseRef.current()
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [])
+
+  // Expose global bridges so Leaflet popup buttons trigger navigation or Google Maps directions
   useEffect(() => {
     ;(window as any).__nearbyConsumerGo = (consumerId: string) => {
-      const consumer = consumers.find(c => c.consumerId === consumerId)
+      const consumer = consumers.find((c) => c.consumerId === consumerId)
       if (consumer) goToRef.current(consumer)
     }
     ;(window as any).__nearbyConsumerOpenDirections = (lat: number, lng: number) => {
@@ -96,27 +139,33 @@ export function NearbyConsumerMap({
     }
   }, [consumers])
 
-  // ── Load Leaflet once using shared loader (keeps scripts/styles for reuse) ─
+  // Load Leaflet once via shared loader
   useEffect(() => {
-    let mounted = true
+    let active = true
     ;(async () => {
       try {
         const mod = await import("@/lib/leaflet-loader")
         await mod.ensureLeafletLoaded()
-        if (mounted) setLeafletLoaded(true)
+        if (active) setLeafletLoaded(true)
       } catch (err) {
         console.error("Failed to load Leaflet:", err)
       }
     })()
-    return () => { mounted = false }
+    return () => {
+      active = false
+    }
   }, [])
 
-  // ── GPS Location ──────────────────────────────────────────────────────────
+  // GPS Location
   const fetchLocation = () => {
     setLoadingLocation(true)
     if (!navigator.geolocation) {
-      toast({ variant: "destructive", title: "GPS unavailable", description: "Geolocation is not supported by your browser." })
-      setUserCoords([25.452202, 88.021090])
+      toast({
+        variant: "destructive",
+        title: "GPS unavailable",
+        description: "Geolocation is not supported by your browser.",
+      })
+      setUserCoords([25.452202, 88.02109])
       setLoadingLocation(false)
       return
     }
@@ -126,8 +175,11 @@ export function NearbyConsumerMap({
         setLoadingLocation(false)
       },
       () => {
-        toast({ title: "Location access denied", description: "Centering radar map on default office coordinates." })
-        setUserCoords([25.452202, 88.021090])
+        toast({
+          title: "Location access denied",
+          description: "Centering GPS radar on default office coordinates.",
+        })
+        setUserCoords([25.452202, 88.02109])
         setLoadingLocation(false)
       },
       { enableHighAccuracy: true, timeout: 8000 }
@@ -166,9 +218,45 @@ export function NearbyConsumerMap({
       .filter(Boolean) as Array<{ consumer: ConsumerData; lat: number; lng: number; dist: number }>
   }, [consumers, userCoords, range, filterPending])
 
-  // ── Map Render ────────────────────────────────────────────────────────────
+  const nearestItem = useMemo(() => {
+    if (nearbyConsumers.length === 0) return null
+    return nearbyConsumers.reduce((best, item) => (item.dist < best.dist ? item : best), nearbyConsumers[0])
+  }, [nearbyConsumers])
+
+  const totalNearbyOsd = useMemo(
+    () => nearbyConsumers.reduce((sum, item) => sum + (Number.parseFloat(item.consumer.d2NetOS || "0") || 0), 0),
+    [nearbyConsumers]
+  )
+
+  const rangePresets = useMemo(() => {
+    if (maxRange <= 500) {
+      return [100, 200, 350, 500].filter((v) => v >= minRange && v <= maxRange)
+    }
+    return [500, 1000, 2000, 5000].filter((v) => v >= minRange && v <= maxRange)
+  }, [minRange, maxRange])
+
+  const handleRecenterOnUser = () => {
+    if (mapInstanceRef.current && userCoords) {
+      mapInstanceRef.current.flyTo(userCoords, mapInstanceRef.current.getZoom(), { duration: 0.45 })
+    }
+  }
+
+  const handleFocusNearest = () => {
+    if (mapInstanceRef.current && nearestItem) {
+      mapInstanceRef.current.flyTo([nearestItem.lat, nearestItem.lng], Math.max(17, mapInstanceRef.current.getZoom()), {
+        duration: 0.55,
+      })
+      if (nearestMarkerRef.current) {
+        setTimeout(() => {
+          nearestMarkerRef.current?.openPopup?.()
+        }, 420)
+      }
+    }
+  }
+
+  // Render Leaflet map into full-screen container
   useEffect(() => {
-    if (!userCoords || !leafletLoaded) return
+    if (!mounted || !userCoords || !leafletLoaded || !mapContainerRef.current) return
 
     const L = (window as any).L
     if (!L) return
@@ -180,28 +268,34 @@ export function NearbyConsumerMap({
       else if (range <= 400) zoom = 17
       else zoom = 16
     } else {
-      if (range >= 5000) zoom = 12
-      else if (range >= 3000) zoom = 13
-      else if (range >= 1500) zoom = 14
+      if (range >= 5000) zoom = 13
+      else if (range >= 3000) zoom = 14
+      else if (range >= 1500) zoom = 15
       else if (range >= 1000) zoom = 15
     }
 
-    const map = L.map("nearby-consumer-map-container").setView(userCoords, zoom)
+    const map = L.map(mapContainerRef.current, { zoomControl: true }).setView(userCoords, zoom)
+    mapInstanceRef.current = map
+    nearestMarkerRef.current = null
 
-    const googleTileUrl = mapType === "roadmap"
-      ? "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-      : "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+    const googleTileUrl =
+      mapType === "roadmap"
+        ? "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+        : "https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
 
     L.tileLayer(googleTileUrl, {
       maxZoom: 20,
       subdomains: ["mt0", "mt1", "mt2", "mt3"],
-      attribution: '&copy; <a href="https://maps.google.com">Google Maps</a>'
+      attribution: '&copy; <a href="https://maps.google.com">Google Maps</a>',
     }).addTo(map)
 
     // Range circle
     L.circle(userCoords, {
-      color: "#2563eb", fillColor: "#3b82f6",
-      fillOpacity: 0.07, radius: range, weight: 1.5
+      color: "#2563eb",
+      fillColor: "#3b82f6",
+      fillOpacity: 0.08,
+      radius: range,
+      weight: 1.5,
     }).addTo(map)
 
     // User location pulsing marker
@@ -215,21 +309,24 @@ export function NearbyConsumerMap({
           </div>
         `,
         iconSize: [20, 20],
-        iconAnchor: [10, 10]
-      })
-    }).addTo(map).bindTooltip("You are here", { permanent: false, direction: "top" })
+        iconAnchor: [10, 10],
+      }),
+    })
+      .addTo(map)
+      .bindTooltip("You are here", { permanent: false, direction: "top" })
 
     let nearestConsumer: { consumer: ConsumerData; lat: number; lng: number; dist: number } | null = null
 
     nearbyConsumers.forEach(({ consumer, lat, lng, dist }) => {
-      if (!nearestConsumer || dist < nearestConsumer.dist) {
+      const isNewNearest = !nearestConsumer || dist < nearestConsumer.dist
+      if (isNewNearest) {
         nearestConsumer = { consumer, lat, lng, dist }
       }
 
       const color = getStatusColor(consumer.disconStatus)
-      const osd = Number.parseFloat(consumer.d2NetOS || "0").toLocaleString()
-      const markerLabel = isMasterMode 
-        ? (consumer.baseClass || consumer.class || "—")
+      const osd = Number.parseFloat(consumer.d2NetOS || "0").toLocaleString("en-IN")
+      const markerLabel = isMasterMode
+        ? consumer.baseClass || consumer.class || "—"
         : formatOsdMarkerLabel(consumer.d2NetOS)
 
       const marker = L.marker([lat, lng], {
@@ -239,25 +336,28 @@ export function NearbyConsumerMap({
             <div style="
               padding: 2px 7px;
               background: ${color};
-              border: 2px solid rgba(0,0,0,0.15);
+              border: 2px solid rgba(255,255,255,0.85);
               border-radius: 999px;
               font-size: 9px;
               font-weight: 800;
               font-family: monospace;
               color: white;
               white-space: nowrap;
-              box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+              box-shadow: 0 2px 6px rgba(15,23,42,0.3);
               letter-spacing: 0.03em;
             ">
               ${markerLabel}
             </div>
           `,
-          iconAnchor: [20, 10]
-        })
+          iconAnchor: [20, 10],
+        }),
       }).addTo(map)
 
-      // Escape consumer ID and address for HTML attribute safety
       const safeId = (consumer.consumerId || "").replace(/"/g, "&quot;")
+      const safeName = (consumer.name || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
       const safeAddress = (consumer.address || "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -266,9 +366,9 @@ export function NearbyConsumerMap({
 
       const popupHtml = isMasterMode
         ? `
-        <div style="font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.6; color: #1e293b; min-width: 200px; max-width: 240px;">
+        <div style="font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.6; color: #1e293b; min-width: 210px; max-width: 250px;">
           <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
-            ${consumer.name}
+            ${safeName}
           </p>
           <p style="margin: 2px 0; color: #475569;">Class: <strong style="color:#0f172a;">${consumer.baseClass || consumer.class || "—"}</strong></p>
           <p style="margin: 2px 0; color: #475569;">Address: <strong style="color:#0f172a; font-weight:600;">${safeAddress}</strong></p>
@@ -293,9 +393,9 @@ export function NearbyConsumerMap({
         </div>
         `
         : `
-        <div style="font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.6; color: #1e293b; min-width: 200px; max-width: 240px;">
+        <div style="font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.6; color: #1e293b; min-width: 210px; max-width: 250px;">
           <p style="margin: 0 0 6px 0; font-weight: 800; font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
-            ${consumer.name}
+            ${safeName}
           </p>
           <p style="margin: 2px 0; color: #475569;">OSD: <strong style="color:#dc2626;">₹${osd}</strong></p>
           <p style="margin: 2px 0; color: #475569;">Class: <strong style="color:#0f172a;">${consumer.baseClass || consumer.class || "—"}</strong></p>
@@ -320,159 +420,294 @@ export function NearbyConsumerMap({
             </button>
           </div>
         </div>
-        `;
+        `
 
-      marker.bindPopup(popupHtml, { maxWidth: 260 })
+      marker.bindPopup(popupHtml, { maxWidth: 270 })
+
+      if (isNewNearest) {
+        nearestMarkerRef.current = marker
+      }
     })
 
     // Nearest consumer dashed line + arrow
     if (nearestConsumer) {
       const nc = nearestConsumer as { consumer: ConsumerData; lat: number; lng: number; dist: number }
       L.polyline([userCoords, [nc.lat, nc.lng]], {
-        color: "#ef4444", weight: 2, dashArray: "5,5", opacity: 0.85
+        color: "#ef4444",
+        weight: 2,
+        dashArray: "5,5",
+        opacity: 0.85,
       }).addTo(map)
 
       const midLat = (userCoords[0] + nc.lat) / 2
       const midLng = (userCoords[1] + nc.lng) / 2
       const dy = nc.lat - userCoords[0]
-      const dx = Math.cos(Math.PI / 180 * userCoords[0]) * (nc.lng - userCoords[1])
-      const angle = Math.atan2(dx, dy) * 180 / Math.PI
+      const dx = Math.cos((Math.PI / 180) * userCoords[0]) * (nc.lng - userCoords[1])
+      const angle = (Math.atan2(dx, dy) * 180) / Math.PI
 
       L.marker([midLat, midLng], {
         icon: L.divIcon({
           className: "direction-arrow-marker",
           html: `<div style="transform: rotate(${angle}deg); font-size: 15px; color: #ef4444; font-weight: bold; line-height: 1; text-shadow: 0 0 3px #fff;">▲</div>`,
           iconSize: [20, 20],
-          iconAnchor: [10, 10]
-        })
-      }).addTo(map).bindTooltip(
-        isMasterMode
-          ? `Nearest: ${nc.consumer.baseClass || nc.consumer.class || "—"} (${Math.round(nc.dist)}m)`
-          : `Nearest: ${formatOsdMarkerLabel(nc.consumer.d2NetOS)} (${Math.round(nc.dist)}m)`,
-        { permanent: true, direction: "top", className: "px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[9px] font-bold border-none shadow-md" }
-      )
+          iconAnchor: [10, 10],
+        }),
+      })
+        .addTo(map)
+        .bindTooltip(
+          isMasterMode
+            ? `Nearest: ${nc.consumer.baseClass || nc.consumer.class || "—"} (${Math.round(nc.dist)}m)`
+            : `Nearest: ${formatOsdMarkerLabel(nc.consumer.d2NetOS)} (${Math.round(nc.dist)}m)`,
+          {
+            permanent: true,
+            direction: "top",
+            className: "px-2 py-0.5 rounded bg-red-600 text-white font-mono text-[9px] font-bold border-none shadow-md",
+          }
+        )
     }
 
-    return () => { map.remove() }
-  }, [userCoords, range, nearbyConsumers, leafletLoaded, filterPending, mapType])
+    // Ensure full-viewport tiles size accurately right after portal mount & viewport resizes
+    const invalidate1 = setTimeout(() => map.invalidateSize(), 80)
+    const invalidate2 = setTimeout(() => map.invalidateSize(), 320)
+    const handleResize = () => map.invalidateSize()
+    window.addEventListener("resize", handleResize)
 
-  return (
-    <div className="flex flex-col h-[80vh] w-full border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-xl relative animate-in fade-in duration-300">
+    return () => {
+      clearTimeout(invalidate1)
+      clearTimeout(invalidate2)
+      window.removeEventListener("resize", handleResize)
+      mapInstanceRef.current = null
+      nearestMarkerRef.current = null
+      map.remove()
+    }
+  }, [mounted, userCoords, range, nearbyConsumers, leafletLoaded, filterPending, mapType, isMasterMode, maxRange])
 
-      {/* Header */}
-      <div className="bg-slate-900 text-white px-3 py-2 flex justify-between items-center z-40 gap-2 shrink-0">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full h-8 w-8 hover:bg-slate-800 text-white">
+  if (!mounted || typeof document === "undefined") return null
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90] w-screen h-[100dvh] bg-white flex flex-col overflow-hidden animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Locate Consumer GPS Radar"
+    >
+      {/* Dedicated Full-Screen Page Header */}
+      <header className="bg-slate-950 text-white px-3 sm:px-5 h-14 flex items-center justify-between gap-2 shrink-0 border-b border-slate-800 shadow-sm z-40">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-9 px-2.5 sm:px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white font-semibold text-xs gap-1.5 shrink-0 cursor-pointer"
+          >
             <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Button>
-          <Navigation className="h-4 w-4 text-blue-400" />
-          <span className="text-sm font-bold tracking-tight">Nearby Consumer Radar</span>
+
+          <div className="h-8 w-8 rounded-xl bg-blue-600/20 border border-blue-500/30 hidden sm:flex items-center justify-center shrink-0">
+            <Navigation className="h-4 w-4 text-blue-400" />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm sm:text-base font-bold tracking-tight truncate">
+                {isMasterMode ? "Consumer Master GPS Radar" : "Locate Consumer — GPS Radar"}
+              </h1>
+              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 shrink-0">
+                {nearbyConsumers.length} in range
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 hidden sm:block truncate">
+              Tap any marker to inspect details, launch Google Maps directions, or update status
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Map Type toggle */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <Button
+            type="button"
             variant="ghost"
-            onClick={() => setMapType(prev => prev === "roadmap" ? "hybrid" : "roadmap")}
-            className="h-7 px-2.5 text-[10px] font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-all duration-200"
+            onClick={() => setMapType((prev) => (prev === "roadmap" ? "hybrid" : "roadmap"))}
+            className="h-8 px-2.5 text-[11px] font-semibold rounded-lg border border-slate-700 bg-slate-800/90 text-slate-200 hover:bg-slate-700 hover:text-white gap-1.5 cursor-pointer"
+            title="Switch between Street and Satellite view"
           >
-            {mapType === "roadmap" ? "Satellite View" : "Street View"}
+            <Layers className="h-3.5 w-3.5 text-sky-400" />
+            <span className="hidden sm:inline">{mapType === "roadmap" ? "Satellite" : "Street"}</span>
           </Button>
 
-          {/* Pending only toggle */}
           {!isMasterMode && (
             <Button
+              type="button"
               variant="ghost"
               onClick={() => setFilterPending(!filterPending)}
-              className={`h-7 px-2.5 text-[10px] font-bold rounded-lg border transition-all duration-200 ${
+              className={`h-8 px-2.5 text-[11px] font-semibold rounded-lg border gap-1.5 cursor-pointer transition-colors ${
                 filterPending
-                  ? "bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30 hover:text-orange-400"
-                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30 hover:text-amber-200"
+                  : "bg-slate-800/90 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white"
               }`}
+              title="Toggle pending consumers only"
             >
-              {filterPending ? "Pending Only" : "Showing All"}
+              <Filter className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{filterPending ? "Pending Only" : "All Status"}</span>
             </Button>
           )}
 
-          {loadingLocation && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />}
-
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             onClick={fetchLocation}
-            className="rounded-full h-8 w-8 text-slate-400 hover:text-white"
-            title="Refresh GPS Location"
+            disabled={loadingLocation}
+            className="h-8 w-8 rounded-lg border border-slate-700 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer"
+            title="Refresh Live GPS Location"
+            aria-label="Refresh GPS Location"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="rounded-full h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800"
-            title="Close"
-          >
-            <X className="h-3.5 w-3.5" />
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingLocation ? "animate-spin text-blue-400" : ""}`} />
           </Button>
         </div>
-      </div>
+      </header>
 
-      {/* Legend bar */}
-      <div className="bg-slate-800 px-3 py-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 shrink-0">
-        {isMasterMode ? (
-          <div className="flex items-center gap-1">
-            <div className="h-2 w-2 rounded-full shrink-0 bg-[#3b82f6]" />
-            <span className="text-[10px] text-slate-300 font-medium">Consumer Master Records (Label shows Tariff Class)</span>
-          </div>
-        ) : (
-          [
-            { color: "#ef4444", label: "Connected" },
-            { color: "#f97316", label: "Visited" },
-            { color: "#22c55e", label: "Disconnected" },
-            { color: "#16a34a", label: "Paid" },
-            { color: "#8b5cf6", label: "Not Found" },
-            { color: "#0ea5e9", label: "Dispute/Office" },
-          ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-1">
-              <div className="h-2 w-2 rounded-full shrink-0" style={{ background: color }} />
-              <span className="text-[10px] text-slate-300 font-medium">{label}</span>
+      {/* Compact Legend Strip */}
+      <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-5 py-1.5 flex items-center justify-between gap-3 shrink-0 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-x-3.5 gap-y-1 shrink-0">
+          {isMasterMode ? (
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-[#3b82f6] ring-2 ring-blue-400/30" />
+              <span className="text-[11px] text-slate-300 font-medium">
+                Consumer Master Records (Marker badge shows Tariff Class)
+              </span>
             </div>
-          ))
-        )}
-      </div>
-
-      {/* Map body */}
-      <div className="flex-grow relative min-h-0 w-full bg-slate-100">
-        {(!leafletLoaded || loadingLocation) && (
-          <div className="absolute inset-0 bg-slate-50 flex flex-col items-center justify-center text-slate-500 text-sm gap-2.5 z-50">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="font-semibold text-xs">Retrieving GPS location &amp; loading map…</p>
-          </div>
-        )}
-        <div id="nearby-consumer-map-container" className="absolute inset-0 w-full h-full z-10" />
-      </div>
-
-      {/* Range footer */}
-      <div className="bg-slate-50 border-t px-4 py-3 flex flex-wrap items-center justify-between gap-3 z-40 w-full shrink-0">
-        <div className="flex items-center gap-2 shrink-0">
-          <MapPin className="h-4 w-4 text-red-500" />
-          <span className="text-xs font-bold text-slate-700">
-            Range: <span className="text-blue-600 font-mono font-extrabold">
-              {range >= 1000 ? `${(range / 1000).toFixed(1)} km` : `${range}m`}
-            </span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
-          <span>Nearby: {nearbyConsumers.length}</span>
-          {!isMasterMode && (
-            <>
-              <span className="text-slate-400">•</span>
-              <span>OSD: {formatOsdValue(nearbyConsumers.reduce((sum, item) => sum + (Number.parseFloat(item.consumer.d2NetOS || "0") || 0), 0))}</span>
-            </>
+          ) : (
+            [
+              { color: "#ef4444", label: "Connected" },
+              { color: "#f97316", label: "Visited" },
+              { color: "#22c55e", label: "Disconnected" },
+              { color: "#16a34a", label: "Paid" },
+              { color: "#8b5cf6", label: "Not Found" },
+              { color: "#0ea5e9", label: "Dispute/Office" },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1.5 shrink-0">
+                <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: color }} />
+                <span className="text-[11px] text-slate-300 font-medium">{label}</span>
+              </div>
+            ))
           )}
         </div>
-        <div className="flex-grow max-w-xs sm:max-w-md">
+
+        <div className="hidden lg:flex items-center gap-2 shrink-0">
+          {nearestItem && (
+            <button
+              type="button"
+              onClick={handleFocusNearest}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200 bg-rose-500/15 border border-rose-500/30 rounded-md px-2 py-0.5 transition-colors cursor-pointer"
+            >
+              <Compass className="h-3 w-3" />
+              Nearest: {Math.round(nearestItem.dist)}m
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleRecenterOnUser}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-300 hover:text-sky-200 bg-sky-500/15 border border-sky-500/30 rounded-md px-2 py-0.5 transition-colors cursor-pointer"
+          >
+            <Crosshair className="h-3 w-3" />
+            My Location
+          </button>
+        </div>
+      </div>
+
+      {/* Full-Viewport Edge-to-Edge Map Canvas */}
+      <div className="flex-1 relative min-h-0 w-full bg-slate-100">
+        {(!leafletLoaded || loadingLocation) && (
+          <div className="absolute inset-0 bg-slate-50/95 flex flex-col items-center justify-center text-slate-600 text-sm gap-3 z-50">
+            <div className="h-12 w-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center shadow-xs">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            </div>
+            <div className="text-center space-y-0.5">
+              <p className="font-bold text-slate-800 text-sm">Acquiring GPS signal...</p>
+              <p className="text-xs text-slate-500">Centering radar and loading map tiles</p>
+            </div>
+          </div>
+        )}
+
+        <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-10" />
+
+        {/* Floating Quick Action Buttons on Mobile/Tablet */}
+        {!loadingLocation && leafletLoaded && (
+          <div className="lg:hidden absolute right-3 bottom-3 z-[400] flex flex-col gap-2">
+            {nearestItem && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleFocusNearest}
+                className="h-9 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-lg text-xs font-bold gap-1.5 cursor-pointer"
+                title="Focus nearest consumer"
+              >
+                <Compass className="h-3.5 w-3.5" />
+                <span>{Math.round(nearestItem.dist)}m</span>
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="icon"
+              onClick={handleRecenterOnUser}
+              className="h-10 w-10 rounded-xl bg-white hover:bg-slate-50 text-blue-600 border border-slate-200 shadow-lg self-end cursor-pointer"
+              title="Recenter on my location"
+              aria-label="Recenter on my location"
+            >
+              <Crosshair className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Telemetry & Range Dock */}
+      <footer className="bg-white border-t border-slate-200 px-3 sm:px-5 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 z-40 shrink-0 shadow-[0_-4px_16px_-6px_rgba(15,23,42,0.08)]">
+        <div className="flex items-center justify-between sm:justify-start gap-3 sm:gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-rose-500 shrink-0" />
+            <span className="text-xs font-semibold text-slate-600">
+              Radius:{" "}
+              <span className="text-blue-700 font-mono font-extrabold">{formatRangeLabel(range)}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 rounded-lg px-2.5 py-1">
+            <span>
+              Nearby: <strong className="font-mono text-slate-900">{nearbyConsumers.length}</strong>
+            </span>
+            {!isMasterMode && (
+              <>
+                <span className="text-slate-300">|</span>
+                <span>
+                  OSD: <strong className="font-mono text-rose-700">{formatOsdValue(totalNearbyOsd)}</strong>
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-1 sm:max-w-lg justify-end">
+          {/* Quick range preset pills */}
+          <div className="hidden md:flex items-center gap-1 shrink-0">
+            {rangePresets.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setRange(preset)}
+                disabled={loadingLocation}
+                className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-colors cursor-pointer ${
+                  range === preset
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {formatRangeLabel(preset)}
+              </button>
+            ))}
+          </div>
+
           <input
             type="range"
             min={minRange}
@@ -480,11 +715,13 @@ export function NearbyConsumerMap({
             step={stepRange}
             value={range}
             onChange={(e) => setRange(Number(e.target.value))}
+            aria-label="Search radius in meters"
             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus:outline-none"
             disabled={loadingLocation}
           />
         </div>
-      </div>
-    </div>
+      </footer>
+    </div>,
+    document.body
   )
 }

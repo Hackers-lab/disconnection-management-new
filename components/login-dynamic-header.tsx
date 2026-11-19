@@ -5,6 +5,7 @@ import { Zap, RefreshCw, Gauge, ClipboardCheck, ShieldCheck, PowerOff } from "lu
 
 interface ModuleItem {
   title: string
+  subtitle: string
   icon: React.ComponentType<{ className?: string }>
   iconClass: string
 }
@@ -12,33 +13,39 @@ interface ModuleItem {
 const MODULES: ModuleItem[] = [
   {
     title: "Disconnection Management",
+    subtitle: "Live OSD tracking & agency zone sync",
     icon: Zap,
-    iconClass: "text-amber-400 fill-amber-400",
+    iconClass: "text-amber-300 fill-amber-300/90",
   },
   {
     title: "Permanent Disconnection",
+    subtitle: "Meter dismantling & note sheet workflow",
     icon: PowerOff,
-    iconClass: "text-rose-400",
+    iconClass: "text-rose-300",
   },
   {
-    title: "Reconnection Management",
+    title: "Reconnection Desk",
+    subtitle: "Payment verification & SLA tracking",
     icon: RefreshCw,
-    iconClass: "text-emerald-400",
+    iconClass: "text-emerald-300",
   },
   {
     title: "Meter Management",
+    subtitle: "Stock allotments & defective replacements",
     icon: Gauge,
-    iconClass: "text-sky-400",
+    iconClass: "text-sky-300",
   },
   {
-    title: "NSC Management",
+    title: "NSC & ICDS Operations",
+    subtitle: "New service connections & field inspections",
     icon: ClipboardCheck,
-    iconClass: "text-indigo-400",
+    iconClass: "text-indigo-300",
   },
   {
-    title: "DTR Management",
+    title: "DTR & Safety Audits",
+    subtitle: "Transformer health & hazard resolution",
     icon: ShieldCheck,
-    iconClass: "text-purple-400",
+    iconClass: "text-violet-300",
   },
 ]
 
@@ -53,7 +60,7 @@ export function LoginDynamicHeader() {
       timeoutId = setTimeout(() => {
         setCurrentIndex((prev) => (prev + 1) % MODULES.length)
         setIsTransitioning(false)
-      }, 220)
+      }, 200)
     }, 5200)
 
     return () => {
@@ -66,10 +73,9 @@ export function LoginDynamicHeader() {
   const IconComponent = current.icon
 
   return (
-    <div className="text-center space-y-2.5 select-none animate-fade-slide-up">
-      {/* Calm, Authoritative Brand Badge (no 90deg spinning or timer haptics) */}
+    <div className="text-center space-y-2 select-none">
       <div
-        className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 text-white shadow-md shadow-slate-900/15 ring-4 ring-white/85 transition-transform duration-300 hover:scale-105 ${
+        className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900 text-white shadow-lg shadow-blue-900/15 ring-4 ring-white transition-transform duration-300 ${
           isTransitioning ? "scale-95" : "scale-100"
         }`}
       >
@@ -82,19 +88,27 @@ export function LoginDynamicHeader() {
         </div>
       </div>
 
-      {/* Smooth Slide-Fade Title */}
-      <div className="h-8 flex items-center justify-center overflow-hidden">
-        <h1
-          className={`text-2xl sm:text-[26px] font-black tracking-tight text-slate-900 select-none transition-all duration-200 ease-out ${
-            isTransitioning ? "opacity-0 -translate-y-1.5" : "opacity-100 translate-y-0"
+      <div className="space-y-0.5">
+        <div className="min-h-[30px] flex items-center justify-center overflow-hidden">
+          <h1
+            className={`text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 transition-all duration-200 ease-out ${
+              isTransitioning ? "opacity-0 -translate-y-1" : "opacity-100 translate-y-0"
+            }`}
+          >
+            {current.title}
+          </h1>
+        </div>
+        <p
+          className={`text-xs text-slate-500 font-medium transition-opacity duration-200 ${
+            isTransitioning ? "opacity-0" : "opacity-100"
           }`}
         >
-          {current.title}
-        </h1>
+          {current.subtitle}
+        </p>
       </div>
 
-      {/* Subtle Progress Indicator Dots */}
-      <div className="flex items-center justify-center gap-1.5 pt-0.5">
+      {/* Progress Dots */}
+      <div className="flex items-center justify-center gap-1.5 pt-1">
         {MODULES.map((m, idx) => (
           <button
             key={m.title}
@@ -106,7 +120,7 @@ export function LoginDynamicHeader() {
             aria-label={m.title}
             className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
               idx === currentIndex
-                ? "w-5 bg-slate-800"
+                ? "w-5 bg-blue-600"
                 : "w-1.5 bg-slate-300 hover:bg-slate-400"
             }`}
           />

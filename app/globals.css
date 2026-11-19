@@ -443,8 +443,7 @@ html {
 }
 
 .animate-module-zoom {
-  animation: moduleZoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity;
+  animation: moduleZoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   transform-origin: center top;
 }
 
@@ -461,8 +460,7 @@ html {
 }
 
 .animate-form-expand {
-  animation: formExpandIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity;
+  animation: formExpandIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   transform-origin: center top;
 }
 
@@ -480,7 +478,6 @@ html {
 
 .animate-tab-enter {
   animation: tabContentEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  will-change: transform, opacity;
 }
 
 /* Smooth Filter Panel / Collapsible Tray Reveal */
@@ -497,7 +494,6 @@ html {
 
 .animate-panel-reveal {
   animation: panelReveal 0.2s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  will-change: transform, opacity;
   transform-origin: top center;
 }
 
@@ -515,7 +511,6 @@ html {
 
 .animate-bar-slide-up {
   animation: barSlideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  will-change: transform, opacity;
 }
 
 /* Subtle Horizontal Slide for List Rows & Timeline Items */
@@ -532,7 +527,6 @@ html {
 
 .animate-row-enter {
   animation: rowEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  will-change: transform, opacity;
 }
 
 /* -------------------------------------------------------------

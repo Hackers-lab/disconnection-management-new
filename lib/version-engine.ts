@@ -113,22 +113,18 @@ export async function compactBaseVersion(tenantId: string, moduleKey: string): P
   const nextBase = currentBase + 1
   const now = Date.now()
 
-  // Ensure lifetime_updates captures existing patches before reset
+  // Preserve existing patches AND record this base compaction event in lifetime_updates
   const lifetimeUpdatesKey = getTenantKey(tenantId, `${moduleKey}:lifetime_updates`)
-  const existingLifetime = (await getKV<number>(lifetimeUpdatesKey)) || 0
-  if (existingLifetime < currentPatch) {
-    await setKV(lifetimeUpdatesKey, currentPatch)
-  }
+  const existingLifetime = Number((await getKV<number>(lifetimeUpdatesKey)) || 0)
+  const nextLifetime = Math.max(existingLifetime, currentPatch) + 1
+  await setKV(lifetimeUpdatesKey, nextLifetime)
 
   await setKV(baseKey, nextBase)
   await setKV(patchKey, 0)
   await setKV(logKey, [])
   await setKV(lastBumpKey, now)
-  // Ensure last_updated_at is recorded if not present
-  const existingLastUpdated = await getKV<number>(lastUpdatedKey)
-  if (!existingLastUpdated) {
-    await setKV(lastUpdatedKey, now)
-  }
+  // Always bump last_updated_at when base version is compacted/rebuilt
+  await setKV(lastUpdatedKey, now)
 
   return { baseVersion: nextBase, patchVersion: 0 }
 }
@@ -297,6 +293,22 @@ export const SYSTEM_MODULE_REGISTRY: SystemModuleMeta[] = [
     description: "Permanent meter dismantling, live OSD tracking, store returns & note sheet finalization",
     category: "operations",
   },
+  {
+    key: "zone-map",
+    label: "Zone Mapping",
+    shortLabel: "Zone Map",
+    aliases: ["zone-map", "zone_map"],
+    description: "Agency-to-zone allocation rules, MRU mapping, and team territory configuration",
+    category: "infrastructure",
+  },
+  {
+    key: "gis",
+    label: "GIS Captures",
+    shortLabel: "GIS",
+    aliases: ["gis"],
+    description: "Geo-tagged field assets, transformer & pole coordinates, and GIS survey submissions",
+    category: "infrastructure",
+  },
 ]
 
 export interface SupplyModuleVersionDetail {
@@ -339,9 +351,9 @@ export interface GlobalVersionSummary {
   totalSuppliesCount: number
   activeSuppliesCount: number
   activeTodaySuppliesCount: number
-  topSupply: { cccCode: string; cccName: string; totalUpdates: number; updatesToday: number } | null
-  topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number } | null
-  moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number; activeSuppliesCount: number }>
+  topSupply: { cccCode: string; cccName: string; totalUpdates: number; lifetimeUpdates: number; updatesToday: number } | null
+  topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number; lifetimeUpdates: number; updatesToday: number } | null
+  moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; lifetimeUpdates: number; updatesToday: number; activeSuppliesCount: number }>
 }
 
 /**
@@ -371,12 +383,13 @@ export async function getSupplyModuleVersionsReport(
   let activeSuppliesCount = 0
   let activeTodaySuppliesCount = 0
 
-  const moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number; activeSuppliesCount: number }> = {}
+  const moduleTotals: Record<string, { moduleKey: string; moduleLabel: string; totalUpdates: number; lifetimeUpdates: number; updatesToday: number; activeSuppliesCount: number }> = {}
   SYSTEM_MODULE_REGISTRY.forEach(mod => {
     moduleTotals[mod.key] = {
       moduleKey: mod.key,
       moduleLabel: mod.label,
       totalUpdates: 0,
+      lifetimeUpdates: 0,
       updatesToday: 0,
       activeSuppliesCount: 0,
     }
@@ -396,10 +409,11 @@ export async function getSupplyModuleVersionsReport(
     let lastActiveTimestamp: number | null = null
 
     for (const mod of SYSTEM_MODULE_REGISTRY) {
-      // Check canonical key first, then aliases
+      // Check canonical key and all aliases, merging patch logs rather than overwriting
       let baseVersion = 1
       let patchVersion = 0
-      let patchLog: PatchPayload[] = []
+      const mergedPatchLog: PatchPayload[] = []
+      const seenPatchKeys = new Set<string>()
       let lastCompactedAt: number | null = null
       let storedLastUpdated: number | null = null
       let storedLifetime = 0
@@ -426,7 +440,14 @@ export async function getSupplyModuleVersionsReport(
           patchVersion = Number(pVal)
         }
         if (Array.isArray(lVal) && lVal.length > 0) {
-          patchLog = lVal
+          for (const item of lVal) {
+            if (!item || typeof item !== "object") continue
+            const dedupeKey = `${item.patchVersion ?? ""}|${item.timestamp ?? ""}|${item.recordId ?? ""}|${item.action ?? ""}`
+            if (!seenPatchKeys.has(dedupeKey)) {
+              seenPatchKeys.add(dedupeKey)
+              mergedPatchLog.push(item as PatchPayload)
+            }
+          }
         }
         if (bumpVal !== undefined && Number(bumpVal) > (lastCompactedAt || 0)) {
           lastCompactedAt = Number(bumpVal)
@@ -439,8 +460,9 @@ export async function getSupplyModuleVersionsReport(
         }
       }
 
-      const totalUpdates = patchVersion
-      const lifetimeUpdates = Math.max(storedLifetime, totalUpdates)
+      const baseCompactions = Math.max(0, baseVersion - 1)
+      const totalUpdates = Math.max(patchVersion, mergedPatchLog.length)
+      const lifetimeUpdates = Math.max(storedLifetime, totalUpdates + baseCompactions)
       supplyTotalUpdates += totalUpdates
       supplyLifetimeUpdates += lifetimeUpdates
 
@@ -450,19 +472,21 @@ export async function getSupplyModuleVersionsReport(
       let recentPatches: PatchPayload[] = []
       let modUpdatesToday = 0
 
-      if (patchLog && patchLog.length > 0) {
+      if (mergedPatchLog.length > 0) {
         // Sort descending by timestamp / patchVersion
-        const sortedLog = [...patchLog].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        const sortedLog = [...mergedPatchLog].sort(
+          (a, b) => (b.timestamp || 0) - (a.timestamp || 0) || (b.patchVersion || 0) - (a.patchVersion || 0)
+        )
         const latest = sortedLog[0]
         if (latest) {
           lastUpdated = Math.max(latest.timestamp || 0, lastUpdated || 0) || null
           lastAction = latest.action || null
           lastRecordId = latest.recordId || null
         }
-        recentPatches = sortedLog.slice(0, 10)
+        recentPatches = sortedLog.slice(0, 15)
 
         // Count updates made today (from patch log)
-        for (const p of patchLog) {
+        for (const p of mergedPatchLog) {
           if (p.timestamp && p.timestamp >= startOfTodayMs) {
             modUpdatesToday++
           }
@@ -472,6 +496,11 @@ export async function getSupplyModuleVersionsReport(
       // If lastUpdated was not in patch log (e.g. compacted), fallback to lastCompactedAt if newer
       if (lastCompactedAt && (!lastUpdated || lastCompactedAt > lastUpdated)) {
         lastUpdated = lastCompactedAt
+      }
+
+      // Count today's bulk compaction/sync events even after patchLog was cleared
+      if (modUpdatesToday === 0 && lastUpdated && lastUpdated >= startOfTodayMs && (baseCompactions > 0 || lifetimeUpdates > 0)) {
+        modUpdatesToday = 1
       }
 
       if (lastUpdated && (!lastActiveTimestamp || lastUpdated > lastActiveTimestamp)) {
@@ -487,6 +516,7 @@ export async function getSupplyModuleVersionsReport(
         moduleTotals[mod.key].activeSuppliesCount++
       }
       moduleTotals[mod.key].totalUpdates += totalUpdates
+      moduleTotals[mod.key].lifetimeUpdates += lifetimeUpdates
       moduleTotals[mod.key].updatesToday += modUpdatesToday
 
       modules[mod.key] = {
@@ -542,25 +572,47 @@ export async function getSupplyModuleVersionsReport(
     })
   }
 
-  // Sort supplies: highest updatesToday first, then totalUpdates, then cccCode
-  supplies.sort((a, b) => b.updatesToday - a.updatesToday || b.totalUpdates - a.totalUpdates || a.cccCode.localeCompare(b.cccCode))
+  // Sort supplies: highest updatesToday first, then lifetimeUpdates, then totalUpdates, then cccCode
+  supplies.sort(
+    (a, b) =>
+      b.updatesToday - a.updatesToday ||
+      b.lifetimeUpdates - a.lifetimeUpdates ||
+      b.totalUpdates - a.totalUpdates ||
+      a.cccCode.localeCompare(b.cccCode)
+  )
 
-  // Find top supply and top module
-  const topSupply = supplies.length > 0 && (supplies[0].totalUpdates > 0 || supplies[0].updatesToday > 0 || supplies[0].lifetimeUpdates > 0)
-    ? { cccCode: supplies[0].cccCode, cccName: supplies[0].cccName, totalUpdates: supplies[0].totalUpdates, updatesToday: supplies[0].updatesToday }
-    : null
+  // Find top supply and top module (account for lifetimeUpdates after base compactions)
+  const topSupply =
+    supplies.length > 0 &&
+    (supplies[0].totalUpdates > 0 || supplies[0].updatesToday > 0 || supplies[0].lifetimeUpdates > 0)
+      ? {
+          cccCode: supplies[0].cccCode,
+          cccName: supplies[0].cccName,
+          totalUpdates: supplies[0].totalUpdates,
+          lifetimeUpdates: supplies[0].lifetimeUpdates,
+          updatesToday: supplies[0].updatesToday,
+        }
+      : null
 
-  let topModule: { moduleKey: string; moduleLabel: string; totalUpdates: number; updatesToday: number } | null = null
-  let maxModUpdates = -1
+  let topModule: {
+    moduleKey: string
+    moduleLabel: string
+    totalUpdates: number
+    lifetimeUpdates: number
+    updatesToday: number
+  } | null = null
+  let maxModScore = -1
   for (const mod of SYSTEM_MODULE_REGISTRY) {
-    const tot = moduleTotals[mod.key]?.totalUpdates || 0
-    if (tot > maxModUpdates && tot > 0) {
-      maxModUpdates = tot
+    const entry = moduleTotals[mod.key]
+    const score = Math.max(entry?.lifetimeUpdates || 0, entry?.totalUpdates || 0)
+    if (score > maxModScore && score > 0) {
+      maxModScore = score
       topModule = {
         moduleKey: mod.key,
         moduleLabel: mod.label,
-        totalUpdates: tot,
-        updatesToday: moduleTotals[mod.key]?.updatesToday || 0,
+        totalUpdates: entry?.totalUpdates || 0,
+        lifetimeUpdates: entry?.lifetimeUpdates || 0,
+        updatesToday: entry?.updatesToday || 0,
       }
     }
   }

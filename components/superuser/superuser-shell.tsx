@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -92,6 +93,18 @@ export function SuperuserShell({
 }: SuperuserShellProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (loggingOut) return
+    setMobileMenuOpen(false)
+    setLoggingOut(true)
+    try {
+      await logout()
+    } catch {
+      setLoggingOut(false)
+    }
+  }
 
   useEffect(() => {
     try {
@@ -411,18 +424,18 @@ export function SuperuserShell({
             </button>
           ) : null}
 
-          <form action={logout}>
-            <button
-              type="submit"
-              title="Sign out of Superadmin"
-              className={`flex w-full items-center gap-2 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 text-xs font-semibold transition-colors cursor-pointer ${
-                collapsed ? "justify-center p-2" : "px-3 py-2"
-              }`}
-            >
-              <LogOut className="h-3.5 w-3.5 shrink-0" />
-              {!collapsed && <span>Sign Out</span>}
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={loggingOut}
+            title="Sign out of Superadmin"
+            className={`flex w-full items-center gap-2 rounded-xl border border-rose-200/80 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
+              collapsed ? "justify-center p-2" : "px-3 py-2"
+            }`}
+          >
+            <LogOut className="h-3.5 w-3.5 shrink-0" />
+            {!collapsed && <span>{loggingOut ? "Signing out..." : "Sign Out"}</span>}
+          </button>
         </div>
       </aside>
 
@@ -477,15 +490,15 @@ export function SuperuserShell({
                         <ExternalLink className="h-3 w-3 text-emerald-600" />
                       </a>
                     )}
-                    <form action={logout}>
-                      <button
-                        type="submit"
-                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 cursor-pointer"
-                      >
-                        <LogOut className="h-3.5 w-3.5" />
-                        <span>Sign Out</span>
-                      </button>
-                    </form>
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      disabled={loggingOut}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 cursor-pointer disabled:opacity-60"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span>{loggingOut ? "Signing out..." : "Sign Out"}</span>
+                    </button>
                   </div>
                 </SheetContent>
               </Sheet>
@@ -570,18 +583,18 @@ export function SuperuserShell({
                 <span className="hidden sm:inline">Add User</span>
               </Button>
 
-              <form action={logout} className="lg:hidden shrink-0">
-                <Button
-                  type="submit"
-                  size="icon"
-                  variant="outline"
-                  className="h-8 w-8 rounded-lg text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200 cursor-pointer"
-                  title="Sign out"
-                  aria-label="Sign out"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </Button>
-              </form>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={handleSignOut}
+                disabled={loggingOut}
+                className="lg:hidden shrink-0 h-8 w-8 rounded-lg text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200 cursor-pointer"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
 
@@ -632,6 +645,24 @@ export function SuperuserShell({
           {children}
         </main>
       </div>
+
+      {loggingOut &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xl px-7 py-6 flex flex-col items-center gap-3.5 max-w-xs w-full text-center">
+              <div className="relative h-12 w-12 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold text-slate-900">Signing out of Superadmin...</p>
+                <p className="text-xs text-slate-500">Closing your session securely</p>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

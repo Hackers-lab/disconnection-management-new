@@ -1102,35 +1102,31 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
   return (
     <div className="space-y-6">
-      {/* Nearby Consumer Radar overlay */}
+      {/* Dedicated Full-Screen Locate Consumer GPS Radar Page */}
       {showNearbyMap && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-4xl h-full max-h-[90vh]">
-            <NearbyConsumerMap
-              consumers={filteredConsumers}
-              onClose={() => setShowNearbyMap(false)}
-              onGoToConsumer={(consumer) => {
-                // Close radar, ensure card view and navigate to the consumer's page/card
-                setShowNearbyMap(false)
-                setViewMode("card")
-                // Find index in the current sorted list and compute page
-                const idx = sortedConsumers.findIndex((c) => c.consumerId === consumer.consumerId)
-                if (idx >= 0) {
-                  const page = Math.floor(idx / itemsPerPage) + 1
-                  setCurrentPage(page)
-                  // Wait for the UI to render the target card, then scroll and open update
-                  setTimeout(() => {
-                    const el = document.getElementById(`consumer-card-${consumer.consumerId}`)
-                    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
-                    setSelectedConsumer(consumer)
-                  }, 300)
-                } else {
-                  setSelectedConsumer(consumer)
-                }
-              }}
-            />
-          </div>
-        </div>
+        <NearbyConsumerMap
+          consumers={filteredConsumers}
+          onClose={() => setShowNearbyMap(false)}
+          onGoToConsumer={(consumer) => {
+            // Close radar, ensure card view and navigate to the consumer's page/card
+            setShowNearbyMap(false)
+            setViewMode("card")
+            // Find index in the current sorted list and compute page
+            const idx = sortedConsumers.findIndex((c) => c.consumerId === consumer.consumerId)
+            if (idx >= 0) {
+              const page = Math.floor(idx / itemsPerPage) + 1
+              setCurrentPage(page)
+              // Wait for the UI to render the target card, then scroll and open update
+              setTimeout(() => {
+                const el = document.getElementById(`consumer-card-${consumer.consumerId}`)
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+                setSelectedConsumer(consumer)
+              }, 300)
+            } else {
+              setSelectedConsumer(consumer)
+            }
+          }}
+        />
       )}
 
       {/* Admin/Executive warning banner when overdue reconnections exist */}

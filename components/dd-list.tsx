@@ -735,25 +735,21 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
           </Button>
         </div>
       )}
-      {/* Nearby Radar Map Overlay */}
+      {/* Dedicated Full-Screen Locate Consumer GPS Radar Page */}
       {showNearbyMap && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-4xl h-full max-h-[90vh]">
-            <NearbyConsumerMap
-              consumers={filteredConsumers as any}
-              onClose={() => setShowNearbyMap(false)}
-              onGoToConsumer={(consumer) => {
-                setShowNearbyMap(false)
-                setViewMode("card")
-                const idx = filteredConsumers.findIndex(c => c.consumerId === consumer.consumerId)
-                if (idx >= 0) {
-                  const page = Math.floor(idx / itemsPerPage) + 1
-                  setCurrentPage(page)
-                }
-              }}
-            />
-          </div>
-        </div>
+        <NearbyConsumerMap
+          consumers={filteredConsumers as any}
+          onClose={() => setShowNearbyMap(false)}
+          onGoToConsumer={(consumer) => {
+            setShowNearbyMap(false)
+            setViewMode("card")
+            const idx = filteredConsumers.findIndex((c) => c.consumerId === consumer.consumerId)
+            if (idx >= 0) {
+              const page = Math.floor(idx / itemsPerPage) + 1
+              setCurrentPage(page)
+            }
+          }}
+        />
       )}
 
       {/* Evidence Image Preview Lightbox Dialog */}

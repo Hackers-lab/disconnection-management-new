@@ -511,28 +511,25 @@ export function ConsumerMaster({ role, permissions }: ConsumerMasterProps) {
 
   return (
     <div className="space-y-4">
-      {/* Nearby Consumer Radar overlay */}
+      {/* Dedicated Full-Screen Consumer Master GPS Radar Page */}
       {showNearbyMap && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-4xl h-full max-h-[90vh]">
-            <NearbyConsumerMap
-              consumers={mappedConsumers}
-              defaultRange={500}
-              minRange={50}
-              maxRange={500}
-              stepRange={50}
-              defaultFilterPending={false}
-              onClose={() => setShowNearbyMap(false)}
-              onGoToConsumer={(consumer) => {
-                setShowNearbyMap(false)
-                const found = allData.find(c => c.consumerId === consumer.consumerId)
-                if (found) {
-                  setSelectedConsumer(found)
-                }
-              }}
-            />
-          </div>
-        </div>
+        <NearbyConsumerMap
+          consumers={mappedConsumers}
+          defaultRange={500}
+          minRange={50}
+          maxRange={500}
+          stepRange={50}
+          defaultFilterPending={false}
+          isMasterMode={true}
+          onClose={() => setShowNearbyMap(false)}
+          onGoToConsumer={(consumer) => {
+            setShowNearbyMap(false)
+            const found = allData.find((c) => c.consumerId === consumer.consumerId)
+            if (found) {
+              setSelectedConsumer(found)
+            }
+          }}
+        />
       )}
 
       {/* Header + stats */}

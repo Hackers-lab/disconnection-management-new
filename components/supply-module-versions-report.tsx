@@ -199,7 +199,7 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
 
       if (selectedModuleKey !== "all") {
         const modDetail = s.modules[selectedModuleKey]
-        if (!modDetail || (modDetail.totalUpdates === 0 && (modDetail.updatesToday || 0) === 0)) {
+        if (!modDetail || (!modDetail.isActive && (modDetail.updatesToday || 0) === 0)) {
           if (statusFilter === "active" || statusFilter === "today") return false
         }
       }
@@ -210,7 +210,10 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
     result.sort((a, b) => {
       let cmp = 0
       if (sortField === "today") {
-        cmp = (b.updatesToday || 0) - (a.updatesToday || 0) || b.totalUpdates - a.totalUpdates
+        cmp =
+          (b.updatesToday || 0) - (a.updatesToday || 0) ||
+          (b.lifetimeUpdates || 0) - (a.lifetimeUpdates || 0) ||
+          b.totalUpdates - a.totalUpdates
       } else if (sortField === "updates") {
         cmp = b.totalUpdates - a.totalUpdates
       } else if (sortField === "lifetime") {
@@ -228,11 +231,12 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
     return result
   }, [supplies, searchTerm, statusFilter, selectedModuleKey, sortField, sortAsc])
 
-  const maxPatchCount = useMemo(() => {
+  const maxActivityCount = useMemo(() => {
     let max = 1
     supplies.forEach((s) => {
       Object.values(s.modules).forEach((m) => {
-        if (m.totalUpdates > max) max = m.totalUpdates
+        const score = m.totalUpdates > 0 ? m.totalUpdates : (m.lifetimeUpdates || Math.max(0, m.baseVersion - 1))
+        if (score > max) max = score
       })
     })
     return max
@@ -675,7 +679,11 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                 +{globalSummary.topModule.updatesToday} today
               </p>
               <span className="inline-block text-[10px] font-mono font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5 py-0 mt-1">
-                {globalSummary.topModule.totalUpdates.toLocaleString()} total
+                {Math.max(
+                  globalSummary.topModule.lifetimeUpdates || 0,
+                  globalSummary.topModule.totalUpdates || 0
+                ).toLocaleString()}{" "}
+                cumulative
               </span>
             </div>
           ) : (
@@ -835,8 +843,8 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                   <th className="py-3 px-3.5 sticky left-0 z-30 bg-slate-50 border-r border-slate-200 min-w-[215px]">
                     Care Center (Supply)
                   </th>
-                  <th className="py-3 px-2 text-center border-r border-slate-200/80 w-[80px]">Today</th>
-                  <th className="py-3 px-2 text-center border-r border-slate-200/80 w-[85px]">Patches</th>
+                  <th className="py-3 px-2 text-center border-r border-slate-200/80 w-[76px]">Today</th>
+                  <th className="py-3 px-2 text-center border-r border-slate-200/80 w-[86px]">Cumulative</th>
                   {filteredModulesList.map((mod) => (
                     <th
                       key={mod.key}
@@ -895,14 +903,17 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                       <Badge
                         variant="outline"
                         className={`font-mono text-[11px] font-bold ${
-                          supply.totalUpdates > 0
-                            ? "bg-amber-50 border-amber-200 text-amber-800"
+                          (supply.lifetimeUpdates || supply.totalUpdates) > 0
+                            ? "bg-blue-50 border-blue-200 text-blue-800"
                             : "bg-slate-50 border-slate-200 text-slate-400"
                         }`}
-                        title={`Cumulative lifetime updates: ${supply.lifetimeUpdates || supply.totalUpdates}`}
+                        title={`Live uncompacted patches: ${supply.totalUpdates} • Cumulative updates: ${supply.lifetimeUpdates || supply.totalUpdates}`}
                       >
-                        {supply.totalUpdates.toLocaleString()}
+                        {(supply.lifetimeUpdates || supply.totalUpdates).toLocaleString()}
                       </Badge>
+                      {supply.totalUpdates > 0 && (
+                        <div className="text-[9px] text-amber-700 mt-0.5">{supply.totalUpdates} live</div>
+                      )}
                     </td>
 
                     {filteredModulesList.map((mod) => {
@@ -915,14 +926,29 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                         patchVersion: 0,
                         versionString: "v1.0",
                         totalUpdates: 0,
+                        lifetimeUpdates: 0,
+                        updatesToday: 0,
                         lastUpdated: null,
+                        lastCompactedAt: null,
                         lastAction: null,
                         lastRecordId: null,
                         recentPatches: [],
                         isActive: false,
                       }
 
-                      const cellBg = getVersionCellBgClass(detail.totalUpdates, maxPatchCount)
+                      const activityScore =
+                        detail.totalUpdates > 0
+                          ? detail.totalUpdates
+                          : detail.lifetimeUpdates || Math.max(0, detail.baseVersion - 1)
+                      const cellBg = getVersionCellBgClass(activityScore, maxActivityCount)
+                      const subLabel =
+                        detail.totalUpdates > 0
+                          ? `(${detail.totalUpdates})`
+                          : detail.lifetimeUpdates > 0
+                            ? `${detail.lifetimeUpdates} tot`
+                            : detail.baseVersion > 1
+                              ? "synced"
+                              : "idle"
 
                       return (
                         <td
@@ -933,12 +959,10 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                             type="button"
                             onClick={() => openInspector(supply, detail)}
                             className={`w-full py-1.5 px-1 rounded-lg border text-[11px] font-mono transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer select-none ${cellBg}`}
-                            title={`${supply.cccName} • ${mod.label}: ${detail.versionString} (${detail.totalUpdates} updates)`}
+                            title={`${supply.cccName} • ${mod.label}: ${detail.versionString} (${detail.totalUpdates} live patches, ${detail.lifetimeUpdates || 0} cumulative)`}
                           >
                             <span className="font-bold tracking-tight">{detail.versionString}</span>
-                            <span className="text-[9px] opacity-75 font-normal">
-                              {detail.totalUpdates > 0 ? `(${detail.totalUpdates})` : "idle"}
-                            </span>
+                            <span className="text-[9px] opacity-80 font-normal">{subLabel}</span>
                           </button>
                         </td>
                       )
@@ -955,20 +979,24 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                   <td className="py-3 px-2 text-center border-r border-slate-200 text-emerald-700 font-mono text-xs">
                     +{(globalSummary?.totalUpdatesTodayAllSupplies || 0).toLocaleString()}
                   </td>
-                  <td className="py-3 px-2 text-center border-r border-slate-200 text-amber-800 font-mono text-xs">
-                    {(globalSummary?.totalUpdatesAllSupplies || 0).toLocaleString()}
+                  <td className="py-3 px-2 text-center border-r border-slate-200 text-blue-800 font-mono text-xs">
+                    {(globalSummary?.totalLifetimeUpdatesAllSupplies || globalSummary?.totalUpdatesAllSupplies || 0).toLocaleString()}
                   </td>
-                  {filteredModulesList.map((mod) => (
-                    <td
-                      key={mod.key}
-                      className="py-3 px-2 text-center border-r border-slate-200/70 text-blue-700 font-mono text-[11px] last:border-r-0"
-                    >
-                      <div>{(globalSummary?.moduleTotals[mod.key]?.totalUpdates || 0).toLocaleString()}</div>
-                      <div className="text-[9px] font-normal text-slate-500">
-                        {globalSummary?.moduleTotals[mod.key]?.activeSuppliesCount || 0} CCCs
-                      </div>
-                    </td>
-                  ))}
+                  {filteredModulesList.map((mod) => {
+                    const modTot = globalSummary?.moduleTotals[mod.key]
+                    const displayCount = Math.max(modTot?.lifetimeUpdates || 0, modTot?.totalUpdates || 0)
+                    return (
+                      <td
+                        key={mod.key}
+                        className="py-3 px-2 text-center border-r border-slate-200/70 text-blue-700 font-mono text-[11px] last:border-r-0"
+                      >
+                        <div>{displayCount.toLocaleString()}</div>
+                        <div className="text-[9px] font-normal text-slate-500">
+                          {modTot?.activeSuppliesCount || 0} CCCs
+                        </div>
+                      </td>
+                    )
+                  })}
                 </tr>
               </tfoot>
             </table>
@@ -1011,8 +1039,8 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                       <span>Last update: {formatRelativeTime(supply.lastActiveTimestamp)}</span>
                     </p>
                   </div>
-                  <Badge variant="outline" className="bg-amber-50 border-amber-200 text-amber-800 font-mono text-xs font-bold shrink-0">
-                    {supply.totalUpdates.toLocaleString()}
+                  <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-800 font-mono text-xs font-bold shrink-0">
+                    {(supply.lifetimeUpdates || supply.totalUpdates).toLocaleString()}
                   </Badge>
                 </div>
               </CardHeader>
@@ -1029,6 +1057,8 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                   {modulesList.map((mod) => {
                     const detail = supply.modules[mod.key]
                     const totalUpdates = detail?.totalUpdates || 0
+                    const lifetimeUpdates = detail?.lifetimeUpdates || totalUpdates
+                    const isActive = Boolean(detail?.isActive)
                     const versionStr = detail?.versionString || "v1.0"
 
                     return (
@@ -1041,11 +1071,13 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                           {mod.label}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[11px] text-slate-500 font-mono">{totalUpdates}</span>
+                          <span className="text-[11px] text-slate-500 font-mono" title={`${totalUpdates} live • ${lifetimeUpdates} cumulative`}>
+                            {lifetimeUpdates}
+                          </span>
                           <Badge
                             variant="outline"
                             className={`font-mono text-[10px] ${
-                              totalUpdates > 0
+                              isActive
                                 ? "bg-blue-50 border-blue-200 text-blue-700 font-bold"
                                 : "bg-white border-slate-200 text-slate-400"
                             }`}
@@ -1065,13 +1097,24 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
         /* VIEW 3: MODULE LEADERBOARD VIEW */
         <div className="space-y-3">
           {modulesList.map((mod, idx) => {
-            const modSummary = globalSummary?.moduleTotals[mod.key] || { totalUpdates: 0, activeSuppliesCount: 0 }
+            const modSummary = globalSummary?.moduleTotals[mod.key] || {
+              totalUpdates: 0,
+              lifetimeUpdates: 0,
+              activeSuppliesCount: 0,
+            }
             const activeCount = modSummary.activeSuppliesCount
             const adoptionPct = supplies.length ? Math.round((activeCount / supplies.length) * 100) : 0
+            const modTotalDisplay = Math.max(modSummary.lifetimeUpdates || 0, modSummary.totalUpdates || 0)
 
             const topSuppliesForModule = [...supplies]
-              .filter((s) => (s.modules[mod.key]?.totalUpdates || 0) > 0)
-              .sort((a, b) => (b.modules[mod.key]?.totalUpdates || 0) - (a.modules[mod.key]?.totalUpdates || 0))
+              .filter((s) => Boolean(s.modules[mod.key]?.isActive))
+              .sort((a, b) => {
+                const aMod = a.modules[mod.key]
+                const bMod = b.modules[mod.key]
+                const aScore = Math.max(aMod?.lifetimeUpdates || 0, aMod?.totalUpdates || 0)
+                const bScore = Math.max(bMod?.lifetimeUpdates || 0, bMod?.totalUpdates || 0)
+                return bScore - aScore || (bMod?.baseVersion || 1) - (aMod?.baseVersion || 1)
+              })
 
             return (
               <Card key={mod.key} className="bg-white border-slate-200/80 shadow-2xs rounded-2xl overflow-hidden">
@@ -1093,10 +1136,10 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
 
                   <div className="flex items-center gap-4 self-end md:self-auto font-mono text-xs">
                     <div className="text-right">
-                      <div className="text-lg font-extrabold text-amber-700">
-                        {modSummary.totalUpdates.toLocaleString()}
+                      <div className="text-lg font-extrabold text-blue-700">
+                        {modTotalDisplay.toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-slate-500">Total Updates</div>
+                      <div className="text-[10px] text-slate-500">Cumulative Updates</div>
                     </div>
                     <div className="h-8 w-px bg-slate-200" />
                     <div className="text-right">
@@ -1121,6 +1164,7 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {topSuppliesForModule.map((s) => {
                         const detail = s.modules[mod.key]
+                        const countDisplay = Math.max(detail?.lifetimeUpdates || 0, detail?.totalUpdates || 0)
                         return (
                           <div
                             key={s.cccCode}
@@ -1142,7 +1186,7 @@ export function SupplyModuleVersionsReport({ onBackToDashboard }: SupplyModuleVe
                                 {detail?.versionString || "v1.0"}
                               </Badge>
                               <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                {detail?.totalUpdates} updates
+                                {countDisplay} total
                               </div>
                             </div>
                           </div>

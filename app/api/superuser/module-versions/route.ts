@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized: Superuser role required" }, { status: 401 })
     }
 
-    const tenants = await getTenantRegistry()
+    const tenants = await getTenantRegistry(true)
     const reportData = await getSupplyModuleVersionsReport(tenants)
 
     return NextResponse.json({
