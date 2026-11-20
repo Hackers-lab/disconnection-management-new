@@ -6,7 +6,7 @@ import Papa from "papaparse";
 import { useHashState } from "@/hooks/use-hash-state";
 import { getFromCache, saveToCache } from "@/lib/indexed-db";
 import { Table, TableHeader, TableRow, TableHead, TableCell, TableBody } from "@/components/ui/table";
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -440,6 +440,9 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
     const [clearZoneHistory, setClearZoneHistory] = useState(true);
     const [zoneUploadWarning, setZoneUploadWarning] = useState("");
     const [zoneUploadError, setZoneUploadError] = useState("");
+    const [zoneFormError, setZoneFormError] = useState("");
+    const [zoneFormSuccess, setZoneFormSuccess] = useState("");
+    const zoneMruInputRef = useRef<HTMLInputElement>(null);
 
     // Auto-suggest the column mapping using a 3-tier match:
     //  1. exact header-name match (synonyms, normalized)
@@ -842,9 +845,12 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
       const cachedConsumers = await getFromCache<any[]>("consumers_data_cache")
       if (cachedConsumers && Array.isArray(cachedConsumers) && cachedConsumers.length > 0) {
         const mruSet = new Set<string>()
-        cachedConsumers.forEach(c => { if (c.mru) mruSet.add(String(c.mru).trim().toUpperCase()) })
+        cachedConsumers.forEach(c => {
+          const cleanMru = String(c?.mru || "").trim().toUpperCase()
+          if (cleanMru) mruSet.add(cleanMru)
+        })
         const sorted = Array.from(mruSet).sort()
-        if (sorted.length > 0) setAvailableMrus(sorted)
+        setAvailableMrus(sorted)
       }
     } catch { /* ignore */ }
 
@@ -852,7 +858,7 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
     let hasLocalData = false
     try {
       const cached = await getFromCache<typeof zoneMapRows>(ZONE_MAP_CACHE_KEY)
-      if (cached && cached.length > 0) {
+      if (Array.isArray(cached) && cached.length > 0) {
         setZoneMapRows(cached)
         setZoneMapLoading(false)
         hasLocalData = true
@@ -862,19 +868,23 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
     // 3. Only fetch from server if local cache is completely empty or forced
     if (!hasLocalData || force) {
       try {
-        const mapResp = await fetch("/api/zone-map")
+        const mapResp = await fetch("/api/zone-map", { cache: "no-store" })
         if (mapResp.ok) {
           const fresh = await mapResp.json()
-          setZoneMapRows(fresh)
-          await saveToCache(ZONE_MAP_CACHE_KEY, fresh)
+          if (Array.isArray(fresh)) {
+            setZoneMapRows(fresh)
+            await saveToCache(ZONE_MAP_CACHE_KEY, fresh)
+          }
         }
       } catch { /* silent — cached data still shown */ }
       finally { setZoneMapLoading(false) }
     }
   }
 
-  const saveZoneMap = async (rows: { zone: string; agency: string; address?: string }[], clearHistory = false) => {
+  const saveZoneMap = async (rows: { zone: string; agency: string; address?: string }[], clearHistory = false): Promise<boolean> => {
     setZoneMapSaving(true)
+    setZoneFormError("")
+    setZoneFormSuccess("")
     try {
       const resp = await fetch("/api/zone-map", {
         method: "POST",
@@ -883,7 +893,9 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
       })
       const data = await resp.json().catch(() => ({}))
       if (resp.ok && data.success !== false) {
-        const updated = rows.map(r => ({ ...r, updatedOn: new Date().toLocaleDateString("en-IN") }))
+        const updated = Array.isArray(data.rows)
+          ? data.rows
+          : rows.map(r => ({ ...r, updatedOn: new Date().toLocaleDateString("en-IN") }))
         setZoneMapRows(updated)
         // Update cache immediately with new data so next open is instant.
         await saveToCache(ZONE_MAP_CACHE_KEY, updated)
@@ -893,23 +905,29 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
         const reassignedInfo = data.summary?.reassigned
           ? ` (${data.summary.reassigned} consumers auto-reassigned in sheet & version refreshed)`
           : ""
-        setMessage({
-          type: "success",
-          text: rows.length === 0
-            ? "Zone map cleared successfully."
-            : `Zone map saved successfully (${rows.length} mappings)${reassignedInfo}.`
-        })
-        if (rows.length > 0) {
+        const successText = rows.length === 0
+          ? "Zone map cleared successfully."
+          : `Zone map saved successfully (${updated.length} mappings)${reassignedInfo}.`
+        setMessage({ type: "success", text: successText })
+        setZoneFormSuccess(successText)
+        if (updated.length > 0) {
           setZoneMapJustSaved(true)
         }
         notifyOnboardingUpdated()
         setShowClearZoneDialog(false)
+        return true
       } else {
-        setMessage({ type: "error", text: data?.error || "Failed to save zone map" })
+        const errText = data?.error || `Failed to save zone map (HTTP ${resp.status})`
+        setMessage({ type: "error", text: errText })
+        setZoneFormError(errText)
+        return false
       }
     } catch (err: any) {
       console.error("Zone map save error:", err)
-      setMessage({ type: "error", text: err?.message || "Failed to communicate with server to save zone map" })
+      const errText = err?.message || "Failed to communicate with server to save zone map"
+      setMessage({ type: "error", text: errText })
+      setZoneFormError(errText)
+      return false
     } finally {
       setZoneMapSaving(false)
     }
@@ -987,10 +1005,10 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
     const loadAgencies = async () => {
       try {
         setLoading(true)
-        const response = await fetch("/api/admin/agencies")
+        const response = await fetch("/api/admin/agencies", { cache: "no-store" })
         if (response.ok) {
           const data = await response.json()
-          setAgencies(data)
+          if (Array.isArray(data)) setAgencies(data)
         }
       } catch (error) {
         console.error("Error loading agencies:", error)
@@ -3597,63 +3615,205 @@ export function AdminPanel({ onClose, initialView, onNavigateToConsumerMaster }:
               ) : (
                 <>
                   <div className="flex gap-2">
-                    <Button size="sm" variant={zoneUploadMode === "manual" ? "default" : "outline"} onClick={() => setZoneUploadMode("manual")}>Add / Edit</Button>
-                    <Button size="sm" variant={zoneUploadMode === "csv" ? "default" : "outline"} onClick={() => setZoneUploadMode("csv")}>Bulk Upload</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={zoneUploadMode === "manual" ? "default" : "outline"}
+                      onClick={() => {
+                        setZoneUploadMode("manual")
+                        setZoneFormError("")
+                        setTimeout(() => zoneMruInputRef.current?.focus(), 0)
+                      }}
+                    >
+                      Add / Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={zoneUploadMode === "csv" ? "default" : "outline"}
+                      onClick={() => setZoneUploadMode("csv")}
+                    >
+                      Bulk Upload
+                    </Button>
                   </div>
 
                   {/* Manual add row */}
-                  {zoneUploadMode === "manual" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
-                      <div className="space-y-1">
-                        <Label className="text-xs">MRU</Label>
-                        {availableMrus.length > 0 ? (
-                          <Select value={newZone} onValueChange={setNewZone}>
-                            <SelectTrigger className="h-8"><SelectValue placeholder="Select MRU" /></SelectTrigger>
-                            <SelectContent>
-                              {availableMrus.map(mru => (
-                                <SelectItem key={mru} value={mru}>{mru}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input placeholder="AB01MR" value={newZone}
-                            onChange={(e) => setNewZone(e.target.value.toUpperCase())} className="h-8 font-mono" />
+                  {zoneUploadMode === "manual" && (() => {
+                    const activeAgencyOptions = agencies.filter(a => a.isActive && a.name && a.name.trim() !== "")
+                    const normalizedMru = newZone.trim().toUpperCase()
+                    const isExistingMru = Boolean(normalizedMru && zoneMapRows.some(r => r.zone.trim().toUpperCase() === normalizedMru))
+
+                    const handleAddZone = async () => {
+                      const mru = newZone.trim().toUpperCase()
+                      const agency = newZoneAgency.trim().toUpperCase()
+                      if (!mru) {
+                        setZoneFormError("Please enter or select an MRU / Zone code (e.g. AB01MR).")
+                        zoneMruInputRef.current?.focus()
+                        return
+                      }
+                      if (!agency) {
+                        setZoneFormError(
+                          activeAgencyOptions.length === 0
+                            ? "No active agencies found. Please add an active agency in Manage Agencies first."
+                            : "Please select an agency for this zone."
+                        )
+                        return
+                      }
+                      setZoneFormError("")
+                      const updated = [
+                        ...zoneMapRows.filter(r => r.zone.trim().toUpperCase() !== mru),
+                        { zone: mru, agency, address: newZoneAddress.trim() },
+                      ].sort((a, b) => a.zone.localeCompare(b.zone))
+
+                      const ok = await saveZoneMap(updated)
+                      if (ok) {
+                        setNewZone("")
+                        setNewZoneAgency("")
+                        setNewZoneAddress("")
+                        if (zoneAgencyFilter !== "All" && zoneAgencyFilter.toUpperCase() !== agency) {
+                          setZoneAgencyFilter("All")
+                        }
+                        if (mruSearch.trim() && !mru.toLowerCase().includes(mruSearch.trim().toLowerCase())) {
+                          setMruSearch("")
+                        }
+                      }
+                    }
+
+                    return (
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <Label className="text-xs">MRU / Zone</Label>
+                              {availableMrus.length > 0 && (
+                                <Select
+                                  value=""
+                                  onValueChange={(val) => {
+                                    if (!val) return
+                                    setNewZone(val.toUpperCase())
+                                    setZoneFormError("")
+                                    const existing = zoneMapRows.find(r => r.zone.trim().toUpperCase() === val.toUpperCase())
+                                    if (existing) {
+                                      const matchedAgency = activeAgencyOptions.find(
+                                        a => a.name.trim().toUpperCase() === existing.agency.trim().toUpperCase()
+                                      )
+                                      if (matchedAgency) setNewZoneAgency(matchedAgency.name)
+                                      if (existing.address) setNewZoneAddress(existing.address)
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-5 w-auto px-1.5 text-[10px] text-blue-600 border-blue-200 bg-blue-50/70 hover:bg-blue-100/70">
+                                    <SelectValue placeholder="Pick MRU" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availableMrus.map(mru => (
+                                      <SelectItem key={mru} value={mru}>{mru}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                            <Input
+                              ref={zoneMruInputRef}
+                              list={availableMrus.length > 0 ? "zone-mru-suggestions" : undefined}
+                              placeholder="Type MRU e.g. AB01MR"
+                              value={newZone}
+                              onChange={(e) => {
+                                setNewZone(e.target.value.toUpperCase())
+                                if (zoneFormError) setZoneFormError("")
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !zoneMapSaving) {
+                                  e.preventDefault()
+                                  handleAddZone()
+                                }
+                              }}
+                              className="h-8 font-mono text-xs"
+                            />
+                            {availableMrus.length > 0 && (
+                              <datalist id="zone-mru-suggestions">
+                                {availableMrus.map(mru => (
+                                  <option key={mru} value={mru} />
+                                ))}
+                              </datalist>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Agency</Label>
+                            <Select
+                              value={newZoneAgency}
+                              onValueChange={(val) => {
+                                setNewZoneAgency(val)
+                                if (zoneFormError) setZoneFormError("")
+                              }}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder={activeAgencyOptions.length === 0 ? "No active agencies" : "Select agency"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activeAgencyOptions.length === 0 ? (
+                                  <div className="px-2 py-2 text-xs text-gray-500">
+                                    No active agencies. Add one in Manage Agencies.
+                                  </div>
+                                ) : (
+                                  activeAgencyOptions.map(a => (
+                                    <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Area / Address (optional)</Label>
+                            <Input
+                              placeholder="e.g. South zone, near market"
+                              value={newZoneAddress}
+                              onChange={(e) => setNewZoneAddress(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !zoneMapSaving) {
+                                  e.preventDefault()
+                                  handleAddZone()
+                                }
+                              }}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 self-end"
+                            disabled={zoneMapSaving}
+                            onClick={handleAddZone}
+                          >
+                            {zoneMapSaving ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4 mr-1" />
+                                {isExistingMru ? "Update" : "Add"}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+
+                        {zoneFormError && (
+                          <Alert variant="destructive" className="py-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="text-xs">{zoneFormError}</AlertDescription>
+                          </Alert>
+                        )}
+                        {zoneFormSuccess && !zoneFormError && (
+                          <Alert className="py-2 border-emerald-200 bg-emerald-50 text-emerald-800">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            <AlertDescription className="text-xs">{zoneFormSuccess}</AlertDescription>
+                          </Alert>
                         )}
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Agency</Label>
-                        <Select value={newZoneAgency} onValueChange={setNewZoneAgency}>
-                          <SelectTrigger className="h-8"><SelectValue placeholder="Select agency" /></SelectTrigger>
-                          <SelectContent>
-                            {agencies.filter(a => a.isActive).map(a => (
-                              <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Area / Address (optional)</Label>
-                        <Input placeholder="e.g. South zone, near market"
-                          value={newZoneAddress}
-                          onChange={(e) => setNewZoneAddress(e.target.value)}
-                          className="h-8 text-xs" />
-                      </div>
-                      <Button size="sm" className="h-8 self-end"
-                        disabled={!newZone || !newZoneAgency || zoneMapSaving}
-                        onClick={() => {
-                          const mru = newZone.trim().toUpperCase()
-                          const updated = [
-                            ...zoneMapRows.filter(r => r.zone !== mru),
-                            { zone: mru, agency: newZoneAgency.toUpperCase(), address: newZoneAddress },
-                          ].sort((a, b) => a.zone.localeCompare(b.zone))
-                          saveZoneMap(updated)
-                          setNewZone(""); setNewZoneAgency(""); setNewZoneAddress("")
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Save
-                      </Button>
-                    </div>
-                  )}
+                    )
+                  })()}
 
                   {/* Bulk CSV/Excel upload */}
                   {zoneUploadMode === "csv" && (

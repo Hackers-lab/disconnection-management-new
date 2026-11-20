@@ -15,10 +15,28 @@ const todayStr = () => {
   return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`
 }
 
-async function ensureTabsExist(spreadsheetId: string, tabs: { title: string; headers: string[] }[]) {
+async function ensureTabsExist(
+  spreadsheetId: string,
+  tabs: { title: string; headers: string[] }[]
+): Promise<Record<string, string>> {
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
-  const existingTitles = new Set(meta.data.sheets?.map(s => s.properties?.title) || [])
-  const missingTabs = tabs.filter(t => !existingTitles.has(t.title))
+  const existingTitles = (meta.data.sheets || [])
+    .map(s => s.properties?.title || "")
+    .filter(Boolean)
+
+  const normTitle = (s: string) => s.trim().toLowerCase()
+  const resolved: Record<string, string> = {}
+  const missingTabs: { title: string; headers: string[] }[] = []
+
+  for (const t of tabs) {
+    const match = existingTitles.find(et => normTitle(et) === normTitle(t.title))
+    if (match) {
+      resolved[t.title] = match
+    } else {
+      resolved[t.title] = t.title
+      missingTabs.push(t)
+    }
+  }
 
   if (missingTabs.length > 0) {
     // 1. Create missing sheets in 1 batchUpdate
@@ -42,6 +60,8 @@ async function ensureTabsExist(spreadsheetId: string, tabs: { title: string; hea
       )
     )
   }
+
+  return resolved
 }
 
 // Normalise an MRU/zone value: trim + uppercase. No truncation — store full MRU.
@@ -56,8 +76,9 @@ export const GET = withTenant(async function GET(request: NextRequest) {
   }
   try {
     const id = getSpreadsheetId()
-    await ensureTabsExist(id, [{ title: TAB, headers: ["MRU", "Agency", "Address", "Updated On"] }])
-    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `'${TAB}'!A:D` })
+    const tabMap = await ensureTabsExist(id, [{ title: TAB, headers: ["MRU", "Agency", "Address", "Updated On"] }])
+    const actualTab = tabMap[TAB] || TAB
+    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `'${actualTab}'!A:D` })
     const rows = (resp.data.values || []).slice(1)
     const data: ZoneRow[] = rows
       .map(r => ({
@@ -73,20 +94,37 @@ export const GET = withTenant(async function GET(request: NextRequest) {
       },
     })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message }, { status: 500 })
+    return NextResponse.json({ error: e?.message || "Failed to load zone map" }, { status: 500 })
   }
 })
 
 export const POST = withTenant(async function POST(request: NextRequest) {
   const session = await verifySession()
-  if (!session || session.role !== "admin") {
+  const role = (session?.role || "").toLowerCase()
+  if (!session || (role !== "admin" && role !== "superuser")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const { rows, clearHistory } = await request.json() as { rows: ZoneRow[]; clearHistory?: boolean }
-    
+    const body = await request.json() as { rows?: ZoneRow[]; clearHistory?: boolean }
+    const rawRows = Array.isArray(body?.rows) ? body.rows : []
+    const clearHistory = Boolean(body?.clearHistory)
+
+    // Normalize, filter invalid entries, and deduplicate by MRU (last entry wins)
+    const dedupedMap = new Map<string, ZoneRow>()
+    for (const r of rawRows) {
+      const zone = normMru(r?.zone || "")
+      const agency = normMru(r?.agency || "")
+      if (!zone || !agency) continue
+      dedupedMap.set(zone, {
+        zone,
+        agency,
+        address: String(r?.address || "").trim(),
+      })
+    }
+    const rows = Array.from(dedupedMap.values()).sort((a, b) => a.zone.localeCompare(b.zone))
+
     // Safety guard: Limit to 500 zones per CCC to prevent accidental consumer ID list uploads
-    if (rows && rows.length > 500) {
+    if (rows.length > 500) {
       return NextResponse.json({
         error: `Zone map limit exceeded: Received ${rows.length} entries (Maximum limit: 500). Please ensure you are uploading MRU/Zone codes, not Consumer IDs.`,
       }, { status: 400 })
@@ -94,12 +132,14 @@ export const POST = withTenant(async function POST(request: NextRequest) {
 
     const id = getSpreadsheetId()
 
-    await ensureTabsExist(id, [
+    const tabMap = await ensureTabsExist(id, [
       { title: TAB, headers: ["MRU", "Agency", "Address", "Updated On"] },
       { title: HISTORY_TAB, headers: ["Date", "MRU", "Previous Agency", "New Agency", "Changed By"] },
     ])
+    const actualTab = tabMap[TAB] || TAB
+    const actualHistoryTab = tabMap[HISTORY_TAB] || HISTORY_TAB
 
-    const existing = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `'${TAB}'!A:D` })
+    const existing = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `'${actualTab}'!A:D` })
     const existingRows = (existing.data.values || []).slice(1)
     const existingMap = new Map<string, { agency: string; address: string }>()
     existingRows.forEach(r => {
@@ -112,53 +152,42 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     const date = todayStr()
     const changedBy = session.userId || "admin"
 
-    ;(rows || []).forEach(r => {
-      const mru    = normMru(r.zone   || "")
-      const agency = normMru(r.agency || "")
-      const prev = existingMap.get(mru)
-      if (prev && prev.agency !== agency) {
-        historyEntries.push([date, mru, prev.agency, agency, changedBy])
-      } else if (!prev && agency) {
-        historyEntries.push([date, mru, "", agency, changedBy])
+    rows.forEach(r => {
+      const prev = existingMap.get(r.zone)
+      if (prev && prev.agency !== r.agency) {
+        historyEntries.push([date, r.zone, prev.agency, r.agency, changedBy])
+      } else if (!prev && r.agency) {
+        historyEntries.push([date, r.zone, "", r.agency, changedBy])
       }
     })
 
-    // Prepare batch update
-    const batchUpdates: any[] = []
-
     // 1. Clear existing rows
-    await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${TAB}'!A2:D` })
+    await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${actualTab}'!A2:D` })
 
     // 2. Write new mappings
-    if (rows && rows.length > 0) {
-      batchUpdates.push({
-        range: `'${TAB}'!A2:D`,
-        values: rows.map(r => [
-          normMru(r.zone    || ""),
-          normMru(r.agency  || ""),
-          (r.address || "").trim(),
-          date,
-        ]),
-      })
-    }
-
-    if (batchUpdates.length > 0) {
-      await sheets.spreadsheets.values.batchUpdate({
+    if (rows.length > 0) {
+      await sheets.spreadsheets.values.update({
         spreadsheetId: id,
+        range: `'${actualTab}'!A2:D${rows.length + 1}`,
+        valueInputOption: "RAW",
         requestBody: {
-          valueInputOption: "RAW",
-          data: batchUpdates,
+          values: rows.map(r => [
+            r.zone,
+            r.agency,
+            r.address || "",
+            date,
+          ]),
         },
       })
     }
 
     // 3. Clear or append history
     if (clearHistory) {
-      await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${HISTORY_TAB}'!A2:E` })
+      await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${actualHistoryTab}'!A2:E` })
     } else if (historyEntries.length > 0) {
       sheets.spreadsheets.values.append({
         spreadsheetId: id,
-        range: `'${HISTORY_TAB}'!A:E`,
+        range: `'${actualHistoryTab}'!A:E`,
         valueInputOption: "RAW",
         requestBody: { values: historyEntries },
       }).catch(err => console.warn("ZoneMapHistory append error:", err))
@@ -176,10 +205,8 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     let resyncSummary = null
     try {
       const zoneAgencyMap = new Map<string, string>()
-      ;(rows || []).forEach(r => {
-        const z = normMru(r.zone || "")
-        const a = normMru(r.agency || "")
-        if (z && a) zoneAgencyMap.set(z, a)
+      rows.forEach(r => {
+        if (r.zone && r.agency) zoneAgencyMap.set(r.zone, r.agency)
       })
 
       resyncSummary = await syncConsumersWithZoneMap({
@@ -195,10 +222,12 @@ export const POST = withTenant(async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       count: rows.length,
+      rows: rows.map(r => ({ ...r, updatedOn: date })),
       historyEntries: historyEntries.length,
       summary: resyncSummary,
     })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message }, { status: 500 })
+    console.error("POST /api/zone-map error:", e)
+    return NextResponse.json({ error: e?.message || "Failed to save zone map" }, { status: 500 })
   }
 })
