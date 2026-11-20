@@ -825,244 +825,253 @@ export function NscList({ userRole, userAgencies, username, agencies, permission
 
       {/* Application cards */}
       {tab !== "reports" && (
-        <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 animate-tab-enter">
+        <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
           {paginated.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 col-span-full animate-fade-slide-up">
-              <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p>No NSC applications found</p>
+            <div className="text-center py-14 text-gray-400 col-span-full bg-white rounded-xl border border-slate-200 animate-fade-slide-up">
+              <ClipboardList className="h-9 w-9 mx-auto mb-2.5 opacity-30" />
+              <p className="text-xs font-medium">No NSC applications found</p>
             </div>
-          ) : paginated.map((app, idx) => (
-            <Card key={app.receiveNo} className={`shadow-xs card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden border border-gray-200 hover:border-blue-200`}>
-              <CardContent className="p-4">
+          ) : paginated.map((app, idx) => {
+            const normStatus = normalizeNSCStatus(app.status)
+            const statusStripe =
+              normStatus === "connection_effected" || normStatus === "meter_issued" ? "border-l-emerald-500" :
+              normStatus === "dispute_issued" || isNSCDispute(app) ? "border-l-rose-500" :
+              normStatus === "quotation_issued" ? "border-l-blue-500" :
+              normStatus === "inspected" ? "border-l-indigo-500" :
+              ["project_required", "project_ongoing", "project_done"].includes(normStatus) ? "border-l-orange-500" :
+              "border-l-amber-500"
+            const headerTint =
+              normStatus === "connection_effected" || normStatus === "meter_issued" ? "bg-emerald-50/45" :
+              normStatus === "dispute_issued" || isNSCDispute(app) ? "bg-rose-50/45" :
+              normStatus === "quotation_issued" ? "bg-blue-50/45" :
+              normStatus === "inspected" ? "bg-indigo-50/40" :
+              ["project_required", "project_ongoing", "project_done"].includes(normStatus) ? "bg-orange-50/45" :
+              "bg-amber-50/40"
 
-                {/* Top row: receive no + phase chip + status badge + agency pill */}
-                <div className="flex items-start justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <span className="font-mono text-xs text-gray-400">{app.receiveNo}</span>
-                    {app.officeRefNo && (
-                      <>
-                        <span className="text-xs text-gray-300">|</span>
-                        <span className="font-mono text-xs text-blue-600 font-medium">Ref: {app.officeRefNo}</span>
-                      </>
+            return (
+              <Card key={app.receiveNo} className={`bg-white rounded-xl border border-slate-300/85 border-l-4 ${statusStripe} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden flex flex-col justify-between`}>
+                <div>
+                  {/* Compact Header */}
+                  <div className={`px-2.5 py-2 border-b border-slate-200/75 ${headerTint}`}>
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-extrabold text-slate-900 leading-tight truncate" title={app.applicantName}>
+                          {app.applicantName}
+                        </p>
+                        <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                          <span className="font-mono text-[10px] font-semibold text-slate-500">{app.receiveNo}</span>
+                          {app.officeRefNo && (
+                            <>
+                              <span className="text-[10px] text-slate-300">·</span>
+                              <span className="font-mono text-[10px] text-blue-700 font-semibold">Ref: {app.officeRefNo}</span>
+                            </>
+                          )}
+                          {app.isLegacy === "true" && (
+                            <Badge variant="outline" className="h-4 text-[9px] py-0 px-1 text-amber-700 border-amber-300 bg-amber-50/70">Legacy</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        <Badge className={`h-4 text-[9px] px-1.5 py-0 font-bold ${NSC_STATUS_COLORS[normStatus] || "bg-gray-100 text-gray-700"}`}>
+                          {NSC_STATUS_LABELS[normStatus] || app.status}
+                        </Badge>
+                        <span className={`text-[9px] font-bold px-1.5 py-0 rounded-full max-w-[100px] truncate ${agencyColor(app.agency)}`}>
+                          {app.agency}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Inline tags row */}
+                    <div className="flex items-center gap-1 flex-wrap mt-1">
+                      <span className={`text-[9px] font-bold px-1.5 py-0 rounded-full ${app.phase === "3P" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                        {app.phase}
+                      </span>
+                      <span className={`text-[9px] px-1.5 py-0 rounded-full font-semibold border ${
+                        app.appliedClass === "LT" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
+                        app.appliedClass === "HT" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                        "bg-slate-50 text-slate-700 border-slate-200"
+                      }`}>
+                        {CLASS_LABELS[app.appliedClass] || app.appliedClass}
+                      </span>
+                      {app.poleRequired === "yes" && (
+                        <span className="text-[9px] font-bold px-1.5 py-0 rounded-full bg-orange-100 text-orange-700">Pole</span>
+                      )}
+                      {isNSCDispute(app) && (
+                        <span className="text-[9px] font-bold px-1.5 py-0 rounded-full bg-rose-100 text-rose-700">⚠ Dispute</span>
+                      )}
+                      {app.projectId && (
+                        <span className="text-[9px] text-orange-700 font-mono font-semibold inline-flex items-center gap-0.5 bg-orange-50 px-1.5 py-0 rounded border border-orange-200">
+                          <FolderOpen className="h-2.5 w-2.5" />{app.projectId}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Compact Body */}
+                  <div className="px-2.5 py-2 space-y-1.5 text-[11px]">
+                    {app.careOf && (
+                      <p className="text-[10px] text-slate-500 truncate">C/O {app.careOf}</p>
                     )}
-                    {app.isLegacy === "true" && <Badge variant="outline" className="text-xs py-0 px-1 text-amber-700 border-amber-300">Legacy</Badge>}
-                    {/* Phase pill */}
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${app.phase === "3P" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                      {app.phase}
-                    </span>
-                    {app.poleRequired === "yes" && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Pole</span>
-                    )}
-                    {isNSCDispute(app) && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">⚠ Dispute</span>
+
+                    <div className="flex items-start gap-1 text-slate-600">
+                      <MapPin className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] leading-snug line-clamp-2">{app.address}</p>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <a href={`tel:${app.mobile}`} className="flex items-center gap-1 text-blue-600 font-mono font-semibold hover:underline">
+                          <Phone className="h-2.5 w-2.5" />{app.mobile}
+                        </a>
+                        {app.existingConsumerId && (
+                          <span className="font-mono text-amber-800 bg-amber-50 border border-amber-200/70 px-1.5 py-0 rounded">
+                            ID: {app.existingConsumerId}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 shrink-0">{app.receivedDate}</span>
+                    </div>
+
+                    {/* Processing & Meter compact strip */}
+                    {((app.status !== "pending" && (app.agencyDecision || app.adminDecision || app.applicationNo || app.memoNo)) || app.meterSerialNo) && (
+                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1 space-y-0.5 text-[10px]">
+                        {app.status !== "pending" && (app.agencyDecision || app.adminDecision || app.applicationNo || app.memoNo) && (
+                          <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-slate-500">
+                            {app.agencyDecision && (
+                              <span className={app.agencyDecision === "accepted" ? "text-emerald-700 font-semibold" : "text-rose-600 font-semibold"}>
+                                Agency: {app.agencyDecision}
+                              </span>
+                            )}
+                            {app.adminDecision && (
+                              <span className={app.adminDecision === "accepted" ? "text-emerald-700 font-semibold" : "text-rose-700 font-semibold"}>
+                                Admin: {app.adminDecision}
+                              </span>
+                            )}
+                            {app.applicationNo && <span className="font-mono text-emerald-700 font-semibold">App# {app.applicationNo}</span>}
+                            {app.memoNo && <span className="font-mono text-orange-700 font-semibold">Memo: {app.memoNo}</span>}
+                          </div>
+                        )}
+                        {app.meterSerialNo && (
+                          <div className="flex items-center gap-1.5 text-[10px]">
+                            <span className="font-mono font-bold text-purple-700">{app.meterSerialNo}</span>
+                            <span className="text-slate-400">→</span>
+                            <span className="text-slate-600 truncate">{app.agency}</span>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                  {/* Agency pill — right side */}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${agencyColor(app.agency)}`}>
-                    {app.agency}
-                  </span>
                 </div>
 
-                {/* Project link */}
-                {app.projectId && (
-                  <p className="text-xs text-orange-600 font-mono mt-0.5">
-                    <FolderOpen className="inline h-3 w-3 mr-1" />{app.projectId}
-                  </p>
-                )}
-
-                {/* Applicant info */}
-                <div className="mt-1.5">
-                  <div className="flex items-center justify-between gap-1">
-                    <p className="font-bold text-gray-900">{app.applicantName}</p>
-                    <Badge className={`shrink-0 text-[10px] px-1.5 py-0 ${NSC_STATUS_COLORS[normalizeNSCStatus(app.status)] || "bg-gray-100 text-gray-700"}`}>
-                      {NSC_STATUS_LABELS[normalizeNSCStatus(app.status)] || app.status}
-                    </Badge>
-                  </div>
-                  {app.careOf && (
-                    <>
-                      <p className="text-xs text-gray-500">C/O {app.careOf}</p>
-                      <hr className="my-1.5 border-gray-100" />
-                    </>
-                  )}
-
-                  <div className="flex items-start gap-1 mt-0.5">
-                    <MapPin className="h-3 w-3 text-gray-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-gray-600">{app.address}</p>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    <a href={`tel:${app.mobile}`} className="flex items-center gap-1 text-xs text-blue-600 font-mono">
-                      <Phone className="h-3 w-3" />{app.mobile}
-                    </a>
-                    {app.existingConsumerId && (
-                      <span className="text-xs font-mono text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                        ConsID: {app.existingConsumerId}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Processing summary */}
-                {app.status !== "pending" && (
-                  <div className="mt-1 text-xs text-gray-400">
-                    {app.agencyDecision && (
-                      <span className={`mr-2 ${app.agencyDecision === "accepted" ? "text-green-600" : "text-red-600"}`}>
-                        Agency: {app.agencyDecision}
-                      </span>
-                    )}
-                    {app.adminDecision && (
-                      <span className={app.adminDecision === "accepted" ? "text-green-700 font-medium" : "text-red-700 font-medium"}>
-                        Admin: {app.adminDecision}
-                      </span>
-                    )}
-                    {app.applicationNo && <span className="ml-2 font-mono text-green-700">App# {app.applicationNo}</span>}
-                    {app.memoNo        && <span className="ml-2 font-mono text-orange-700">Memo: {app.memoNo}</span>}
-                  </div>
-                )}
-
-                {app.meterSerialNo && (
-                  <div className="mt-1 flex items-center gap-2 text-xs">
-                    <span className="font-mono font-bold text-purple-700">{app.meterSerialNo}</span>
-                    <span className="text-gray-400">→</span>
-                    <span className="text-gray-600">{app.agency}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-xs text-gray-400 mt-1">
-                  <span>{app.receivedDate}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                    app.appliedClass === "LT" ? "bg-indigo-50 text-indigo-700 border-indigo-200" :
-                    app.appliedClass === "HT" ? "bg-purple-50 text-purple-700 border-purple-200" :
-                    "bg-slate-50 text-slate-700 border-slate-200"
-                  }`}>
-                    {CLASS_LABELS[app.appliedClass] || app.appliedClass}
-                  </span>
-                </div>
-
-                {/* ─ Action buttons ─────────────────────────────────────────── */}
-                <div className="flex gap-2 mt-3 pt-3 border-t flex-wrap">
-
-                  {/* View button — always visible */}
+                {/* Compact Action Footer */}
+                <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center gap-1.5 flex-wrap">
                   <button
-                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-slate-900 bg-gray-50 hover:bg-gray-100 rounded-lg px-2.5 py-1.5 border border-gray-200 transition"
+                    className="h-7 flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 rounded-md px-2 border border-slate-200 transition"
                     onClick={() => setViewApp(app)}
                     title="View full details"
                   >
-                    <Eye className="h-3.5 w-3.5" /> View
+                    <Eye className="h-3 w-3" /> View
                   </button>
 
-                  {/* Edit application details — available to admin, executives, and creators */}
                   {(isAdmin || canProcess || canCreate) && (
                     <button
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 border border-blue-200 transition font-medium"
+                      className="h-7 flex items-center gap-1 text-[11px] text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-md px-2 border border-blue-200 transition font-semibold"
                       onClick={() => { setSelected(app); setView("edit") }}
                       title="Edit application details"
                     >
-                      <Pencil className="h-3.5 w-3.5" /> Edit
+                      <Pencil className="h-3 w-3" /> Edit
                     </button>
                   )}
 
-                  {/* Agency / Inspector / Custom Role: inspect pending */}
-                  {canInspect && normalizeNSCStatus(app.status) === "pending" && (
-                    <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
+                  {canInspect && normStatus === "pending" && (
+                    <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold h-7 px-2 rounded-md shadow-xs"
                       onClick={() => { setSelected(app); setView("inspect") }}>
                       Start Inspection
                     </Button>
                   )}
-                  {/* Agency / Inspector: inspection submitted */}
-                  {!canInspect && normalizeNSCStatus(app.status) !== "pending" && (
-                    <p className="text-xs text-gray-500 flex items-center gap-1">
-                      <Check className="h-3 w-3 text-green-600" /> Inspection submitted
-                    </p>
+                  {!canInspect && normStatus !== "pending" && (
+                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                      <Check className="h-3 w-3 text-emerald-600" /> Submitted
+                    </span>
                   )}
 
-                  {/* Admin / Staff / Custom Role: process inspected */}
-                  {(isAdmin || canProcess) && normalizeNSCStatus(app.status) === "inspected" && (
-                    <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
+                  {(isAdmin || canProcess) && normStatus === "inspected" && (
+                    <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold h-7 px-2 rounded-md shadow-xs"
                       onClick={() => { setSelected(app); setView("process") }}>
                       Process
                     </Button>
                   )}
 
-                  {/* Admin / Executive: view/reprocess quotation or dispute */}
-                  {(isAdmin || canProcess) && (normalizeNSCStatus(app.status) === "quotation_issued" || normalizeNSCStatus(app.status) === "dispute_issued") && (
-                    <Button size="sm" variant="outline" className="flex-1 h-9 text-xs font-semibold rounded-lg shadow-sm bg-slate-950 hover:bg-slate-900 text-white border-slate-900 transition-colors"
+                  {(isAdmin || canProcess) && (normStatus === "quotation_issued" || normStatus === "dispute_issued") && (
+                    <Button size="sm" variant="outline" className="flex-1 h-7 px-2 text-[11px] font-bold rounded-md bg-slate-950 hover:bg-slate-900 text-white border-slate-900"
                       onClick={() => { setSelected(app); setView("process") }}>
                       View / Override
                     </Button>
                   )}
 
-                  {/* Admin: create project from quotation (pole cases only) */}
-                  {isAdmin && normalizeNSCStatus(app.status) === "quotation_issued" && app.poleRequired === "yes" && !app.projectId && (
-                    <Button size="sm" variant="outline" className="h-9 text-orange-700 border-orange-200 text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                  {isAdmin && normStatus === "quotation_issued" && app.poleRequired === "yes" && !app.projectId && (
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-orange-700 border-orange-200 bg-white text-[11px] font-bold rounded-md"
                       onClick={() => setProjectDialogApp(app)}>
-                      <FolderOpen className="h-3 w-3 mr-1" /> Create Project
+                      <FolderOpen className="h-3 w-3 mr-1" /> Project
                     </Button>
                   )}
 
-                  {/* Admin: project statuses */}
-                  {isAdmin && ["project_required", "project_ongoing", "project_done"].includes(normalizeNSCStatus(app.status)) && (
-                    <Button size="sm" variant="outline" className="flex-1 h-9 text-orange-700 border-orange-200 text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                  {isAdmin && ["project_required", "project_ongoing", "project_done"].includes(normStatus) && (
+                    <Button size="sm" variant="outline" className="flex-1 h-7 px-2 text-orange-700 border-orange-200 bg-white text-[11px] font-bold rounded-md"
                       onClick={() => { setTab("projects") }}>
-                      <FolderOpen className="h-3 w-3 mr-1" /> View Projects
+                      <FolderOpen className="h-3 w-3 mr-1" /> Projects
                     </Button>
                   )}
 
-                  {/* Admin: approve project if done */}
-                  {isAdmin && normalizeNSCStatus(app.status) === "project_ongoing" && projectMap[app.receiveNo]?.status === "done" && (
-                    <Button size="sm" className="h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                  {isAdmin && normStatus === "project_ongoing" && projectMap[app.receiveNo]?.status === "done" && (
+                    <Button size="sm" className="h-7 px-2 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold rounded-md"
                       onClick={() => { setSelectedProject(projectMap[app.receiveNo]); setProjectAction("approve") }}>
-                      Approve Project
+                      Approve
                     </Button>
                   )}
 
-                  {/* Agency: mark project complete */}
-                  {isAgency && ["project_required", "project_ongoing"].includes(normalizeNSCStatus(app.status)) && app.projectId &&
+                  {isAgency && ["project_required", "project_ongoing"].includes(normStatus) && app.projectId &&
                     projectMap[app.receiveNo]?.status === "ongoing" && projectMap[app.receiveNo]?.poNumber && (
-                    <Button size="sm" className="h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                    <Button size="sm" className="h-7 px-2 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold rounded-md"
                       onClick={() => { setSelectedProject(projectMap[app.receiveNo]); setProjectAction("complete") }}>
-                      Mark Work Done
+                      Mark Done
                     </Button>
                   )}
 
-                  {/* Admin / Executive: pending — reassign / process */}
-                  {(isAdmin || canProcess) && normalizeNSCStatus(app.status) === "pending" && (
-                    <Button size="sm" variant="outline" className="flex-1 h-9 border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                  {(isAdmin || canProcess) && normStatus === "pending" && (
+                    <Button size="sm" variant="outline" className="flex-1 h-7 px-2 border-slate-300 bg-white hover:bg-slate-100 text-slate-800 text-[11px] font-bold rounded-md"
                       onClick={() => { setSelected(app); setView("process") }}>
                       Process / Reassign
                     </Button>
                   )}
 
-                  {/* Admin: meter issued / connection effected — view only */}
-                  {isAdmin && (normalizeNSCStatus(app.status) === "meter_issued" || normalizeNSCStatus(app.status) === "connection_effected") && (
-                    <p className="text-xs text-teal-700 flex items-center gap-1 font-medium">
-                      <Check className="h-3 w-3" />
-                      {normalizeNSCStatus(app.status) === "connection_effected" ? "Connection effected" : "Meter issued — awaiting installation"}
-                    </p>
+                  {isAdmin && (normStatus === "meter_issued" || normStatus === "connection_effected") && (
+                    <span className="text-[10px] text-teal-700 flex items-center gap-1 font-semibold truncate">
+                      <Check className="h-3 w-3 shrink-0" />
+                      {normStatus === "connection_effected" ? "Effected" : "Meter issued"}
+                    </span>
                   )}
 
-                  {/* Admin: edit office ref no */}
                   {isAdmin && (
-                    <button
-                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 ml-auto"
-                      onClick={() => { setEditingRefApp(app); setRefNoInput(app.officeRefNo || "") }}
-                      title="Edit office reference number">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-
-                  {/* Admin: history button */}
-                  {isAdmin && (
-                    <button
-                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
-                      onClick={() => setHistoryApp(app)}
-                      title="View history logs">
-                      <Clock className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 ml-auto shrink-0">
+                      <button
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition"
+                        onClick={() => { setEditingRefApp(app); setRefNoInput(app.officeRefNo || "") }}
+                        title="Edit office reference number">
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent hover:border-slate-200 transition"
+                        onClick={() => setHistoryApp(app)}
+                        title="View history logs">
+                        <Clock className="h-3 w-3" />
+                      </button>
+                    </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </Card>
+            )
+          })}
         </div>
       )}
 

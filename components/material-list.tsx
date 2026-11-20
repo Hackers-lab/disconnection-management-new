@@ -773,21 +773,19 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
 
       {/* ── 1. MAIN MENU PANEL ── */}
       {view === "menu" && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 animate-tab-enter">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-2 animate-tab-enter">
           {/* Receive Card */}
           {hasReceiveAccess && (
             <Card
-              className="card-interactive animate-card-enter stagger-1 hover:shadow-lg border hover:border-emerald-200 hover:bg-emerald-50/20 cursor-pointer overflow-hidden group"
+              className="relative bg-white rounded-xl border border-slate-300/85 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-1 hover:border-emerald-300 cursor-pointer overflow-hidden group"
               onClick={() => setView("receive")}
             >
-              <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 transition-transform duration-200 group-hover:scale-105">
-                  <ArrowDownToLine className="h-6 w-6" />
+              <div className="h-[3px] w-full bg-emerald-500" />
+              <CardContent className="p-3.5 text-center space-y-2">
+                <div className="mx-auto w-10 h-10 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center justify-center text-emerald-700 transition-transform duration-200 group-hover:scale-105">
+                  <ArrowDownToLine className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-gray-900">Receive Material</h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Challan Inward entry (Multi-item)</p>
-                </div>
+                <h3 className="font-bold text-xs text-slate-900">Receive Material</h3>
               </CardContent>
             </Card>
           )}
@@ -795,17 +793,15 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           {/* Issue Card */}
           {hasIssueAccess && (
             <Card
-              className="card-interactive animate-card-enter stagger-2 hover:shadow-lg border hover:border-orange-200 hover:bg-orange-50/20 cursor-pointer overflow-hidden group"
+              className="relative bg-white rounded-xl border border-slate-300/85 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-2 hover:border-orange-300 cursor-pointer overflow-hidden group"
               onClick={() => setView("issue")}
             >
-              <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-700 transition-transform duration-200 group-hover:scale-105">
-                  <ArrowUpFromLine className="h-6 w-6" />
+              <div className="h-[3px] w-full bg-orange-500" />
+              <CardContent className="p-3.5 text-center space-y-2">
+                <div className="mx-auto w-10 h-10 bg-orange-50 border border-orange-200/80 rounded-xl flex items-center justify-center text-orange-700 transition-transform duration-200 group-hover:scale-105">
+                  <ArrowUpFromLine className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-gray-900">Issue Material</h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Handover to recipient (Multi-item)</p>
-                </div>
+                <h3 className="font-bold text-xs text-slate-900">Issue Material</h3>
               </CardContent>
             </Card>
           )}
@@ -813,17 +809,15 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           {/* Stock Card */}
           {hasStockAccess && (
             <Card
-              className="card-interactive animate-card-enter stagger-3 hover:shadow-lg border hover:border-amber-200 hover:bg-amber-50/20 cursor-pointer overflow-hidden group col-span-1"
+              className="relative bg-white rounded-xl border border-slate-300/85 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-3 hover:border-amber-300 cursor-pointer overflow-hidden group col-span-1"
               onClick={() => setView("stock")}
             >
-              <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 transition-transform duration-200 group-hover:scale-105">
-                  <Package className="h-6 w-6" />
+              <div className="h-[3px] w-full bg-amber-500" />
+              <CardContent className="p-3.5 text-center space-y-2">
+                <div className="mx-auto w-10 h-10 bg-amber-50 border border-amber-200/80 rounded-xl flex items-center justify-center text-amber-700 transition-transform duration-200 group-hover:scale-105">
+                  <Package className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-gray-900">Stock Register</h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">View balance stock & histories</p>
-                </div>
+                <h3 className="font-bold text-xs text-slate-900">Stock Register</h3>
               </CardContent>
             </Card>
           )}
@@ -831,17 +825,15 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
           {/* Settings Card */}
           {hasSettingsAccess && (
             <Card
-              className="card-interactive animate-card-enter stagger-4 hover:shadow-lg border hover:border-gray-300 hover:bg-gray-50/50 cursor-pointer overflow-hidden group col-span-1"
+              className="relative bg-white rounded-xl border border-slate-300/85 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-4 hover:border-slate-400 cursor-pointer overflow-hidden group col-span-1"
               onClick={() => setView("settings")}
             >
-              <CardContent className="p-5 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 transition-transform duration-200 group-hover:scale-105">
-                  <Settings className="h-6 w-6" />
+              <div className="h-[3px] w-full bg-slate-500" />
+              <CardContent className="p-3.5 text-center space-y-2">
+                <div className="mx-auto w-10 h-10 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-700 transition-transform duration-200 group-hover:scale-105">
+                  <Settings className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-gray-900">Settings</h3>
-                  <p className="text-[10px] text-gray-400 mt-0.5">Manage catalogue & clear errors</p>
-                </div>
+                <h3 className="font-bold text-xs text-slate-900">Settings</h3>
               </CardContent>
             </Card>
           )}
@@ -1168,21 +1160,21 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
               </div>
 
               {/* History Ledger Cards Layout */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 
                 {/* Left Column: Inward Receipts (Receive Logs) */}
                 {(historyTypeFilter === "all" || historyTypeFilter === "receive") && (
-                  <div className={`space-y-2.5 ${historyTypeFilter === "receive" ? "col-span-full" : ""}`}>
+                  <div className={`space-y-2 ${historyTypeFilter === "receive" ? "col-span-full" : ""}`}>
                     <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5 px-1">
-                      <ArrowDownToLine className="h-4 w-4 text-emerald-600" />
+                      <ArrowDownToLine className="h-3.5 w-3.5 text-emerald-600" />
                       Inward Receipts (Challan Logs)
                     </p>
-                    <div className="border border-slate-100 rounded-2xl bg-slate-50/50 p-2.5 space-y-2.5 max-h-[60vh] overflow-y-auto shadow-inner">
+                    <div className="border border-slate-200/80 rounded-xl bg-slate-50/60 p-2 space-y-2 max-h-[62vh] overflow-y-auto shadow-inner">
                       {filteredUnifiedHistory.filter(h => h.type === "receive").map((r, idx) => (
-                        <div key={`${r.id}-${idx}`} className="p-3.5 text-xs bg-white border border-slate-100 rounded-xl space-y-1.5 relative group shadow-sm">
-                          <div className="flex items-start justify-between pr-8">
-                            <div>
-                              <p className="font-semibold text-slate-900">{r.materialDesc}</p>
+                        <div key={`${r.id}-${idx}`} className="px-2.5 py-2 text-[11px] bg-white border border-slate-300/80 border-l-4 border-l-emerald-500 rounded-lg space-y-1 relative group shadow-[0_1px_4px_-1px_rgba(15,23,42,0.08)]">
+                          <div className="flex items-start justify-between pr-7 gap-2">
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 leading-tight truncate">{r.materialDesc}</p>
                               <p className="text-[10px] text-slate-500 font-mono">
                                 ID: {r.id} · Qty: <span className="font-bold text-emerald-700">+{r.quantity} {r.unit}</span>
                               </p>
@@ -1191,29 +1183,29 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50 absolute top-3 right-3"
+                                className="h-6 w-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 absolute top-2 right-2"
                                 onClick={() => setPreviewImage({ url: getGoogleDriveDirectLink(r.photoUrl || ""), title: r.materialDesc })}
                                 title="View Attached Photo"
                               >
-                                <ImageIcon className="h-4 w-4" />
+                                <ImageIcon className="h-3.5 w-3.5" />
                               </Button>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-400 border-t pt-1.5 border-dashed border-slate-100">
-                            <div><span className="font-semibold text-slate-600">Challan:</span> {r.ref || "—"}</div>
-                            <div><span className="font-semibold text-slate-600">From:</span> {r.party}</div>
-                            <div><span className="font-semibold text-slate-600">Date:</span> {r.date}</div>
-                            <div><span className="font-semibold text-slate-600">By:</span> {r.by}</div>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-slate-500 border-t pt-1 border-dashed border-slate-200">
+                            <div className="truncate"><span className="font-semibold text-slate-700">Challan:</span> {r.ref || "—"}</div>
+                            <div className="truncate"><span className="font-semibold text-slate-700">From:</span> {r.party}</div>
+                            <div className="truncate"><span className="font-semibold text-slate-700">Date:</span> {r.date}</div>
+                            <div className="truncate"><span className="font-semibold text-slate-700">By:</span> {r.by}</div>
                           </div>
                           {r.remarks && (
-                            <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 p-2 rounded-lg italic">
+                            <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200/70 px-2 py-1 rounded italic">
                               Remarks: {r.remarks}
                             </div>
                           )}
                         </div>
                       ))}
                       {filteredUnifiedHistory.filter(h => h.type === "receive").length === 0 && (
-                        <p className="text-center py-10 text-xs text-slate-400 bg-white border border-dashed rounded-xl">No inward records found</p>
+                        <p className="text-center py-8 text-xs text-slate-400 bg-white border border-dashed rounded-lg">No inward records found</p>
                       )}
                     </div>
                   </div>
@@ -1221,59 +1213,59 @@ export function MaterialList({ userRole, userAgencies, username, permissions }: 
 
                 {/* Right Column: Outward Handovers (Issue Logs) */}
                 {(historyTypeFilter === "all" || historyTypeFilter === "issue") && (
-                  <div className={`space-y-2.5 ${historyTypeFilter === "issue" ? "col-span-full" : ""}`}>
+                  <div className={`space-y-2 ${historyTypeFilter === "issue" ? "col-span-full" : ""}`}>
                     <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5 px-1">
-                      <ArrowUpFromLine className="h-4 w-4 text-orange-600" />
+                      <ArrowUpFromLine className="h-3.5 w-3.5 text-orange-600" />
                       Outward Handovers (Issues Logs)
                     </p>
-                    <div className="border border-slate-100 rounded-2xl bg-slate-50/50 p-2.5 space-y-2.5 max-h-[60vh] overflow-y-auto shadow-inner">
+                    <div className="border border-slate-200/80 rounded-xl bg-slate-50/60 p-2 space-y-2 max-h-[62vh] overflow-y-auto shadow-inner">
                       {filteredUnifiedHistory.filter(h => h.type === "issue").map((i, idx) => (
-                        <div key={`${i.id}-${idx}`} className="p-3.5 text-xs bg-white border border-slate-100 rounded-xl space-y-1.5 relative group shadow-sm">
-                          <div className="flex items-start justify-between pr-8">
-                            <div>
-                              <p className="font-semibold text-slate-900">{i.materialDesc}</p>
+                        <div key={`${i.id}-${idx}`} className="px-2.5 py-2 text-[11px] bg-white border border-slate-300/80 border-l-4 border-l-orange-500 rounded-lg space-y-1 relative group shadow-[0_1px_4px_-1px_rgba(15,23,42,0.08)]">
+                          <div className="flex items-start justify-between pr-14 gap-2">
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 leading-tight truncate">{i.materialDesc}</p>
                               <p className="text-[10px] text-slate-500 font-mono">
                                 ID: {i.id} · Qty: <span className="font-bold text-orange-700">-{i.quantity} {i.unit}</span>
                               </p>
                             </div>
-                            <div className="absolute top-3 right-3 flex items-center gap-1">
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
                               {i.photoUrl && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                  className="h-6 w-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                                   onClick={() => setPreviewImage({ url: getGoogleDriveDirectLink(i.photoUrl || ""), title: i.materialDesc })}
                                   title="View Attached Photo"
                                 >
-                                  <ImageIcon className="h-4 w-4" />
+                                  <ImageIcon className="h-3.5 w-3.5" />
                                 </Button>
                               )}
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-7 w-7 text-slate-500 hover:text-slate-700 bg-white border-slate-200 hover:bg-slate-50"
+                                className="h-6 w-6 text-slate-600 hover:text-slate-800 bg-white border-slate-200 hover:bg-slate-50"
                                 onClick={() => handlePrintSlip(i.id)}
                                 title="Print Requisition Note"
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                <Printer className="h-3 w-3" />
                               </Button>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-400 border-t pt-1.5 border-dashed border-slate-100">
-                            <div><span className="font-semibold text-slate-600">To:</span> {i.party}</div>
-                            <div><span className="font-semibold text-slate-600">Purpose:</span> {i.ref || "—"}</div>
-                            <div><span className="font-semibold text-slate-600">Date:</span> {i.date}</div>
-                            <div><span className="font-semibold text-slate-600">By:</span> {i.by}</div>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-slate-500 border-t pt-1 border-dashed border-slate-200">
+                            <div className="truncate"><span className="font-semibold text-slate-700">To:</span> {i.party}</div>
+                            <div className="truncate"><span className="font-semibold text-slate-700">Purpose:</span> {i.ref || "—"}</div>
+                            <div className="truncate"><span className="font-semibold text-slate-700">Date:</span> {i.date}</div>
+                            <div className="truncate"><span className="font-semibold text-slate-700">By:</span> {i.by}</div>
                           </div>
                           {i.remarks && (
-                            <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-100 p-2 rounded-lg italic">
+                            <div className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200/70 px-2 py-1 rounded italic">
                               Remarks: {i.remarks}
                             </div>
                           )}
                         </div>
                       ))}
                       {filteredUnifiedHistory.filter(h => h.type === "issue").length === 0 && (
-                        <p className="text-center py-10 text-xs text-slate-400 bg-white border border-dashed rounded-xl">No outward records found</p>
+                        <p className="text-center py-8 text-xs text-slate-400 bg-white border border-dashed rounded-lg">No outward records found</p>
                       )}
                     </div>
                   </div>

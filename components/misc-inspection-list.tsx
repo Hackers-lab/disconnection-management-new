@@ -464,161 +464,163 @@ export function MiscInspectionList({ role, agencies = [], permissions }: MiscIns
         </div>
       ) : viewMode === "card" ? (
         /* Grid Cards View */
-        <div key={`${subTab}-${selectedCategory}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 animate-tab-enter">
-          {filteredRecords.map((r, idx) => (
-            <Card key={r.id} className={`overflow-hidden card-interactive hover:shadow-lg border border-slate-200/90 rounded-2xl bg-white flex flex-col justify-between animate-card-enter stagger-${(idx % 6) + 1}`}>
-              <CardContent className="p-4 space-y-3">
-                {/* Header Row: ID & Category on Left, Agency Name Prominently on TOP RIGHT */}
-                <div className="flex items-start justify-between border-b pb-2.5 gap-2">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge variant="outline" className="font-mono text-xs font-bold text-blue-700 bg-blue-50 border-blue-200">
+        <div key={`${subTab}-${selectedCategory}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
+          {filteredRecords.map((r, idx) => {
+            const leftBar = r.status === "FINALIZED"
+              ? "border-l-emerald-500"
+              : r.status === "INSPECTED"
+              ? "border-l-blue-500"
+              : r.status === "REJECTED"
+              ? "border-l-red-500"
+              : "border-l-violet-500"
+            return (
+            <Card key={r.id} className={`overflow-hidden card-interactive shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] border border-slate-300/85 border-l-4 ${leftBar} rounded-xl bg-white flex flex-col justify-between animate-card-enter stagger-${(idx % 6) + 1}`}>
+              <div>
+                {/* Compact Header */}
+                <div className="px-2.5 py-2 bg-slate-50/85 border-b border-slate-200/75 space-y-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1 flex-wrap min-w-0">
+                      <Badge variant="outline" className="font-mono text-[9.5px] font-bold px-1.5 py-0 h-4 text-blue-700 bg-blue-50 border-blue-200">
                         {r.id}
                       </Badge>
-                      <Badge variant="secondary" className="text-[10px] py-0.5 px-2 font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <Badge variant="secondary" className="text-[9px] py-0 px-1.5 h-4 font-semibold bg-white text-slate-700 border border-slate-200">
                         {r.category}
                       </Badge>
                       <Badge
                         variant={r.priority === "CRITICAL" || r.priority === "HIGH" ? "destructive" : "outline"}
-                        className="text-[10px] py-0 px-1.5 font-bold"
+                        className="text-[9px] py-0 px-1 h-4 font-bold"
                       >
                         {r.priority}
                       </Badge>
                     </div>
-                  </div>
-
-                  {/* TOP RIGHT: Agency Name Badge */}
-                  <div className="shrink-0 text-right">
-                    <Badge className="bg-slate-900 text-white font-bold px-2.5 py-1 text-[11px] rounded-lg shadow-sm border border-slate-700 flex items-center gap-1">
-                      <Building2 className="h-3 w-3 text-amber-400" />
-                      <span>{r.agency || "Unassigned"}</span>
+                    <Badge className="bg-slate-900 text-white font-bold px-1.5 py-0 h-4 text-[9px] rounded border border-slate-700 flex items-center gap-0.5 shrink-0 max-w-[90px] truncate">
+                      <Building2 className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                      <span className="truncate">{r.agency || "Unassigned"}</span>
                     </Badge>
                   </div>
+                  <h3 className="font-extrabold text-[12.5px] text-slate-900 line-clamp-1 leading-tight" title={r.title}>{r.title}</h3>
                 </div>
 
-                {/* Body Details */}
-                <div>
-                  <h3 className="font-bold text-xs text-slate-900 line-clamp-1">{r.title}</h3>
-                  {r.description && <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{r.description}</p>}
-                </div>
+                {/* Compact Body */}
+                <div className="px-2.5 py-2 space-y-1.5 text-[11px]">
+                  {r.description && <p className="text-[10.5px] text-slate-500 line-clamp-2 leading-snug">{r.description}</p>}
 
-                <div className="space-y-1 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
-                  <p className="truncate flex items-center gap-1.5 font-medium text-slate-800">
-                    <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                    <span><strong>Applicant:</strong> {r.applicantName || r.referenceNo}</span>
-                  </p>
-                  <p className="truncate flex items-center gap-1.5 text-slate-600">
-                    <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                    <span><strong>Address:</strong> {r.address || "No address provided"}</span>
-                  </p>
-                  {(r.referenceDocUrl || (r.referenceNo && (r.referenceNo.startsWith("http") || r.referenceNo.includes("drive.google.com")))) && (
-                    <div className="pt-1">
+                  <div className="space-y-0.5 text-[10.5px] text-slate-600 bg-slate-50/90 px-2 py-1.5 rounded-lg border border-slate-200/70">
+                    <p className="truncate flex items-center gap-1 font-medium text-slate-800">
+                      <User className="h-3 w-3 text-blue-500 shrink-0" />
+                      <span className="truncate">{r.applicantName || r.referenceNo}</span>
+                    </p>
+                    <p className="truncate flex items-center gap-1 text-slate-600">
+                      <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                      <span className="truncate">{r.address || "No address provided"}</span>
+                    </p>
+                    {(r.referenceDocUrl || (r.referenceNo && (r.referenceNo.startsWith("http") || r.referenceNo.includes("drive.google.com")))) && (
                       <a
                         href={r.referenceDocUrl || r.referenceNo}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md"
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:underline mt-0.5"
                       >
-                        <FileText className="h-3 w-3" />
-                        <span>View Reference Doc ↗</span>
+                        <FileText className="h-2.5 w-2.5" />
+                        <span>Reference Doc ↗</span>
                       </a>
-                    </div>
-                  )}
-                </div>
-
-                {/* Status & Site Decision Summary */}
-                <div className="flex items-center justify-between pt-1">
-                  <Badge
-                    variant={
-                      r.status === "FINALIZED"
-                        ? "default"
-                        : r.status === "INSPECTED"
-                        ? "secondary"
-                        : r.status === "REJECTED"
-                        ? "destructive"
-                        : "outline"
-                    }
-                    className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5"
-                  >
-                    {r.status}
-                  </Badge>
-
-                  {r.agencyDecision ? (
-                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      ✓ {r.agencyDecision}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-amber-600 font-medium italic">
-                      ⏳ Pending Inspection
-                    </span>
-                  )}
-                </div>
-
-                {r.agencyRemarks && (
-                  <p className="text-[11px] text-slate-600 bg-emerald-50/50 p-2 rounded-lg border border-emerald-100 italic line-clamp-2">
-                    "{r.agencyRemarks}"
-                  </p>
-                )}
-
-                {/* Card Action Buttons */}
-                <div className="flex items-center justify-between border-t pt-2.5 gap-1.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 gap-1 rounded-lg"
-                    onClick={() => {
-                      setSelectedRecord(r)
-                      setShowViewModal(true)
-                    }}
-                  >
-                    <Eye className="h-3.5 w-3.5" /> Details
-                  </Button>
-
-                  <div className="flex gap-1.5">
-                    {canInspect && (r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS") && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs font-bold gap-1 border-blue-400 text-blue-700 bg-blue-50/50 hover:bg-blue-600 hover:text-white transition-all rounded-lg shadow-sm"
-                        onClick={() => {
-                          setSelectedRecord(r)
-                          setShowUpdateModal(true)
-                        }}
-                      >
-                        <Camera className="h-3.5 w-3.5" /> Inspect
-                      </Button>
-                    )}
-
-                    {canFinalize && r.status === "INSPECTED" && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-8 text-xs font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm"
-                        onClick={() => {
-                          setSelectedRecord(r)
-                          setShowViewModal(true)
-                        }}
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" /> Finalize
-                      </Button>
-                    )}
-
-                    {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                        onClick={() => handleDelete(r.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
                     )}
                   </div>
+
+                  <div className="flex items-center justify-between gap-1">
+                    <Badge
+                      variant={
+                        r.status === "FINALIZED"
+                          ? "default"
+                          : r.status === "INSPECTED"
+                          ? "secondary"
+                          : r.status === "REJECTED"
+                          ? "destructive"
+                          : "outline"
+                      }
+                      className="text-[9px] font-bold uppercase px-1.5 py-0 h-4"
+                    >
+                      {r.status}
+                    </Badge>
+
+                    {r.agencyDecision ? (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 truncate">
+                        ✓ {r.agencyDecision}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-600 font-medium italic">
+                        ⏳ Pending
+                      </span>
+                    )}
+                  </div>
+
+                  {r.agencyRemarks && (
+                    <p className="text-[10px] text-slate-600 bg-emerald-50/50 px-2 py-1 rounded border border-emerald-100 italic line-clamp-2">
+                      "{r.agencyRemarks}"
+                    </p>
+                  )}
                 </div>
-              </CardContent>
+              </div>
+
+              {/* Single-Row Compact Footer */}
+              <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-[11px] font-semibold bg-white border-slate-200 text-slate-700 hover:bg-slate-100 gap-1 rounded-md"
+                  onClick={() => {
+                    setSelectedRecord(r)
+                    setShowViewModal(true)
+                  }}
+                >
+                  <Eye className="h-3 w-3" /> Details
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {canInspect && (r.status === "PENDING_AGENCY" || r.status === "IN_PROGRESS") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-[11px] font-bold gap-1 border-blue-400 text-blue-700 bg-blue-50 hover:bg-blue-600 hover:text-white transition-all rounded-md"
+                      onClick={() => {
+                        setSelectedRecord(r)
+                        setShowUpdateModal(true)
+                      }}
+                    >
+                      <Camera className="h-3 w-3" /> Inspect
+                    </Button>
+                  )}
+
+                  {canFinalize && r.status === "INSPECTED" && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="h-7 px-2 text-[11px] font-bold gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"
+                      onClick={() => {
+                        setSelectedRecord(r)
+                        setShowViewModal(true)
+                      }}
+                    >
+                      <ShieldCheck className="h-3 w-3" /> Finalize
+                    </Button>
+                  )}
+
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                      onClick={() => handleDelete(r.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </Card>
-          ))}
+            )
+          })}
         </div>
       ) : (
         /* List View (Table Mode) */

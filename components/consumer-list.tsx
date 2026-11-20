@@ -1738,7 +1738,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
       {/* Consumer Cards */}
       {viewMode === "card" ? (
-        <div className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {paginatedConsumers.map((consumer, idx) => {
             const breakdown = getPaymentDuesBreakdown(consumer)
             const status = (consumer.disconStatus || "").toLowerCase()
@@ -1759,28 +1759,27 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               <Card
                 id={`consumer-card-${consumer.consumerId}`}
                 key={consumer.consumerId}
-                className={`h-full flex flex-col justify-between card-interactive animate-card-enter overflow-hidden bg-white rounded-2xl border border-slate-300/85 border-l-[5px] ${cardVisual.leftBar} shadow-[0_4px_14px_-3px_rgba(15,23,42,0.10),0_1px_3px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_28px_-8px_rgba(15,23,42,0.16)] transition-all duration-200 ${
-                  isUrgent ? "ring-2 ring-red-500/85 border-red-300 shadow-red-500/15" : ""
+                className={`h-full flex flex-col justify-between card-interactive animate-card-enter overflow-hidden bg-white rounded-xl border border-slate-300/85 border-l-4 ${cardVisual.leftBar} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] transition-all duration-150 ${
+                  isUrgent ? "ring-2 ring-red-500/85 border-red-300" : ""
                 }`}
               >
-                {/* ZONE 1: Tinted Header Band with Serial Pill, Badges, Consumer Name & ID */}
-                <CardHeader className={`p-3.5 pb-3 space-y-2.5 border-b border-slate-200/80 ${cardVisual.headerBg}`}>
-                  {/* Top Badge Strip: Serial + Tags on Left, Status + Agency on Right */}
-                  <div className="flex items-center justify-between gap-1.5 w-full">
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                {/* ZONE 1: Compact Tinted Header (Tags + Name/OSD + ID/Phone/Paid) */}
+                <CardHeader className={`px-2.5 py-2 space-y-1 border-b border-slate-200/75 ${cardVisual.headerBg}`}>
+                  <div className="flex items-center justify-between gap-1 w-full">
+                    <div className="flex items-center gap-1 flex-wrap min-w-0">
                       <span
-                        className={`notranslate tabular-nums shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border ${cardVisual.indexPill}`}
+                        className={`notranslate tabular-nums shrink-0 text-[9px] font-extrabold px-1 py-0.5 rounded border leading-none ${cardVisual.indexPill}`}
                       >
                         #{String(serialNumber).padStart(2, "0")}
                       </span>
                       {isUrgent && (
-                        <span className="shrink-0 text-[9px] font-extrabold uppercase tracking-wider bg-red-600 text-white px-1.5 py-0.5 rounded-md shadow-xs">
+                        <span className="shrink-0 text-[8px] font-extrabold uppercase bg-red-600 text-white px-1 py-0.5 rounded leading-none">
                           URGENT
                         </span>
                       )}
                       <Badge
                         variant="outline"
-                        className={`text-[9px] font-bold px-1.5 py-0 border ${
+                        className={`text-[8px] font-bold px-1 py-0 h-4 border leading-none ${
                           effectiveStatus === "NEW"
                             ? "bg-blue-100/90 text-blue-900 border-blue-200/80"
                             : "bg-amber-100/90 text-amber-900 border-amber-200/80"
@@ -1789,7 +1788,7 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                         {effectiveStatus}
                       </Badge>
                       {consumer.mru ? (
-                        <span className="text-[10px] font-mono font-semibold text-slate-600 bg-white/90 border border-slate-200/90 px-1.5 py-0.5 rounded-md uppercase truncate max-w-[92px]">
+                        <span className="text-[9px] font-mono font-semibold text-slate-600 bg-white/90 border border-slate-200/90 px-1 py-0.5 rounded uppercase truncate max-w-[74px] leading-none">
                           {consumer.mru}
                         </span>
                       ) : null}
@@ -1797,199 +1796,177 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
                     <div className="flex items-center gap-1 shrink-0">
                       {consumer._syncStatus === 'syncing' && (
-                        <RefreshCw className="h-3 w-3 animate-spin text-blue-500" aria-label="Syncing..." />
+                        <RefreshCw className="h-2.5 w-2.5 animate-spin text-blue-500" aria-label="Syncing..." />
                       )}
                       {consumer._syncStatus === 'error' && (
-                        <AlertCircle className="h-3 w-3 text-red-500" aria-label="Sync failed (saved locally)" />
+                        <AlertCircle className="h-2.5 w-2.5 text-red-500" aria-label="Sync failed (saved locally)" />
                       )}
-                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] font-bold px-2 py-0.5 whitespace-nowrap shadow-none`}>
+                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[9px] font-bold px-1.5 py-0 h-4 whitespace-nowrap shadow-none`}>
                         {consumer.disconStatus}
                       </Badge>
                       {consumer.agency && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full max-w-[95px] truncate block border border-black/5 ${getAgencyColor(consumer.agency)}`}>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full max-w-[76px] truncate block border border-black/5 leading-none ${getAgencyColor(consumer.agency)}`}>
                           {consumer.agency}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Consumer Name & ID */}
-                  <div>
+                  {/* Name + Outstanding Amount on Same Row */}
+                  <div className="flex items-baseline justify-between gap-2">
                     <CardTitle
-                      className="text-base sm:text-[17px] font-extrabold text-slate-900 line-clamp-1 leading-snug tracking-tight"
+                      className="text-[13px] font-extrabold text-slate-900 line-clamp-1 leading-tight tracking-tight min-w-0"
                       title={consumer.name}
                     >
                       {consumer.name}
                     </CardTitle>
-                    <div className="flex items-center justify-between gap-2 mt-1.5 text-xs">
-                      <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-2 py-0.5 rounded-md">
-                        ID: {consumer.consumerId}
+                    <span className="notranslate tabular-nums text-[14px] font-black text-red-600 shrink-0 leading-tight">
+                      ₹{breakdown.currentOsd.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* ID + Mobile + Paid/Unpaid Tag */}
+                  <div className="flex items-center justify-between gap-1.5 text-[10px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-1.5 py-0.5 rounded leading-none">
+                        {consumer.consumerId}
                       </span>
                       {consumer.mobileNumber ? (
                         <a
                           href={`tel:${consumer.mobileNumber}`}
-                          className="inline-flex items-center gap-1 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-2 py-0.5 rounded-md font-sans font-semibold transition-colors"
+                          className="inline-flex items-center gap-0.5 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-1.5 py-0.5 rounded font-sans font-semibold leading-none transition-colors truncate"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Phone className="h-3 w-3" />
+                          <Phone className="h-2.5 w-2.5 shrink-0" />
                           <span>{consumer.mobileNumber}</span>
                         </a>
                       ) : (
-                        <span className="text-[11px] text-slate-400 font-medium">No Mobile</span>
+                        <span className="text-[10px] text-slate-400">No Mobile</span>
                       )}
                     </div>
+                    {hasPaidRecord && breakdown.paidAmt > 0 ? (
+                      <span className={`text-[10px] font-bold shrink-0 ${breakdown.isPaidAfterUpload ? "text-emerald-700" : "text-slate-500"}`}>
+                        {breakdown.isPaidAfterUpload ? `Paid ₹${breakdown.paidAmt.toLocaleString()}` : `Prev ₹${breakdown.paidAmt.toLocaleString()}`}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium shrink-0">Unpaid</span>
+                    )}
                   </div>
                 </CardHeader>
 
-                {/* ZONE 2: Clean White Body (Address + Bordered 2-Column Financial & Date Tile) */}
-                <CardContent className="p-3.5 space-y-3 flex-1 flex flex-col justify-between bg-white">
-                  {/* Fixed 2-Line Address */}
-                  <div className="flex items-start gap-1.5 min-h-[2.4rem]">
-                    <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                {/* ZONE 2: Compact Detail Body (Address + Issue/Due + Class/Meter) */}
+                <CardContent className="px-2.5 py-2 space-y-1.5 flex-1 flex flex-col justify-between bg-white">
+                  <div className="flex items-start gap-1">
+                    <MapPin className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
                     <p
-                      className="text-xs text-slate-600 line-clamp-2 leading-relaxed"
+                      className="text-[11px] text-slate-600 line-clamp-2 leading-snug"
                       title={consumer.address}
                     >
                       {consumer.address || "Address not provided"}
                     </p>
                   </div>
 
-                  {/* Crisp Bordered 2-Column Financial & Issue Date Tile */}
-                  <div className="bg-slate-50/95 border border-slate-200/90 rounded-xl p-2.5 grid grid-cols-2 divide-x divide-slate-200/90 text-xs">
-                    {/* Left Col: Outstanding Dues & Paid Tag */}
-                    <div className="pr-2.5 flex flex-col justify-center">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Outstanding
-                      </span>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="notranslate tabular-nums text-base font-black text-red-600 leading-tight">
-                          ₹{breakdown.currentOsd.toLocaleString()}
-                        </span>
-                      </div>
-                      {hasPaidRecord && breakdown.paidAmt > 0 ? (
-                        <span className={`text-[10px] font-bold truncate block mt-0.5 ${breakdown.isPaidAfterUpload ? "text-emerald-700" : "text-slate-500"}`}>
-                          {breakdown.isPaidAfterUpload ? `Paid: ₹${breakdown.paidAmt.toLocaleString()}` : `Prev: ₹${breakdown.paidAmt.toLocaleString()}`}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 font-medium truncate block mt-0.5">Unpaid</span>
-                      )}
+                  {/* Dense 2x2 Key-Value Micro Grid */}
+                  <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1.5 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
+                    <div className="truncate" title={issueDate || "Not Available"}>
+                      <span className="text-slate-400">Issue: </span>
+                      <strong className="font-semibold text-orange-700">{issueDate || "-"}</strong>
                     </div>
-
-                    {/* Right Col: Issue Date & Range */}
-                    <div className="pl-2.5 flex flex-col justify-center">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Issue Date
-                      </span>
-                      <span className="text-xs font-bold text-orange-700 mt-0.5 truncate block">
-                        {issueDate ? `📅 ${issueDate}` : "Not Available"}
-                      </span>
-                      <span
-                        className="text-[10px] text-slate-500 truncate block mt-0.5"
-                        title={consumer.osDuedateRange || ""}
-                      >
-                        {consumer.osDuedateRange ? `Due: ${consumer.osDuedateRange}` : "Range: -"}
-                      </span>
+                    <div className="truncate text-right" title={consumer.osDuedateRange || "-"}>
+                      <span className="text-slate-400">Due: </span>
+                      <strong className="font-semibold text-slate-700">{consumer.osDuedateRange || "-"}</strong>
                     </div>
-
-                    {/* Class & Meter Device Strip */}
-                    <div className="col-span-2 !border-l-0 pt-2 mt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-700 font-medium">
-                      <span className="truncate max-w-[50%]" title={consumer.class || consumer.baseClass || "-"}>
-                        <span className="text-slate-400 font-normal">Class: </span>
-                        <strong className="font-semibold text-slate-800">{consumer.class || consumer.baseClass || "-"}</strong>
-                      </span>
-                      <span className="truncate max-w-[50%] text-right font-mono" title={consumer.device || "-"}>
-                        <span className="text-slate-400 font-sans font-normal">Meter: </span>
-                        <strong className="font-semibold text-slate-800">{consumer.device || "-"}</strong>
-                      </span>
+                    <div className="truncate border-t border-slate-200/70 pt-1" title={consumer.class || consumer.baseClass || "-"}>
+                      <span className="text-slate-400">Class: </span>
+                      <strong className="font-semibold text-slate-800">{consumer.class || consumer.baseClass || "-"}</strong>
+                    </div>
+                    <div className="truncate text-right font-mono border-t border-slate-200/70 pt-1" title={consumer.device || "-"}>
+                      <span className="text-slate-400 font-sans">Mtr: </span>
+                      <strong className="font-semibold text-slate-800">{consumer.device || "-"}</strong>
                     </div>
                   </div>
                 </CardContent>
 
-                {/* ZONE 3: Distinct Tinted Footer Action Toolbar & Primary CTA */}
-                <div className="px-3.5 py-2.5 bg-slate-50/90 border-t border-slate-200/80 space-y-2">
-                  {/* Quick Utility Icon Strip */}
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                          setOsdTargetId(consumer.consumerId)
-                          setShowOsdModal(true)
-                        }}
-                        className="h-8 px-2.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 font-semibold flex items-center gap-1 text-xs transition-colors interactive-tap"
-                        title="Check Live OSD"
-                      >
-                        <Zap className="h-3.5 w-3.5 fill-blue-600 text-blue-600" />
-                        <span>Live</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                          setActiveHistoryConsumer(consumer)
-                        }}
-                        className="h-8 w-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors interactive-tap"
-                        title="View History"
-                        aria-label="View History"
-                      >
-                        <History className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={(e) => handleShareConsumer(consumer, e)}
-                        disabled={sharingConsumerId === consumer.consumerId}
-                        className="h-8 w-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50 interactive-tap"
-                        title="Share Status Card"
-                        aria-label="Share Status Card"
-                      >
-                        {sharingConsumerId === consumer.consumerId ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Share2 className="h-4 w-4" />
-                        )}
-                      </button>
-                      {hasImage && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const imgUrl = (consumer.imageUrl || (consumer as any).image) as string
-                            setPreviewImage({
-                              url: imgUrl,
-                              title: `Consumer Evidence - ${consumer.name || consumer.consumerId}`,
-                              consumerId: consumer.consumerId,
-                            })
-                          }}
-                          className="h-8 w-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors interactive-tap"
-                          title="View Uploaded Image"
-                          aria-label="View Uploaded Image"
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                        </button>
+                {/* ZONE 3: Single-Row Compact Action Toolbar + Update CTA */}
+                <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                        setOsdTargetId(consumer.consumerId)
+                        setShowOsdModal(true)
+                      }}
+                      className="h-7 px-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 font-bold flex items-center gap-0.5 text-[10px] transition-colors interactive-tap shrink-0"
+                      title="Check Live OSD"
+                    >
+                      <Zap className="h-3 w-3 fill-blue-600 text-blue-600" />
+                      <span>Live</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                        setActiveHistoryConsumer(consumer)
+                      }}
+                      className="h-7 w-7 rounded-md bg-white border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors interactive-tap shrink-0"
+                      title="View History"
+                      aria-label="View History"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => handleShareConsumer(consumer, e)}
+                      disabled={sharingConsumerId === consumer.consumerId}
+                      className="h-7 w-7 rounded-md bg-white border border-slate-200/80 flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50 interactive-tap shrink-0"
+                      title="Share Status Card"
+                      aria-label="Share Status Card"
+                    >
+                      {sharingConsumerId === consumer.consumerId ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Share2 className="h-3.5 w-3.5" />
                       )}
-                    </div>
-
-                    {/* Info / Quick Preview Icon Button */}
+                    </button>
+                    {hasImage && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const imgUrl = (consumer.imageUrl || (consumer as any).image) as string
+                          setPreviewImage({
+                            url: imgUrl,
+                            title: `Consumer Evidence - ${consumer.name || consumer.consumerId}`,
+                            consumerId: consumer.consumerId,
+                          })
+                        }}
+                        className="h-7 w-7 rounded-md bg-white border border-slate-200/80 flex items-center justify-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors interactive-tap shrink-0"
+                        title="View Uploaded Image"
+                        aria-label="View Uploaded Image"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         setPreviewConsumer(consumer)
                       }}
-                      className="h-8 px-2.5 rounded-lg bg-white border border-slate-200/80 text-xs font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-100 flex items-center gap-1 transition-colors interactive-tap"
+                      className="h-7 w-7 rounded-md bg-white border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition-colors interactive-tap shrink-0"
                       title="More Consumer Details"
+                      aria-label="More Consumer Details"
                     >
                       <Eye className="h-3.5 w-3.5" />
-                      <span>Details</span>
                     </button>
                   </div>
 
-                  {/* Primary Action Button */}
+                  {/* Compact Primary Action Button */}
                   <Button
                     onClick={() => {
                       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                       setSelectedConsumer(consumer)
                     }}
-                    className={`w-full h-9 rounded-xl text-xs font-semibold interactive-tap shadow-xs ${
+                    className={`h-7 px-2.5 rounded-md text-[11px] font-bold interactive-tap shadow-2xs shrink-0 ${
                       isReadOnlyMode
                         ? "bg-white hover:bg-slate-100 text-slate-800 border border-slate-300"
                         : "bg-slate-900 hover:bg-slate-800 text-white"
@@ -1999,13 +1976,13 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                   >
                     {isReadOnlyMode ? (
                       <>
-                        <Eye className="h-3.5 w-3.5 mr-1.5 text-slate-600" />
-                        View Details
+                        <Eye className="h-3 w-3 mr-1 text-slate-600" />
+                        View
                       </>
                     ) : (
                       <>
-                        <Edit className="h-3.5 w-3.5 mr-1.5" />
-                        {reconnBlocked ? "⚠ Update Status" : "Update Status"}
+                        <Edit className="h-3 w-3 mr-1" />
+                        {reconnBlocked ? "⚠ Update" : "Update"}
                       </>
                     )}
                   </Button>
