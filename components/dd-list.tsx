@@ -598,147 +598,160 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
 
       {/* Card View */}
       {viewMode === "card" ? (
-        <div key="dd-card-grid" className="grid gap-2.5 sm:gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-tab-enter">
+        <div key="dd-card-grid" className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
           {paginatedConsumers.map((consumer, idx) => {
             const cardVisual = getDDCardVisual(consumer.disconStatus)
             const serialNumber = (currentPage - 1) * itemsPerPage + idx + 1
-            const isReadOnlyMode = permissions ? !permissions.deemed?.includes("update") : (userRole === "viewer" || userRole === "reader")
             return (
             <Card
               key={consumer.consumerId}
-              className={`h-full flex flex-col justify-between bg-white rounded-xl border border-slate-300/85 border-l-4 ${cardVisual.leftBar} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full transition-all duration-150 ${
+              className={`h-full flex flex-col justify-between bg-white rounded-2xl border border-slate-300/85 border-l-[5px] ${cardVisual.leftBar} shadow-[0_4px_14px_-3px_rgba(15,23,42,0.10),0_1px_3px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_28px_-8px_rgba(15,23,42,0.16)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full transition-all duration-200 ${
                 consumer._syncStatus === 'error' ? "border-red-400 ring-2 ring-red-400/50" : ""
               }`}
             >
-              {/* ZONE 1: Compact Tinted Header */}
-              <CardHeader className={`px-2.5 py-2 space-y-1 border-b border-slate-200/75 ${cardVisual.headerBg}`}>
-                <div className="flex justify-between items-center gap-1">
-                  <div className="flex items-center gap-1 flex-wrap min-w-0">
-                    <span className={`notranslate tabular-nums shrink-0 text-[9px] font-extrabold px-1 py-0.5 rounded border leading-none ${cardVisual.indexPill}`}>
+              {/* ZONE 1: Tinted Header Band */}
+              <CardHeader className={`p-3.5 pb-3 space-y-2 border-b border-slate-200/80 ${cardVisual.headerBg}`}>
+                <div className="flex justify-between items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className={`notranslate tabular-nums shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border ${cardVisual.indexPill}`}>
                       #{String(serialNumber).padStart(2, "0")}
                     </span>
                     {consumer.mru ? (
-                      <span className="text-[9px] font-mono font-semibold text-slate-600 bg-white/90 border border-slate-200/90 px-1 py-0.5 rounded uppercase truncate max-w-[80px] leading-none">
+                      <span className="text-[10px] font-mono font-semibold text-slate-600 bg-white/90 border border-slate-200/90 px-1.5 py-0.5 rounded-md uppercase tracking-wide truncate max-w-[95px]">
                         {consumer.mru}
                       </span>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {consumer._syncStatus === 'syncing' && (
-                      <RefreshCw className="h-2.5 w-2.5 animate-spin text-blue-500" title="Syncing..." />
+                      <RefreshCw className="h-3 w-3 animate-spin text-blue-500" title="Syncing..." />
                     )}
                     {consumer._syncStatus === 'error' && (
-                      <AlertCircle className="h-2.5 w-2.5 text-red-500" title="Sync failed — saved locally" />
+                      <AlertCircle className="h-3 w-3 text-red-500" title="Sync failed — saved locally" />
                     )}
-                    <Badge className={`${getStatusColor(consumer.disconStatus)} text-[9px] font-bold px-1.5 py-0 h-4 shadow-none`}>
+                    <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] font-bold shadow-none`}>
                       {consumer.disconStatus}
                     </Badge>
                   </div>
                 </div>
 
-                {/* Name + Outstanding on Same Row */}
-                <div className="flex items-baseline justify-between gap-2">
-                  <CardTitle className="text-[13px] font-extrabold text-slate-900 line-clamp-1 leading-tight tracking-tight min-w-0" title={consumer.name}>
+                <div>
+                  <CardTitle className="text-base sm:text-[17px] font-extrabold text-slate-900 line-clamp-1 leading-snug tracking-tight">
                     {consumer.name}
                   </CardTitle>
-                  <span className="notranslate tabular-nums text-[14px] font-black text-red-600 shrink-0 leading-tight">
-                    ₹{Number(consumer.totalArrears || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                {/* ID + Mobile + Agency */}
-                <div className="flex items-center justify-between gap-1.5 text-[10px]">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-1.5 py-0.5 rounded leading-none">
-                      {consumer.consumerId}
+                  <div className="flex items-center justify-between gap-2 mt-1.5 text-xs">
+                    <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-2 py-0.5 rounded-md">
+                      ID: {consumer.consumerId}
                     </span>
-                    {consumer.mobileNumber && (
-                      <a
-                        href={`tel:${consumer.mobileNumber}`}
-                        className="inline-flex items-center gap-0.5 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-1.5 py-0.5 rounded font-semibold leading-none transition-colors truncate"
-                      >
-                        <Phone className="h-2.5 w-2.5 shrink-0" />
-                        <span>{consumer.mobileNumber}</span>
-                      </a>
+                    {consumer.agency && (
+                      <Badge variant="outline" className="text-[10px] font-bold bg-white/90 border-slate-200/90 max-w-[125px] truncate block">
+                        {consumer.agency}
+                      </Badge>
                     )}
                   </div>
-                  {consumer.agency && (
-                    <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 h-4 bg-white/90 border-slate-200/90 max-w-[90px] truncate block">
-                      {consumer.agency}
-                    </Badge>
-                  )}
                 </div>
               </CardHeader>
 
-              {/* ZONE 2: Compact Detail Body */}
-              <CardContent className="px-2.5 py-2 space-y-1.5 flex-1 bg-white">
-                <div className="flex items-start gap-1">
-                  <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-snug">{consumer.address || "Address not provided"}</p>
+              {/* ZONE 2: Clean White Body */}
+              <CardContent className="p-3.5 space-y-3 flex-1 bg-white">
+                <div className="flex items-start gap-2 min-h-[2.4rem]">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{consumer.address || "Address not provided"}</p>
                 </div>
 
-                <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1.5 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
-                  <div className="truncate col-span-2">
-                    <span className="text-slate-400">{consumer.visitDate ? "Visit: " : "Discon: "}</span>
-                    <strong className={`font-semibold ${consumer.visitDate ? "text-emerald-700" : "text-slate-700"}`}>
-                      {consumer.visitDate || consumer.disconDate || "Not recorded"}
-                    </strong>
+                {consumer.mobileNumber && (
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${consumer.mobileNumber}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                      <span>{consumer.mobileNumber}</span>
+                    </a>
                   </div>
-                  <div className="truncate border-t border-slate-200/70 pt-1">
-                    <span className="text-slate-400">Class: </span>
-                    <strong className="font-semibold text-slate-800">{consumer.baseClass || "-"}</strong>
-                  </div>
-                  <div className="truncate text-right font-mono border-t border-slate-200/70 pt-1">
-                    <span className="text-slate-400 font-sans">Dev: </span>
-                    <strong className="font-semibold text-slate-800">{consumer.device || "-"}</strong>
-                  </div>
-                </div>
-              </CardContent>
-
-              {/* ZONE 3: Single-Row Compact Action Footer */}
-              <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1.5">
-                {consumer.imageUrl ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setPreviewImage({
-                        url: consumer.imageUrl,
-                        title: `Evidence Photo - ${consumer.name || consumer.consumerId}`,
-                        consumerId: consumer.consumerId,
-                      })
-                    }}
-                    className="h-7 px-2 rounded-md inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 transition-colors cursor-pointer shrink-0"
-                  >
-                    <ImageIcon className="h-3 w-3" />
-                    <span>Photo</span>
-                  </button>
-                ) : (
-                  <span className="text-[10px] text-slate-400">No photo</span>
                 )}
 
-                <Button
-                  className={`h-7 px-2.5 rounded-md text-[11px] font-bold shadow-2xs shrink-0 ${
-                    isReadOnlyMode
-                      ? "bg-white hover:bg-slate-100 text-slate-800 border border-slate-300"
-                      : "bg-slate-900 hover:bg-slate-800 text-white"
-                  }`}
-                  size="sm"
-                  disabled={!isReadOnlyMode && isRowLocked(consumer)}
-                  onClick={() => setSelectedConsumer(consumer)}
-                >
-                  {isReadOnlyMode ? (
-                    <>
-                      <Eye className="h-3 w-3 mr-1 text-slate-600" />
-                      View
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="h-3 w-3 mr-1" />
-                      {isRowLocked(consumer) ? "Locked" : "Update"}
-                    </>
-                  )}
-                </Button>
+                <div className="bg-slate-50/95 border border-slate-200/90 rounded-xl p-2.5 space-y-2 text-xs">
+                  <div className="grid grid-cols-2 divide-x divide-slate-200/90">
+                    <div className="pr-2.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Outstanding
+                      </span>
+                      <p className="notranslate tabular-nums text-base font-black text-red-600 mt-0.5">
+                        ₹{Number(consumer.totalArrears || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="pl-2.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        {consumer.visitDate ? "Visit Date" : "Discon Date"}
+                      </span>
+                      <p className={`text-xs font-bold mt-1 truncate ${consumer.visitDate ? "text-emerald-700" : "text-slate-700"}`}>
+                        {consumer.visitDate || consumer.disconDate || "Not recorded"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-700">
+                    <span className="truncate max-w-[50%]">
+                      <span className="text-slate-400">Class: </span>
+                      <strong className="font-semibold text-slate-800">{consumer.baseClass || "-"}</strong>
+                    </span>
+                    <span className="truncate max-w-[50%] text-right font-mono">
+                      <span className="text-slate-400 font-sans">Device: </span>
+                      <strong className="font-semibold text-slate-800">{consumer.device || "-"}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {consumer.imageUrl && (
+                  <div className="pt-0.5 relative z-10">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewImage({
+                          url: consumer.imageUrl,
+                          title: `Evidence Photo - ${consumer.name || consumer.consumerId}`,
+                          consumerId: consumer.consumerId,
+                        })
+                      }}
+                      className="inline-flex items-center space-x-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      <span>View Uploaded Image</span>
+                    </button>
+                  </div>
+                )}
+              </CardContent>
+
+              {/* ZONE 3: Tinted Action Footer */}
+              <div className="px-3.5 py-2.5 bg-slate-50/90 border-t border-slate-200/80">
+                {(() => {
+                  const isReadOnlyMode = permissions ? !permissions.deemed?.includes("update") : (userRole === "viewer" || userRole === "reader")
+                  return (
+                    <Button
+                      className={`w-full h-9 rounded-xl text-xs font-semibold shadow-xs ${
+                        isReadOnlyMode
+                          ? "bg-white hover:bg-slate-100 text-slate-800 border border-slate-300"
+                          : "bg-slate-900 hover:bg-slate-800 text-white"
+                      }`}
+                      size="sm"
+                      disabled={!isReadOnlyMode && isRowLocked(consumer)}
+                      onClick={() => setSelectedConsumer(consumer)}
+                    >
+                      {isReadOnlyMode ? (
+                        <>
+                          <Eye className="h-3.5 w-3.5 mr-1.5 text-slate-600" />
+                          View Details
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="h-3.5 w-3.5 mr-1.5" />
+                          {isRowLocked(consumer) ? "Locked" : "Update Status"}
+                        </>
+                      )}
+                    </Button>
+                  )
+                })()}
               </div>
             </Card>
             )

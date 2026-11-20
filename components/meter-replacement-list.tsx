@@ -847,229 +847,201 @@ export function MeterReplacementList({ userRole, userAgencies, username, agencie
       </div>
 
       {/* Replacement cards */}
-      <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
+      <div key={tab} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
         {paginated.length === 0 ? (
-          <div className="col-span-full bg-white text-center py-14 text-gray-400 border border-slate-200 rounded-xl animate-fade-slide-up">
-            <Package className="h-9 w-9 mx-auto mb-2.5 opacity-30" />
-            <p className="text-xs font-medium">No replacement proposals found</p>
+          <div className="col-span-full bg-white text-center py-16 text-gray-400 border rounded-2xl animate-fade-slide-up">
+            <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p>No replacement proposals found</p>
           </div>
-        ) : paginated.map((r, idx) => {
-          const st = getReplacementStatusBadge(r)
-          const statusStripe =
-            r.status === "replaced" || r.status === "installed" ? "border-l-emerald-500" :
-            r.status === "closed" ? "border-l-slate-400" :
-            r.status === "updated" ? "border-l-blue-500" :
-            r.status === "issued" ? "border-l-yellow-500" :
-            "border-l-amber-500"
-          const headerTint =
-            r.status === "replaced" || r.status === "installed" ? "bg-emerald-50/45" :
-            r.status === "closed" ? "bg-slate-50/80" :
-            r.status === "updated" ? "bg-blue-50/45" :
-            r.status === "issued" ? "bg-yellow-50/45" :
-            "bg-amber-50/40"
-          const hasFooterActions =
-            (r.status === "issued" && (isAdmin || (permissions && (permissions.meter_replacement?.includes("return") || permissions.meter_stock?.includes("return"))))) ||
-            r.status === "proposed"
-
-          return (
-            <Card key={r.replacementId} className={`bg-white rounded-xl border border-slate-300/85 border-l-4 ${statusStripe} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full flex flex-col justify-between`}>
-              <div>
-                {/* Compact Header */}
-                <div className={`px-2.5 py-2 border-b border-slate-200/75 ${headerTint}`}>
-                  <div className="flex justify-between items-start gap-1.5">
-                    <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                      {r.status !== "closed" && (
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 mt-0.5 accent-blue-600 cursor-pointer shrink-0"
-                          checked={selectedForBulk.has(r.replacementId)}
-                          onChange={() => toggleBulkSelect(r)}
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-extrabold text-slate-900 leading-tight truncate" title={r.consumerName || "No Name"}>
-                          {r.consumerName || "No Name"}
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-mono truncate">{r.consumerId || "No ID"}</p>
-                      </div>
+        ) : paginated.map((r, idx) => (
+          <Card key={r.replacementId} className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full`}>
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-start">
+                <div className="flex items-start gap-2">
+                  {r.status !== "closed" && (
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 mt-1 accent-blue-600 cursor-pointer shrink-0"
+                      checked={selectedForBulk.has(r.replacementId)}
+                      onChange={() => toggleBulkSelect(r)}
+                    />
+                  )}
+                  <div>
+                    <CardTitle className="text-lg">{r.consumerName || "No Name"}</CardTitle>
+                    <p className="text-sm text-gray-600 font-mono">{r.consumerId || "No ID"}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                        ID: {r.replacementId}
+                      </span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                        PURPOSE_COLORS[r.purpose] || "text-blue-700 border-blue-200"
+                      }`}>
+                        {PURPOSE_LABELS[r.purpose] || r.purpose}
+                      </span>
                     </div>
-                    <div className="flex flex-col items-end gap-0.5 shrink-0">
-                      <Badge className={`h-4 text-[9px] px-1.5 py-0 font-bold ${st.className}`}>{st.label}</Badge>
-                      <Badge variant="outline" className="h-4 text-[9px] px-1.5 py-0 bg-white max-w-[100px] truncate block">{r.agency || "Unassigned"}</Badge>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    <span className="font-mono text-[9px] text-slate-500 bg-white/90 border border-slate-200 px-1.5 py-0 rounded">
-                      ID: {r.replacementId}
-                    </span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0 rounded border ${
-                      PURPOSE_COLORS[r.purpose] || "text-blue-700 border-blue-200"
-                    }`}>
-                      {PURPOSE_LABELS[r.purpose] || r.purpose}
-                    </span>
                   </div>
                 </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {(() => {
+                    const st = getReplacementStatusBadge(r)
+                    return <Badge className={st.className}>{st.label}</Badge>
+                  })()}
+                  <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{r.agency || "Unassigned"}</Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {r.address && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-gray-600 line-clamp-2">{r.address}</p>
+                </div>
+              )}
 
-                {/* Compact Body */}
-                <div className="px-2.5 py-2 space-y-1.5 text-[11px]">
-                  {r.address && (
-                    <div className="flex items-start gap-1 text-slate-600">
-                      <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                      <p className="text-[11px] leading-snug line-clamp-2">{r.address}</p>
-                    </div>
-                  )}
+              {r.mobile && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <a href={`tel:${r.mobile}`} className="text-sm text-blue-600 hover:underline">
+                    {r.mobile}
+                  </a>
+                </div>
+              )}
 
-                  {r.mobile && (
-                    <div className="flex items-center justify-between gap-2">
-                      <a href={`tel:${r.mobile}`} className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-600 hover:underline">
-                        <Phone className="h-2.5 w-2.5 text-slate-400" />
-                        {r.mobile}
-                      </a>
-                      {r.attachmentUrl && (
-                        <a href={r.attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 underline font-semibold hover:text-blue-800">
-                          Attachment ↗
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  {!r.mobile && r.attachmentUrl && (
-                    <div>
-                      <a href={r.attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 underline font-semibold hover:text-blue-800">
-                        View Attachment ↗
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Compact Meter Pair */}
-                  <div className="grid grid-cols-2 gap-1.5 bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1.5">
-                    <div className="min-w-0">
-                      <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                        <Monitor className="h-2.5 w-2.5 text-slate-400 shrink-0" /> Old Meter
-                      </p>
-                      <p className="text-[11px] font-bold text-amber-700 font-mono truncate">
-                        {r.oldMeterNo || oldMeterMap[r.consumerId] || "—"}
-                      </p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                        <Package className="h-2.5 w-2.5 text-slate-400 shrink-0" /> New Serial
-                      </p>
-                      <p className="text-[11px] font-bold text-blue-800 font-mono truncate">
-                        {r.serialNo || "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {r.remarks && (
-                    <p className="text-[10px] text-slate-600 italic bg-slate-50 border border-slate-200/70 px-2 py-1 rounded">
-                      Remarks: "{r.remarks}"
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-700 font-mono">
+                      {r.oldMeterNo || oldMeterMap[r.consumerId] || "—"}
                     </p>
-                  )}
-
-                  {/* Primary Lifecycle Dates */}
-                  <div className="text-[10px] space-y-0.5 bg-slate-50/90 px-2 py-1.5 rounded-lg border border-slate-200/80">
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Proposed:</span>
-                      <strong className="font-mono text-amber-800">{formatDisplayDate(r.proposedDate)}</strong>
-                    </div>
-                    {r.status !== "proposed" && r.issueDate && (
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span>Issued:</span>
-                        <strong className="font-mono text-yellow-800">{formatDisplayDate(r.issueDate)}</strong>
-                      </div>
-                    )}
-                    {r.status !== "proposed" && r.completedAt && (
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span>Installed:</span>
-                        <strong className="font-mono text-blue-800">{formatDisplayDate(r.completedAt, true)}</strong>
-                      </div>
-                    )}
-                    {r.status !== "proposed" && (r.workOrderNo || r.noteSheetNo) && (
-                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 font-mono text-[10px] pt-1 border-t border-slate-200/80">
-                        <span>WO: <strong className="text-slate-800">{r.workOrderNo || "—"}</strong></span>
-                        <span>NS: <strong className={r.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{r.noteSheetNo || "Pending"}</strong></span>
-                      </div>
-                    )}
-                    {(r.beforeImage || r.afterImage) && (
-                      <div className="flex gap-2.5 text-[10px] pt-1 border-t border-slate-200/80">
-                        {r.beforeImage && (
-                          <a href={r.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold hover:text-blue-800">
-                            Before ↗
-                          </a>
-                        )}
-                        {r.afterImage && (
-                          <a href={r.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold hover:text-blue-800">
-                            After ↗
-                          </a>
-                        )}
-                      </div>
-                    )}
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">Old Meter No</p>
                   </div>
-
-                  {/* Collapsible Timeline Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => toggleTimeline(r.replacementId)}
-                    className="w-full text-center text-[10px] font-bold text-blue-700 hover:text-blue-900 py-1 bg-blue-50/60 hover:bg-blue-50 rounded-md border border-blue-200/70 flex items-center justify-center gap-1">
-                    <span>{expandedTimeline.has(r.replacementId) ? "Hide Tracking Details" : "Full Tracking Details"}</span>
-                    {expandedTimeline.has(r.replacementId) ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                  </button>
-
-                  {expandedTimeline.has(r.replacementId) && (
-                    <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 text-[10px] space-y-1 text-slate-700 animate-in fade-in duration-200">
-                      <p className="font-bold text-slate-900 border-b border-slate-200 pb-0.5 text-[9px] uppercase tracking-wider">Tracking History</p>
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono text-[10px]">
-                        <p><span className="text-slate-500">Proposed:</span> {formatDisplayDate(r.proposedDate)}</p>
-                        <p><span className="text-slate-500">Issued:</span> {r.status === "proposed" ? "—" : formatDisplayDate(r.issueDate)}</p>
-                        <p><span className="text-slate-500">Installed:</span> {r.status === "proposed" ? "—" : formatDisplayDate(r.completedAt, true)}</p>
-                        <p><span className="text-slate-500">Issue ID:</span> {r.status === "proposed" ? "—" : (r.issueId || "—")}</p>
-                        <p><span className="text-slate-500">WO No:</span> {r.status === "proposed" ? "—" : (r.workOrderNo || "—")}</p>
-                        <p><span className="text-slate-500">Note Sheet:</span> {r.status === "proposed" ? "—" : (r.noteSheetNo || "—")}</p>
-                        <p><span className="text-slate-500">Last Rdg:</span> {r.lastReading || "0"}</p>
-                        <p><span className="text-slate-500">New Rdg:</span> {r.newReading || "0"}</p>
-                        <p><span className="text-slate-500">Return:</span> {r.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
-                        <p><span className="text-slate-500">Agency:</span> {r.agency || "—"}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {r.status === "closed" && r.closedRemarks && (
-                    <p className="text-[10px] text-rose-700 bg-rose-50 px-2 py-1 rounded border border-rose-200">
-                      Closed Remarks: "{r.closedRemarks}"
+                </div>
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800 font-mono">
+                      {r.serialNo || "—"}
                     </p>
-                  )}
+                    <p className="text-[10px] text-gray-500 uppercase font-bold">New Meter Serial</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Compact Footer Actions */}
-              {hasFooterActions && (
-                <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center gap-1.5">
-                  {r.status === "issued" && (isAdmin || (permissions && (permissions.meter_replacement?.includes("return") || permissions.meter_stock?.includes("return")))) && (
-                    <Button size="sm" variant="outline" className="w-full h-7 text-[11px] font-bold text-amber-700 border-amber-300 bg-white hover:bg-amber-50 rounded-md"
-                      onClick={() => { setSelectedForReturn(r); setReturnRemarks(""); setReturnDialogOpen(true) }}>
-                      <RotateCcw className="h-3 w-3 mr-1" /> Return Meter
-                    </Button>
-                  )}
+              {r.remarks && (
+                <p className="text-xs text-gray-500 italic bg-gray-50 p-2 rounded">
+                  Remarks: "{r.remarks}"
+                </p>
+              )}
 
-                  {r.status === "proposed" && (
-                    <>
-                      {isAdmin && (
-                        <Button size="sm" variant="outline" className="flex-1 h-7 text-[11px] font-bold text-blue-700 border-blue-200 bg-white hover:bg-blue-50 rounded-md"
-                          onClick={() => { setSelectedForReassign(r); setNewAgency(r.agency || ""); setReassignDialogOpen(true) }}>
-                          Change Agency
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" className="flex-1 h-7 text-[11px] font-bold text-rose-600 border-rose-200 bg-white hover:bg-rose-50 rounded-md"
-                        onClick={() => { setSelectedForClose(r); setCloseRemarks(""); setCloseDialogOpen(true) }}>
-                        Close Proposal
-                      </Button>
-                    </>
-                  )}
+              {r.attachmentUrl && (
+                <div className="pt-1">
+                  <a href={r.attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 underline font-medium hover:text-blue-800">
+                    View Attachment ↗
+                  </a>
                 </div>
               )}
-            </Card>
-          )
-        })}
+
+              {/* Primary Lifecycle Dates Display */}
+              <div className="pt-2 border-t text-xs space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <div className="flex justify-between items-center text-gray-600">
+                  <span>Proposed Date:</span>
+                  <strong className="font-mono text-amber-800">{formatDisplayDate(r.proposedDate)}</strong>
+                </div>
+                {r.status !== "proposed" && r.issueDate && (
+                  <div className="flex justify-between items-center text-gray-600">
+                    <span>Issued Date:</span>
+                    <strong className="font-mono text-yellow-800">{formatDisplayDate(r.issueDate)}</strong>
+                  </div>
+                )}
+                {r.status !== "proposed" && r.completedAt && (
+                  <div className="flex justify-between items-center text-gray-600">
+                    <span>Installed Date:</span>
+                    <strong className="font-mono text-blue-800">{formatDisplayDate(r.completedAt, true)}</strong>
+                  </div>
+                )}
+                {r.status !== "proposed" && (r.workOrderNo || r.noteSheetNo) && (
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px] pt-1 border-t border-slate-200">
+                    <span>WO: <strong className="text-slate-800">{r.workOrderNo || "—"}</strong></span>
+                    <span>Note Sheet: <strong className={r.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{r.noteSheetNo || "Pending"}</strong></span>
+                  </div>
+                )}
+                {(r.beforeImage || r.afterImage) && (
+                  <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
+                    {r.beforeImage && (
+                      <a href={r.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800">
+                        Before Photo ↗
+                      </a>
+                    )}
+                    {r.afterImage && (
+                      <a href={r.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium hover:text-blue-800">
+                        After Photo ↗
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible Timeline Details Toggle */}
+              <button
+                type="button"
+                onClick={() => toggleTimeline(r.replacementId)}
+                className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-800 py-1 bg-blue-50/50 hover:bg-blue-50 rounded border border-blue-100 flex items-center justify-center gap-1">
+                <span>{expandedTimeline.has(r.replacementId) ? "Hide Full Tracking Details" : "View Full Tracking Details"}</span>
+                {expandedTimeline.has(r.replacementId) ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+
+              {/* Expanded Collapsible Tracking Details */}
+              {expandedTimeline.has(r.replacementId) && (
+                <div className="bg-slate-100/90 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 text-slate-700 animate-in fade-in duration-200">
+                  <p className="font-bold text-slate-900 border-b pb-1 text-[11px] uppercase tracking-wider">Full Tracking Details & History</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] pt-1">
+                    <p><span className="text-gray-500">Proposed:</span> {formatDisplayDate(r.proposedDate)}</p>
+                    <p><span className="text-gray-500">Issued:</span> {r.status === "proposed" ? "—" : formatDisplayDate(r.issueDate)}</p>
+                    <p><span className="text-gray-500">Installed:</span> {r.status === "proposed" ? "—" : formatDisplayDate(r.completedAt, true)}</p>
+                    <p><span className="text-gray-500">Issue ID:</span> {r.status === "proposed" ? "—" : (r.issueId || "—")}</p>
+                    <p><span className="text-gray-500">WO Number:</span> {r.status === "proposed" ? "—" : (r.workOrderNo || "—")}</p>
+                    <p><span className="text-gray-500">Note Sheet:</span> {r.status === "proposed" ? "—" : (r.noteSheetNo || "—")}</p>
+                    <p><span className="text-gray-500">Last Reading:</span> {r.lastReading || "0"}</p>
+                    <p><span className="text-gray-500">New Reading:</span> {r.newReading || "0"}</p>
+                    <p><span className="text-gray-500">Old Return:</span> {r.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
+                    <p><span className="text-gray-500">Agency:</span> {r.agency || "—"}</p>
+                  </div>
+                </div>
+              )}
+
+              {r.status === "closed" && r.closedRemarks && (
+                <p className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-2">
+                  Closed Remarks: "{r.closedRemarks}"
+                </p>
+              )}
+
+              {r.status === "issued" && (isAdmin || (permissions && (permissions.meter_replacement?.includes("return") || permissions.meter_stock?.includes("return")))) && (
+                <div className="flex gap-2 mt-3 pt-2 border-t">
+                  <Button size="sm" variant="outline" className="w-full text-xs font-semibold text-amber-700 border-amber-300 hover:bg-amber-50"
+                    onClick={() => { setSelectedForReturn(r); setReturnRemarks(""); setReturnDialogOpen(true) }}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Return Meter (Not Installed)
+                  </Button>
+                </div>
+              )}
+
+              {r.status === "proposed" && (
+                <div className="flex gap-2 mt-3 pt-2 border-t">
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" className="flex-1 text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
+                      onClick={() => { setSelectedForReassign(r); setNewAgency(r.agency || ""); setReassignDialogOpen(true) }}>
+                      Change Agency
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" className="flex-1 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => { setSelectedForClose(r); setCloseRemarks(""); setCloseDialogOpen(true) }}>
+                    Close Proposal
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Floating Bulk Action Bar */}

@@ -1745,274 +1745,250 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
 
       {/* Issue cards — only in NSC, Check, History submodules */}
       {(view === "nsc" || view === "check" || view === "history") && !showReportPanel && (
-        <div key={`${view}-${tab}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
+        <div key={`${view}-${tab}`} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
           {paginated.length === 0 ? (
-            <div className="col-span-full text-center py-14 text-gray-400 bg-white rounded-xl border border-slate-200 animate-fade-slide-up">
-              <Package className="h-9 w-9 mx-auto mb-2.5 opacity-30" />
-              <p className="text-xs font-medium">No meter issues found</p>
+            <div className="col-span-full text-center py-16 text-gray-400 bg-white rounded-2xl border animate-fade-slide-up">
+              <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>No meter issues found</p>
             </div>
-          ) : paginated.map((issue, idx) => {
-            const st = getIssueStatusBadge(issue)
-            const statusStripe =
-              issue.status === "installed" ? "border-l-emerald-500" :
-              issue.status === "installation_done" ? "border-l-teal-500" :
-              issue.status === "issued" ? "border-l-blue-500" :
-              issue.status === "returned" ? "border-l-slate-400" :
-              "border-l-amber-500"
-            const headerTint =
-              issue.status === "installed" ? "bg-emerald-50/45" :
-              issue.status === "installation_done" ? "bg-teal-50/45" :
-              issue.status === "issued" ? "bg-blue-50/45" :
-              issue.status === "returned" ? "bg-slate-50/80" :
-              "bg-amber-50/40"
-
-            return (
-              <Card key={issue.issueId} className={`bg-white rounded-xl border border-slate-300/85 border-l-4 ${statusStripe} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full flex flex-col justify-between ${issue.status === "issued" && isAdmin ? "cursor-pointer" : ""}`}>
-                <div>
-                  {/* Compact Header */}
-                  <div className={`px-2.5 py-2 border-b border-slate-200/75 ${headerTint}`}>
-                    <div className="flex justify-between items-start gap-1.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          {isAdmin && (issue.status === "issued" || issue.status === "installed") && (
-                            <input
-                              type="checkbox"
-                              checked={issue.status === "issued" ? selectedForSlip.has(issue.issueId) : selectedForBulkNoteSheet.has(issue.issueId)}
-                              onChange={(e) => {
-                                e.stopPropagation()
-                                if (issue.status === "issued") toggleSlip(issue)
-                                else {
-                                  const next = new Set(selectedForBulkNoteSheet)
-                                  if (next.has(issue.issueId)) next.delete(issue.issueId)
-                                  else next.add(issue.issueId)
-                                  setSelectedForBulkNoteSheet(next)
-                                }
-                              }}
-                              className="shrink-0 accent-blue-600 h-3.5 w-3.5 rounded cursor-pointer"
-                            />
-                          )}
-                          <p className="text-[13px] font-extrabold text-slate-900 leading-tight truncate" title={issue.consumerName || "No Name"}>
-                            {issue.consumerName || "No Name"}
-                          </p>
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-mono truncate mt-0.5">{issue.consumerId || "No ID"}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5 shrink-0">
-                        <Badge className={`h-4 text-[9px] px-1.5 py-0 font-bold ${st.className}`}>{st.label}</Badge>
-                        <Badge variant="outline" className="h-4 text-[9px] px-1.5 py-0 bg-white max-w-[100px] truncate block">{issue.agency}</Badge>
-                      </div>
+          ) : paginated.map((issue, idx) => (
+            <Card key={issue.issueId} className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${issue.status === "issued" && isAdmin ? "cursor-pointer" : ""}`}>
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">{issue.consumerName || "No Name"}</CardTitle>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {isAdmin && (issue.status === "issued" || issue.status === "installed") && (
+                        <input
+                          type="checkbox"
+                          checked={issue.status === "issued" ? selectedForSlip.has(issue.issueId) : selectedForBulkNoteSheet.has(issue.issueId)}
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            if (issue.status === "issued") toggleSlip(issue)
+                            else {
+                              const next = new Set(selectedForBulkNoteSheet)
+                              if (next.has(issue.issueId)) next.delete(issue.issueId)
+                              else next.add(issue.issueId)
+                              setSelectedForBulkNoteSheet(next)
+                            }
+                          }}
+                          className="shrink-0 accent-blue-600 h-4 w-4 rounded cursor-pointer"
+                        />
+                      )}
+                      <p className="text-sm text-gray-600 font-mono">{issue.consumerId || "No ID"}</p>
                     </div>
-
-                    <div className="flex items-center gap-1 flex-wrap mt-1">
-                      <span className="font-mono text-[9px] text-slate-500 bg-white/90 px-1.5 py-0 rounded border border-slate-200 shrink-0">
+                    <div className="flex items-center gap-1.5 mt-2 overflow-hidden whitespace-nowrap">
+                      <span className="font-mono text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border shrink-0">
                         {issue.issueId}
                       </span>
-                      <span className={`text-[9px] font-extrabold px-1.5 py-0 rounded border shrink-0 ${PURPOSE_COLORS[issue.purpose] ?? "text-blue-700 border-blue-200"}`}>
+                      <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border shrink-0 ${PURPOSE_COLORS[issue.purpose] ?? "text-blue-700 border-blue-200"}`}>
                         {PURPOSE_LABELS[issue.purpose] || issue.purpose}
                       </span>
-                      <span className="text-[9px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0 rounded border border-slate-200 truncate max-w-[90px]">
+                      <span className="text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 truncate">
                         {issue.meterType || "Standard"}
                       </span>
                       {issue.nscReceiveNo && (
-                        <Badge variant="outline" className="h-4 text-[9px] px-1 py-0 text-emerald-700 border-emerald-200 bg-white shrink-0">
+                        <Badge variant="outline" className="text-[10px] text-green-700 border-green-200 shrink-0">
                           NSC: {issue.nscReceiveNo}
                         </Badge>
                       )}
                       {issue.nscReceiveNo && nscStatusMap[issue.nscReceiveNo] === "quotation_issued" && (
-                        <Badge variant="secondary" className="h-4 text-[9px] px-1 py-0 bg-emerald-100 text-emerald-700 shrink-0">
+                        <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 shrink-0">
                           ✓ Quotation
                         </Badge>
                       )}
                     </div>
                   </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {(() => {
+                      const st = getIssueStatusBadge(issue)
+                      return <Badge className={st.className}>{st.label}</Badge>
+                    })()}
+                    <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{issue.agency}</Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {issue.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-gray-600 line-clamp-2">{issue.address}</p>
+                  </div>
+                )}
 
-                  {/* Compact Body */}
-                  <div className="px-2.5 py-2 space-y-1.5 text-[11px]">
-                    {issue.address && (
-                      <div className="flex items-start gap-1 text-slate-600">
-                        <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                        <p className="text-[11px] leading-snug line-clamp-2">{issue.address}</p>
-                      </div>
-                    )}
+                {issue.mobile && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-gray-400" />
+                    <a href={`tel:${issue.mobile}`} className="text-sm text-blue-600 hover:underline">
+                      {issue.mobile}
+                    </a>
+                  </div>
+                )}
 
-                    <div className="flex items-center justify-between gap-2 flex-wrap text-[10px]">
-                      {issue.mobile ? (
-                        <a href={`tel:${issue.mobile}`} className="inline-flex items-center gap-1 text-blue-600 font-mono font-semibold hover:underline">
-                          <Phone className="h-2.5 w-2.5 text-slate-400" />
-                          {issue.mobile}
-                        </a>
-                      ) : <span />}
-                      <span className="text-slate-500 font-mono">
-                        Iss: {issue.issueDate || "—"}
-                        {issue.status !== "issued" && issue.completedAt && (
-                          <span className="text-emerald-700 font-semibold ml-1.5">· Done: {issue.completedAt}</span>
-                        )}
-                      </span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-700 font-mono">
+                        {oldMeterMap[issue.consumerId] || "—"}
+                      </p>
+                      <p className="text-[10px] text-gray-500 uppercase font-bold">Old Meter No</p>
                     </div>
-
-                    {/* Compact Meter Pair */}
-                    <div className="grid grid-cols-2 gap-1.5 bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1.5">
-                      <div className="min-w-0">
-                        <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                          <Monitor className="h-2.5 w-2.5 text-slate-400 shrink-0" /> Old Meter
-                        </p>
-                        <p className="text-[11px] font-bold text-amber-700 font-mono truncate">
-                          {oldMeterMap[issue.consumerId] || "—"}
-                        </p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                          <Package className="h-2.5 w-2.5 text-slate-400 shrink-0" /> New Serial
-                        </p>
-                        <p className="text-[11px] font-bold text-blue-800 font-mono truncate">
-                          {issue.serialNo || "—"}
-                        </p>
-                      </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800 font-mono">
+                        {issue.serialNo || "—"}
+                      </p>
+                      <p className="text-[10px] text-gray-500 uppercase font-bold">New Meter Serial</p>
                     </div>
-
-                    {issue.status !== "issued" && (issue.completionRef || issue.installationNo || issue.noteSheetNo) && (
-                      <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10px] text-slate-500 bg-slate-50/70 px-2 py-1 rounded border border-slate-200/70">
-                        {issue.completionRef && (
-                          <span>WO: <strong className="text-slate-800 font-mono">{issue.completionRef}</strong></span>
-                        )}
-                        {issue.installationNo && (
-                          <span>Inst: <strong className="text-slate-800 font-mono">{issue.installationNo}</strong></span>
-                        )}
-                        {issue.noteSheetNo && (
-                          <span>NS: <strong className="text-blue-700 font-mono">{issue.noteSheetNo}</strong></span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Slow/Fast Check Meter Full Readings History & Status */}
-                    {issue.purpose === "slow_fast" && issue.status !== "issued" && issue.status !== "proposed" && (
-                      <div className="bg-purple-50/70 border border-purple-200 rounded-lg p-2 space-y-1.5 text-[10px]">
-                        <div className="flex justify-between items-center font-bold text-purple-900 border-b border-purple-200 pb-1">
-                          <span className="flex items-center gap-1">
-                            <Gauge className="h-3 w-3 text-purple-700" /> Check Readings
-                          </span>
-                          <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 bg-white border-purple-300 text-purple-900 hover:bg-purple-100 shrink-0 font-semibold"
-                            onClick={() => { setSelectedForCheckMeter(issue); setCheckMeterDialogOpen(true) }}>
-                            Record / Verify
-                          </Button>
-                        </div>
-
-                        <div className="bg-white rounded border border-purple-100 p-1.5 space-y-1 text-[10px] font-mono">
-                          <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
-                            <div>
-                              <p className="font-bold text-slate-800 text-[9px] uppercase font-sans">1. Initial</p>
-                              <p className="text-slate-500 text-[9px] font-sans">{issue.issueDate || "—"}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-slate-700">Old ({issue.existingMeterNo || "—"}): <strong>{issue.existingMeterStartReading || issue.lastReading || "0"}</strong></p>
-                              <p className="text-purple-700">Chk ({issue.serialNo}): <strong>{issue.newReading || "0"}</strong></p>
-                            </div>
-                          </div>
-
-                          {issue.crossCheckDate1 && (
-                            <div className="flex justify-between items-center bg-purple-50/60 px-1.5 py-1 rounded border border-purple-100">
-                              <div>
-                                <p className="font-bold text-purple-900 text-[9px] uppercase font-sans">2. 1st Check</p>
-                                <p className="text-purple-700 text-[9px] font-sans">{issue.crossCheckDate1}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-slate-700">Old: <strong>{issue.existingMeterReading1 || "—"}</strong></p>
-                                <p className="text-purple-800 font-bold">Chk: <strong>{issue.checkMeterReading1 || "—"}</strong></p>
-                              </div>
-                            </div>
-                          )}
-
-                          {issue.crossCheckDate2 && (
-                            <div className="flex justify-between items-center bg-purple-100/60 px-1.5 py-1 rounded border border-purple-200">
-                              <div>
-                                <p className="font-bold text-purple-900 text-[9px] uppercase font-sans">3. 2nd Check</p>
-                                <p className="text-purple-700 text-[9px] font-sans">{issue.crossCheckDate2}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-slate-700">Old: <strong>{issue.existingMeterReading2 || "—"}</strong></p>
-                                <p className="text-purple-900 font-bold">Chk: <strong>{issue.checkMeterReading2 || "—"}</strong></p>
-                              </div>
-                            </div>
-                          )}
-
-                          {issue.accuracyPercentage && (
-                            <div className="pt-1 border-t border-purple-100 flex items-center justify-between font-sans">
-                              <p className="text-purple-900 font-bold text-[10px]">
-                                Acc: <span className="font-mono text-purple-700">{issue.accuracyPercentage}</span>
-                              </p>
-                              <p className="text-slate-700 text-[10px] font-medium">
-                                Diff: <span className="font-mono text-slate-900">{issue.calculatedDiffUnits}</span> u
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Old Meter Return Tracking */}
-                    {issue.purpose !== "nsc" && (issue.status === "installation_done" || issue.status === "installed") && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 flex items-center justify-between text-[10px] gap-1.5">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-slate-600 shrink-0 font-semibold">Return:</span>
-                          {issue.oldMeterReturnStatus === "returned" ? (
-                            <span className="text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0 rounded text-[9px] truncate">
-                              ✓ {issue.oldMeterReturnDate}
-                            </span>
-                          ) : (() => {
-                            let isOverdue = false
-                            if (issue.completedAt) {
-                              try {
-                                const [d, m, yTime] = issue.completedAt.split("/")
-                                const [y] = (yTime || "").split(" ")
-                                const inst = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
-                                if (!isNaN(inst.getTime())) {
-                                  const diffDays = Math.floor((Date.now() - inst.getTime()) / (1000 * 60 * 60 * 24))
-                                  if (diffDays > 3) isOverdue = true
-                                }
-                              } catch { /* ignored */ }
-                            }
-                            return isOverdue ? (
-                              <span className="text-rose-700 font-bold bg-rose-100 px-1.5 py-0 rounded text-[9px] shrink-0">
-                                ⚠ Overdue (&gt;3d)
-                              </span>
-                            ) : (
-                              <span className="text-amber-700 font-bold bg-amber-100 px-1.5 py-0 rounded text-[9px] shrink-0">
-                                Pending (3d)
-                              </span>
-                            )
-                          })()}
-                        </div>
-                        {issue.oldMeterReturnStatus !== "returned" && isAdmin && (
-                          <Button size="sm" variant="outline" className="h-5 text-[10px] px-1.5 bg-white border-slate-300 text-slate-800 hover:bg-slate-100 shrink-0"
-                            onClick={() => { setSelectedForReturnOffice(issue); setReturnOfficeDialogOpen(true) }}>
-                            <PackageCheck className="h-2.5 w-2.5 mr-0.5 text-emerald-600" /> Return
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Installed summary details */}
-                    {issue.status === "installed" && (
-                      <div className="space-y-1 text-[10px] text-slate-600 bg-slate-50/90 px-2 py-1.5 rounded-lg border border-slate-200/80">
-                        <div className="flex flex-wrap items-center justify-between gap-x-2 font-mono">
-                          <span>WO: <strong className="text-slate-800">{issue.completionRef || "—"}</strong></span>
-                          <span>NS: <strong className={issue.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{issue.noteSheetNo || "Pending"}</strong></span>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-x-2 pt-1 border-t border-slate-200/70">
-                          <span>Old: <strong className="font-mono text-amber-700">{oldMeterMap[issue.consumerId] || "—"}</strong></span>
-                          <span>Return: <strong className={issue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{issue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</strong></span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {/* Compact Action Footer */}
+                <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+                  <div>Issued: {issue.issueDate || "—"}</div>
+                  {issue.status !== "issued" && issue.completedAt && (
+                    <div className="text-right">
+                      <p className="text-green-600 font-medium">{issue.completedAt}</p>
+                      <p className="text-[10px] text-gray-400">Completed</p>
+                    </div>
+                  )}
+                </div>
+
+                {issue.status !== "issued" && (issue.completionRef || issue.installationNo || issue.noteSheetNo) && (
+                  <div className="pt-2 border-t mt-2 flex flex-col gap-1 text-xs text-gray-500">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {issue.completionRef && (
+                        <p>WO No: <strong className="text-slate-700 font-mono">{issue.completionRef}</strong></p>
+                      )}
+                      {issue.installationNo && (
+                        <p>Inst No: <strong className="text-slate-700 font-mono">{issue.installationNo}</strong></p>
+                      )}
+                      {issue.noteSheetNo && (
+                        <p>Note Sheet: <strong className="text-blue-700 font-mono">{issue.noteSheetNo}</strong></p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Slow/Fast Check Meter Full Readings History & Status */}
+                {issue.purpose === "slow_fast" && issue.status !== "issued" && issue.status !== "proposed" && (
+                  <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3 space-y-2 mt-2 text-xs">
+                    <div className="flex justify-between items-center font-bold text-purple-900 border-b border-purple-200 pb-1.5">
+                      <span className="flex items-center gap-1">
+                        <Gauge className="h-3.5 w-3.5 text-purple-700" /> Check Meter Readings History
+                      </span>
+                      <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 bg-white border-purple-300 text-purple-900 hover:bg-purple-100 shrink-0 font-semibold shadow-xs"
+                        onClick={() => { setSelectedForCheckMeter(issue); setCheckMeterDialogOpen(true) }}>
+                        Record / Verify Test
+                      </Button>
+                    </div>
+
+                    {/* Readings History Breakdown */}
+                    <div className="bg-white rounded-lg border border-purple-100 p-2 space-y-1.5 text-[11px] font-mono">
+                      {/* Initial Readings at Installation */}
+                      <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded">
+                        <div>
+                          <p className="font-bold text-slate-800 text-[10px] uppercase font-sans">1. Initial Installation Reading</p>
+                          <p className="text-slate-600 text-[10px] font-sans">Date: {issue.issueDate || "—"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-slate-700">Existing ({issue.existingMeterNo || "Old"}): <strong>{issue.existingMeterStartReading || issue.lastReading || "0"}</strong></p>
+                          <p className="text-purple-700">Check ({issue.serialNo}): <strong>{issue.newReading || "0"}</strong></p>
+                        </div>
+                      </div>
+
+                      {/* 1st Check Reading */}
+                      {issue.crossCheckDate1 && (
+                        <div className="flex justify-between items-center bg-purple-50/60 p-1.5 rounded border border-purple-100">
+                          <div>
+                            <p className="font-bold text-purple-900 text-[10px] uppercase font-sans">2. 1st Check Reading</p>
+                            <p className="text-purple-700 text-[10px] font-sans">Date: {issue.crossCheckDate1}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-slate-700">Existing: <strong>{issue.existingMeterReading1 || "—"}</strong></p>
+                            <p className="text-purple-800 font-bold">Check: <strong>{issue.checkMeterReading1 || "—"}</strong></p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2nd Check Reading */}
+                      {issue.crossCheckDate2 && (
+                        <div className="flex justify-between items-center bg-purple-100/60 p-1.5 rounded border border-purple-200">
+                          <div>
+                            <p className="font-bold text-purple-900 text-[10px] uppercase font-sans">3. 2nd Check Reading</p>
+                            <p className="text-purple-700 text-[10px] font-sans">Date: {issue.crossCheckDate2}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-slate-700">Existing: <strong>{issue.existingMeterReading2 || "—"}</strong></p>
+                            <p className="text-purple-900 font-bold">Check: <strong>{issue.checkMeterReading2 || "—"}</strong></p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Accuracy & Difference Summary */}
+                      {issue.accuracyPercentage && (
+                        <div className="pt-1.5 border-t border-purple-100 flex items-center justify-between font-sans">
+                          <p className="text-purple-900 font-bold text-xs">
+                            Accuracy: <span className="font-mono text-purple-700">{issue.accuracyPercentage}</span>
+                          </p>
+                          <p className="text-slate-700 text-[11px] font-medium">
+                            Diff: <span className="font-mono text-slate-900">{issue.calculatedDiffUnits}</span> units
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Old Meter Return Tracking System */}
+                {issue.purpose !== "nsc" && (issue.status === "installation_done" || issue.status === "installed") && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 flex items-center justify-between text-xs gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-gray-600 shrink-0 font-medium">Office Return:</span>
+                      {issue.oldMeterReturnStatus === "returned" ? (
+                        <span className="text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded text-[10px] truncate">
+                          ✓ Returned ({issue.oldMeterReturnDate})
+                        </span>
+                      ) : (() => {
+                        let isOverdue = false
+                        if (issue.completedAt) {
+                          try {
+                            const [d, m, yTime] = issue.completedAt.split("/")
+                            const [y] = (yTime || "").split(" ")
+                            const inst = new Date(parseInt(y), parseInt(m) - 1, parseInt(d))
+                            if (!isNaN(inst.getTime())) {
+                              const diffDays = Math.floor((Date.now() - inst.getTime()) / (1000 * 60 * 60 * 24))
+                              if (diffDays > 3) isOverdue = true
+                            }
+                          } catch { /* ignored */ }
+                        }
+                        return isOverdue ? (
+                          <span className="text-red-700 font-bold bg-red-100 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                            ⚠ Overdue (&gt; 3 Days)
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 font-bold bg-amber-100 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                            Pending (Due: 3 Days)
+                          </span>
+                        )
+                      })()}
+                    </div>
+                    {issue.oldMeterReturnStatus !== "returned" && isAdmin && (
+                      <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 bg-white border-slate-300 text-slate-800 hover:bg-slate-100 shrink-0 flex items-center"
+                        onClick={() => { setSelectedForReturnOffice(issue); setReturnOfficeDialogOpen(true) }}>
+                        <PackageCheck className="h-3 w-3 mr-1 text-emerald-600" /> Meter Return
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 {issue.status === "proposed" && (
-                  <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75">
+                  <div className="flex gap-2 mt-3 pt-3 border-t">
                     <Button
                       size="sm"
-                      className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold h-7 rounded-md"
+                      className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold h-9 rounded-lg shadow-sm transition-colors"
                       onClick={(e) => {
                         e.stopPropagation()
                         setPrefill({
@@ -2026,27 +2002,29 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                         })
                         setView("issue")
                       }}>
-                      <Package className="h-3 w-3 mr-1" />
+                      <Package className="h-3.5 w-3.5 mr-1.5" />
                       Issue Meter to Agency
                     </Button>
                   </div>
                 )}
 
                 {issue.status === "issued" && (
-                  <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex gap-1.5">
+                  <div className="flex gap-2 mt-3 pt-3 border-t">
+                    {/* Agency: complete installation */}
                     {!isAdmin && (
-                      <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold h-7 rounded-md"
+                      <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
                         onClick={() => { setSelected(issue); setView("complete") }}>
                         Mark Installed
                       </Button>
                     )}
+                    {/* Admin: return to stock + print */}
                     {isAdmin && (
                       <>
-                        <Button size="sm" className="flex-1 h-7 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold rounded-md"
+                        <Button size="sm" className="flex-1 h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
                           onClick={(e) => { e.stopPropagation(); handleReturn(issue) }}>
                           <RotateCcw className="h-3 w-3 mr-1" /> Return
                         </Button>
-                        <Button size="sm" variant="outline" className="h-7 w-7 p-0 bg-white rounded-md"
+                        <Button size="sm" variant="outline" className="h-9 px-2 text-xs font-semibold rounded-lg shadow-sm transition-colors"
                           onClick={(e) => { e.stopPropagation(); setSelectedForSlip(new Set([issue.issueId])); printMeterSlip([issue]) }}>
                           <Printer className="h-3 w-3" />
                         </Button>
@@ -2055,27 +2033,27 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                   </div>
                 )}
 
+                {/* Admin: finalize installation_done */}
                 {issue.status === "installation_done" && isAdmin && (
-                  <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 space-y-1.5">
-                    <div className="flex items-center gap-2 text-[10px]">
-                      {issue.purpose !== "nsc" ? (
-                        <label className="flex items-center gap-1.5 cursor-pointer select-none flex-1 min-w-0">
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    <div className="flex items-center gap-3">
+                      {issue.purpose !== "nsc" && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none flex-1">
                           <input
                             type="checkbox"
-                            className="h-3.5 w-3.5 accent-teal-600 shrink-0"
+                            className="h-4 w-4 accent-teal-600"
                             checked={selectedForFinalize.has(issue.issueId)}
                             onChange={() => toggleFinalize(issue.issueId)}
                           />
-                          <span className="text-slate-600 font-semibold truncate">Bulk finalize</span>
+                          <span className="text-xs text-gray-500 font-medium">Select for bulk finalize</span>
                         </label>
-                      ) : (
-                        <span className="flex-1 text-slate-400 font-medium truncate">NSC individual</span>
                       )}
-                      {issue.newReading && <span className="font-mono text-slate-600">Rdg: <strong>{issue.newReading}</strong></span>}
-                      {issue.afterImage && <a href={getGoogleDriveDirectLink(issue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">After ↗</a>}
-                      {issue.beforeImage && <a href={getGoogleDriveDirectLink(issue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">Before ↗</a>}
+                      {issue.purpose === "nsc" && <span className="flex-1 text-xs text-gray-400 font-medium">NSC — finalize individually</span>}
+                      {issue.afterImage && <a href={getGoogleDriveDirectLink(issue.afterImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">After ↗</a>}
+                      {issue.beforeImage && <a href={getGoogleDriveDirectLink(issue.beforeImage, 1600)} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline font-medium">Before ↗</a>}
                     </div>
-                    <Button size="sm" className="w-full h-7 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold rounded-md"
+                    {issue.newReading && <p className="text-xs text-gray-500 font-mono">Reading: <strong>{issue.newReading}</strong></p>}
+                    <Button size="sm" className="w-full h-9 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
                       onClick={() => {
                         setSelectedForFinalize(new Set([issue.issueId]))
                         setFinalizeRef(issue.completionRef || "")
@@ -2087,30 +2065,41 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                   </div>
                 )}
 
+                {/* Agency: installation_done is read-only */}
                 {issue.status === "installation_done" && !isAdmin && (
-                  <div className="px-2.5 py-1.5 bg-teal-50/60 border-t border-teal-200/70 text-[10px] text-teal-800 font-semibold flex items-center gap-1">
-                    <Check className="h-3 w-3 shrink-0" /> Submitted — awaiting admin finalization
+                  <div className="mt-3 pt-3 border-t text-xs text-teal-700 font-semibold flex items-center gap-1">
+                    <Check className="h-3.5 w-3.5" /> Submitted — awaiting admin finalization
                   </div>
                 )}
 
-                {issue.status === "installed" && (
-                  <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1.5">
-                    <div className="flex gap-2 items-center text-[10px] min-w-0 flex-wrap">
-                      {issue.afterImage && <a href={issue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">After ↗</a>}
-                      {issue.beforeImage && <a href={issue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">Before ↗</a>}
-                      {issue.newReading && <span className="font-mono text-slate-600">Rdg: <strong>{issue.newReading}</strong></span>}
+                {(issue.status === "installed") && (
+                  <div className="space-y-1.5 mt-2 pt-2 border-t text-xs text-gray-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
+                      <span>WO: <strong className="text-slate-800">{issue.completionRef || "—"}</strong></span>
+                      <span>Note Sheet: <strong className={issue.noteSheetNo ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{issue.noteSheetNo || "Pending"}</strong></span>
                     </div>
-                    {isAdmin && (
-                      <Button size="sm" variant="outline" className="h-6 text-[10px] font-bold text-blue-700 border-blue-200 bg-white hover:bg-blue-50 px-2 shrink-0 rounded-md"
-                        onClick={() => { setSelectedForNoteSheet(issue); setNoteSheetDialogOpen(true) }}>
-                        <FileText className="h-2.5 w-2.5 mr-1" /> {issue.noteSheetNo ? "Note Sheet" : "+ Note Sheet"}
-                      </Button>
-                    )}
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200 mt-1">
+                      <span>Old Meter: <strong className="font-mono text-amber-700">{oldMeterMap[issue.consumerId] || "—"}</strong></span>
+                      <span>Return: <strong className={issue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{issue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"}</strong></span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-1 mt-1 border-t border-slate-200">
+                      <div className="flex gap-2 items-center text-xs">
+                        {issue.afterImage && <a href={issue.afterImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After ↗</a>}
+                        {issue.beforeImage && <a href={issue.beforeImage} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before ↗</a>}
+                        {issue.newReading && <span className="font-mono text-[11px]">Reading: <strong>{issue.newReading}</strong></span>}
+                      </div>
+                      {isAdmin && (
+                        <Button size="sm" variant="outline" className="h-6 text-[11px] text-blue-700 border-blue-200 hover:bg-blue-50 px-2 shrink-0 flex items-center"
+                          onClick={() => { setSelectedForNoteSheet(issue); setNoteSheetDialogOpen(true) }}>
+                          <FileText className="h-3 w-3 mr-1" /> {issue.noteSheetNo ? "Note Sheet" : "+ Note Sheet"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
-              </Card>
-            )
-          })}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
@@ -2149,7 +2138,7 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
               <p>No replacements found matching this criteria</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredReplacements.map(rep => {
                 // Match by explicit issueId first, otherwise match by consumerId with active/latest non-returned issue
                 const linkedIssue = rep.issueId
@@ -2168,258 +2157,240 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                 const effectiveWO = rep.workOrderNo || (isLinkedActive ? linkedIssue.completionRef : "") || ""
                 const effectiveNoteSheet = rep.noteSheetNo || (isLinkedActive ? linkedIssue.noteSheetNo : "") || ""
 
-                const statusStripe =
-                  isCompleted ? "border-l-emerald-500" :
-                  isWODone ? "border-l-teal-500" :
-                  rep.status === "updated" ? "border-l-blue-500" :
-                  rep.status === "issued" ? "border-l-yellow-500" :
-                  rep.status === "closed" ? "border-l-slate-400" :
-                  "border-l-amber-500"
-                const headerTint =
-                  isCompleted ? "bg-emerald-50/45" :
-                  isWODone ? "bg-teal-50/45" :
-                  rep.status === "updated" ? "bg-blue-50/45" :
-                  rep.status === "issued" ? "bg-yellow-50/45" :
-                  rep.status === "closed" ? "bg-slate-50/80" :
-                  "bg-amber-50/40"
-
                 return (
-                  <Card key={rep.replacementId} className={`bg-white rounded-xl border border-slate-300/85 border-l-4 ${statusStripe} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter overflow-hidden max-w-full flex flex-col justify-between ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>
-                    <div>
-                      {/* Compact Header */}
-                      <div className={`px-2.5 py-2 border-b border-slate-200/75 ${headerTint}`}>
-                        <div className="flex justify-between items-start gap-1.5">
-                          <div className="flex items-start gap-1.5 min-w-0 flex-1">
-                            {repSubTab !== "all" && isAdmin && rep.status === "issued" && (
-                              <input
-                                type="checkbox"
-                                className="mt-0.5 shrink-0 accent-blue-600 h-3.5 w-3.5 rounded cursor-pointer"
-                                checked={selectedForSlip.has(rep.issueId || rep.replacementId)}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  const item = linkedIssue || {
-                                    issueId: rep.issueId || rep.replacementId,
-                                    issueDate: rep.proposedDate || "",
-                                    purpose: rep.purpose,
-                                    consumerId: rep.consumerId,
-                                    consumerName: rep.consumerName,
-                                    serialNo: rep.serialNo || "",
-                                    meterType: "Standard",
-                                    agency: rep.agency,
-                                    status: "issued"
-                                  }
-                                  toggleSlip(item as any)
-                                }}
-                              />
-                            )}
+                  <Card key={rep.replacementId} className={`shadow-sm card-interactive animate-card-enter overflow-hidden max-w-full ${isSelected ? "ring-2 ring-blue-500 bg-blue-50/20" : ""}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-2 min-w-0">
+                          {/* Multi-select Checkbox by Stage */}
+                          {/* Multi-select Checkbox by Stage (Disabled in ALL tab) */}
+                          {repSubTab !== "all" && isAdmin && rep.status === "issued" && (
+                            <input
+                              type="checkbox"
+                              className="mt-1 shrink-0 accent-blue-600 h-4 w-4 rounded cursor-pointer"
+                              checked={selectedForSlip.has(rep.issueId || rep.replacementId)}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                const item = linkedIssue || {
+                                  issueId: rep.issueId || rep.replacementId,
+                                  issueDate: rep.proposedDate || "",
+                                  purpose: rep.purpose,
+                                  consumerId: rep.consumerId,
+                                  consumerName: rep.consumerName,
+                                  serialNo: rep.serialNo || "",
+                                  meterType: "Standard",
+                                  agency: rep.agency,
+                                  status: "issued"
+                                }
+                                toggleSlip(item as any)
+                              }}
+                            />
+                          )}
 
-                            {repSubTab !== "all" && isAdmin && rep.status === "updated" && (
-                              <input
-                                type="checkbox"
-                                className="h-3.5 w-3.5 mt-0.5 accent-blue-600 cursor-pointer shrink-0"
-                                checked={isSelected}
-                                onChange={() => toggleBulkRep(rep)}
-                              />
-                            )}
+                          {/* Stage B: Installed -> Bulk Work Order Checkbox */}
+                          {repSubTab !== "all" && isAdmin && rep.status === "updated" && (
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 mt-1 accent-blue-600 cursor-pointer shrink-0"
+                              checked={isSelected}
+                              onChange={() => toggleBulkRep(rep)}
+                            />
+                          )}
 
-                            {repSubTab !== "all" && isAdmin && rep.status === "replaced" && (
-                              <input
-                                type="checkbox"
-                                className="mt-0.5 shrink-0 accent-blue-600 h-3.5 w-3.5 rounded cursor-pointer"
-                                checked={selectedForBulkNoteSheet.has(rep.replacementId) || (rep.issueId ? selectedForBulkNoteSheet.has(rep.issueId) : false)}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  const idToToggle = rep.issueId || rep.replacementId
-                                  const next = new Set(selectedForBulkNoteSheet)
-                                  if (next.has(idToToggle)) next.delete(idToToggle)
-                                  else next.add(idToToggle)
-                                  setSelectedForBulkNoteSheet(next)
-                                }}
-                              />
-                            )}
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[13px] font-extrabold text-slate-900 leading-tight truncate" title={rep.consumerName || "No Name"}>
-                                {rep.consumerName || "No Name"}
-                              </p>
-                              <p className="text-[10px] text-slate-500 font-mono truncate">{rep.consumerId || "No ID"}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-0.5 shrink-0">
-                            <div className="flex items-center gap-1">
-                              <span className={`text-[9px] font-bold px-1.5 py-0 rounded-full border ${
-                                rep.status === "proposed" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                rep.status === "issued" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                                rep.status === "updated" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                rep.status === "closed" ? "bg-gray-100 text-gray-700 border-gray-300" :
-                                isCompleted ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                "bg-teal-50 text-teal-700 border-teal-200"
-                              }`}>
-                                {rep.status === "proposed" ? "Proposed" :
-                                 rep.status === "issued" ? "Issued" :
-                                 rep.status === "updated" ? "Installed" :
-                                 rep.status === "closed" ? "Closed" :
-                                 isCompleted ? "Completed" : "WO Done"}
+                          {/* Stage C: WO Done / Completed -> Bulk Note Sheet Checkbox */}
+                          {repSubTab !== "all" && isAdmin && rep.status === "replaced" && (
+                            <input
+                              type="checkbox"
+                              className="mt-1 shrink-0 accent-blue-600 h-4 w-4 rounded cursor-pointer"
+                              checked={selectedForBulkNoteSheet.has(rep.replacementId) || (rep.issueId ? selectedForBulkNoteSheet.has(rep.issueId) : false)}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                const idToToggle = rep.issueId || rep.replacementId
+                                const next = new Set(selectedForBulkNoteSheet)
+                                if (next.has(idToToggle)) next.delete(idToToggle)
+                                else next.add(idToToggle)
+                                setSelectedForBulkNoteSheet(next)
+                              }}
+                            />
+                          )}
+                          <div>
+                            <CardTitle className="text-lg leading-tight">{rep.consumerName || "No Name"}</CardTitle>
+                            <p className="text-sm text-gray-600 font-mono">{rep.consumerId || "No ID"}</p>
+                            <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                              <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                ID: {rep.replacementId}
                               </span>
-                              {repSubTab !== "all" && isAdmin && (rep.status || "").toLowerCase() === "proposed" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  title="Cancel / Close Proposal"
-                                  className="h-4 w-4 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleCancelProposal(rep)
-                                  }}>
-                                  <X className="h-3 w-3" />
-                                </Button>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                PURPOSE_COLORS[rep.purpose] || "text-blue-700 border-blue-200"
+                              }`}>
+                                {PURPOSE_LABELS[rep.purpose] || rep.purpose}
+                              </span>
+                              {(linkedIssue?.meterType || rep.meterType) && (
+                                <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                  {linkedIssue?.meterType || rep.meterType}
+                                </span>
                               )}
                             </div>
-                            <Badge variant="outline" className="h-4 text-[9px] px-1.5 py-0 bg-white max-w-[100px] truncate block">{rep.agency || linkedIssue?.agency || "Unassigned"}</Badge>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1 mt-1 items-center">
-                          <span className="font-mono text-[9px] text-slate-500 bg-white/90 border border-slate-200 px-1.5 py-0 rounded">
-                            ID: {rep.replacementId}
-                          </span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0 rounded border ${
-                            PURPOSE_COLORS[rep.purpose] || "text-blue-700 border-blue-200"
-                          }`}>
-                            {PURPOSE_LABELS[rep.purpose] || rep.purpose}
-                          </span>
-                          {(linkedIssue?.meterType || rep.meterType) && (
-                            <span className="text-[9px] font-mono font-semibold px-1.5 py-0 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                              {linkedIssue?.meterType || rep.meterType}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                              rep.status === "proposed" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                              rep.status === "issued" ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                              rep.status === "updated" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              rep.status === "closed" ? "bg-gray-100 text-gray-700 border-gray-300" :
+                              isCompleted ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                              "bg-teal-50 text-teal-700 border-teal-200"
+                            }`}>
+                              {rep.status === "proposed" ? "Proposed" :
+                               rep.status === "issued" ? "Issued" :
+                               rep.status === "updated" ? "Installed" :
+                               rep.status === "closed" ? "Closed / Cancelled" :
+                               isCompleted ? "Completed" : "WO Done"}
                             </span>
-                          )}
+                            {repSubTab !== "all" && isAdmin && (rep.status || "").toLowerCase() === "proposed" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Cancel / Close Proposal"
+                                className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCancelProposal(rep)
+                                }}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{rep.agency || linkedIssue?.agency || "Unassigned"}</Badge>
                         </div>
                       </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {rep.address && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                          <p className="text-sm text-gray-600 line-clamp-2">{rep.address}</p>
+                        </div>
+                      )}
 
-                      {/* Compact Body */}
-                      <div className="px-2.5 py-2 space-y-1.5 text-[11px]">
-                        {rep.address && (
-                          <div className="flex items-start gap-1 text-slate-600">
-                            <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                            <p className="text-[11px] leading-snug line-clamp-2">{rep.address}</p>
-                          </div>
-                        )}
-
-                        {rep.mobile && (
-                          <a href={`tel:${rep.mobile}`} className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-600 hover:underline">
-                            <Phone className="h-2.5 w-2.5 text-slate-400" />
+                      {rep.mobile && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <a href={`tel:${rep.mobile}`} className="text-sm text-blue-600 hover:underline">
                             {rep.mobile}
                           </a>
-                        )}
+                        </div>
+                      )}
 
-                        {/* Compact Meter Pair */}
-                        <div className="grid grid-cols-2 gap-1.5 bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1.5">
-                          <div className="min-w-0">
-                            <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                              <Monitor className="h-2.5 w-2.5 text-slate-400 shrink-0" /> Old Meter
-                            </p>
-                            <p className="text-[11px] font-bold text-amber-700 font-mono truncate">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="h-4 w-4 text-gray-400 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-700 font-mono">
                               {rep.oldMeterNo || oldMeterMap[rep.consumerId] || "—"}
                             </p>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">Old Meter No</p>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[9px] text-slate-500 uppercase font-bold flex items-center gap-1">
-                              <Package className="h-2.5 w-2.5 text-slate-400 shrink-0" /> New Serial
-                            </p>
-                            <p className="text-[11px] font-bold text-blue-800 font-mono truncate">
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-blue-800 font-mono">
                               {rep.serialNo || linkedIssue?.serialNo || "—"}
                             </p>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold">New Meter Serial</p>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Stage-specific primary timestamps & info */}
-                        <div className="text-[10px] space-y-0.5 bg-slate-50/90 px-2 py-1.5 rounded-lg border border-slate-200/80">
-                          {rep.status === "proposed" && (
-                            <div className="flex justify-between items-center text-slate-600">
-                              <span>Proposed:</span>
-                              <strong className="font-mono text-amber-800">{formatDisplayDate(rep.proposedDate)}</strong>
-                            </div>
-                          )}
-                          {rep.status === "issued" && (
-                            <div className="flex justify-between items-center text-slate-600">
-                              <span>Issued:</span>
-                              <strong className="font-mono text-yellow-800">{formatDisplayDate(effectiveIssueDate)}</strong>
-                            </div>
-                          )}
-                          {rep.status === "updated" && (
-                            <>
-                              <div className="flex justify-between items-center text-slate-600">
-                                <span>Installed:</span>
-                                <strong className="font-mono text-blue-800">{formatDisplayDate(effectiveInstalledDate, true)}</strong>
-                              </div>
-                              <div className="flex justify-between items-center text-slate-600 pt-1 border-t border-slate-200/70">
-                                <span>Rdg:</span>
-                                <span className="font-mono">Old: <strong>{linkedIssue?.lastReading || rep.lastReading || "0"}</strong> · New: <strong className="text-blue-700">{linkedIssue?.newReading || rep.newReading || "—"}</strong></span>
-                              </div>
-                              {(linkedIssue?.beforeImage || rep.beforeImage || linkedIssue?.afterImage || rep.afterImage) && (
-                                <div className="flex gap-2.5 text-[10px] pt-1 border-t border-slate-200/70">
-                                  {(linkedIssue?.beforeImage || rep.beforeImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.beforeImage || rep.beforeImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">Before ↗</a>}
-                                  {(linkedIssue?.afterImage || rep.afterImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.afterImage || rep.afterImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">After ↗</a>}
-                                </div>
-                              )}
-                            </>
-                          )}
-                          {(isWODone || isCompleted) && (
-                            <>
-                              <div className="flex flex-wrap items-center justify-between gap-x-2 font-mono">
-                                <span>WO: <strong className="text-slate-800">{effectiveWO || "—"}</strong></span>
-                                <span>NS: <strong className={effectiveNoteSheet ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{effectiveNoteSheet || "Pending"}</strong></span>
-                              </div>
-                              {linkedIssue && (
-                                <div className="flex flex-wrap items-center justify-between gap-x-2 pt-1 border-t border-slate-200/70">
-                                  <span>Issue: <strong className="font-mono text-slate-700">{linkedIssue.issueId}</strong></span>
-                                  <span>Return: <strong className={linkedIssue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{linkedIssue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</strong></span>
-                                </div>
-                              )}
-                              {(linkedIssue?.beforeImage || rep.beforeImage || linkedIssue?.afterImage || rep.afterImage) && (
-                                <div className="flex gap-2.5 text-[10px] pt-1 border-t border-slate-200/70">
-                                  {(linkedIssue?.beforeImage || rep.beforeImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.beforeImage || rep.beforeImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">Before ↗</a>}
-                                  {(linkedIssue?.afterImage || rep.afterImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.afterImage || rep.afterImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-semibold">After ↗</a>}
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-
-                        {/* Collapsible Timeline Toggle */}
-                        <button
-                          type="button"
-                          onClick={() => toggleTimeline(rep.replacementId)}
-                          className="w-full text-center text-[10px] font-bold text-blue-700 hover:text-blue-900 py-1 bg-blue-50/60 hover:bg-blue-50 rounded-md border border-blue-200/70 flex items-center justify-center gap-1">
-                          <span>{isExpanded ? "Hide Tracking Details" : "Full Tracking Details"}</span>
-                          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        </button>
-
-                        {isExpanded && (
-                          <div className="bg-slate-100/90 p-2 rounded-lg border border-slate-200 text-[10px] space-y-1 text-slate-700 animate-in fade-in duration-200">
-                            <p className="font-bold text-slate-900 border-b border-slate-200 pb-0.5 text-[9px] uppercase tracking-wider">Tracking History</p>
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 font-mono text-[10px]">
-                              <p><span className="text-slate-500">Proposed:</span> {formatDisplayDate(rep.proposedDate)}</p>
-                              <p><span className="text-slate-500">Issued:</span> {formatDisplayDate(effectiveIssueDate)}</p>
-                              <p><span className="text-slate-500">Installed:</span> {formatDisplayDate(effectiveInstalledDate, true)}</p>
-                              <p><span className="text-slate-500">WO No:</span> {effectiveWO || "—"}</p>
-                              <p><span className="text-slate-500">Note Sheet:</span> {effectiveNoteSheet || "—"}</p>
-                              <p><span className="text-slate-500">Old Rdg:</span> {linkedIssue?.lastReading || rep.lastReading || "0"}</p>
-                              <p><span className="text-slate-500">New Rdg:</span> {linkedIssue?.newReading || rep.newReading || "—"}</p>
-                              <p><span className="text-slate-500">Return:</span> {linkedIssue?.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
-                              <p><span className="text-slate-500">Agency:</span> {rep.agency || linkedIssue?.agency || "—"}</p>
-                            </div>
-                            {rep.remarks && <p className="text-[10px] italic text-slate-600 pt-1 border-t border-slate-200">Remarks: "{rep.remarks}"</p>}
+                      {/* Stage-specific primary timestamps & info */}
+                      <div className="pt-2 border-t text-xs space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        {rep.status === "proposed" && (
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Proposed Date:</span>
+                            <strong className="font-mono text-amber-800">{formatDisplayDate(rep.proposedDate)}</strong>
                           </div>
                         )}
+                        {rep.status === "issued" && (
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Issued Date:</span>
+                            <strong className="font-mono text-yellow-800">{formatDisplayDate(effectiveIssueDate)}</strong>
+                          </div>
+                        )}
+                        {rep.status === "updated" && (
+                          <>
+                            <div className="flex justify-between items-center text-gray-600">
+                              <span>Installed Date:</span>
+                              <strong className="font-mono text-blue-800">{formatDisplayDate(effectiveInstalledDate, true)}</strong>
+                            </div>
+                            <div className="flex justify-between items-center text-gray-600 pt-1 border-t border-slate-200">
+                              <span>Readings:</span>
+                              <span className="font-mono">Old Meter Last: <strong>{linkedIssue?.lastReading || rep.lastReading || "0"}</strong> | New Meter Initial: <strong className="text-blue-700">{linkedIssue?.newReading || rep.newReading || "—"}</strong></span>
+                            </div>
+                            {(linkedIssue?.beforeImage || rep.beforeImage || linkedIssue?.afterImage || rep.afterImage) && (
+                              <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
+                                {(linkedIssue?.beforeImage || rep.beforeImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.beforeImage || rep.beforeImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {(linkedIssue?.afterImage || rep.afterImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.afterImage || rep.afterImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {(isWODone || isCompleted) && (
+                          <>
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-[11px]">
+                              <span>WO: <strong className="text-slate-800">{effectiveWO || "—"}</strong></span>
+                              <span>Note Sheet: <strong className={effectiveNoteSheet ? "text-blue-700 font-bold" : "text-amber-600 font-normal"}>{effectiveNoteSheet || "Pending"}</strong></span>
+                            </div>
+                            {linkedIssue && (
+                              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] pt-1 border-t border-slate-200">
+                                <span>Issue ID: <strong className="font-mono text-gray-700">{linkedIssue.issueId}</strong></span>
+                                <span>Return: <strong className={linkedIssue.oldMeterReturnStatus === "returned" ? "text-emerald-700" : "text-amber-700"}>{linkedIssue.oldMeterReturnStatus === "returned" ? "Returned" : "Pending Return"}</strong></span>
+                              </div>
+                            )}
+                            {(linkedIssue?.beforeImage || rep.beforeImage || linkedIssue?.afterImage || rep.afterImage) && (
+                              <div className="flex gap-3 text-xs pt-1 border-t border-slate-200">
+                                {(linkedIssue?.beforeImage || rep.beforeImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.beforeImage || rep.beforeImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Before Photo ↗</a>}
+                                {(linkedIssue?.afterImage || rep.afterImage) && <a href={getGoogleDriveDirectLink(linkedIssue?.afterImage || rep.afterImage!, 1600)} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">After Photo ↗</a>}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
-                    </div>
 
-                    {/* Compact Action Footer by Stage */}
-                    {rep.status === "proposed" && (isAdmin || (permissions && permissions.meter_stock?.includes("issue"))) && (
-                      <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75">
-                        <Button size="sm" className="w-full bg-slate-950 hover:bg-slate-900 text-white font-bold text-[11px] h-7 rounded-md"
+                      {/* Collapsible Timeline Dropdown Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => toggleTimeline(rep.replacementId)}
+                        className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-800 py-1 bg-blue-50/50 hover:bg-blue-50 rounded border border-blue-100 flex items-center justify-center gap-1">
+                        <span>{isExpanded ? "Hide Full Tracking Details" : "View Full Tracking Details"}</span>
+                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+
+                      {/* Expanded Collapsible Tracking Details */}
+                      {isExpanded && (
+                        <div className="bg-slate-100/80 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5 text-slate-700 animate-in fade-in duration-200">
+                          <p className="font-bold text-slate-900 border-b pb-1 text-[11px] uppercase tracking-wider">Full Tracking Details & History</p>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px] pt-1">
+                            <p><span className="text-gray-500">Proposed Date:</span> {formatDisplayDate(rep.proposedDate)}</p>
+                            <p><span className="text-gray-500">Issued Date:</span> {formatDisplayDate(effectiveIssueDate)}</p>
+                            <p><span className="text-gray-500">Installed Date:</span> {formatDisplayDate(effectiveInstalledDate, true)}</p>
+                            <p><span className="text-gray-500">WO Number:</span> {effectiveWO || "—"}</p>
+                            <p><span className="text-gray-500">Note Sheet No:</span> {effectiveNoteSheet || "—"}</p>
+                            <p><span className="text-gray-500">Old Meter Last Reading:</span> {linkedIssue?.lastReading || rep.lastReading || "0"}</p>
+                            <p><span className="text-gray-500">New Meter Initial Reading:</span> {linkedIssue?.newReading || rep.newReading || "—"}</p>
+                            <p><span className="text-gray-500">Old Meter Return:</span> {linkedIssue?.oldMeterReturnStatus === "returned" ? "Returned" : "Pending"}</p>
+                            <p><span className="text-gray-500">Agency:</span> {rep.agency || linkedIssue?.agency || "—"}</p>
+                          </div>
+                          {rep.remarks && <p className="text-[11px] italic text-gray-600 pt-1 border-t">Remarks: "{rep.remarks}"</p>}
+                        </div>
+                      )}
+
+                      {/* Action buttons designated by stage */}
+                      {rep.status === "proposed" && (isAdmin || (permissions && permissions.meter_stock?.includes("issue"))) && (
+                        <Button size="sm" className="w-full bg-slate-950 hover:bg-slate-900 text-white mt-2 font-semibold text-xs h-9"
                           onClick={() => {
                             setPrefill({
                               replacementId: rep.replacementId,
@@ -2434,53 +2405,52 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                           }}>
                           Issue Meter
                         </Button>
-                      </div>
-                    )}
+                      )}
 
-                    {rep.status === "issued" && (
-                      <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          {!isAdmin ? (
-                            <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-[11px] font-bold h-7 rounded-md"
-                              onClick={() => {
-                                const targetIssue = linkedIssue || issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
-                                if (targetIssue) {
-                                  setSelected(targetIssue)
-                                  setView("complete")
-                                } else {
-                                  toast({ title: "Issue record not found for completion", variant: "destructive" })
-                                }
-                              }}>
-                              Mark Installed
-                            </Button>
-                          ) : (
-                            <span className="flex-1 text-[10px] text-yellow-800 font-semibold bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 text-center truncate">
-                              Pending by agency
-                            </span>
-                          )}
+                      {rep.status === "issued" && (
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-2">
+                            {!isAdmin ? (
+                              <Button size="sm" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
+                                onClick={() => {
+                                  const targetIssue = linkedIssue || issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
+                                  if (targetIssue) {
+                                    setSelected(targetIssue)
+                                    setView("complete")
+                                  } else {
+                                    toast({ title: "Issue record not found for completion", variant: "destructive" })
+                                  }
+                                }}>
+                                Mark Installed
+                              </Button>
+                            ) : (
+                              <p className="flex-1 text-xs text-yellow-700 font-medium bg-yellow-50 border border-yellow-100 rounded px-2.5 py-1 text-center">
+                                Pending installation by agency
+                              </p>
+                            )}
+                            {isAdmin && (
+                              <Button size="sm" variant="outline" className="h-8 text-xs font-semibold px-2 border-yellow-300 text-yellow-800 hover:bg-yellow-100 shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const item = linkedIssue || {
+                                    issueId: rep.issueId || rep.replacementId,
+                                    issueDate: rep.proposedDate || "",
+                                    purpose: rep.purpose,
+                                    consumerId: rep.consumerId,
+                                    consumerName: rep.consumerName,
+                                    serialNo: rep.serialNo || "",
+                                    meterType: "Standard",
+                                    agency: rep.agency,
+                                    status: "issued"
+                                  }
+                                  printMeterSlip([item as any])
+                                }}>
+                                <Printer className="h-3.5 w-3.5 mr-1" /> Requisition
+                              </Button>
+                            )}
+                          </div>
                           {isAdmin && (
-                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold px-2 bg-white border-yellow-300 text-yellow-800 hover:bg-yellow-50 shrink-0 rounded-md"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const item = linkedIssue || {
-                                  issueId: rep.issueId || rep.replacementId,
-                                  issueDate: rep.proposedDate || "",
-                                  purpose: rep.purpose,
-                                  consumerId: rep.consumerId,
-                                  consumerName: rep.consumerName,
-                                  serialNo: rep.serialNo || "",
-                                  meterType: "Standard",
-                                  agency: rep.agency,
-                                  status: "issued"
-                                }
-                                printMeterSlip([item as any])
-                              }}>
-                              <Printer className="h-3 w-3 mr-1" /> Req
-                            </Button>
-                          )}
-                          {isAdmin && (
-                            <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold px-2 bg-white border-amber-300 text-amber-800 hover:bg-amber-50 shrink-0 rounded-md"
-                              title="Return Meter (Not Installed)"
+                            <Button size="sm" variant="outline" className="w-full h-8 text-xs font-semibold border-amber-300 text-amber-800 hover:bg-amber-50"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 const targetIssue = linkedIssue || issues.find(i => i.issueId === rep.issueId || i.consumerId === rep.consumerId)
@@ -2490,72 +2460,72 @@ export function MeterList({ userRole, userAgencies, username, agencies, permissi
                                   toast({ title: "Issue record not found to return meter", variant: "destructive" })
                                 }
                               }}>
-                              <RotateCcw className="h-3 w-3 mr-0.5" /> Return
+                              <RotateCcw className="h-3 w-3 mr-1" /> Return Meter (Not Installed)
                             </Button>
                           )}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {rep.status === "updated" && (
-                      <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 space-y-1">
-                        {!isAdmin && (
-                          <p className="text-[10px] text-blue-700 font-semibold bg-blue-50 border border-blue-200 rounded px-2 py-0.5 text-center">
-                            Installed — awaiting WO finalization
+                      {rep.status === "updated" && (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs text-blue-700 font-medium bg-blue-50 border border-blue-100 rounded px-2.5 py-1 text-center">
+                            Installation done — awaiting WO finalization
                           </p>
-                        )}
-                        {isAdmin && (
-                          <div className="flex gap-1.5">
-                            <Button size="sm" className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] h-7 rounded-md"
+                          {isAdmin && (
+                            <div className="flex gap-2">
+                              <Button size="sm" className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs h-8"
+                                onClick={() => {
+                                  if (rep.issueId) {
+                                    setSelectedForFinalize(new Set([rep.issueId]))
+                                    setFinalizeRef(rep.workOrderNo || linkedIssue?.completionRef || "")
+                                    setShowFinalizeModal(true)
+                                  } else {
+                                    toast({ title: "Issue record not linked for finalization" })
+                                  }
+                                }}>
+                                <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Finalize & Add WO
+                              </Button>
+                              {isAdmin && linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
+                                <Button size="sm" variant="outline" className="text-xs h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                  onClick={() => {
+                                    setSelectedForReturnOffice(linkedIssue)
+                                    setReturnOfficeDialogOpen(true)
+                                  }}>
+                                  <PackageCheck className="h-3.5 w-3.5 mr-1" /> Meter Return
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(isWODone || isCompleted) && (
+                        <div className="flex gap-2 pt-1">
+                          {isAdmin && (
+                            <Button size="sm" variant="outline" className="flex-1 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 h-8"
                               onClick={() => {
-                                if (rep.issueId) {
-                                  setSelectedForFinalize(new Set([rep.issueId]))
-                                  setFinalizeRef(rep.workOrderNo || linkedIssue?.completionRef || "")
-                                  setShowFinalizeModal(true)
+                                if (linkedIssue) {
+                                  setSelectedForNoteSheet(linkedIssue)
+                                  setNoteSheetDialogOpen(true)
                                 } else {
-                                  toast({ title: "Issue record not linked for finalization" })
+                                  toast({ title: "Issue record not found to attach Note Sheet" })
                                 }
                               }}>
-                              <ClipboardCheck className="h-3 w-3 mr-1" /> Finalize WO
+                              <FileText className="h-3.5 w-3.5 mr-1" /> {rep.noteSheetNo ? "Edit Note Sheet" : "+ Note Sheet"}
                             </Button>
-                            {linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
-                              <Button size="sm" variant="outline" className="text-[10px] font-bold h-7 px-2 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-md"
-                                onClick={() => {
-                                  setSelectedForReturnOffice(linkedIssue)
-                                  setReturnOfficeDialogOpen(true)
-                                }}>
-                                <PackageCheck className="h-3 w-3 mr-0.5" /> Return
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {(isWODone || isCompleted) && isAdmin && (
-                      <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex gap-1.5">
-                        <Button size="sm" variant="outline" className="flex-1 text-[11px] font-bold text-blue-700 border-blue-200 bg-white hover:bg-blue-50 h-7 rounded-md"
-                          onClick={() => {
-                            if (linkedIssue) {
-                              setSelectedForNoteSheet(linkedIssue)
-                              setNoteSheetDialogOpen(true)
-                            } else {
-                              toast({ title: "Issue record not found to attach Note Sheet" })
-                            }
-                          }}>
-                          <FileText className="h-3 w-3 mr-1" /> {rep.noteSheetNo ? "Edit NS" : "+ Note Sheet"}
-                        </Button>
-                        {linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
-                          <Button size="sm" variant="outline" className="text-[10px] font-bold h-7 px-2 bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50 rounded-md"
-                            onClick={() => {
-                              setSelectedForReturnOffice(linkedIssue)
-                              setReturnOfficeDialogOpen(true)
-                            }}>
-                            <PackageCheck className="h-3 w-3 mr-0.5" /> Return
-                          </Button>
-                        )}
-                      </div>
-                    )}
+                          )}
+                          {isAdmin && linkedIssue && linkedIssue.oldMeterReturnStatus !== "returned" && (
+                            <Button size="sm" variant="outline" className="text-xs h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                              onClick={() => {
+                                setSelectedForReturnOffice(linkedIssue)
+                                setReturnOfficeDialogOpen(true)
+                              }}>
+                              <PackageCheck className="h-3.5 w-3.5 mr-1" /> Meter Return
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
                   </Card>
                 )
               })}

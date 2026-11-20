@@ -536,7 +536,7 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
 
       {/* List */}
       {tab !== "reports" && (
-        <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
+        <div key={tab} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-tab-enter">
         {paginated.length === 0 ? (
           <div className="text-center py-16 text-gray-400 col-span-full animate-fade-slide-up">
             <RotateCcw className="h-10 w-10 mx-auto mb-3 opacity-30" />
@@ -545,160 +545,154 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
         ) : paginated.map((r, idx) => {
           const overdueFlag = r.isOverdue
           const hrs = r.overdueHours
-          const leftBar = overdueFlag
-            ? "border-l-red-600"
-            : r.status === "reconnected"
-            ? "border-l-emerald-500"
-            : r.status === "door_locked"
-            ? "border-l-amber-500"
-            : r.status === "cancelled"
-            ? "border-l-slate-400"
-            : "border-l-blue-500"
-          const headerBg = overdueFlag
-            ? "bg-gradient-to-r from-red-50/85 via-rose-50/40 to-white"
-            : r.status === "reconnected"
-            ? "bg-gradient-to-r from-emerald-50/70 via-emerald-50/20 to-white"
-            : "bg-gradient-to-r from-blue-50/70 via-blue-50/20 to-white"
           return (
-            <Card key={r.requestId} className={`h-full flex flex-col justify-between bg-white rounded-xl border border-slate-300/85 border-l-4 ${leftBar} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${overdueFlag ? "ring-2 ring-red-500/85 border-red-300" : ""}`}>
-              {/* Compact Tinted Header */}
-              <CardHeader className={`px-2.5 py-2 space-y-1 border-b border-slate-200/75 ${headerBg}`}>
-                <div className="flex items-center justify-between gap-1 w-full">
-                  <div className="flex items-center gap-1 flex-wrap min-w-0">
-                    <span className="font-mono text-[9px] font-bold text-slate-600 bg-white/90 border border-slate-200 px-1 py-0.5 rounded leading-none">
-                      {r.requestId}
-                    </span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold leading-none ${r.source === "dc_list"
-                        ? "bg-blue-50 text-blue-700 border border-blue-200/80"
-                        : "bg-purple-50 text-purple-700 border border-purple-200/80"
-                      }`}>
-                      {r.source === "dc_list" ? "DC" : "Manual"}
-                    </span>
-                    {overdueFlag && (
-                      <span className="shrink-0 text-[8px] font-extrabold uppercase bg-red-600 text-white px-1 py-0.5 rounded leading-none animate-badge-pop">
-                        ⚠ {Math.floor(hrs)}h
+            <Card key={r.requestId} className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${overdueFlag ? "ring-2 ring-red-500 border-red-300" : "hover:border-blue-200"
+              }`}>
+              <CardHeader className="pb-3 break-words whitespace-normal">
+                <div className="flex items-start justify-between w-full gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight font-semibold text-gray-900">{r.name}</CardTitle>
+                      {overdueFlag && (
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-red-600 text-white px-1.5 py-0.5 rounded animate-badge-pop">OVERDUE</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 font-mono mt-1">ID: {r.consumerId}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      <span className="font-mono text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{r.requestId}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${r.source === "dc_list"
+                          ? "bg-blue-50 text-blue-600 border border-blue-100"
+                          : "bg-purple-50 text-purple-600 border border-purple-100"
+                        }`}>
+                        {r.source === "dc_list" ? "DC List" : "Manual"}
                       </span>
-                    )}
+                      {overdueFlag && (
+                        <span className="text-[10px] text-red-600 font-bold">
+                          ⚠ {Math.floor(hrs)}h overdue
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex flex-col items-end space-y-1.5 shrink-0">
                     <StatusBadge status={r.status} effectiveStatus={r.effectiveStatus} />
+                    <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border-indigo-200">
+                      {r.agency}
+                    </Badge>
                   </div>
-                </div>
-
-                <CardTitle className="text-[13px] font-extrabold text-slate-900 line-clamp-1 leading-tight tracking-tight" title={r.name}>
-                  {r.name}
-                </CardTitle>
-
-                <div className="flex items-center justify-between gap-1.5 text-[10px]">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-1.5 py-0.5 rounded leading-none">
-                      {r.consumerId}
-                    </span>
-                    {r.mobile && (
-                      <a href={`tel:${r.mobile}`} className="inline-flex items-center gap-0.5 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-1.5 py-0.5 rounded font-semibold leading-none truncate">
-                        <Phone className="h-2.5 w-2.5 shrink-0" />
-                        <span>{r.mobile}</span>
-                      </a>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-[9px] font-bold uppercase px-1.5 py-0 h-4 bg-indigo-50 text-indigo-700 border-indigo-200 max-w-[85px] truncate">
-                    {r.agency}
-                  </Badge>
                 </div>
               </CardHeader>
-
-              {/* Compact Body */}
-              <CardContent className="px-2.5 py-2 space-y-1.5 flex-1 bg-white text-[11px] break-words whitespace-normal">
+              <CardContent className="space-y-3 break-words whitespace-normal">
                 {r.address && (
-                  <div className="flex items-start gap-1 min-w-0">
-                    <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-snug" title={r.address}>{r.address}</p>
+                  <div className="flex items-start space-x-2 min-w-0">
+                    <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-gray-600 line-clamp-2" title={r.address}>{r.address}</p>
+                  </div>
+                )}
+                {r.mobile && (
+                  <a href={`tel:${r.mobile}`} className="flex items-center space-x-2 hover:underline">
+                    <Phone className="h-4 w-4 text-gray-400" />
+                    <p className="text-sm text-blue-600">{r.mobile}</p>
+                  </a>
+                )}
+                {r.device && (
+                  <div className="flex items-center space-x-2">
+                    <Monitor className="h-4 w-4 text-gray-400" />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-indigo-600 font-mono">{r.device}</p>
+                      <p className="text-[10px] text-gray-500">Meter / Device</p>
+                    </div>
                   </div>
                 )}
 
-                {(r.device || r.reading) && (
-                  <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1 flex items-center justify-between gap-2 text-[10px]">
-                    {r.device ? (
-                      <span className="inline-flex items-center gap-1 truncate font-mono font-bold text-indigo-700">
-                        <Monitor className="h-3 w-3 text-slate-400 shrink-0" />
-                        {r.device}
-                      </span>
-                    ) : <span />}
-                    {r.reading && (
-                      <span className="inline-flex items-center gap-1 shrink-0 font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded">
-                        <Gauge className="h-3 w-3 text-emerald-600" />
-                        {r.reading}
+                {/* Meter Reading Highlight */}
+                {r.reading && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                        <Gauge className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Reconnection Reading</p>
+                        <p className="text-sm font-bold text-emerald-950 font-mono tracking-tight">{r.reading}</p>
+                      </div>
+                    </div>
+                    {r.status === "reconnected" && (
+                      <span className="text-[10px] font-semibold bg-emerald-100/90 text-emerald-800 px-2 py-0.5 rounded-md">
+                        Recorded
                       </span>
                     )}
                   </div>
                 )}
 
+                {/* Remarks Display */}
                 {r.remarks && (
-                  <div className="px-2 py-1 rounded-md bg-slate-50 border border-slate-200/80 text-[10px] text-slate-700 leading-snug">
-                    <span className="font-semibold text-slate-900">Note: </span>
-                    <span className="line-clamp-2">{r.remarks}</span>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 space-y-1">
+                    <div className="flex items-center gap-1.5 text-slate-900 font-semibold text-[11px]">
+                      <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
+                      <span>{r.status === "reconnected" ? "Agency Remarks" : "Remarks / Notes"}</span>
+                    </div>
+                    <p className="text-xs text-slate-700 break-words whitespace-pre-wrap leading-relaxed pl-5">
+                      {r.remarks}
+                    </p>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-500 pt-1 border-t border-dashed border-slate-200">
-                  <div className="truncate">
-                    <span className="font-semibold">Cr:</span> {formatTs(r.createdAt)}
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 pt-2 border-t border-dashed">
+                  <div>
+                    <span className="font-semibold text-gray-500">Created:</span> {formatTs(r.createdAt)}
                   </div>
                   {r.status !== "pending" && r.updatedAt ? (
-                    <div className="truncate text-right" title={r.updatedBy || ""}>
-                      <span className="font-semibold text-emerald-600">Up:</span> {formatTs(r.updatedAt)}
+                    <div>
+                      <span className="font-semibold text-emerald-600">Updated:</span> {formatTs(r.updatedAt)}
                       {r.updatedBy && (
-                        <span className="block text-[9px] text-slate-400 truncate">
-                          By {r.updatedBy.replace(/^(agency|admin|executive|operator):/, "")}
-                        </span>
+                        <p className="text-[10px] text-gray-500 truncate" title={r.updatedBy}>
+                          By: {r.updatedBy.replace(/^(agency|admin|executive|operator):/, "")}
+                        </p>
                       )}
                     </div>
                   ) : null}
                 </div>
-              </CardContent>
 
-              {/* Single-Row Compact Footer */}
-              <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1.5">
-                <div className="flex items-center gap-1 min-w-0">
-                  {r.imageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewImage({ url: r.imageUrl, title: `Evidence Photo — ${r.name} (${r.consumerId})` })}
-                      className="h-7 px-1.5 inline-flex items-center gap-1 text-[10px] font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 cursor-pointer shrink-0"
-                      title={r.status === "door_locked" ? "View Door Lock Photo" : "View Evidence Photo"}
-                    >
-                      <ImageIcon className="h-3 w-3" />
-                      <span>{r.status === "door_locked" ? "Lock" : "Proof"}</span>
-                    </button>
-                  )}
-                  {r.requestImageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewImage({ url: r.requestImageUrl, title: `Request Photo — ${r.name} (${r.consumerId})` })}
-                      className="h-7 px-1.5 inline-flex items-center gap-1 text-[10px] font-semibold rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 cursor-pointer shrink-0"
-                      title="View Request Photo"
-                    >
-                      <ImageIcon className="h-3 w-3" />
-                      <span>Req</span>
-                    </button>
-                  )}
-                </div>
+                {/* Evidence Image and Request Image */}
+                {(r.imageUrl || r.requestImageUrl) && (
+                  <div className="pt-2 pb-1 flex flex-wrap gap-2 relative z-10 border-t border-dashed">
+                    {r.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ url: r.imageUrl, title: `Evidence Photo — ${r.name} (${r.consumerId})` })}
+                        className="inline-flex items-center space-x-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition-colors border border-blue-200 cursor-pointer"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" /> <span>{r.status === "door_locked" ? "View Door Lock Photo" : "View Evidence Photo"}</span>
+                      </button>
+                    )}
+                    {r.requestImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ url: r.requestImageUrl, title: `Request Photo — ${r.name} (${r.consumerId})` })}
+                        className="inline-flex items-center space-x-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800 transition-colors border border-purple-200 cursor-pointer"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" /> <span>View Request Photo</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                <div className="flex items-center gap-1 shrink-0">
+                {/* Actions / Buttons */}
+                <div className="flex items-center gap-2 mt-4">
                   {canUpdate(r) && (
                     <Button
                       onClick={() => { setSelected(r); setView("update") }}
-                      className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold h-7 px-2.5 rounded-md shadow-2xs transition-colors"
+                      className="flex-1 bg-slate-950 hover:bg-slate-900 text-white text-xs font-semibold h-9 rounded-lg shadow-sm transition-colors"
                       size="sm"
                     >
-                      <Edit className="h-3 w-3 mr-1" />
-                      Update
+                      <Edit className="h-4 w-4 mr-2" />
+                      Update Status
                     </Button>
                   )}
                   {isAdmin && r.effectiveStatus === "pending" && (
                     <Button
                       variant="outline"
-                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-7 w-7 p-0 shrink-0 rounded-md transition-colors"
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 h-9 w-9 p-0 shrink-0 rounded-lg transition-colors"
                       title="Cancel Request"
                       onClick={async () => {
                         if (!confirm("Cancel this request?")) return
@@ -714,11 +708,11 @@ export function ReconnectionList({ userRole, userAgencies, username, agencies, p
                         }).then(() => load(true)).catch(() => load(true))
                       }}
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
-              </div>
+              </CardContent>
             </Card>
           )
         })}

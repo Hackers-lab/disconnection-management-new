@@ -1468,8 +1468,8 @@ export function DashboardMenu({
   }
 
   return (
-    <div className="relative max-w-5xl mx-auto space-y-4 sm:space-y-5 pb-4">
-      {/* 0. Post-Unlock Guided Journey (Steps 3-5) only when actively guiding */}
+    <div className="relative max-w-6xl mx-auto space-y-5 sm:space-y-6 pb-4">
+      {/* 0. Post-Unlock Guided Journey (Steps 3-5) or Resume Pill */}
       {onboarding && isGuiding && (
         <GuidedJourneyBar
           onboarding={onboarding}
@@ -1479,38 +1479,144 @@ export function DashboardMenu({
       )}
       {onboarding && !isGuiding && <ResumeGuideBanner onboarding={onboarding} />}
 
-      {/* 1. Global Consumer Search Bar */}
-      <div className="max-w-xl mx-auto animate-fade-slide-up">
-        <GlobalConsumerSearch
-          onSelectModule={onSelect}
-          userRole={userRole}
-          permissions={permissions}
-        />
+      {/* 1. Admin Setup Guide Banner (Now visible on BOTH mobile & desktop) */}
+      {((userRole || "").toLowerCase() === "admin" || (userRole || "").toLowerCase() === "superuser") && (
+        <div className="animate-fade-slide-up">
+          <AdminSetupGuideBanner />
+        </div>
+      )}
+
+      {/* 2. Global Consumer Search Bar + Last Updated Meta */}
+      <div className="space-y-2.5 animate-fade-slide-up">
+        <div className="max-w-2xl mx-auto">
+          <GlobalConsumerSearch
+            onSelectModule={onSelect}
+            userRole={userRole}
+            permissions={permissions}
+          />
+        </div>
+
+        {latestUpdateDate && (
+          <div className="flex items-center justify-center">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full border border-slate-200/80 shadow-2xs">
+              <Calendar className="h-3 w-3 text-blue-500" />
+              Last Synced Activity: <strong className="font-semibold text-slate-800">{latestUpdateDate}</strong>
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* 2. Compact App-Launcher Module Icon Tiles */}
-      <div className="space-y-4 sm:space-y-5">
+      {/* 3. Quick Access — Recently Used Strip (1-tap jump for daily workflows) */}
+      {recentModules.length > 0 && (
+        <section className="animate-fade-slide-up space-y-2">
+          <div className="flex items-center gap-1.5 px-0.5">
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            <h2 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Quick Access
+            </h2>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {recentModules.map((mod, idx) => {
+              const Icon = mod.icon
+              const sig = MODULE_ACCENT_STYLES[mod.accent] || MODULE_ACCENT_STYLES.blue
+              return (
+                <button
+                  key={mod.id}
+                  type="button"
+                  onClick={() => handleOpenModule(mod.id)}
+                  className={`animate-chip-in stagger-${idx + 1} shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-300/80 hover:border-blue-400 hover:bg-blue-50/40 shadow-[0_2px_6px_-2px_rgba(15,23,42,0.08)] text-xs font-semibold text-slate-800 transition-all interactive-tap cursor-pointer`}
+                >
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${sig.quickIcon}`} />
+                  <span>{mod.title}</span>
+                  {mod.hasCount && mod.count > 0 && mod.id !== "consumer-master" && (
+                    <span className="notranslate tabular-nums px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
+                      {mod.count.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 4. Needs Attention Surface (Unified across Mobile & Desktop) */}
+      {attentionModules.length > 0 && (
+        <section className="animate-fade-slide-up space-y-2.5">
+          <div className="flex items-center gap-1.5 px-0.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+            <h2 className="text-[11px] font-bold text-red-600 uppercase tracking-wider">
+              Needs Attention
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+            {attentionModules.map((mod, idx) => {
+              const Icon = mod.icon
+              return (
+                <button
+                  key={mod.id}
+                  type="button"
+                  onClick={() => handleOpenModule(mod.id)}
+                  className={`animate-card-enter stagger-${Math.min(idx + 1, 6)} group text-left rounded-2xl border border-red-200/90 hover:border-red-300 bg-gradient-to-br from-white via-red-50/20 to-red-50/50 p-3.5 flex items-center justify-between gap-3 shadow-xs hover:shadow-md card-interactive cursor-pointer`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-red-100/80 border border-red-200 flex items-center justify-center text-red-600 shrink-0 transition-transform duration-200 group-hover:scale-105">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">
+                        {mod.title}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {mod.description}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="notranslate tabular-nums shrink-0 px-2.5 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold shadow-xs">
+                    {mod.isLoading ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      formatSemanticCount(mod, false)
+                    )}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 5. Categorized Modules Grid */}
+      <div className="space-y-6">
         {MODULE_CATEGORIES.map((category) => {
           const items = accessibleModulesWithCounts.filter((m) => m.category === category.id)
           if (items.length === 0) return null
 
           return (
-            <section key={category.id} className="space-y-2">
-              <div className="flex items-center gap-1.5 px-1">
-                <span className={`h-1.5 w-1.5 rounded-full ${category.accentDot}`} />
-                <h2 className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  {category.label}
-                </h2>
+            <section key={category.id} className="space-y-3">
+              <div className="flex items-center justify-between px-0.5">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${category.accentDot}`} />
+                  <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    {category.label}
+                  </h2>
+                  <span className="hidden sm:inline text-xs text-slate-400 font-normal">
+                    — {category.description}
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-slate-400">
+                  {items.length} {items.length === 1 ? "module" : "modules"}
+                </span>
               </div>
 
-              <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
                 {items.map((mod, idx) => {
                   const Icon = mod.icon
                   const styles = getThemeStyles(mod)
+                  const semanticLabel = formatSemanticCount(mod, false)
                   const compactLabel = formatSemanticCount(mod, true)
-                  const showCountBadge =
-                    mod.hasCount && (mod.isLoading || (mod.count > 0 && mod.id !== "consumer-master") || (mod.id === "consumer-master" && mod.count > 0))
 
+                  // Highlight next guided setup module for Steps 3, 4, and 5 once unlocked
                   const guidedCardHint =
                     isGuiding && mod.id === "admin" && activeStepId === "zoneMap"
                       ? "Step 3: Add Zone Map"
@@ -1525,47 +1631,75 @@ export function DashboardMenu({
                       key={mod.id}
                       type="button"
                       onClick={() => handleOpenModule(mod.id)}
-                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-center cursor-pointer rounded-2xl bg-white border ${
+                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-left cursor-pointer rounded-2xl bg-gradient-to-br ${styles.surfaceWash} border ${
                         guidedCardHint
                           ? "border-blue-600 ring-2 ring-blue-500/30 animate-spotlight-ring overflow-visible z-10"
-                          : `border-slate-200/95 ring-1 ring-slate-900/[0.03] ${styles.cardBorder} overflow-hidden`
-                      } shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)] hover:shadow-[0_10px_22px_-6px_rgba(15,23,42,0.14)] flex flex-col items-center justify-center card-interactive select-none transition-all duration-150`}
+                          : `border-slate-300/80 ring-1 ring-slate-900/[0.03] ${styles.cardBorder} overflow-hidden`
+                      } shadow-[0_3px_12px_-3px_rgba(15,23,42,0.10),0_1px_3px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_28px_-8px_rgba(15,23,42,0.16)] flex flex-col justify-between min-h-[128px] sm:min-h-[148px] card-interactive select-none transition-all duration-200`}
                     >
-                      {/* Slim Top Accent Strip */}
+                      {/* Distinct Top Signature Color Bar */}
                       <div
-                        className={`h-[3px] w-full bg-gradient-to-r ${styles.topBar} shrink-0 ${
+                        className={`h-[3.5px] w-full bg-gradient-to-r ${styles.topBar} shrink-0 ${
                           guidedCardHint ? "rounded-t-2xl" : ""
                         }`}
                       />
 
-                      {/* Floating Top-Right Count / Next Step Pill */}
-                      {guidedCardHint ? (
-                        <span className="absolute top-2 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-600 text-white shadow-2xs">
-                          <Sparkles className="h-2.5 w-2.5" />
-                          Next
-                        </span>
-                      ) : showCountBadge ? (
-                        <span
-                          className={`notranslate tabular-nums absolute top-2 right-1.5 inline-flex items-center justify-center min-w-[20px] px-1.5 py-0.5 rounded-full text-[10px] font-extrabold leading-none border ${styles.badgeClass}`}
-                        >
-                          {mod.isLoading ? (
-                            <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                          ) : (
-                            compactLabel
-                          )}
-                        </span>
-                      ) : null}
+                      {/* Subtle Watermark Icon on Desktop */}
+                      <div className="hidden sm:block absolute -bottom-3 -right-3 opacity-[0.05] group-hover:opacity-[0.10] transition-opacity duration-300 pointer-events-none overflow-hidden rounded-br-2xl">
+                        <Icon className={styles.watermark} />
+                      </div>
 
-                      {/* Icon + Title Only */}
-                      <div className="w-full px-2 pt-3.5 pb-2.5 sm:px-3 sm:pt-4 sm:pb-3 flex flex-col items-center justify-center gap-1.5 min-h-[84px] sm:min-h-[92px]">
-                        <div className={`${styles.iconContainer} !w-9 !h-9 sm:!w-10 sm:!h-10 !rounded-xl`}>
-                          <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                      <div className="relative z-10 p-3.5 sm:p-4 flex-1 flex flex-col justify-between w-full">
+                        {/* Top Row: Distinct Signature Icon + Semantic Count Pill */}
+                        <div className="flex items-start justify-between gap-2 w-full">
+                          <div className={styles.iconContainer}>
+                            <Icon className="h-5 w-5" />
+                          </div>
+
+                          {guidedCardHint ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-xs">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              Next Step
+                            </span>
+                          ) : mod.hasCount ? (
+                            <span
+                              className={`notranslate tabular-nums inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold border transition-transform duration-200 group-hover:scale-105 ${styles.badgeClass}`}
+                            >
+                              {mod.isLoading ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <span className="sm:hidden">{compactLabel}</span>
+                                  <span className="hidden sm:inline">{semanticLabel}</span>
+                                </>
+                              )}
+                            </span>
+                          ) : null}
                         </div>
-                        <h3
-                          className={`text-[11px] sm:text-xs font-bold text-slate-800 leading-tight line-clamp-2 tracking-tight transition-colors ${styles.titleHover}`}
-                        >
-                          {mod.title}
-                        </h3>
+
+                        {/* Middle Row: Title & Description */}
+                        <div className="mt-3 space-y-0.5">
+                          <h3 className={`text-sm sm:text-[15px] font-extrabold text-slate-900 leading-snug tracking-tight transition-colors ${styles.titleHover}`}>
+                            {mod.title}
+                          </h3>
+                          <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                            {mod.description}
+                          </p>
+                        </div>
+
+                        {/* Subtle Micro-Footer Affordance */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[10px] font-semibold text-slate-400 group-hover:text-slate-700 transition-colors">
+                          <span className="uppercase tracking-wider truncate">
+                            {category.id === "operations"
+                              ? "Operations"
+                              : category.id === "field"
+                              ? "Field"
+                              : category.id === "assets"
+                              ? "Assets"
+                              : "Utility"}
+                          </span>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        </div>
                       </div>
 
                       {guidedCardHint && (

@@ -773,52 +773,62 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
           <p className="text-base font-medium">No painting rows assigned or matched</p>
         </div>
       ) : (
-        <div key={`${tab}-${selectedFeeder}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
+        <div key={`${tab}-${selectedFeeder}`} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-tab-enter">
           {paginated.map((r, idx) => {
             const isPainted = (r.painting || "").toLowerCase() === "done"
             
             return (
               <Card 
                 key={r.dtrCode} 
-                className={`overflow-hidden bg-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} relative border border-slate-300/85 border-l-4 flex flex-col justify-between rounded-xl ${
-                  isPainted ? "border-l-emerald-500" : "border-l-orange-500"
+                className={`overflow-hidden shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} relative border flex flex-col justify-between ${
+                  isPainted ? "border-green-200" : "border-gray-200"
                 }`}
               >
                 <div>
-                  <CardHeader className={`px-2.5 py-2 border-b border-slate-200/75 flex flex-row items-start justify-between gap-1.5 ${isPainted ? "bg-emerald-50/40" : "bg-orange-50/40"}`}>
+                  {/* Visual Status Indicator */}
+                  <div className={`h-1 w-full absolute top-0 left-0 ${isPainted ? "bg-green-500" : "bg-orange-400"}`} />
+
+                  <CardHeader className="pb-2 p-5 flex flex-row items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="font-extrabold font-mono text-slate-900 text-[13px] leading-tight truncate">{r.dtrCode}</h3>
-                      <p className="text-[10.5px] text-slate-500 mt-0.5 truncate" title={r.feederName}>{r.feederName}</p>
+                      <span className="text-[10px] text-gray-400 uppercase tracking-widest font-mono font-semibold">DTR CODE</span>
+                      <h3 className="font-bold font-mono text-gray-900 text-lg leading-tight truncate">{r.dtrCode}</h3>
+                      <p className="text-xs text-gray-500 mt-1 truncate">{r.feederName}</p>
                     </div>
                     
                     {isPainted ? (
-                      <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 font-bold text-[9px] px-1.5 py-0 h-4 rounded-full shrink-0">
+                      <Badge className="bg-green-50 text-green-700 hover:bg-green-50 border border-green-200 font-medium rounded-lg">
                         Completed
                       </Badge>
                     ) : (
-                      <Badge className="bg-orange-50 text-orange-700 hover:bg-orange-50 border border-orange-200 font-bold text-[9px] px-1.5 py-0 h-4 rounded-full shrink-0">
-                        Pending
+                      <Badge className="bg-orange-50 text-orange-700 hover:bg-orange-50 border border-orange-200 font-medium rounded-lg">
+                        Painting Pending
                       </Badge>
                     )}
                   </CardHeader>
 
-                  <CardContent className="px-2.5 py-2 space-y-1.5 text-[11px]">
-                    <p className="text-[11px] text-slate-700 line-clamp-1" title={r.locationName}>
-                      <span className="text-slate-400">Loc: </span>{r.locationName || "—"}
-                    </p>
+                  <CardContent className="px-5 pb-5 pt-0 space-y-3 text-xs">
+                    {/* Landmark */}
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Landmark / Location</span>
+                      <p className="text-xs text-gray-700 line-clamp-1" title={r.locationName}>
+                        {r.locationName || "—"}
+                      </p>
+                    </div>
 
-                    <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg px-2 py-1.5 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px]">
-                      <div className="truncate">
-                        <span className="text-slate-400">kVA: </span>
-                        <strong className="text-slate-800 font-semibold">{r.kvCapacity ? `${r.kvCapacity}` : "—"}</strong>
+                    {/* Details Grid */}
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-2 border-t pt-2.5">
+                      <div>
+                        <span className="text-gray-400 block text-[9px]">Rating Capacity</span>
+                        <strong className="text-gray-800 font-semibold">{r.kvCapacity ? `${r.kvCapacity} kVA` : "—"}</strong>
                       </div>
-                      <div className="truncate text-right" title={r.paintingAgency}>
-                        <strong className="text-indigo-700 font-bold">{r.paintingAgency || "—"}</strong>
+                      <div>
+                        <span className="text-gray-400 block text-[9px]">Painting Agency</span>
+                        <strong className="text-indigo-700 font-bold truncate block" title={r.paintingAgency}>{r.paintingAgency || "—"}</strong>
                       </div>
-                      <div className="col-span-2 truncate border-t border-slate-200/70 pt-1">
-                        <span className="text-slate-400">GPS: </span>
+                      <div>
+                        <span className="text-gray-400 block text-[9px]">GPS Coordinates</span>
                         {r.latlong ? (
-                          <span className="text-slate-700 font-mono text-[9.5px]" title={r.latlong}>
+                          <span className="text-gray-700 font-mono text-[10px] truncate block" title={r.latlong}>
                             {r.latlong}
                           </span>
                         ) : (
@@ -829,28 +839,28 @@ export function DTRPaintingList({ userRole, userAgencies = [], username, agencie
                   </CardContent>
                 </div>
 
-                <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 mt-auto flex gap-1.5">
+                <div className="px-5 pb-5 pt-0 mt-auto flex gap-2">
                   <Button 
                     variant="outline"
                     onClick={() => setViewingDtr(r)} 
-                    className="flex-1 h-7 rounded-md bg-white text-slate-700 border-slate-200 text-[11px] font-semibold flex items-center justify-center gap-1"
+                    className="flex-1 h-9 rounded-xl text-slate-700 border-slate-200 text-xs flex items-center justify-center gap-1.5"
                   >
-                    <Eye className="h-3 w-3" /> Details
+                    <Eye className="h-3.5 w-3.5" /> View Details
                   </Button>
                   
                   {canUpdate && (isAdmin || !isPainted) ? (
                     <Button 
                       onClick={() => setSelectedDtr(r)} 
-                      className="flex-[1.2] h-7 rounded-md transition text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-2xs"
+                      className="flex-[1.2] h-9 rounded-xl transition text-xs font-semibold bg-slate-950 hover:bg-slate-900 text-white shadow-sm"
                     >
-                      Update
+                      Update Painting
                     </Button>
                   ) : (
                     <Button 
                       disabled
-                      className="flex-[1.2] h-7 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-400 border cursor-not-allowed"
+                      className="flex-[1.2] h-9 rounded-xl text-xs font-semibold bg-slate-100 text-slate-400 border cursor-not-allowed"
                     >
-                      Completed
+                      Locked / Completed
                     </Button>
                   )}
                 </div>

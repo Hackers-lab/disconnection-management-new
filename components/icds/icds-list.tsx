@@ -778,8 +778,8 @@ export function IcdsList({
       {/* 4. Main Records Display (Cards / Table) */}
       {loading ? (
         viewMode === "card" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
-            {Array.from({ length: 8 }).map((_, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
@@ -787,12 +787,12 @@ export function IcdsList({
           <SkeletonTable rows={8} cols={7} />
         )
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center p-14 bg-white rounded-xl shadow-xs border border-slate-200 space-y-3">
-          <div className="h-11 w-11 rounded-xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-200">
-            <Building2 className="h-5 w-5 text-slate-400" />
+        <div className="text-center p-16 bg-white rounded-xl shadow-md border border-slate-200 space-y-4">
+          <div className="h-12 w-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto border border-slate-200">
+            <Building2 className="h-6 w-6 text-slate-400" />
           </div>
           <div>
-            <h3 className="font-extrabold text-slate-800 text-sm">No Anganwadi Centers Found</h3>
+            <h3 className="font-extrabold text-slate-800 text-base">No Anganwadi Centers Found</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
               {records.length === 0
                 ? "Your registry is currently empty. Click 'Bulk Upload' or 'Add Center' to get started."
@@ -800,242 +800,227 @@ export function IcdsList({
             </p>
           </div>
           {activeFiltersCount > 0 && (
-            <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs font-semibold rounded-lg shadow-xs">
+            <Button size="sm" variant="outline" onClick={clearFilters} className="text-xs font-semibold rounded-lg shadow-sm">
               Reset Filters
             </Button>
           )}
         </div>
       ) : viewMode === "card" ? (
         /* Cards Grid */
-        <div key="icds-card-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 animate-tab-enter">
-          {paginatedRecords.map((r, idx) => {
-            const stageStripe =
-              r.jurisdictionStatus === "OTHER_OFFICE" ? "border-l-amber-400" :
-              r.stage === "PENDING_INSPECTION" ? "border-l-amber-500" :
-              r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" ? "border-l-indigo-500" :
-              r.stage === "WO_ISSUED" ? "border-l-blue-500" :
-              r.stage === "METER_INSTALLED" ? "border-l-purple-500" :
-              "border-l-emerald-500"
-            const headerTint =
-              r.jurisdictionStatus === "OTHER_OFFICE" ? "bg-amber-50/45" :
-              r.stage === "PENDING_INSPECTION" ? "bg-amber-50/40" :
-              r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" ? "bg-indigo-50/40" :
-              r.stage === "WO_ISSUED" ? "bg-blue-50/45" :
-              r.stage === "METER_INSTALLED" ? "bg-purple-50/45" :
-              "bg-emerald-50/45"
-
-            return (
-              <Card
-                id={`icds-card-${r.id}`}
-                key={r.id}
-                className={`bg-white rounded-xl border border-slate-300/85 border-l-4 ${stageStripe} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive overflow-hidden max-w-full flex flex-col justify-between animate-card-enter stagger-${(idx % 6) + 1}`}
-              >
-                <div>
-                  {/* Compact Header */}
-                  <div className={`px-2.5 py-2 border-b border-slate-200/75 ${headerTint} break-words whitespace-normal`}>
-                    <div className="flex items-start justify-between w-full gap-1.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1">
-                          <p className="text-[13px] font-extrabold text-slate-900 leading-tight line-clamp-1" title={r.awcName}>
-                            {r.awcName}
-                          </p>
-                          {canEditMaster && (
-                            <button
-                              onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowEditModal(true); }}
-                              className="text-slate-400 hover:text-slate-900 transition-colors p-0.5 rounded hover:bg-white/80 cursor-pointer shrink-0"
-                              title="Edit Details"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-mono truncate mt-0.5">Code: {r.awcCode}</p>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-0.5 shrink-0">
-                        {getStageBadge(r.stage)}
-                        <Badge variant="outline" className="h-4 text-[9px] px-1.5 py-0 bg-white max-w-[100px] truncate block" title={r.assignedAgency || "Unassigned"}>
-                          {r.assignedAgency || "Unassigned"}
-                        </Badge>
-                      </div>
+        <div key="icds-card-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-tab-enter">
+          {paginatedRecords.map((r, idx) => (
+            <Card
+              id={`icds-card-${r.id}`}
+              key={r.id}
+              className={`shadow-xs card-interactive hover:shadow-md overflow-hidden max-w-full flex flex-col justify-between border-slate-200/90 rounded-2xl animate-card-enter stagger-${(idx % 6) + 1}`}
+            >
+              <CardHeader className="pb-3 break-words whitespace-normal">
+                <div className="flex items-start justify-between w-full gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="text-lg break-words whitespace-normal line-clamp-2 leading-tight">
+                        {r.awcName}
+                      </CardTitle>
+                      {canEditMaster && (
+                        <button
+                          onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowEditModal(true); }}
+                          className="text-gray-400 hover:text-slate-900 transition-colors p-1 rounded hover:bg-gray-100 cursor-pointer shrink-0"
+                          title="Edit Details"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
-
-                    <div className="flex items-center gap-1 flex-wrap mt-1">
-                      <Badge variant="outline" className="h-4 text-[9px] px-1.5 py-0 bg-white/90 uppercase tracking-wide">
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <p className="text-sm text-gray-600 font-mono">Code: {r.awcCode}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em]">
                         {r.blockName} • {r.gpName}
                       </Badge>
                       {r.propertyStatus && (
-                        <Badge variant="outline" className="h-4 text-[9px] px-1.5 py-0 bg-white/90 uppercase tracking-wide">
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.08em]">
                           {r.propertyStatus.replace("_", " ")}
                         </Badge>
                       )}
                     </div>
                   </div>
 
-                  {/* Compact Body */}
-                  <div className="px-2.5 py-2 space-y-1.5 text-[11px] break-words whitespace-normal">
-                    <div className="flex items-start gap-1 min-w-0 text-slate-600">
-                      <MapPin className="h-3 w-3 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-[11px] leading-snug line-clamp-2" title={r.awcAddress || `${r.blockName}, ${r.gpName}`}>
-                        {r.awcAddress || `${r.blockName}, ${r.gpName}`}
-                      </p>
+                  <div className="flex flex-col items-end space-y-1 shrink-0">
+                    {getStageBadge(r.stage)}
+                    <Badge variant="outline" className="text-xs max-w-[120px] truncate block" title={r.assignedAgency || "Unassigned"}>
+                      {r.assignedAgency || "Unassigned"}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-3 break-words whitespace-normal flex-1">
+                {/* Address */}
+                <div className="flex items-start space-x-2 min-w-0">
+                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-600 line-clamp-2" title={r.awcAddress || `${r.blockName}, ${r.gpName}`}>
+                    {r.awcAddress || `${r.blockName}, ${r.gpName}`}
+                  </p>
+                </div>
+
+                {/* Worker Contact */}
+                {r.awwMobile ? (
+                  <a href={`tel:${r.awwMobile}`} className="flex items-center space-x-2 hover:underline">
+                    <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <p className="text-sm text-blue-600">
+                      {r.awwName ? `${r.awwName} (${r.awwMobile})` : r.awwMobile}
+                    </p>
+                  </a>
+                ) : r.awwName ? (
+                  <div className="flex items-center space-x-2">
+                    <Smartphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <p className="text-sm text-gray-600">{r.awwName}</p>
+                  </div>
+                ) : null}
+
+                {/* Electrical & Technical Status Box (Matching Disconnection Payment Box Style) */}
+                <div className="space-y-1.5 bg-slate-50/70 p-2.5 rounded-lg border border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      <Zap className={"h-4 w-4 shrink-0 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-amber-500")} />
+                      <span className="text-sm font-semibold text-slate-800">
+                        {r.smartMeterNo ? `Smart Meter: ${r.smartMeterNo}` : (r.meterExists ? "Meter Exists" : "Un-electrified Center")}
+                      </span>
                     </div>
+                    {r.jurisdictionStatus === "OTHER_OFFICE" ? (
+                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                        Other CCC
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                        {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct Line"}
+                      </span>
+                    )}
+                  </div>
 
-                    {r.awwMobile ? (
-                      <a href={`tel:${r.awwMobile}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:underline">
-                        <Smartphone className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                        <span className="truncate">{r.awwName ? `${r.awwName} (${r.awwMobile})` : r.awwMobile}</span>
-                      </a>
-                    ) : r.awwName ? (
-                      <div className="flex items-center gap-1 text-[10px] text-slate-600">
-                        <Smartphone className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                        <span className="truncate">{r.awwName}</span>
-                      </div>
-                    ) : null}
-
-                    {/* Compact Electrical & Technical Status Box */}
-                    <div className="space-y-1 bg-slate-50/90 px-2 py-1.5 rounded-lg border border-slate-200/80 text-[10px]">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <Zap className={"h-3 w-3 shrink-0 " + (r.meterExists || r.smartMeterNo ? "text-indigo-600" : "text-amber-500")} />
-                          <span className="font-bold text-slate-800 truncate">
-                            {r.smartMeterNo ? `Smart: ${r.smartMeterNo}` : (r.meterExists ? "Meter Exists" : "Un-electrified")}
-                          </span>
-                        </div>
-                        {r.jurisdictionStatus === "OTHER_OFFICE" ? (
-                          <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0 rounded shrink-0">
-                            Other CCC
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-slate-600 bg-white border border-slate-200 px-1.5 py-0 rounded shrink-0">
-                            {r.infraRequired ? `${r.polesRequired || 0} Poles Req` : "Direct Line"}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-200/70">
-                        <div>
-                          <span className="block text-[9px] text-slate-400 uppercase font-bold">Wiring</span>
-                          <span className="font-semibold text-slate-800">
-                            {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="block text-[9px] text-slate-400 uppercase font-bold">Bulbs / Fans</span>
-                          <span className="font-semibold text-slate-800">
-                            {r.existingLedBulbsCount ?? 0} Bulbs · {r.existingFanCount ?? 0} Fans
-                          </span>
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-2 gap-1 pt-1 text-[11px] border-t border-slate-200/60 font-medium">
+                    <div className="text-slate-600">
+                      <span className="block text-[10px] text-slate-400 uppercase">Wiring Package</span>
+                      <span className="font-semibold text-slate-800">
+                        {r.equipmentPackageInstalled ? "Wiring Done" : (r.newWiringRequired ? "Wiring Req" : "Wiring Exists")}
+                      </span>
+                    </div>
+                    <div className="text-slate-600">
+                      <span className="block text-[10px] text-slate-400 uppercase">Bulbs / Fans</span>
+                      <span className="font-semibold text-slate-800">
+                        {r.existingLedBulbsCount ?? 0} Bulbs • {r.existingFanCount ?? 0} Fans
+                      </span>
                     </div>
                   </div>
                 </div>
+              </CardContent>
 
-                {/* Compact Action Footer */}
-                <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1.5">
+              {/* Action Footer */}
+              <div className="p-3 bg-gray-50 border-t flex items-center justify-between gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
+                  className="h-8 px-2.5 text-xs text-gray-700 hover:text-slate-900 rounded hover:bg-white"
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1" /> Details
+                </Button>
+
+                {/* Primary Action Button Based on Current Flow Stage */}
+                {r.jurisdictionStatus === "OTHER_OFFICE" ? (
+                  <Badge className="bg-amber-100 text-amber-900 text-[10px] font-mono border-amber-200 shadow-xs">
+                    Other CCC: {r.jurisdictionOffice || "Adjacent"}
+                  </Badge>
+                ) : r.stage === "PENDING_INSPECTION" ? (
+                  canInspect ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                    >
+                      <Camera className="h-3.5 w-3.5 mr-1.5" />
+                      Inspect
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-amber-700 bg-amber-50 border-amber-200">
+                      Pending
+                    </Badge>
+                  )
+                ) : r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" ? (
+                  canProcess ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1.5" />
+                      Admin CRM / WO
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[11px] font-bold py-1 px-2.5 text-indigo-700 bg-indigo-50 border-indigo-200">
+                      <Clock className="h-3 w-3 mr-1 animate-pulse" /> Awaiting WO
+                    </Badge>
+                  )
+                ) : r.stage === "WO_ISSUED" ? (
+                  canExecute ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("meter"); setShowExecutionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                    >
+                      <Gauge className="h-3.5 w-3.5 mr-1.5" />
+                      Install Meter
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-blue-700 bg-blue-50 border-blue-200">
+                      WO Issued
+                    </Badge>
+                  )
+                ) : r.stage === "METER_INSTALLED" ? (
+                  canExecute ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("wiring"); setShowExecutionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                    >
+                      <Layers className="h-3.5 w-3.5 mr-1.5" />
+                      CSR Wiring
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-purple-700 bg-purple-50 border-purple-200">
+                      Meter Done
+                    </Badge>
+                  )
+                ) : r.stage === "EQUIPMENT_INSTALLED" ? (
+                  canExecute ? (
+                    <Button
+                      size="sm"
+                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("handover"); setShowExecutionModal(true); }}
+                      className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                    >
+                      <Award className="h-3.5 w-3.5 mr-1.5" />
+                      Deliver & Certify
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-bold py-1 text-emerald-700 bg-emerald-50 border-emerald-200">
+                      Wiring Done
+                    </Badge>
+                  )
+                ) : (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                    className="h-7 px-2 text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-white rounded-md"
+                    className="h-8 px-3 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 shadow-sm"
                   >
-                    <Eye className="h-3 w-3 mr-1" /> Details
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                    Certified
                   </Button>
-
-                  {r.jurisdictionStatus === "OTHER_OFFICE" ? (
-                    <Badge className="bg-amber-100 text-amber-900 text-[9px] font-mono border-amber-200">
-                      Other CCC: {r.jurisdictionOffice || "Adjacent"}
-                    </Badge>
-                  ) : r.stage === "PENDING_INSPECTION" ? (
-                    canInspect ? (
-                      <Button
-                        size="sm"
-                        onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowInspectModal(true); }}
-                        className="h-7 px-2.5 text-[11px] font-bold rounded-md bg-slate-900 hover:bg-slate-800 text-white"
-                      >
-                        <Camera className="h-3 w-3 mr-1" />
-                        Inspect
-                      </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] font-bold py-0.5 text-amber-700 bg-amber-50 border-amber-200">
-                        Pending
-                      </Badge>
-                    )
-                  ) : r.stage === "INSPECTED" || r.stage === "APPLICATION_PENDING" ? (
-                    canProcess ? (
-                      <Button
-                        size="sm"
-                        onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowConnectionModal(true); }}
-                        className="h-7 px-2.5 text-[11px] font-bold rounded-md bg-slate-900 hover:bg-slate-800 text-white"
-                      >
-                        <FileText className="h-3 w-3 mr-1" />
-                        CRM / WO
-                      </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] font-bold py-0.5 px-2 text-indigo-700 bg-indigo-50 border-indigo-200">
-                        <Clock className="h-2.5 w-2.5 mr-1 animate-pulse" /> Awaiting WO
-                      </Badge>
-                    )
-                  ) : r.stage === "WO_ISSUED" ? (
-                    canExecute ? (
-                      <Button
-                        size="sm"
-                        onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("meter"); setShowExecutionModal(true); }}
-                        className="h-7 px-2.5 text-[11px] font-bold rounded-md bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        <Gauge className="h-3 w-3 mr-1" />
-                        Install Meter
-                      </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] font-bold py-0.5 text-blue-700 bg-blue-50 border-blue-200">
-                        WO Issued
-                      </Badge>
-                    )
-                  ) : r.stage === "METER_INSTALLED" ? (
-                    canExecute ? (
-                      <Button
-                        size="sm"
-                        onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("wiring"); setShowExecutionModal(true); }}
-                        className="h-7 px-2.5 text-[11px] font-bold rounded-md bg-purple-600 hover:bg-purple-700 text-white"
-                      >
-                        <Layers className="h-3 w-3 mr-1" />
-                        CSR Wiring
-                      </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] font-bold py-0.5 text-purple-700 bg-purple-50 border-purple-200">
-                        Meter Done
-                      </Badge>
-                    )
-                  ) : r.stage === "EQUIPMENT_INSTALLED" ? (
-                    canExecute ? (
-                      <Button
-                        size="sm"
-                        onClick={() => { triggerVibrate(); setSelectedRecord(r); setExecutionTab("handover"); setShowExecutionModal(true); }}
-                        className="h-7 px-2.5 text-[11px] font-bold rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        <Award className="h-3 w-3 mr-1" />
-                        Certify
-                      </Button>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] font-bold py-0.5 text-emerald-700 bg-emerald-50 border-emerald-200">
-                        Wiring Done
-                      </Badge>
-                    )
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => { triggerVibrate(); setSelectedRecord(r); setShowViewDialog(true); }}
-                      className="h-7 px-2.5 text-[11px] font-bold rounded-md bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                    >
-                      <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-600" />
-                      Certified
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            )
-          })}
+                )}
+              </div>
+            </Card>
+          ))}
         </div>
       ) : (
         /* Table View */

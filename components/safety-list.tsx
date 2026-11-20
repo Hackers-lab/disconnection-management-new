@@ -819,8 +819,8 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
       {/* Cards View / Skeleton Loading */}
       {loading ? (
         viewMode === "card" ? (
-          <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
@@ -828,110 +828,98 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
           <SkeletonTable rows={8} cols={6} />
         )
       ) : viewMode === "card" ? (
-        <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {paginatedTickets.map((ticket, idx) => {
             const isFullyClosed = ticket.physicalStatus === "rectified" && (ticket.adminStatus === "po_done" || ticket.adminStatus === "not_required")
             const isSiteRectified = ticket.physicalStatus === "rectified"
             const rawImage = ticket.afterImageUrl || ticket.beforeImageUrl || ticket.drawingUrl
             const directImage = getGoogleDriveDirectLink(rawImage)
             const canEdit = isAdmin || ticket.physicalStatus === "pending"
-            const leftBar = ticket.priority === "urgent"
-              ? "border-l-red-600"
-              : isFullyClosed
-              ? "border-l-emerald-500"
-              : isSiteRectified
-              ? "border-l-blue-500"
-              : "border-l-amber-500"
 
             return (
-              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className={`shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive overflow-hidden border border-slate-300/85 border-l-4 ${leftBar} flex flex-col justify-between rounded-xl bg-white group animate-card-enter stagger-${(idx % 6) + 1}`}>
+              <Card key={`${ticket.safetyId || "safety"}-${idx}`} className={`shadow-xs card-interactive overflow-hidden border border-slate-200/90 flex flex-col justify-between rounded-xl bg-white group animate-card-enter stagger-${(idx % 6) + 1}`}>
                 <div>
-                  {/* Compact Header */}
-                  <CardHeader className="px-2.5 py-2 bg-slate-50/85 border-b border-slate-200/75 space-y-1">
-                    <div className="flex justify-between items-center gap-1">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="font-mono font-extrabold text-[11px] text-slate-900 truncate">{ticket.safetyId}</span>
-                        {ticket.priority === "urgent" && (
-                          <span className="bg-red-600 text-white text-[8px] font-bold px-1 py-0.5 rounded uppercase leading-none shrink-0">
-                            URGENT
-                          </span>
-                        )}
+                  {/* Card Header */}
+                  <CardHeader className="pb-2 p-3 bg-slate-50/80 border-b border-slate-100">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-xs text-slate-900">{ticket.safetyId}</span>
+                          {ticket.priority === "urgent" && (
+                            <span className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                              URGENT
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          <span>{ticket.reportedDate}</span>
+                          <span>•</span>
+                          <span>By {ticket.reportedBy}</span>
+                        </p>
                       </div>
-                      <Badge className={`text-[9px] font-bold px-1.5 py-0 h-4 rounded-full border shadow-none shrink-0 ${
-                        isFullyClosed ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
-                        isSiteRectified ? "bg-blue-50 text-blue-800 border-blue-200" :
-                        "bg-amber-50 text-amber-800 border-amber-200"
-                      }`}>
-                        {isFullyClosed ? "Closed" : isSiteRectified ? "Rectified" : "Pending"}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500">
-                      <span className="inline-flex items-center gap-1 truncate">
-                        <Calendar className="h-2.5 w-2.5 text-slate-400 shrink-0" />
-                        <span>{ticket.reportedDate}</span>
-                        <span>·</span>
-                        <span className="truncate">{ticket.reportedBy}</span>
-                      </span>
-                      <span className="font-semibold text-slate-700 truncate max-w-[100px] shrink-0">
-                        {ticket.agency ? ticket.agency : <span className="text-red-500 font-bold">Unassigned</span>}
-                      </span>
+
+                      {/* Top Right: Status Pill & Agency Name directly below */}
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                          isFullyClosed ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                          isSiteRectified ? "bg-blue-50 text-blue-800 border-blue-200" :
+                          "bg-amber-50 text-amber-800 border-amber-200"
+                        }`}>
+                          {isFullyClosed ? "Closed" : isSiteRectified ? "Rectified" : "Pending Work"}
+                        </Badge>
+                        <span className="text-[10px] font-semibold text-slate-600 text-right truncate max-w-[120px]">
+                          {ticket.agency ? ticket.agency : <span className="text-red-500 font-bold">Unassigned</span>}
+                        </span>
+                      </div>
                     </div>
                   </CardHeader>
 
-                  <CardContent className="px-2.5 py-2 space-y-1.5 text-[11px]">
+                  <CardContent className="p-3 space-y-2 text-xs">
                     {/* Hazard Chips */}
                     <div className="flex flex-wrap gap-1">
                       {(ticket.hazardCategories || []).map(h => (
-                        <span key={h} className="bg-amber-50/90 text-amber-900 border border-amber-200/80 text-[9.5px] font-bold px-1.5 py-0.5 rounded leading-none">
+                        <span key={h} className="bg-amber-50/80 text-amber-900 border border-amber-200/80 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
                           {h}
                         </span>
                       ))}
                     </div>
 
-                    {/* Address + Map Pin */}
-                    <div className="flex items-start justify-between gap-1 text-slate-700 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200/70">
+                    {/* Address with Google Maps Icon */}
+                    <div className="flex items-start justify-between gap-1.5 text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200/70">
                       <div className="flex items-start gap-1 min-w-0">
-                        <MapPin className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                        <p className="line-clamp-2 leading-snug text-[10.5px]">{ticket.address}</p>
+                        <MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+                        <p className="line-clamp-2 leading-tight text-[11px]">{ticket.address}</p>
                       </div>
                       {ticket.latitude && ticket.longitude ? (
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${ticket.latitude},${ticket.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1 text-blue-600 hover:bg-blue-100 rounded border border-blue-200 shrink-0 transition-colors bg-white"
+                          className="p-1 text-blue-600 hover:bg-blue-100 rounded-md border border-blue-200 shrink-0 transition-colors bg-white shadow-2xs"
                           title="Open Location in Google Maps"
                         >
-                          <MapPin className="h-3 w-3 text-blue-600" />
+                          <MapPin className="h-3.5 w-3.5 text-blue-600" />
                         </a>
                       ) : null}
                     </div>
 
-                    {/* DTR Code & Admin Badges Row */}
-                    {(ticket.dtrCode || ticket.noteSheetNo || ticket.poNumber || ticket.adminStatus === "not_required") && (
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] bg-slate-50/80 px-2 py-1 rounded-md border border-slate-200/70">
-                        {ticket.dtrCode && (
-                          <span>DTR: <strong className="font-mono text-slate-900">{ticket.dtrCode}</strong></span>
-                        )}
-                        {ticket.noteSheetNo && (
-                          <span>NS: <strong className="font-mono text-purple-700">{ticket.noteSheetNo}</strong></span>
-                        )}
-                        {ticket.poNumber && (
-                          <span>PO: <strong className="font-mono text-emerald-700">{ticket.poNumber}</strong></span>
-                        )}
-                        {ticket.adminStatus === "not_required" && (
-                          <span className="text-slate-600 font-semibold">✓ PO N/R</span>
-                        )}
+                    {/* DTR Code info */}
+                    {ticket.dtrCode && (
+                      <div className="text-[11px] text-slate-600 flex items-center gap-1 bg-slate-50/50 px-2 py-1 rounded-md border border-slate-100">
+                        <span className="font-semibold text-slate-500">DTR Code:</span>
+                        <strong className="font-mono text-slate-900">{ticket.dtrCode}</strong>
                       </div>
                     )}
 
-                    {/* Compact Photo Strip */}
+                    {/* DIRECT IMAGE DISPLAY WITH SLEEK BORDER */}
                     {directImage ? (
-                      <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100 h-24 flex items-center justify-center group/img">
+                      <div className="relative rounded-lg overflow-hidden border border-slate-300 shadow-2xs bg-slate-100 max-h-40 flex items-center justify-center group/img">
                         <img
                           src={directImage}
                           alt="Safety Hazard Photo"
-                          className="w-full h-24 object-cover cursor-pointer group-hover/img:scale-105 transition-transform duration-200"
+                          className="w-full max-h-40 object-cover cursor-pointer group-hover/img:scale-105 transition-transform duration-200"
                           onClick={() => setPreviewImage({
                             url: rawImage || "",
                             title: `${ticket.safetyId} — ${ticket.afterImageUrl ? "Rectified Photo" : "Before Hazard Photo"}`,
@@ -946,65 +934,76 @@ export function SafetyList({ userRole, userAgencies, permissions, availableAgenc
                             ticketId: ticket.safetyId,
                             type: ticket.afterImageUrl ? "Rectified" : "Before"
                           })}
-                          className="absolute bottom-1 right-1 bg-black/75 hover:bg-black text-white text-[9px] font-bold px-1.5 py-0.5 rounded cursor-pointer flex items-center gap-1"
+                          className="absolute bottom-1.5 right-1.5 bg-black/75 hover:bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs cursor-pointer flex items-center gap-1 transition-all border border-white/20 shadow-xs"
                         >
-                          <ImageIcon className="h-2.5 w-2.5 text-amber-400" />
-                          <span>Photo ↗</span>
+                          <ImageIcon className="h-3 w-3 text-amber-400" />
+                          <span>Preview Photo ↗</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="w-full py-1.5 rounded-md border border-dashed border-slate-200 bg-slate-50/60 text-center text-[10px] text-slate-400">
+                      <div className="w-full h-16 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 flex items-center justify-center text-[11px] text-slate-400 font-medium">
                         No Image Uploaded
+                      </div>
+                    )}
+
+                    {/* Administrative PO / Note Sheet Badges */}
+                    {(ticket.noteSheetNo || ticket.poNumber || ticket.adminStatus === "not_required") && (
+                      <div className="text-[11px] bg-slate-50 p-1.5 rounded-md space-y-0.5 border border-slate-200">
+                        {ticket.noteSheetNo && <p>Note Sheet: <strong className="font-mono text-purple-700">{ticket.noteSheetNo}</strong></p>}
+                        {ticket.poNumber && <p>PO No: <strong className="font-mono text-emerald-700">{ticket.poNumber}</strong></p>}
+                        {ticket.adminStatus === "not_required" && <p className="text-slate-600 font-medium">✓ PO Not Required</p>}
                       </div>
                     )}
                   </CardContent>
                 </div>
 
-                {/* Single-Row Compact Footer */}
-                <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 grid grid-cols-2 gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-[11px] font-bold h-7 rounded-md border-slate-200 bg-white text-slate-700 hover:bg-slate-100 flex items-center justify-center gap-1"
-                    onClick={() => setSelectedForView(ticket)}
-                  >
-                    <Eye className="h-3 w-3 text-blue-600" />
-                    <span>Details</span>
-                  </Button>
+                {/* Streamlined Card Action Footer */}
+                <CardContent className="p-3 pt-0 border-t border-slate-100 mt-1">
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs font-bold h-8 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-1"
+                      onClick={() => setSelectedForView(ticket)}
+                    >
+                      <Eye className="h-3.5 w-3.5 text-blue-600" />
+                      <span>View Details</span>
+                    </Button>
 
-                  {canEdit ? (
-                    <Button
-                      size="sm"
-                      className="w-full text-[11px] font-bold h-7 rounded-md bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-1"
-                      onClick={() => {
-                        setSelectedForEdit(ticket)
-                        setEditAgency(ticket.agency || "")
-                        setAfterImageUrl(ticket.afterImageUrl || "")
-                        setCompletionRemarks(ticket.completionRemarks || "")
-                        setRectifyDrawingUrl(ticket.drawingUrl || "")
-                        setNsNo(ticket.noteSheetNo || "")
-                        setNsDate(ticket.noteSheetDate || "")
-                        setNsAmount(ticket.noteSheetAmount || "")
-                        setPoNo(ticket.poNumber || "")
-                        setPoDate(ticket.poDate || "")
-                        setPoAmount(ticket.poAmount || "")
-                      }}
-                    >
-                      <Edit className="h-3 w-3 text-amber-400" />
-                      <span>Action</span>
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled
-                      className="w-full text-[11px] font-semibold h-7 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-not-allowed opacity-90"
-                    >
-                      <CheckCircle2 className="h-3 w-3 text-emerald-600 mr-1" />
-                      <span>Rectified</span>
-                    </Button>
-                  )}
-                </div>
+                    {canEdit ? (
+                      <Button
+                        size="sm"
+                        className="w-full text-xs font-bold h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center gap-1"
+                        onClick={() => {
+                          setSelectedForEdit(ticket)
+                          setEditAgency(ticket.agency || "")
+                          setAfterImageUrl(ticket.afterImageUrl || "")
+                          setCompletionRemarks(ticket.completionRemarks || "")
+                          setRectifyDrawingUrl(ticket.drawingUrl || "")
+                          setNsNo(ticket.noteSheetNo || "")
+                          setNsDate(ticket.noteSheetDate || "")
+                          setNsAmount(ticket.noteSheetAmount || "")
+                          setPoNo(ticket.poNumber || "")
+                          setPoDate(ticket.poDate || "")
+                          setPoAmount(ticket.poAmount || "")
+                        }}
+                      >
+                        <Edit className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Edit / Action</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled
+                        className="w-full text-xs font-semibold h-8 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-not-allowed opacity-90"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mr-1" />
+                        <span>Rectified</span>
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
               </Card>
             )
           })}

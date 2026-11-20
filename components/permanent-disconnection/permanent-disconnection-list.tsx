@@ -810,8 +810,8 @@ export function PermanentDisconnectionList({
       ) : (
         <div key={`${activeTab}-${viewMode}`} className="animate-tab-enter">
           {viewMode === "card" ? (
-            /* Compact Full-Detail Cards */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
+            /* Redesigned SVG-Enriched Cards */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {filteredRecords.map((r, idx) => {
                 const isClosed = r.status === "closed"
                 const isDisconnected = r.status === "disconnected"
@@ -819,172 +819,288 @@ export function PermanentDisconnectionList({
                 const hasNoteSheet = !!(r.noteSheetNo && r.noteSheetNo.trim())
                 const isFullyCompleted = isDisconnected && isReturned && hasNoteSheet && !isClosed
 
+                // Aux data from consumer master or consumers dataset
                 const aux = consumerMasterMap[r.consumerId] || {}
                 const phoneNum = r.mobile || aux.mobile || aux.mobileNumber || ""
                 const meterNum = r.removedMeterNo || aux.meterNumber || aux.meterNo || aux.meter || ""
                 const zoneName = aux.zone || aux.mru || ""
                 const phaseVal = aux.phase || (aux.tariff && aux.tariff.includes("3") ? "3-Phase" : "1-Phase")
 
-                const leftBar = isFullyCompleted
-                  ? "border-l-emerald-500"
-                  : isClosed
-                  ? "border-l-slate-400"
-                  : r.status === "proposed"
-                  ? "border-l-amber-500"
-                  : r.status === "issued"
-                  ? "border-l-blue-500"
-                  : "border-l-rose-500"
-
                 return (
                   <div
                     key={r.pdId}
-                    className={`bg-white rounded-xl border border-slate-300/85 border-l-4 ${leftBar} shadow-[0_2px_8px_-2px_rgba(15,23,42,0.09)] hover:shadow-[0_10px_20px_-6px_rgba(15,23,42,0.14)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden flex flex-col justify-between relative ${
-                      isClosed ? "opacity-75" : ""
+                    className={`bg-white rounded-2xl border p-4 space-y-3.5 shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} relative ${
+                      isFullyCompleted
+                        ? "border-emerald-200 bg-emerald-50/10"
+                        : isClosed
+                        ? "border-slate-200 opacity-70"
+                        : "border-slate-200/90"
                     }`}
                   >
-                    {/* Compact Header */}
-                    <div className="px-2.5 py-2 bg-slate-50/80 border-b border-slate-200/75 space-y-1">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {canIssue && r.status === "proposed" && (
-                            <Checkbox
-                              checked={selectedIds.includes(r.pdId)}
-                              onCheckedChange={() => handleToggleSelect(r.pdId)}
-                              className="h-3.5 w-3.5"
-                            />
-                          )}
-                          <span className="text-[9px] font-mono font-bold text-slate-500 bg-white border border-slate-200 px-1 py-0.5 rounded leading-none">
-                            {r.pdId}
-                          </span>
-                          <span className="font-mono font-black text-[10px] text-rose-700 leading-none">
-                            #{r.consumerId}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          {isFullyCompleted ? (
-                            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-bold px-1.5 py-0 h-4">
-                              ✓ Done
-                            </Badge>
-                          ) : isClosed ? (
-                            <Badge className="bg-slate-100 text-slate-700 border border-slate-300 text-[9px] px-1.5 py-0 h-4">
-                              Closed
-                            </Badge>
-                          ) : r.status === "proposed" ? (
-                            <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[9px] px-1.5 py-0 h-4">
-                              Proposed
-                            </Badge>
-                          ) : r.status === "issued" ? (
-                            <Badge className="bg-blue-100 text-blue-800 border border-blue-300 text-[9px] px-1.5 py-0 h-4">
-                              Issued
-                            </Badge>
-                          ) : isDisconnected ? (
-                            <Badge className="bg-rose-100 text-rose-800 border border-rose-300 text-[9px] px-1.5 py-0 h-4">
-                              Dismantled
-                            </Badge>
-                          ) : null}
+                    {/* Header: Consumer Name, ID, Checkbox & Stage Badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5">
+                        {canIssue && r.status === "proposed" && (
+                          <Checkbox
+                            checked={selectedIds.includes(r.pdId)}
+                            onCheckedChange={() => handleToggleSelect(r.pdId)}
+                            className="h-4 w-4 mt-1"
+                          />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {r.pdId}
+                            </span>
+                            <span className="font-mono font-black text-xs text-rose-700">
+                              #{r.consumerId}
+                            </span>
+                          </div>
+                          <h3 className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 leading-snug">
+                            {r.consumerName}
+                          </h3>
                         </div>
                       </div>
 
-                      <div className="flex items-baseline justify-between gap-2">
-                        <h3 className="text-[13px] font-extrabold text-slate-900 line-clamp-1 leading-tight min-w-0" title={r.consumerName}>
-                          {r.consumerName}
-                        </h3>
+                      {/* Stage Pill */}
+                      <div className="flex flex-col items-end gap-1">
+                        {isFullyCompleted ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold">
+                            ✓ Completed
+                          </Badge>
+                        ) : isClosed ? (
+                          <Badge className="bg-slate-100 text-slate-700 border border-slate-300 text-[10px]">
+                            Closed
+                          </Badge>
+                        ) : r.status === "proposed" ? (
+                          <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px]">
+                            Proposed
+                          </Badge>
+                        ) : r.status === "issued" ? (
+                          <Badge className="bg-blue-100 text-blue-800 border border-blue-300 text-[10px]">
+                            Issued
+                          </Badge>
+                        ) : isDisconnected ? (
+                          <Badge className="bg-rose-100 text-rose-800 border border-rose-300 text-[10px]">
+                            Dismantled
+                          </Badge>
+                        ) : null}
+
+                        {/* Live OSD Badge */}
                         {r.liveOsdAmount > 0 ? (
-                          <span className="inline-flex items-center gap-0.5 text-[11px] font-mono font-extrabold text-rose-700 shrink-0">
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded-full border border-rose-200">
                             <IndianRupee className="h-2.5 w-2.5" />
                             {r.liveOsdAmount.toLocaleString("en-IN")}
                           </span>
                         ) : (
-                          <span className="text-[9px] font-mono text-slate-400 shrink-0">OSD: -</span>
+                          <span className="inline-flex items-center text-[9px] font-mono font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-200">
+                            OSD: Unverified
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Compact Body */}
-                    <div className="px-2.5 py-2 space-y-1.5 flex-1">
-                      <div className="flex items-start gap-1 text-[11px] text-slate-600">
-                        <MapPin className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
-                        <p className="line-clamp-2 leading-snug">{r.address}</p>
+                    {/* Address with Location SVG */}
+                    <div className="flex items-start gap-1.5 text-xs text-slate-600">
+                      <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <p className="line-clamp-2 text-[11px] leading-tight text-slate-600">{r.address}</p>
+                    </div>
+
+                    {/* Technical & Contact Details Grid (SVG icons) */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 text-xs">
+                      {/* Mobile with Direct Call Option */}
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        {phoneNum ? (
+                          <a
+                            href={`tel:${phoneNum}`}
+                            className="font-mono text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline truncate"
+                            title="Click to Call"
+                          >
+                            {phoneNum}
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-mono">No Mobile</span>
+                        )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 bg-slate-50/90 px-2 py-1.5 rounded-lg border border-slate-200/80 text-[10px]">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <Phone className="h-3 w-3 text-emerald-600 shrink-0" />
-                          {phoneNum ? (
-                            <a href={`tel:${phoneNum}`} className="font-mono text-emerald-700 font-bold hover:underline truncate">
-                              {phoneNum}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400 font-mono">No Mobile</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 justify-end min-w-0">
-                          <Gauge className="h-3 w-3 text-blue-600 shrink-0" />
-                          <span className="font-mono text-slate-800 font-semibold truncate">{meterNum || "—"}</span>
-                        </div>
-                        <div className="flex items-center gap-1 min-w-0 border-t border-slate-200/70 pt-1">
-                          <Building2 className="h-3 w-3 text-indigo-600 shrink-0" />
-                          <span className="text-slate-700 truncate">{r.agency || zoneName || "Unassigned"}</span>
-                        </div>
-                        <div className="flex items-center gap-1 justify-end border-t border-slate-200/70 pt-1">
-                          <Zap className="h-3 w-3 text-amber-600 shrink-0" />
-                          <span className="text-slate-700 font-medium">{phaseVal}</span>
-                        </div>
+                      {/* Meter Number */}
+                      <div className="flex items-center gap-1.5">
+                        <Gauge className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                        <span className="font-mono text-[11px] text-slate-800 font-semibold truncate" title={`Meter: ${meterNum || "N/A"}`}>
+                          {meterNum || "—"}
+                        </span>
                       </div>
 
-                      {isDisconnected && (
-                        <div className="bg-slate-50 px-2 py-1 rounded-lg text-[10px] space-y-0.5 border border-slate-200/70">
-                          <div className="flex justify-between gap-1">
-                            <span className="truncate"><span className="text-slate-400">Rem:</span> <strong className="font-mono text-blue-700">{r.removedMeterNo || "—"}</strong></span>
-                            <span className="shrink-0"><span className="text-slate-400">Rdg:</span> <strong className="font-mono text-emerald-700">{r.finalReading || "—"}</strong></span>
+                      {/* Zone / MRU */}
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                        <span className="text-[11px] text-slate-700 truncate" title={`Zone / Agency: ${r.agency || zoneName || "N/A"}`}>
+                          {r.agency || zoneName || "Unassigned"}
+                        </span>
+                      </div>
+
+                      {/* Phase */}
+                      <div className="flex items-center gap-1.5">
+                        <Zap className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                        <span className="text-[11px] text-slate-700 font-medium">
+                          {phaseVal}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Post-Disconnection Status Strip */}
+                    {isDisconnected && (
+                      <div className="bg-slate-50 p-2.5 rounded-xl text-[11px] space-y-1.5 border border-slate-200/70">
+                        <div className="grid grid-cols-2 gap-1">
+                          <div>
+                            <span className="text-slate-400">Removed:</span>{" "}
+                            <strong className="font-mono text-blue-700">{r.removedMeterNo || "—"}</strong>
                           </div>
-                          <div className="flex justify-between gap-1 border-t border-slate-200/60 pt-0.5 text-[9.5px]">
-                            <span className="truncate">Store: <strong className={isReturned ? "text-emerald-700" : "text-amber-700"}>{isReturned ? `✓ ${r.meterReturnDate || "Ret"}` : "Pending"}</strong></span>
-                            <span className="shrink-0">NS: <strong className={hasNoteSheet ? "text-purple-700 font-mono" : "text-slate-400"}>{r.noteSheetNo || "Pending"}</strong></span>
+                          <div>
+                            <span className="text-slate-400">Final Reading:</span>{" "}
+                            <strong className="font-mono text-emerald-700">{r.finalReading || "—"} kWh</strong>
                           </div>
                         </div>
-                      )}
 
-                      {/* Compact Evidence Photo Chips */}
-                      {(() => {
-                        const photos = r.evidencePhotos
-                          ? r.evidencePhotos.split(",").map(s => s.trim()).filter(Boolean)
-                          : []
-                        if (photos.length === 0) return null
-                        return (
-                          <div className="flex flex-wrap items-center gap-1">
-                            {photos.map((photoUrl, pIdx) => (
-                              <button
-                                key={pIdx}
-                                type="button"
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 text-[10px]">
+                          <span>
+                            Store Return:{" "}
+                            <strong className={isReturned ? "text-emerald-700 font-bold" : "text-amber-700"}>
+                              {isReturned ? `✓ Returned (${r.meterReturnDate || ""})` : "Pending Return"}
+                            </strong>
+                          </span>
+                          <span>
+                            Note Sheet:{" "}
+                            <strong className={hasNoteSheet ? "text-purple-700 font-bold font-mono" : "text-slate-400"}>
+                              {r.noteSheetNo || "Pending"}
+                            </strong>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Evidence Photos (Application & Meter) */}
+                    {(() => {
+                      const photos = r.evidencePhotos
+                        ? r.evidencePhotos.split(",").map(s => s.trim()).filter(Boolean)
+                        : []
+                      if (photos.length === 0) return null
+
+                      const meterPhoto = photos[0]
+                      const appPhoto = photos[1] || null
+
+                      return (
+                        <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/80 space-y-2">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-slate-700 flex items-center gap-1">
+                              <ImageIcon className="h-3.5 w-3.5 text-blue-600" />
+                              <span>Site Proofs ({photos.length})</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400">Click to preview</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Photo 1: Meter Photo */}
+                            {meterPhoto && (
+                              <div
                                 onClick={() =>
                                   setPreviewPhoto({
-                                    url: photoUrl,
-                                    title: pIdx === 0 ? "Removed Meter Dial Photo" : pIdx === 1 ? "Application / Premise Photo" : `Evidence Photo ${pIdx + 1}`,
+                                    url: meterPhoto,
+                                    title: "Removed Meter Dial Photo",
                                     consumerId: r.consumerId,
                                     pdId: r.pdId,
                                   })
                                 }
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-blue-50 text-[10px] font-semibold text-slate-700 cursor-pointer transition-colors"
+                                className="group relative flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
                               >
-                                <img
-                                  src={getGoogleDriveDirectLink(photoUrl, 80)}
-                                  onError={e => handleImageError(e, photoUrl)}
-                                  alt={`Proof ${pIdx + 1}`}
-                                  className="h-4 w-4 rounded object-cover"
-                                />
-                                <span>{pIdx === 0 ? "Meter" : pIdx === 1 ? "App" : `Photo ${pIdx + 1}`}</span>
-                                <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                              </button>
-                            ))}
-                          </div>
-                        )
-                      })()}
-                    </div>
+                                <div className="h-10 w-10 rounded shrink-0 bg-slate-100 overflow-hidden relative">
+                                  <img
+                                    src={getGoogleDriveDirectLink(meterPhoto, 200)}
+                                    onError={e => handleImageError(e, meterPhoto)}
+                                    alt="Meter Photo"
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1 group-hover:text-blue-600">
+                                    <span>Meter</span>
+                                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 font-mono">Dial Proof</span>
+                                </div>
+                              </div>
+                            )}
 
-                    {/* Single-Row Compact Footer */}
-                    <div className="px-2.5 py-1.5 bg-slate-50/90 border-t border-slate-200/75 flex items-center justify-between gap-1.5">
+                            {/* Photo 2: Application / Site Photo */}
+                            {appPhoto ? (
+                              <div
+                                onClick={() =>
+                                  setPreviewPhoto({
+                                    url: appPhoto,
+                                    title: "Application / Premise Photo",
+                                    consumerId: r.consumerId,
+                                    pdId: r.pdId,
+                                  })
+                                }
+                                className="group relative flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 bg-white hover:border-purple-400 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
+                              >
+                                <div className="h-10 w-10 rounded shrink-0 bg-slate-100 overflow-hidden relative">
+                                  <img
+                                    src={getGoogleDriveDirectLink(appPhoto, 200)}
+                                    onError={e => handleImageError(e, appPhoto)}
+                                    alt="Application Photo"
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1 group-hover:text-purple-600">
+                                    <span>Application</span>
+                                    <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 font-mono">Premise Proof</span>
+                                </div>
+                              </div>
+                            ) : (
+                              photos.slice(1).map((extraPhoto, pIdx) => (
+                                <div
+                                  key={pIdx}
+                                  onClick={() =>
+                                    setPreviewPhoto({
+                                      url: extraPhoto,
+                                      title: `Evidence Photo ${pIdx + 2}`,
+                                      consumerId: r.consumerId,
+                                      pdId: r.pdId,
+                                    })
+                                  }
+                                  className="group relative flex items-center gap-2 p-1.5 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
+                                >
+                                  <div className="h-10 w-10 rounded shrink-0 bg-slate-100 overflow-hidden relative">
+                                    <img
+                                      src={getGoogleDriveDirectLink(extraPhoto, 200)}
+                                      onError={e => handleImageError(e, extraPhoto)}
+                                      alt={`Photo ${pIdx + 2}`}
+                                      className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1 group-hover:text-blue-600">
+                                      <span>Photo {pIdx + 2}</span>
+                                      <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 font-mono">View proof</span>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Black Centered Primary Action Button + Side Printer Icon */}
+                    <div className="flex items-center justify-center gap-2 pt-2 border-t border-slate-100">
+                      {/* 1. Proposed stage -> Issue Button */}
                       {canIssue && r.status === "proposed" && (
                         <Button
                           size="sm"
@@ -992,13 +1108,14 @@ export function PermanentDisconnectionList({
                             setActiveRecord(r)
                             setIssueOpen(true)
                           }}
-                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] h-7 rounded-md shadow-2xs justify-center"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <Send className="h-3 w-3 mr-1" />
-                          Issue
+                          <Send className="h-3.5 w-3.5 mr-1.5" />
+                          Issue to Agency
                         </Button>
                       )}
 
+                      {/* 2. Issued / Proposed stage -> Mark Disconnected */}
                       {canDisconnect && (r.status === "issued" || (r.status === "proposed" && isAgency)) && (
                         <Button
                           size="sm"
@@ -1006,13 +1123,14 @@ export function PermanentDisconnectionList({
                             setActiveRecord(r)
                             setDisconnectOpen(true)
                           }}
-                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] h-7 rounded-md shadow-2xs justify-center"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <Camera className="h-3 w-3 mr-1" />
-                          Disconnect
+                          <Camera className="h-3.5 w-3.5 mr-1.5" />
+                          Mark Disconnected
                         </Button>
                       )}
 
+                      {/* 3. Disconnected stage -> Store Return Button (if pending) */}
                       {canReturn && isDisconnected && !isReturned && (
                         <Button
                           size="sm"
@@ -1020,13 +1138,14 @@ export function PermanentDisconnectionList({
                             setActiveRecord(r)
                             setReturnOpen(true)
                           }}
-                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] h-7 rounded-md shadow-2xs justify-center"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <PackageCheck className="h-3 w-3 mr-1" />
+                          <PackageCheck className="h-3.5 w-3.5 mr-1.5" />
                           Return Meter
                         </Button>
                       )}
 
+                      {/* 4. Note Sheet Button (if disconnected & store returned or pending note sheet) */}
                       {canFinalize && isDisconnected && (isReturned || !hasNoteSheet) && (
                         <Button
                           size="sm"
@@ -1034,13 +1153,14 @@ export function PermanentDisconnectionList({
                             setActiveRecord(r)
                             setNoteSheetOpen(true)
                           }}
-                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] h-7 rounded-md shadow-2xs justify-center"
+                          className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-8 rounded-lg shadow-sm justify-center"
                         >
-                          <FileText className="h-3 w-3 mr-1" />
-                          {hasNoteSheet ? "Edit NS" : "Note Sheet"}
+                          <FileText className="h-3.5 w-3.5 mr-1.5" />
+                          {hasNoteSheet ? "Edit Note Sheet" : "Create Note Sheet"}
                         </Button>
                       )}
 
+                      {/* Side Printer Memo Icon Button */}
                       <Button
                         variant="outline"
                         size="icon"
@@ -1048,10 +1168,10 @@ export function PermanentDisconnectionList({
                           setActiveRecord(r)
                           setCertificateOpen(true)
                         }}
-                        className="h-7 w-7 shrink-0 text-slate-600 hover:text-slate-900 hover:bg-white border-slate-200 ml-auto"
+                        className="h-8 w-8 shrink-0 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200"
                         title="Print Disconnection Memo"
                       >
-                        <Printer className="h-3.5 w-3.5" />
+                        <Printer className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
