@@ -28,6 +28,7 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog"
 import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
+import { ModuleWaiter } from "@/components/ui/module-waiter"
 import { format } from "date-fns"
 import { useModuleVersionSync } from "@/hooks/use-module-version-sync"
 import {
@@ -83,12 +84,40 @@ import { shareConsumerStatusCard } from "@/lib/agency-update-image"
 import { getGoogleDriveDirectLink, handleImageError } from "@/lib/image-utils"
 
 const ConsumerForm = dynamic(() => import("./consumer-form").then((mod) => mod.ConsumerForm), {
-  loading: () => <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+  loading: () => (
+    <ModuleWaiter
+      variant="inline"
+      accent="blue"
+      title="Opening Consumer Update Form"
+      messages={["Loading consumer details...", "Preparing status controls..."]}
+      showSkeletonCards={false}
+    />
+  ),
 })
-const AdminPanel = dynamic(() => import("./admin-panel").then((mod) => mod.AdminPanel))
+const AdminPanel = dynamic(() => import("./admin-panel").then((mod) => mod.AdminPanel), {
+  loading: () => (
+    <ModuleWaiter
+      variant="inline"
+      accent="indigo"
+      title="Opening Admin Panel"
+      showSkeletonCards={false}
+    />
+  ),
+})
 const NearbyConsumerMap = dynamic(
   () => import("./nearby-consumer-map").then((mod) => mod.NearbyConsumerMap),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <ModuleWaiter
+        variant="inline"
+        accent="emerald"
+        title="Loading GPS Consumer Map"
+        messages={["Initializing GPS radar...", "Plotting nearby consumers..."]}
+        showSkeletonCards={false}
+      />
+    ),
+  }
 )
 
 interface ConsumerListProps {
@@ -836,17 +865,75 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "connected":
-        return "bg-green-100 text-green-800"
+        return "bg-emerald-100 text-emerald-900 border border-emerald-200/80"
       case "disconnected":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 text-red-900 border border-red-200/80"
+      case "paid":
+      case "agency paid":
+        return "bg-blue-100 text-blue-900 border border-blue-200/80"
       case "pending":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-amber-100 text-amber-900 border border-amber-200/80"
       case "deemed disconnection":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 text-orange-900 border border-orange-200/80"
       case "temprory disconnected":
-        return "bg-purple-100 text-purple-800"
+        return "bg-purple-100 text-purple-900 border border-purple-200/80"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-slate-100 text-slate-800 border border-slate-200/80"
+    }
+  }
+
+  const getCardVisualTheme = (status: string, isUrgent: boolean) => {
+    if (isUrgent) {
+      return {
+        leftBar: "border-l-red-600",
+        headerBg: "bg-gradient-to-r from-red-50/90 via-rose-50/45 to-white",
+        indexPill: "bg-red-600 text-white border-red-600",
+      }
+    }
+    switch ((status || "").toLowerCase()) {
+      case "connected":
+        return {
+          leftBar: "border-l-emerald-500",
+          headerBg: "bg-gradient-to-r from-emerald-50/75 via-emerald-50/25 to-white",
+          indexPill: "bg-emerald-100 text-emerald-900 border-emerald-200/90",
+        }
+      case "disconnected":
+        return {
+          leftBar: "border-l-red-500",
+          headerBg: "bg-gradient-to-r from-red-50/75 via-red-50/25 to-white",
+          indexPill: "bg-red-100 text-red-900 border-red-200/90",
+        }
+      case "paid":
+      case "agency paid":
+        return {
+          leftBar: "border-l-blue-500",
+          headerBg: "bg-gradient-to-r from-blue-50/75 via-sky-50/30 to-white",
+          indexPill: "bg-blue-100 text-blue-900 border-blue-200/90",
+        }
+      case "pending":
+        return {
+          leftBar: "border-l-amber-500",
+          headerBg: "bg-gradient-to-r from-amber-50/75 via-yellow-50/25 to-white",
+          indexPill: "bg-amber-100 text-amber-900 border-amber-200/90",
+        }
+      case "deemed disconnection":
+        return {
+          leftBar: "border-l-orange-500",
+          headerBg: "bg-gradient-to-r from-orange-50/75 via-orange-50/25 to-white",
+          indexPill: "bg-orange-100 text-orange-900 border-orange-200/90",
+        }
+      case "temprory disconnected":
+        return {
+          leftBar: "border-l-purple-500",
+          headerBg: "bg-gradient-to-r from-purple-50/75 via-purple-50/25 to-white",
+          indexPill: "bg-purple-100 text-purple-900 border-purple-200/90",
+        }
+      default:
+        return {
+          leftBar: "border-l-slate-400",
+          headerBg: "bg-gradient-to-r from-slate-100/80 via-slate-50/40 to-white",
+          indexPill: "bg-slate-200/80 text-slate-800 border-slate-300/80",
+        }
     }
   }
 
@@ -998,19 +1085,24 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
     getCurrentConsumers: () => filteredConsumers,
   }));
 
-  if (loading) {
+  if (loading || (consumers.length === 0 && (syncStatus === "checking" || syncStatus === "found" || syncStatus === "syncing"))) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <DashboardStats consumers={[]} loading={true} />
-        {viewMode === "card" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : (
-          <SkeletonTable rows={8} cols={7} />
-        )}
+        <ModuleWaiter
+          variant="inline"
+          accent="red"
+          title="Loading Disconnection List"
+          messages={[
+            "Fetching latest consumer records for your CCC...",
+            "Calculating outstanding dues & payment status...",
+            "Organizing agency & MRU cards...",
+            "Almost ready — preparing your list...",
+          ]}
+          showSkeletonCards={viewMode === "card"}
+          skeletonCount={6}
+        />
+        {viewMode !== "card" && <SkeletonTable rows={8} cols={7} />}
       </div>
     )
   }
@@ -1646,8 +1738,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
 
       {/* Consumer Cards */}
       {viewMode === "card" ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {paginatedConsumers.map((consumer) => {
+        <div className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {paginatedConsumers.map((consumer, idx) => {
             const breakdown = getPaymentDuesBreakdown(consumer)
             const status = (consumer.disconStatus || "").toLowerCase()
             const hasPaidRecord = status === "paid" || status === "agency paid" || breakdown.paidAmt > 0
@@ -1655,6 +1747,8 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
             const effectiveStatus = (consumer.listStatus || "NEW").toUpperCase()
             const isUrgent = (consumer.priority || "").toLowerCase() === "urgent"
             const hasImage = !!(consumer.imageUrl || (consumer as any).image)
+            const cardVisual = getCardVisualTheme(consumer.disconStatus, isUrgent)
+            const serialNumber = startIndex + idx + 1
 
             const isReadOnlyMode = permissions
               ? !(permissions.disconnection?.includes("update") || permissions.consumer_master?.includes("update"))
@@ -1665,32 +1759,37 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               <Card
                 id={`consumer-card-${consumer.consumerId}`}
                 key={consumer.consumerId}
-                className={`h-full flex flex-col justify-between shadow-sm card-interactive animate-card-enter overflow-hidden border border-slate-200/80 bg-white rounded-xl ${
-                  isUrgent ? "ring-2 ring-red-500 border-red-300 shadow-red-100" : ""
+                className={`h-full flex flex-col justify-between card-interactive animate-card-enter overflow-hidden bg-white rounded-2xl border border-slate-300/85 border-l-[5px] ${cardVisual.leftBar} shadow-[0_4px_14px_-3px_rgba(15,23,42,0.10),0_1px_3px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_28px_-8px_rgba(15,23,42,0.16)] transition-all duration-200 ${
+                  isUrgent ? "ring-2 ring-red-500/85 border-red-300 shadow-red-500/15" : ""
                 }`}
               >
-                {/* 1. Header: Pill row & Title (Clean, no dividing border line) */}
-                <CardHeader className="p-3.5 pb-1 space-y-2">
-                  {/* Top Badge Strip: Aligned Left & Right */}
+                {/* ZONE 1: Tinted Header Band with Serial Pill, Badges, Consumer Name & ID */}
+                <CardHeader className={`p-3.5 pb-3 space-y-2.5 border-b border-slate-200/80 ${cardVisual.headerBg}`}>
+                  {/* Top Badge Strip: Serial + Tags on Left, Status + Agency on Right */}
                   <div className="flex items-center justify-between gap-1.5 w-full">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      <span
+                        className={`notranslate tabular-nums shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border ${cardVisual.indexPill}`}
+                      >
+                        #{String(serialNumber).padStart(2, "0")}
+                      </span>
                       {isUrgent && (
-                        <span className="shrink-0 text-[9px] font-extrabold uppercase tracking-wider bg-red-600 text-white px-1.5 py-0.5 rounded shadow-xs">
+                        <span className="shrink-0 text-[9px] font-extrabold uppercase tracking-wider bg-red-600 text-white px-1.5 py-0.5 rounded-md shadow-xs">
                           URGENT
                         </span>
                       )}
                       <Badge
                         variant="outline"
-                        className={`text-[9px] font-bold px-1.5 py-0 border-0 ${
+                        className={`text-[9px] font-bold px-1.5 py-0 border ${
                           effectiveStatus === "NEW"
-                            ? "bg-blue-100 text-blue-900"
-                            : "bg-amber-100 text-amber-900"
+                            ? "bg-blue-100/90 text-blue-900 border-blue-200/80"
+                            : "bg-amber-100/90 text-amber-900 border-amber-200/80"
                         }`}
                       >
                         {effectiveStatus}
                       </Badge>
                       {consumer.mru ? (
-                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase truncate max-w-[90px]">
+                        <span className="text-[10px] font-mono font-semibold text-slate-600 bg-white/90 border border-slate-200/90 px-1.5 py-0.5 rounded-md uppercase truncate max-w-[92px]">
                           {consumer.mru}
                         </span>
                       ) : null}
@@ -1703,47 +1802,49 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                       {consumer._syncStatus === 'error' && (
                         <AlertCircle className="h-3 w-3 text-red-500" aria-label="Sync failed (saved locally)" />
                       )}
-                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] px-2 py-0.5 whitespace-nowrap border-0 shadow-none`}>
+                      <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] font-bold px-2 py-0.5 whitespace-nowrap shadow-none`}>
                         {consumer.disconStatus}
                       </Badge>
                       {consumer.agency && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full max-w-[95px] truncate block ${getAgencyColor(consumer.agency)}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full max-w-[95px] truncate block border border-black/5 ${getAgencyColor(consumer.agency)}`}>
                           {consumer.agency}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Consumer Name & ID: Clean unbordered block */}
+                  {/* Consumer Name & ID */}
                   <div>
                     <CardTitle
-                      className="text-base sm:text-[17px] font-bold text-slate-900 line-clamp-1 leading-snug tracking-tight"
+                      className="text-base sm:text-[17px] font-extrabold text-slate-900 line-clamp-1 leading-snug tracking-tight"
                       title={consumer.name}
                     >
                       {consumer.name}
                     </CardTitle>
-                    <div className="flex items-center justify-between mt-1 text-xs text-slate-500 font-mono">
-                      <span>ID: {consumer.consumerId}</span>
+                    <div className="flex items-center justify-between gap-2 mt-1.5 text-xs">
+                      <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-2 py-0.5 rounded-md">
+                        ID: {consumer.consumerId}
+                      </span>
                       {consumer.mobileNumber ? (
                         <a
                           href={`tel:${consumer.mobileNumber}`}
-                          className="flex items-center gap-1 text-blue-600 hover:underline font-sans font-medium"
+                          className="inline-flex items-center gap-1 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-2 py-0.5 rounded-md font-sans font-semibold transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Phone className="h-3 w-3" />
                           <span>{consumer.mobileNumber}</span>
                         </a>
                       ) : (
-                        <span className="text-slate-400">No Mobile</span>
+                        <span className="text-[11px] text-slate-400 font-medium">No Mobile</span>
                       )}
                     </div>
                   </div>
                 </CardHeader>
 
-                {/* 2. Body: Address & Financial/Date Widget */}
-                <CardContent className="p-3.5 pt-1.5 space-y-2.5 flex-1 flex flex-col justify-between">
+                {/* ZONE 2: Clean White Body (Address + Bordered 2-Column Financial & Date Tile) */}
+                <CardContent className="p-3.5 space-y-3 flex-1 flex flex-col justify-between bg-white">
                   {/* Fixed 2-Line Address */}
-                  <div className="flex items-start gap-1.5 min-h-[2.5rem]">
+                  <div className="flex items-start gap-1.5 min-h-[2.4rem]">
                     <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
                     <p
                       className="text-xs text-slate-600 line-clamp-2 leading-relaxed"
@@ -1753,37 +1854,37 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     </p>
                   </div>
 
-                  {/* Clean 2-Column Financial & Issue Date Tile without harsh lines */}
-                  <div className="bg-slate-50/70 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                  {/* Crisp Bordered 2-Column Financial & Issue Date Tile */}
+                  <div className="bg-slate-50/95 border border-slate-200/90 rounded-xl p-2.5 grid grid-cols-2 divide-x divide-slate-200/90 text-xs">
                     {/* Left Col: Outstanding Dues & Paid Tag */}
-                    <div className="pr-2 flex flex-col justify-center">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                    <div className="pr-2.5 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                         Outstanding
                       </span>
                       <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-base font-extrabold text-red-600 leading-tight">
+                        <span className="notranslate tabular-nums text-base font-black text-red-600 leading-tight">
                           ₹{breakdown.currentOsd.toLocaleString()}
                         </span>
                       </div>
                       {hasPaidRecord && breakdown.paidAmt > 0 ? (
-                        <span className={`text-[10px] font-bold truncate block ${breakdown.isPaidAfterUpload ? "text-emerald-700" : "text-slate-500"}`}>
+                        <span className={`text-[10px] font-bold truncate block mt-0.5 ${breakdown.isPaidAfterUpload ? "text-emerald-700" : "text-slate-500"}`}>
                           {breakdown.isPaidAfterUpload ? `Paid: ₹${breakdown.paidAmt.toLocaleString()}` : `Prev: ₹${breakdown.paidAmt.toLocaleString()}`}
                         </span>
                       ) : (
-                        <span className="text-[10px] text-slate-400 truncate block">Unpaid</span>
+                        <span className="text-[10px] text-slate-400 font-medium truncate block mt-0.5">Unpaid</span>
                       )}
                     </div>
 
                     {/* Right Col: Issue Date & Range */}
-                    <div className="pl-1 flex flex-col justify-center">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                    <div className="pl-2.5 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                         Issue Date
                       </span>
                       <span className="text-xs font-bold text-orange-700 mt-0.5 truncate block">
                         {issueDate ? `📅 ${issueDate}` : "Not Available"}
                       </span>
                       <span
-                        className="text-[10px] text-slate-500 truncate block"
+                        className="text-[10px] text-slate-500 truncate block mt-0.5"
                         title={consumer.osDuedateRange || ""}
                       >
                         {consumer.osDuedateRange ? `Due: ${consumer.osDuedateRange}` : "Range: -"}
@@ -1791,124 +1892,124 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     </div>
 
                     {/* Class & Meter Device Strip */}
-                    <div className="col-span-2 pt-1.5 mt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-600 font-medium">
+                    <div className="col-span-2 !border-l-0 pt-2 mt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-700 font-medium">
                       <span className="truncate max-w-[50%]" title={consumer.class || consumer.baseClass || "-"}>
                         <span className="text-slate-400 font-normal">Class: </span>
-                        {consumer.class || consumer.baseClass || "-"}
+                        <strong className="font-semibold text-slate-800">{consumer.class || consumer.baseClass || "-"}</strong>
                       </span>
                       <span className="truncate max-w-[50%] text-right font-mono" title={consumer.device || "-"}>
                         <span className="text-slate-400 font-sans font-normal">Meter: </span>
-                        {consumer.device || "-"}
+                        <strong className="font-semibold text-slate-800">{consumer.device || "-"}</strong>
                       </span>
                     </div>
                   </div>
+                </CardContent>
 
-                  {/* 3. Footer Action Toolbar & Primary CTA without dividing line */}
-                  <div className="space-y-2 pt-1">
-                    {/* Quick Utility Icon Strip (Thumb-friendly 32px+ targets) */}
-                    <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                            setOsdTargetId(consumer.consumerId)
-                            setShowOsdModal(true)
-                          }}
-                          className="h-8 px-2.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold flex items-center gap-1 text-xs transition-colors interactive-tap"
-                          title="Check Live OSD"
-                        >
-                          <Zap className="h-3.5 w-3.5 fill-blue-600 text-blue-600" />
-                          <span>Live</span>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                            setActiveHistoryConsumer(consumer)
-                          }}
-                          className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors interactive-tap"
-                          title="View History"
-                          aria-label="View History"
-                        >
-                          <History className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={(e) => handleShareConsumer(consumer, e)}
-                          disabled={sharingConsumerId === consumer.consumerId}
-                          className="h-8 w-8 rounded-lg flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50 interactive-tap"
-                          title="Share Status Card"
-                          aria-label="Share Status Card"
-                        >
-                          {sharingConsumerId === consumer.consumerId ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Share2 className="h-4 w-4" />
-                          )}
-                        </button>
-                        {hasImage && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const imgUrl = (consumer.imageUrl || (consumer as any).image) as string
-                              setPreviewImage({
-                                url: imgUrl,
-                                title: `Consumer Evidence - ${consumer.name || consumer.consumerId}`,
-                                consumerId: consumer.consumerId,
-                              })
-                            }}
-                            className="h-8 w-8 rounded-lg flex items-center justify-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors interactive-tap"
-                            title="View Uploaded Image"
-                            aria-label="View Uploaded Image"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Info / Quick Preview Icon Button */}
+                {/* ZONE 3: Distinct Tinted Footer Action Toolbar & Primary CTA */}
+                <div className="px-3.5 py-2.5 bg-slate-50/90 border-t border-slate-200/80 space-y-2">
+                  {/* Quick Utility Icon Strip */}
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <div className="flex items-center gap-1.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          setPreviewConsumer(consumer)
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                          setOsdTargetId(consumer.consumerId)
+                          setShowOsdModal(true)
                         }}
-                        className="h-8 px-2.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1 transition-colors interactive-tap"
-                        title="More Consumer Details"
+                        className="h-8 px-2.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 font-semibold flex items-center gap-1 text-xs transition-colors interactive-tap"
+                        title="Check Live OSD"
                       >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>Details</span>
+                        <Zap className="h-3.5 w-3.5 fill-blue-600 text-blue-600" />
+                        <span>Live</span>
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                          setActiveHistoryConsumer(consumer)
+                        }}
+                        className="h-8 w-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors interactive-tap"
+                        title="View History"
+                        aria-label="View History"
+                      >
+                        <History className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => handleShareConsumer(consumer, e)}
+                        disabled={sharingConsumerId === consumer.consumerId}
+                        className="h-8 w-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors disabled:opacity-50 interactive-tap"
+                        title="Share Status Card"
+                        aria-label="Share Status Card"
+                      >
+                        {sharingConsumerId === consumer.consumerId ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Share2 className="h-4 w-4" />
+                        )}
+                      </button>
+                      {hasImage && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const imgUrl = (consumer.imageUrl || (consumer as any).image) as string
+                            setPreviewImage({
+                              url: imgUrl,
+                              title: `Consumer Evidence - ${consumer.name || consumer.consumerId}`,
+                              consumerId: consumer.consumerId,
+                            })
+                          }}
+                          className="h-8 w-8 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors interactive-tap"
+                          title="View Uploaded Image"
+                          aria-label="View Uploaded Image"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
 
-                    {/* Primary Action Button */}
-                    <Button
-                      onClick={() => {
-                        if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
-                        setSelectedConsumer(consumer)
+                    {/* Info / Quick Preview Icon Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewConsumer(consumer)
                       }}
-                      className={`w-full h-9 rounded-lg text-xs font-semibold interactive-tap ${
-                        isReadOnlyMode
-                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"
-                          : "bg-slate-900 hover:bg-slate-800 text-white"
-                      }`}
-                      size="sm"
-                      title={reconnBlocked ? "Reconnection pending >30h" : undefined}
+                      className="h-8 px-2.5 rounded-lg bg-white border border-slate-200/80 text-xs font-semibold text-slate-700 hover:text-slate-950 hover:bg-slate-100 flex items-center gap-1 transition-colors interactive-tap"
+                      title="More Consumer Details"
                     >
-                      {isReadOnlyMode ? (
-                        <>
-                          <Eye className="h-3.5 w-3.5 mr-1.5 text-slate-600" />
-                          View Details
-                        </>
-                      ) : (
-                        <>
-                          <Edit className="h-3.5 w-3.5 mr-1.5" />
-                          {reconnBlocked ? "⚠ Update Status" : "Update Status"}
-                        </>
-                      )}
-                    </Button>
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>Details</span>
+                    </button>
                   </div>
-                </CardContent>
+
+                  {/* Primary Action Button */}
+                  <Button
+                    onClick={() => {
+                      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
+                      setSelectedConsumer(consumer)
+                    }}
+                    className={`w-full h-9 rounded-xl text-xs font-semibold interactive-tap shadow-xs ${
+                      isReadOnlyMode
+                        ? "bg-white hover:bg-slate-100 text-slate-800 border border-slate-300"
+                        : "bg-slate-900 hover:bg-slate-800 text-white"
+                    }`}
+                    size="sm"
+                    title={reconnBlocked ? "Reconnection pending >30h" : undefined}
+                  >
+                    {isReadOnlyMode ? (
+                      <>
+                        <Eye className="h-3.5 w-3.5 mr-1.5 text-slate-600" />
+                        View Details
+                      </>
+                    ) : (
+                      <>
+                        <Edit className="h-3.5 w-3.5 mr-1.5" />
+                        {reconnBlocked ? "⚠ Update Status" : "Update Status"}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </Card>
             )
           })}
@@ -2056,8 +2157,12 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
           </div>
 
           {/* Mobile List View (Hidden on Desktop) */}
-          <div className="md:hidden space-y-2">
-            {paginatedConsumers.map((consumer) => (
+          <div className="md:hidden space-y-2.5">
+            {paginatedConsumers.map((consumer, idx) => {
+              const isUrgent = (consumer.priority || "").toLowerCase() === "urgent"
+              const cardVisual = getCardVisualTheme(consumer.disconStatus, isUrgent)
+              const serialNumber = startIndex + idx + 1
+              return (
               <div 
                 id={`consumer-item-${consumer.consumerId}`}
                 key={consumer.consumerId} 
@@ -2065,9 +2170,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(20)
                     setPreviewConsumer(consumer)
                 }}
-                className={`p-2 rounded-lg shadow-sm border active:bg-gray-50 transition-colors ${
-                  (consumer.priority || "").toLowerCase() === "urgent"
-                    ? "bg-red-50 border-red-400"
+                className={`p-2.5 rounded-xl shadow-[0_2px_8px_-2px_rgba(15,23,42,0.10)] border border-slate-300/80 border-l-4 ${cardVisual.leftBar} active:bg-slate-50 transition-colors ${
+                  isUrgent
+                    ? "bg-red-50/70 border-red-400"
                     : "bg-white"
                 } ${
                   ((!["connected", "visited", "not found"].includes(consumer.disconStatus.toLowerCase()) && userRole !== "admin" && userRole !== "executive") || userRole === "viewer")
@@ -2077,6 +2182,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
               >
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                     <span className={`notranslate tabular-nums shrink-0 text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${cardVisual.indexPill}`}>
+                       #{String(serialNumber).padStart(2, "0")}
+                     </span>
                      <div className="shrink-0">{getStatusIcon(consumer.disconStatus)}</div>
                      <div className="flex items-center gap-1 shrink-0">
                        <span className="font-semibold text-sm text-gray-900 font-mono">{consumer.consumerId}</span>
@@ -2148,9 +2256,9 @@ const ConsumerList = React.forwardRef<ConsumerListRef, ConsumerListProps>(
                     </Button>
                   </div>
                 </div>
-                <div className="h-[2px] bg-gray-200 w-full mt-2 rounded-full" />
               </div>
-            ))}
+              )
+            })}
           </div>
         </>
       )}

@@ -80,7 +80,7 @@ export function DashboardShell({
 
   return (
     <div
-      className={`bg-[#f8fafc] relative overflow-x-hidden ${
+      className={`bg-[#eef2f7] relative overflow-x-hidden ${
         isFullscreenCamera ? "h-[100dvh] overflow-hidden" : "min-h-screen"
       }`}
     >

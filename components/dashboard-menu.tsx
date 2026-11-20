@@ -40,6 +40,7 @@ import {
   MODULE_CATEGORIES,
   canAccessModule,
   getRecentModules,
+  type ModuleAccent,
 } from "@/lib/module-catalog"
 import { Clock, AlertTriangle, Sparkles } from "lucide-react"
 import {
@@ -1086,8 +1087,180 @@ export function DashboardMenu({
     return `${formattedNum} ${mod.badgeUnit}`
   }
 
+  // Distinct per-module signature palette so adjacent home cards stand apart at a glance
+  const MODULE_ACCENT_STYLES: Record<
+    ModuleAccent,
+    {
+      topBar: string
+      iconBox: string
+      iconHover: string
+      badge: string
+      watermark: string
+      cardHover: string
+      surfaceWash: string
+      titleHover: string
+      quickIcon: string
+    }
+  > = {
+    red: {
+      topBar: "from-red-500 via-rose-500 to-red-400",
+      iconBox: "bg-red-50 text-red-600 border-red-200/90",
+      iconHover: "group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600",
+      badge: "bg-red-50 text-red-700 border-red-200/90",
+      watermark: "text-red-500",
+      cardHover: "hover:border-red-300/90 hover:shadow-red-500/12",
+      surfaceWash: "from-red-50/40 via-white to-white",
+      titleHover: "group-hover:text-red-700",
+      quickIcon: "text-red-600",
+    },
+    blue: {
+      topBar: "from-blue-600 via-blue-500 to-sky-400",
+      iconBox: "bg-blue-50 text-blue-600 border-blue-200/90",
+      iconHover: "group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600",
+      badge: "bg-blue-50 text-blue-700 border-blue-200/90",
+      watermark: "text-blue-500",
+      cardHover: "hover:border-blue-300/90 hover:shadow-blue-500/12",
+      surfaceWash: "from-blue-50/40 via-white to-white",
+      titleHover: "group-hover:text-blue-700",
+      quickIcon: "text-blue-600",
+    },
+    orange: {
+      topBar: "from-orange-500 via-amber-500 to-orange-400",
+      iconBox: "bg-orange-50 text-orange-600 border-orange-200/90",
+      iconHover: "group-hover:bg-orange-600 group-hover:text-white group-hover:border-orange-600",
+      badge: "bg-orange-50 text-orange-800 border-orange-200/90",
+      watermark: "text-orange-500",
+      cardHover: "hover:border-orange-300/90 hover:shadow-orange-500/12",
+      surfaceWash: "from-orange-50/40 via-white to-white",
+      titleHover: "group-hover:text-orange-700",
+      quickIcon: "text-orange-600",
+    },
+    rose: {
+      topBar: "from-rose-600 via-pink-500 to-rose-400",
+      iconBox: "bg-rose-50 text-rose-600 border-rose-200/90",
+      iconHover: "group-hover:bg-rose-600 group-hover:text-white group-hover:border-rose-600",
+      badge: "bg-rose-50 text-rose-700 border-rose-200/90",
+      watermark: "text-rose-500",
+      cardHover: "hover:border-rose-300/90 hover:shadow-rose-500/12",
+      surfaceWash: "from-rose-50/40 via-white to-white",
+      titleHover: "group-hover:text-rose-700",
+      quickIcon: "text-rose-600",
+    },
+    amber: {
+      topBar: "from-amber-500 via-yellow-500 to-amber-400",
+      iconBox: "bg-amber-50 text-amber-700 border-amber-200/90",
+      iconHover: "group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600",
+      badge: "bg-amber-50 text-amber-800 border-amber-200/90",
+      watermark: "text-amber-500",
+      cardHover: "hover:border-amber-300/90 hover:shadow-amber-500/12",
+      surfaceWash: "from-amber-50/45 via-white to-white",
+      titleHover: "group-hover:text-amber-800",
+      quickIcon: "text-amber-600",
+    },
+    cyan: {
+      topBar: "from-cyan-500 via-sky-500 to-cyan-400",
+      iconBox: "bg-cyan-50 text-cyan-700 border-cyan-200/90",
+      iconHover: "group-hover:bg-cyan-600 group-hover:text-white group-hover:border-cyan-600",
+      badge: "bg-cyan-50 text-cyan-800 border-cyan-200/90",
+      watermark: "text-cyan-500",
+      cardHover: "hover:border-cyan-300/90 hover:shadow-cyan-500/12",
+      surfaceWash: "from-cyan-50/40 via-white to-white",
+      titleHover: "group-hover:text-cyan-700",
+      quickIcon: "text-cyan-600",
+    },
+    violet: {
+      topBar: "from-violet-600 via-purple-500 to-violet-400",
+      iconBox: "bg-violet-50 text-violet-600 border-violet-200/90",
+      iconHover: "group-hover:bg-violet-600 group-hover:text-white group-hover:border-violet-600",
+      badge: "bg-violet-50 text-violet-700 border-violet-200/90",
+      watermark: "text-violet-500",
+      cardHover: "hover:border-violet-300/90 hover:shadow-violet-500/12",
+      surfaceWash: "from-violet-50/40 via-white to-white",
+      titleHover: "group-hover:text-violet-700",
+      quickIcon: "text-violet-600",
+    },
+    purple: {
+      topBar: "from-purple-600 via-fuchsia-500 to-purple-400",
+      iconBox: "bg-purple-50 text-purple-600 border-purple-200/90",
+      iconHover: "group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600",
+      badge: "bg-purple-50 text-purple-700 border-purple-200/90",
+      watermark: "text-purple-500",
+      cardHover: "hover:border-purple-300/90 hover:shadow-purple-500/12",
+      surfaceWash: "from-purple-50/40 via-white to-white",
+      titleHover: "group-hover:text-purple-700",
+      quickIcon: "text-purple-600",
+    },
+    emerald: {
+      topBar: "from-emerald-600 via-emerald-500 to-teal-400",
+      iconBox: "bg-emerald-50 text-emerald-600 border-emerald-200/90",
+      iconHover: "group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600",
+      badge: "bg-emerald-50 text-emerald-700 border-emerald-200/90",
+      watermark: "text-emerald-500",
+      cardHover: "hover:border-emerald-300/90 hover:shadow-emerald-500/12",
+      surfaceWash: "from-emerald-50/40 via-white to-white",
+      titleHover: "group-hover:text-emerald-700",
+      quickIcon: "text-emerald-600",
+    },
+    indigo: {
+      topBar: "from-indigo-600 via-blue-500 to-indigo-400",
+      iconBox: "bg-indigo-50 text-indigo-600 border-indigo-200/90",
+      iconHover: "group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600",
+      badge: "bg-indigo-50 text-indigo-700 border-indigo-200/90",
+      watermark: "text-indigo-500",
+      cardHover: "hover:border-indigo-300/90 hover:shadow-indigo-500/12",
+      surfaceWash: "from-indigo-50/40 via-white to-white",
+      titleHover: "group-hover:text-indigo-700",
+      quickIcon: "text-indigo-600",
+    },
+    teal: {
+      topBar: "from-teal-600 via-teal-500 to-emerald-400",
+      iconBox: "bg-teal-50 text-teal-600 border-teal-200/90",
+      iconHover: "group-hover:bg-teal-600 group-hover:text-white group-hover:border-teal-600",
+      badge: "bg-teal-50 text-teal-800 border-teal-200/90",
+      watermark: "text-teal-500",
+      cardHover: "hover:border-teal-300/90 hover:shadow-teal-500/12",
+      surfaceWash: "from-teal-50/40 via-white to-white",
+      titleHover: "group-hover:text-teal-700",
+      quickIcon: "text-teal-600",
+    },
+    sky: {
+      topBar: "from-sky-500 via-blue-500 to-cyan-400",
+      iconBox: "bg-sky-50 text-sky-600 border-sky-200/90",
+      iconHover: "group-hover:bg-sky-600 group-hover:text-white group-hover:border-sky-600",
+      badge: "bg-sky-50 text-sky-800 border-sky-200/90",
+      watermark: "text-sky-500",
+      cardHover: "hover:border-sky-300/90 hover:shadow-sky-500/12",
+      surfaceWash: "from-sky-50/40 via-white to-white",
+      titleHover: "group-hover:text-sky-700",
+      quickIcon: "text-sky-600",
+    },
+    fuchsia: {
+      topBar: "from-fuchsia-600 via-pink-500 to-purple-500",
+      iconBox: "bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200/90",
+      iconHover: "group-hover:bg-fuchsia-600 group-hover:text-white group-hover:border-fuchsia-600",
+      badge: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200/90",
+      watermark: "text-fuchsia-500",
+      cardHover: "hover:border-fuchsia-300/90 hover:shadow-fuchsia-500/12",
+      surfaceWash: "from-fuchsia-50/40 via-white to-white",
+      titleHover: "group-hover:text-fuchsia-700",
+      quickIcon: "text-fuchsia-600",
+    },
+    slate: {
+      topBar: "from-slate-700 via-slate-600 to-slate-500",
+      iconBox: "bg-slate-100 text-slate-700 border-slate-300/80",
+      iconHover: "group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900",
+      badge: "bg-slate-100 text-slate-800 border-slate-300/80",
+      watermark: "text-slate-600",
+      cardHover: "hover:border-slate-400/90 hover:shadow-slate-500/12",
+      surfaceWash: "from-slate-100/50 via-white to-white",
+      titleHover: "group-hover:text-slate-950",
+      quickIcon: "text-slate-700",
+    },
+  }
+
   // Style generator according to active theme: "slate" | "categorized" | "status" | "minimal-accent"
   const getThemeStyles = (mod: (typeof accessibleModulesWithCounts)[number]) => {
+    const sig = MODULE_ACCENT_STYLES[mod.accent] || MODULE_ACCENT_STYLES.blue
     const isDanger =
       mod.count >= ATTENTION_THRESHOLD ||
       Boolean(mod.criticalThreshold && mod.count >= mod.criticalThreshold)
@@ -1095,35 +1268,46 @@ export function DashboardMenu({
 
     switch (theme) {
       case "categorized": {
-        let iconBox = "bg-blue-50 text-blue-600 border-blue-200/80 group-hover:bg-blue-100/80"
-        let badge = "bg-blue-50 text-blue-800 border-blue-200/80"
+        let topBar = "from-blue-600 via-blue-500 to-sky-400"
+        let iconBox = "bg-blue-50 text-blue-600 border-blue-200/90 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600"
+        let badge = "bg-blue-50 text-blue-800 border-blue-200/90"
         let watermark = "text-blue-600"
-        let cardBorder = "hover:border-blue-300 hover:shadow-blue-500/10"
+        let cardBorder = "hover:border-blue-300 hover:shadow-blue-500/12"
+        let surfaceWash = "from-blue-50/40 via-white to-white"
 
         if (mod.category === "field") {
-          iconBox = "bg-amber-50 text-amber-600 border-amber-200/80 group-hover:bg-amber-100/80"
-          badge = "bg-amber-50 text-amber-900 border-amber-200/80"
+          topBar = "from-amber-500 via-orange-400 to-amber-400"
+          iconBox = "bg-amber-50 text-amber-700 border-amber-200/90 group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600"
+          badge = "bg-amber-50 text-amber-900 border-amber-200/90"
           watermark = "text-amber-600"
-          cardBorder = "hover:border-amber-300 hover:shadow-amber-500/10"
+          cardBorder = "hover:border-amber-300 hover:shadow-amber-500/12"
+          surfaceWash = "from-amber-50/40 via-white to-white"
         } else if (mod.category === "assets") {
-          iconBox = "bg-emerald-50 text-emerald-600 border-emerald-200/80 group-hover:bg-emerald-100/80"
-          badge = "bg-emerald-50 text-emerald-800 border-emerald-200/80"
+          topBar = "from-emerald-600 via-emerald-500 to-teal-400"
+          iconBox = "bg-emerald-50 text-emerald-700 border-emerald-200/90 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600"
+          badge = "bg-emerald-50 text-emerald-800 border-emerald-200/90"
           watermark = "text-emerald-600"
-          cardBorder = "hover:border-emerald-300 hover:shadow-emerald-500/10"
+          cardBorder = "hover:border-emerald-300 hover:shadow-emerald-500/12"
+          surfaceWash = "from-emerald-50/40 via-white to-white"
         } else if (mod.category === "tools") {
-          iconBox = "bg-slate-100 text-slate-700 border-slate-200/80 group-hover:bg-slate-200/70"
-          badge = "bg-slate-100 text-slate-700 border-slate-200/80"
+          topBar = "from-slate-600 via-slate-500 to-slate-400"
+          iconBox = "bg-slate-100 text-slate-700 border-slate-300/80 group-hover:bg-slate-800 group-hover:text-white group-hover:border-slate-800"
+          badge = "bg-slate-100 text-slate-700 border-slate-200/90"
           watermark = "text-slate-600"
-          cardBorder = "hover:border-slate-300"
+          cardBorder = "hover:border-slate-400/90"
+          surfaceWash = "from-slate-100/45 via-white to-white"
         }
 
         return {
-          iconContainer: `w-10 h-10 rounded-xl ${iconBox} border flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105`,
+          topBar,
+          surfaceWash,
+          iconContainer: `w-11 h-11 rounded-xl ${iconBox} border flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:scale-105`,
           badgeClass: mod.isLoading
             ? "bg-slate-700 text-white border-slate-700 animate-pulse"
             : badge,
           watermark: `h-20 w-20 ${watermark} transition-transform duration-500 group-hover:scale-110`,
           cardBorder,
+          titleHover: sig.titleHover,
         }
       }
 
@@ -1136,39 +1320,57 @@ export function DashboardMenu({
           ? "bg-amber-50 text-amber-800 border-amber-200"
           : "bg-slate-100 text-slate-700 border-slate-200"
 
+        const topBar = isDanger
+          ? "from-red-600 via-rose-500 to-red-400"
+          : isWarning
+          ? "from-amber-500 via-orange-400 to-amber-300"
+          : sig.topBar
+
         return {
-          iconContainer:
-            "w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-slate-200/80 group-hover:text-slate-900 group-hover:scale-105",
+          topBar,
+          surfaceWash: isDanger
+            ? "from-red-50/40 via-white to-white"
+            : isWarning
+            ? "from-amber-50/35 via-white to-white"
+            : "from-slate-50/40 via-white to-white",
+          iconContainer: `w-11 h-11 rounded-xl ${sig.iconBox} ${sig.iconHover} border flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:scale-105`,
           badgeClass,
-          watermark: "h-20 w-20 text-slate-700 transition-transform duration-500 group-hover:scale-110",
-          cardBorder: isDanger ? "hover:border-red-300" : "hover:border-slate-300",
+          watermark: `h-20 w-20 ${sig.watermark} transition-transform duration-500 group-hover:scale-110`,
+          cardBorder: isDanger ? "hover:border-red-300" : sig.cardHover,
+          titleHover: sig.titleHover,
         }
       }
 
       case "minimal-accent": {
         return {
+          topBar: "from-indigo-600 via-blue-500 to-indigo-400",
+          surfaceWash: "from-indigo-50/35 via-white to-white",
           iconContainer:
-            "w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-indigo-100 group-hover:text-indigo-700 group-hover:scale-105",
+            "w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200/80 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 group-hover:scale-105",
           badgeClass: mod.isLoading
             ? "bg-indigo-500 text-white border-indigo-500 animate-pulse"
             : "bg-indigo-50 text-indigo-700 border-indigo-200/80",
           watermark: "h-20 w-20 text-indigo-600 transition-transform duration-500 group-hover:scale-110",
-          cardBorder: "hover:border-indigo-300 hover:shadow-indigo-500/10",
+          cardBorder: "hover:border-indigo-300 hover:shadow-indigo-500/12",
+          titleHover: "group-hover:text-indigo-700",
         }
       }
 
       case "slate":
       default: {
+        // Distinct per-module signature top strip + tinted icon tile + sharp executive count badge
         return {
-          iconContainer:
-            "w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/70 text-slate-700 flex items-center justify-center shrink-0 transition-all duration-200 group-hover:bg-slate-900 group-hover:text-white group-hover:border-slate-900 group-hover:scale-105",
+          topBar: sig.topBar,
+          surfaceWash: sig.surfaceWash,
+          iconContainer: `w-11 h-11 rounded-xl ${sig.iconBox} ${sig.iconHover} border flex items-center justify-center shrink-0 shadow-2xs transition-all duration-200 group-hover:scale-105`,
           badgeClass: mod.isLoading
             ? "bg-slate-800 text-white border-slate-800 animate-pulse"
             : mod.count > 0 && mod.id !== "consumer-master"
-            ? "bg-slate-900 text-white border-slate-900"
-            : "bg-slate-100 text-slate-600 border-slate-200",
-          watermark: "h-20 w-20 text-slate-800 transition-transform duration-500 group-hover:scale-110",
-          cardBorder: "hover:border-slate-300",
+            ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+            : sig.badge,
+          watermark: `h-20 w-20 ${sig.watermark} transition-transform duration-500 group-hover:scale-110`,
+          cardBorder: sig.cardHover,
+          titleHover: sig.titleHover,
         }
       }
     }
@@ -1316,17 +1518,18 @@ export function DashboardMenu({
           <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
             {recentModules.map((mod, idx) => {
               const Icon = mod.icon
+              const sig = MODULE_ACCENT_STYLES[mod.accent] || MODULE_ACCENT_STYLES.blue
               return (
                 <button
                   key={mod.id}
                   type="button"
                   onClick={() => handleOpenModule(mod.id)}
-                  className={`animate-chip-in stagger-${idx + 1} shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/90 hover:border-blue-300 hover:bg-blue-50/40 shadow-2xs text-xs font-semibold text-slate-800 transition-all interactive-tap cursor-pointer`}
+                  className={`animate-chip-in stagger-${idx + 1} shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-300/80 hover:border-blue-400 hover:bg-blue-50/40 shadow-[0_2px_6px_-2px_rgba(15,23,42,0.08)] text-xs font-semibold text-slate-800 transition-all interactive-tap cursor-pointer`}
                 >
-                  <Icon className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${sig.quickIcon}`} />
                   <span>{mod.title}</span>
                   {mod.hasCount && mod.count > 0 && mod.id !== "consumer-master" && (
-                    <span className="notranslate tabular-nums px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                    <span className="notranslate tabular-nums px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
                       {mod.count.toLocaleString()}
                     </span>
                   )}
@@ -1406,7 +1609,7 @@ export function DashboardMenu({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
                 {items.map((mod, idx) => {
                   const Icon = mod.icon
                   const styles = getThemeStyles(mod)
@@ -1428,52 +1631,75 @@ export function DashboardMenu({
                       key={mod.id}
                       type="button"
                       onClick={() => handleOpenModule(mod.id)}
-                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-left cursor-pointer rounded-2xl bg-white/95 backdrop-blur-sm border ${
+                      className={`animate-card-enter stagger-${Math.min(idx + 1, 8)} group relative text-left cursor-pointer rounded-2xl bg-gradient-to-br ${styles.surfaceWash} border ${
                         guidedCardHint
                           ? "border-blue-600 ring-2 ring-blue-500/30 animate-spotlight-ring overflow-visible z-10"
-                          : `border-slate-200/90 ${styles.cardBorder} overflow-hidden`
-                      } shadow-xs hover:shadow-md p-3.5 sm:p-4 flex flex-col justify-between min-h-[116px] sm:min-h-[136px] card-interactive select-none`}
+                          : `border-slate-300/80 ring-1 ring-slate-900/[0.03] ${styles.cardBorder} overflow-hidden`
+                      } shadow-[0_3px_12px_-3px_rgba(15,23,42,0.10),0_1px_3px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_28px_-8px_rgba(15,23,42,0.16)] flex flex-col justify-between min-h-[128px] sm:min-h-[148px] card-interactive select-none transition-all duration-200`}
                     >
+                      {/* Distinct Top Signature Color Bar */}
+                      <div
+                        className={`h-[3.5px] w-full bg-gradient-to-r ${styles.topBar} shrink-0 ${
+                          guidedCardHint ? "rounded-t-2xl" : ""
+                        }`}
+                      />
+
                       {/* Subtle Watermark Icon on Desktop */}
-                      <div className="hidden sm:block absolute -bottom-3 -right-3 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity duration-300 pointer-events-none overflow-hidden rounded-br-2xl">
+                      <div className="hidden sm:block absolute -bottom-3 -right-3 opacity-[0.05] group-hover:opacity-[0.10] transition-opacity duration-300 pointer-events-none overflow-hidden rounded-br-2xl">
                         <Icon className={styles.watermark} />
                       </div>
 
-                      {/* Top Row: Icon + Semantic Count Pill */}
-                      <div className="relative z-10 flex items-start justify-between gap-2 w-full">
-                        <div className={styles.iconContainer}>
-                          <Icon className="h-5 w-5" />
+                      <div className="relative z-10 p-3.5 sm:p-4 flex-1 flex flex-col justify-between w-full">
+                        {/* Top Row: Distinct Signature Icon + Semantic Count Pill */}
+                        <div className="flex items-start justify-between gap-2 w-full">
+                          <div className={styles.iconContainer}>
+                            <Icon className="h-5 w-5" />
+                          </div>
+
+                          {guidedCardHint ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-xs">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              Next Step
+                            </span>
+                          ) : mod.hasCount ? (
+                            <span
+                              className={`notranslate tabular-nums inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold border transition-transform duration-200 group-hover:scale-105 ${styles.badgeClass}`}
+                            >
+                              {mod.isLoading ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <span className="sm:hidden">{compactLabel}</span>
+                                  <span className="hidden sm:inline">{semanticLabel}</span>
+                                </>
+                              )}
+                            </span>
+                          ) : null}
                         </div>
 
-                        {guidedCardHint ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white shadow-xs">
-                            <Sparkles className="h-2.5 w-2.5" />
-                            Next Step
-                          </span>
-                        ) : mod.hasCount ? (
-                          <span
-                            className={`notranslate tabular-nums inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-bold border transition-transform duration-200 group-hover:scale-105 ${styles.badgeClass}`}
-                          >
-                            {mod.isLoading ? (
-                              <RefreshCw className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <>
-                                <span className="sm:hidden">{compactLabel}</span>
-                                <span className="hidden sm:inline">{semanticLabel}</span>
-                              </>
-                            )}
-                          </span>
-                        ) : null}
-                      </div>
+                        {/* Middle Row: Title & Description */}
+                        <div className="mt-3 space-y-0.5">
+                          <h3 className={`text-sm sm:text-[15px] font-extrabold text-slate-900 leading-snug tracking-tight transition-colors ${styles.titleHover}`}>
+                            {mod.title}
+                          </h3>
+                          <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                            {mod.description}
+                          </p>
+                        </div>
 
-                      {/* Bottom Row: Title, Description & Mobile Semantic Hint */}
-                      <div className="relative z-10 mt-3 space-y-0.5">
-                        <h3 className="text-sm sm:text-[15px] font-bold text-slate-900 leading-snug tracking-tight group-hover:text-blue-700 transition-colors">
-                          {mod.title}
-                        </h3>
-                        <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                          {mod.description}
-                        </p>
+                        {/* Subtle Micro-Footer Affordance */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[10px] font-semibold text-slate-400 group-hover:text-slate-700 transition-colors">
+                          <span className="uppercase tracking-wider truncate">
+                            {category.id === "operations"
+                              ? "Operations"
+                              : category.id === "field"
+                              ? "Field"
+                              : category.id === "assets"
+                              ? "Assets"
+                              : "Utility"}
+                          </span>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" />
+                        </div>
                       </div>
 
                       {guidedCardHint && (

@@ -36,12 +36,24 @@ import {
 } from "@/components/ui/sheet"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton"
+import { ModuleWaiter } from "@/components/ui/module-waiter"
 import { useToast } from "@/components/ui/use-toast"
 import dynamic from "next/dynamic"
 
 const NearbyConsumerMap = dynamic(
   () => import("./nearby-consumer-map").then((mod) => mod.NearbyConsumerMap),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <ModuleWaiter
+        variant="inline"
+        accent="orange"
+        title="Loading GPS Consumer Map"
+        messages={["Initializing GPS radar...", "Plotting nearby consumers..."]}
+        showSkeletonCards={false}
+      />
+    ),
+  }
 )
 
 function useBackNavigation(isOpen: boolean, onClose: () => void) {
@@ -227,13 +239,57 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
 
   const getStatusColor = (status: string) => {
     const s = String(status || "").trim().toLowerCase()
-    if (s === "deemed disconnected") return "bg-red-100 text-red-800"
-    if (s === "connected (meter running)" || s === "physically live") return "bg-yellow-100 text-yellow-800"
-    if (s === "disconnected (using neighbor source)" || s.includes("enjoying power")) return "bg-orange-100 text-orange-800"
-    if (s === "permanently disconnected" || s === "disconnected") return "bg-green-100 text-green-800"
-    if (s === "premises locked") return "bg-blue-100 text-blue-800"
-    if (s === "consumer not found" || s === "not found") return "bg-gray-100 text-gray-800"
-    return "bg-blue-50 text-blue-800"
+    if (s === "deemed disconnected") return "bg-red-100 text-red-900 border border-red-200/80"
+    if (s === "connected (meter running)" || s === "physically live") return "bg-amber-100 text-amber-900 border border-amber-200/80"
+    if (s === "disconnected (using neighbor source)" || s.includes("enjoying power")) return "bg-orange-100 text-orange-900 border border-orange-200/80"
+    if (s === "permanently disconnected" || s === "disconnected") return "bg-emerald-100 text-emerald-900 border border-emerald-200/80"
+    if (s === "premises locked") return "bg-blue-100 text-blue-900 border border-blue-200/80"
+    if (s === "consumer not found" || s === "not found") return "bg-slate-100 text-slate-800 border border-slate-200/80"
+    return "bg-blue-50 text-blue-900 border border-blue-200/80"
+  }
+
+  const getDDCardVisual = (status: string) => {
+    const s = String(status || "").trim().toLowerCase()
+    if (s === "deemed disconnected") {
+      return {
+        leftBar: "border-l-red-500",
+        headerBg: "bg-gradient-to-r from-red-50/75 via-red-50/25 to-white",
+        indexPill: "bg-red-100 text-red-900 border-red-200/90",
+      }
+    }
+    if (s === "connected (meter running)" || s === "physically live") {
+      return {
+        leftBar: "border-l-amber-500",
+        headerBg: "bg-gradient-to-r from-amber-50/75 via-amber-50/25 to-white",
+        indexPill: "bg-amber-100 text-amber-900 border-amber-200/90",
+      }
+    }
+    if (s === "disconnected (using neighbor source)" || s.includes("enjoying power")) {
+      return {
+        leftBar: "border-l-orange-500",
+        headerBg: "bg-gradient-to-r from-orange-50/75 via-orange-50/25 to-white",
+        indexPill: "bg-orange-100 text-orange-900 border-orange-200/90",
+      }
+    }
+    if (s === "permanently disconnected" || s === "disconnected") {
+      return {
+        leftBar: "border-l-emerald-500",
+        headerBg: "bg-gradient-to-r from-emerald-50/75 via-emerald-50/25 to-white",
+        indexPill: "bg-emerald-100 text-emerald-900 border-emerald-200/90",
+      }
+    }
+    if (s === "premises locked") {
+      return {
+        leftBar: "border-l-blue-500",
+        headerBg: "bg-gradient-to-r from-blue-50/75 via-blue-50/25 to-white",
+        indexPill: "bg-blue-100 text-blue-900 border-blue-200/90",
+      }
+    }
+    return {
+      leftBar: "border-l-slate-400",
+      headerBg: "bg-gradient-to-r from-slate-100/80 via-slate-50/40 to-white",
+      indexPill: "bg-slate-200/80 text-slate-800 border-slate-300/80",
+    }
   }
 
   const itemsPerPage = viewMode === "list" ? 100 : 12
@@ -320,19 +376,23 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
     await loadData(false)
   }
 
-  if (loading && consumers.length === 0) {
+  if ((loading || syncStatus === "checking" || syncStatus === "found" || syncStatus === "syncing") && consumers.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <DDStats consumers={[]} loading={true} />
-        {viewMode === "card" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : (
-          <SkeletonTable rows={8} cols={6} />
-        )}
+        <ModuleWaiter
+          variant="inline"
+          accent="orange"
+          title="Loading Deemed Visit List"
+          messages={[
+            "Fetching deemed disconnected records...",
+            "Syncing agency visits & photo status...",
+            "Preparing consumer cards...",
+          ]}
+          showSkeletonCards={viewMode === "card"}
+          skeletonCount={6}
+        />
+        {viewMode !== "card" && <SkeletonTable rows={8} cols={6} />}
       </div>
     )
   }
@@ -538,88 +598,112 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
 
       {/* Card View */}
       {viewMode === "card" ? (
-        <div key="dd-card-grid" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
-          {paginatedConsumers.map((consumer, idx) => (
+        <div key="dd-card-grid" className="grid gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3 animate-tab-enter">
+          {paginatedConsumers.map((consumer, idx) => {
+            const cardVisual = getDDCardVisual(consumer.disconStatus)
+            const serialNumber = (currentPage - 1) * itemsPerPage + idx + 1
+            return (
             <Card
               key={consumer.consumerId}
-              className={`shadow-sm card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full ${
-                consumer._syncStatus === 'error' ? "border-red-400 border-2" : ""
+              className={`h-full flex flex-col justify-between bg-white rounded-2xl border border-slate-300/85 border-l-[5px] ${cardVisual.leftBar} shadow-[0_4px_14px_-3px_rgba(15,23,42,0.10),0_1px_3px_rgba(15,23,42,0.06)] hover:shadow-[0_14px_28px_-8px_rgba(15,23,42,0.16)] card-interactive animate-card-enter stagger-${(idx % 6) + 1} overflow-hidden max-w-full transition-all duration-200 ${
+                consumer._syncStatus === 'error' ? "border-red-400 ring-2 ring-red-400/50" : ""
               }`}
             >
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{consumer.name}</CardTitle>
-                    <p className="text-sm text-gray-600">{consumer.consumerId}</p>
+              {/* ZONE 1: Tinted Header Band */}
+              <CardHeader className={`p-3.5 pb-3 space-y-2 border-b border-slate-200/80 ${cardVisual.headerBg}`}>
+                <div className="flex justify-between items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className={`notranslate tabular-nums shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border ${cardVisual.indexPill}`}>
+                      #{String(serialNumber).padStart(2, "0")}
+                    </span>
                     {consumer.mru ? (
-                      <Badge variant="outline" className="mt-2 text-xs uppercase tracking-[0.08em]">
+                      <span className="text-[10px] font-mono font-semibold text-slate-600 bg-white/90 border border-slate-200/90 px-1.5 py-0.5 rounded-md uppercase tracking-wide truncate max-w-[95px]">
                         {consumer.mru}
-                      </Badge>
+                      </span>
                     ) : null}
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-1">
-                      {consumer._syncStatus === 'syncing' && (
-                        <RefreshCw className="h-3 w-3 animate-spin text-blue-500" title="Syncing..." />
-                      )}
-                      {consumer._syncStatus === 'error' && (
-                        <AlertCircle className="h-3 w-3 text-red-500" title="Sync failed — saved locally" />
-                      )}
-                      <Badge className={getStatusColor(consumer.disconStatus)}>{consumer.disconStatus}</Badge>
-                    </div>
-                    <Badge variant="outline" className="text-xs max-w-[120px] truncate block">{consumer.agency}</Badge>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {consumer._syncStatus === 'syncing' && (
+                      <RefreshCw className="h-3 w-3 animate-spin text-blue-500" title="Syncing..." />
+                    )}
+                    {consumer._syncStatus === 'error' && (
+                      <AlertCircle className="h-3 w-3 text-red-500" title="Sync failed — saved locally" />
+                    )}
+                    <Badge className={`${getStatusColor(consumer.disconStatus)} text-[10px] font-bold shadow-none`}>
+                      {consumer.disconStatus}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <CardTitle className="text-base sm:text-[17px] font-extrabold text-slate-900 line-clamp-1 leading-snug tracking-tight">
+                    {consumer.name}
+                  </CardTitle>
+                  <div className="flex items-center justify-between gap-2 mt-1.5 text-xs">
+                    <span className="font-mono font-semibold text-slate-700 bg-white/90 border border-slate-200/80 px-2 py-0.5 rounded-md">
+                      ID: {consumer.consumerId}
+                    </span>
+                    {consumer.agency && (
+                      <Badge variant="outline" className="text-[10px] font-bold bg-white/90 border-slate-200/90 max-w-[125px] truncate block">
+                        {consumer.agency}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-gray-600 line-clamp-2">{consumer.address}</p>
+
+              {/* ZONE 2: Clean White Body */}
+              <CardContent className="p-3.5 space-y-3 flex-1 bg-white">
+                <div className="flex items-start gap-2 min-h-[2.4rem]">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{consumer.address || "Address not provided"}</p>
                 </div>
 
                 {consumer.mobileNumber && (
                   <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <a href={`tel:${consumer.mobileNumber}`} className="text-sm text-blue-600 hover:underline">
-                      {consumer.mobileNumber}
+                    <a
+                      href={`tel:${consumer.mobileNumber}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50/90 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                      <span>{consumer.mobileNumber}</span>
                     </a>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2">
-                  <IndianRupee className="h-4 w-4 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-red-600">₹{Number(consumer.totalArrears || 0).toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">Outstanding Dues</p>
+                <div className="bg-slate-50/95 border border-slate-200/90 rounded-xl p-2.5 space-y-2 text-xs">
+                  <div className="grid grid-cols-2 divide-x divide-slate-200/90">
+                    <div className="pr-2.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Outstanding
+                      </span>
+                      <p className="notranslate tabular-nums text-base font-black text-red-600 mt-0.5">
+                        ₹{Number(consumer.totalArrears || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="pl-2.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        {consumer.visitDate ? "Visit Date" : "Discon Date"}
+                      </span>
+                      <p className={`text-xs font-bold mt-1 truncate ${consumer.visitDate ? "text-emerald-700" : "text-slate-700"}`}>
+                        {consumer.visitDate || consumer.disconDate || "Not recorded"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-700">
+                    <span className="truncate max-w-[50%]">
+                      <span className="text-slate-400">Class: </span>
+                      <strong className="font-semibold text-slate-800">{consumer.baseClass || "-"}</strong>
+                    </span>
+                    <span className="truncate max-w-[50%] text-right font-mono">
+                      <span className="text-slate-400 font-sans">Device: </span>
+                      <strong className="font-semibold text-slate-800">{consumer.device || "-"}</strong>
+                    </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                  <div><span className="font-medium">Class:</span> {consumer.baseClass || "-"}</div>
-                  <div><span className="font-medium">Device:</span> {consumer.device || "-"}</div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  {consumer.disconDate ? (
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4 text-gray-400" />
-                      <div>
-                        <p className="text-sm text-gray-600">{consumer.disconDate}</p>
-                        <p className="text-xs text-gray-500">Disconnection Date</p>
-                      </div>
-                    </div>
-                  ) : <div />}
-
-                  {consumer.visitDate && (
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-green-600">{consumer.visitDate}</p>
-                      <p className="text-xs text-green-600/80">Visit Date</p>
-                    </div>
-                  )}
-                </div>
-
                 {consumer.imageUrl && (
-                  <div className="pt-2 pb-1 relative z-10">
+                  <div className="pt-0.5 relative z-10">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -630,22 +714,25 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
                           consumerId: consumer.consumerId,
                         })
                       }}
-                      className="inline-flex items-center space-x-2 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                      className="inline-flex items-center space-x-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                     >
                       <ImageIcon className="h-3.5 w-3.5" />
                       <span>View Uploaded Image</span>
                     </button>
                   </div>
                 )}
+              </CardContent>
 
+              {/* ZONE 3: Tinted Action Footer */}
+              <div className="px-3.5 py-2.5 bg-slate-50/90 border-t border-slate-200/80">
                 {(() => {
                   const isReadOnlyMode = permissions ? !permissions.deemed?.includes("update") : (userRole === "viewer" || userRole === "reader")
                   return (
                     <Button
-                      className={`w-full mt-2 ${
+                      className={`w-full h-9 rounded-xl text-xs font-semibold shadow-xs ${
                         isReadOnlyMode
-                          ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-semibold"
-                          : ""
+                          ? "bg-white hover:bg-slate-100 text-slate-800 border border-slate-300"
+                          : "bg-slate-900 hover:bg-slate-800 text-white"
                       }`}
                       size="sm"
                       disabled={!isReadOnlyMode && isRowLocked(consumer)}
@@ -653,21 +740,22 @@ export function DDList({ userRole, userAgencies, permissions }: DDListProps) {
                     >
                       {isReadOnlyMode ? (
                         <>
-                          <Eye className="h-4 w-4 mr-2 text-slate-600" />
+                          <Eye className="h-3.5 w-3.5 mr-1.5 text-slate-600" />
                           View Details
                         </>
                       ) : (
                         <>
-                          <Edit className="h-4 w-4 mr-2" />
+                          <Edit className="h-3.5 w-3.5 mr-1.5" />
                           {isRowLocked(consumer) ? "Locked" : "Update Status"}
                         </>
                       )}
                     </Button>
                   )
                 })()}
-              </CardContent>
+              </div>
             </Card>
-          ))}
+            )
+          })}
         </div>
       ) : (
         /* List View */

@@ -582,4 +582,38 @@ html {
   animation: spotlightHalo 2s ease-in-out infinite;
 }
 
+/* -------------------------------------------------------------
+ * Beautiful Waiter / Loading Screen Animations
+ * ------------------------------------------------------------- */
+@keyframes waiterProgressSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(35%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.animate-waiter-bar {
+  animation: waiterProgressSlide 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+@keyframes waiterFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-waiter-float {
+  animation: waiterFloat 2.4s ease-in-out infinite;
+  will-change: transform;
+}
+
 

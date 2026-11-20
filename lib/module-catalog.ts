@@ -61,6 +61,22 @@ export const MODULE_CATEGORIES: ModuleCategoryMeta[] = [
   },
 ]
 
+export type ModuleAccent =
+  | "red"
+  | "blue"
+  | "orange"
+  | "rose"
+  | "amber"
+  | "cyan"
+  | "violet"
+  | "purple"
+  | "emerald"
+  | "indigo"
+  | "teal"
+  | "sky"
+  | "fuchsia"
+  | "slate"
+
 export interface ModuleCatalogItem {
   id: ViewType
   title: string
@@ -69,6 +85,8 @@ export interface ModuleCatalogItem {
   agencyDescription?: string
   icon: LucideIcon
   category: ModuleCategory
+  /** Distinct per-module signature accent color so adjacent home cards stand apart at a glance */
+  accent: ModuleAccent
   /** Short human label appended next to count badges (e.g. "pending", "low stock", "records") */
   badgeUnit?: string
   /** Whether this module displays a numeric count badge */
@@ -86,6 +104,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Manage disconnection lists & field status updates",
     icon: Zap,
     category: "operations",
+    accent: "red",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["dc", "disconnection", "defaulter", "arrears", "connected"],
@@ -96,6 +115,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Track and restore consumer supply after payment",
     icon: RotateCcw,
     category: "operations",
+    accent: "blue",
     badgeUnit: "pending",
     hasCount: true,
     criticalThreshold: 20,
@@ -107,6 +127,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Verify deemed disconnected consumer premises",
     icon: UserX,
     category: "operations",
+    accent: "orange",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["dd", "deemed", "visit", "disconnect"],
@@ -117,6 +138,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Track meter dismantling, Live OSD, GPS & Note Sheets",
     icon: PowerOff,
     category: "operations",
+    accent: "rose",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["pd", "permanent", "dismantle", "note sheet"],
@@ -129,6 +151,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Report site safety hazards, drawings & PO approvals",
     icon: ShieldAlert,
     category: "field",
+    accent: "amber",
     badgeUnit: "open",
     hasCount: true,
     criticalThreshold: 10,
@@ -140,6 +163,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Verify transformer existence & record inspection data",
     icon: RadioTower,
     category: "field",
+    accent: "cyan",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["dtr", "transformer", "verification"],
@@ -150,6 +174,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Update DTR structural painting logs & photo proof",
     icon: Brush,
     category: "field",
+    accent: "orange",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["painting", "dtr", "transformer", "photo"],
@@ -160,6 +185,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Log shifting, meter checks, network & custom site visits",
     icon: ClipboardList,
     category: "field",
+    accent: "violet",
     badgeUnit: "open",
     hasCount: true,
     keywords: ["misc", "inspection", "shifting", "network", "site"],
@@ -174,6 +200,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     agencyDescription: "Report installations & view pending meters",
     icon: Gauge,
     category: "assets",
+    accent: "purple",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["meter", "stock", "install", "check meter"],
@@ -186,6 +213,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     agencyDescription: "Site inspections for new service connections",
     icon: FilePlus2,
     category: "assets",
+    accent: "emerald",
     badgeUnit: "pending",
     hasCount: true,
     keywords: ["nsc", "new connection", "application", "inspection"],
@@ -196,6 +224,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Propose new meter replacements & track progress",
     icon: ArrowLeftRight,
     category: "assets",
+    accent: "indigo",
     badgeUnit: "proposed",
     hasCount: true,
     keywords: ["replacement", "meter", "defective", "burnt"],
@@ -206,6 +235,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Anganwadi center wiring, smart meters & EDD/49 certificates",
     icon: Building2,
     category: "assets",
+    accent: "teal",
     badgeUnit: "active",
     hasCount: true,
     keywords: ["icds", "anganwadi", "electrification", "edd49"],
@@ -216,6 +246,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Track office store materials inward and issuance",
     icon: Package,
     category: "assets",
+    accent: "amber",
     badgeUnit: "low stock",
     hasCount: true,
     criticalThreshold: 5,
@@ -229,6 +260,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Search consumer details by ID, name or meter",
     icon: Users,
     category: "tools",
+    accent: "sky",
     badgeUnit: "records",
     hasCount: true,
     keywords: ["master", "database", "consumer", "search"],
@@ -239,6 +271,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Live dues, payment receipts, meter readings & bills",
     icon: ReceiptIndianRupee,
     category: "tools",
+    accent: "blue",
     hasCount: false,
     keywords: ["osd", "live", "dues", "bill", "payment", "consumer details"],
   },
@@ -248,6 +281,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Geotagged field camera with map & instant watermark",
     icon: Camera,
     category: "tools",
+    accent: "fuchsia",
     hasCount: false,
     keywords: ["gis", "camera", "gps", "photo", "watermark"],
   },
@@ -257,6 +291,7 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     description: "Manage users, roles, agencies & system settings",
     icon: Settings,
     category: "tools",
+    accent: "slate",
     hasCount: false,
     keywords: ["admin", "settings", "users", "roles", "agencies", "upload"],
   },

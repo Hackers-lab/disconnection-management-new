@@ -13,28 +13,249 @@ import type { ConsumerData } from "@/lib/google-sheets"
 // Heavy libraries loaded dynamically in download functions
 // import jsPDF / autoTable / XLSX — see handleDownloadConfirm, generateStatusReport, downloadPDF
 
-// Lazy-load view components to reduce initial bundle from ~3800 to ~800 modules
-const ConsumerList = dynamic(() => import("@/components/consumer-list").then(m => ({ default: m.ConsumerList })), { ssr: false })
-const AdminPanel = dynamic(() => import("@/components/admin-panel").then(m => ({ default: m.AdminPanel })), { ssr: false })
-const DDList = dynamic(() => import("@/components/dd-list").then(m => ({ default: m.DDList })), { ssr: false })
-const AnalysisDashboard = dynamic(() => import("@/components/analysis-dashboard").then(m => ({ default: m.AnalysisDashboard })), { ssr: false })
-const ReconnectionList = dynamic(() => import("@/components/reconnection-list").then(m => ({ default: m.ReconnectionList })), { ssr: false })
-const MeterList = dynamic(() => import("@/components/meter-list").then(m => ({ default: m.MeterList })), { ssr: false })
-const NscList = dynamic(() => import("@/components/nsc-list").then(m => ({ default: m.NscList })), { ssr: false })
-const AgencyUpdatesReport = dynamic(() => import("@/components/agency-updates-report").then(m => ({ default: m.AgencyUpdatesReport })), { ssr: false })
-const ConsumerMaster = dynamic(() => import("@/components/consumer-master").then(m => ({ default: m.ConsumerMaster })), { ssr: false })
-const DTRList = dynamic(() => import("@/components/dtr-list").then(m => ({ default: m.DTRList })), { ssr: false })
-const DTRPaintingList = dynamic(() => import("@/components/dtr-painting-list").then(m => ({ default: m.DTRPaintingList })), { ssr: false })
-const MeterReplacementList = dynamic(() => import("@/components/meter-replacement-list").then(m => ({ default: m.MeterReplacementList })), { ssr: false })
-const MaterialList = dynamic(() => import("@/components/material-list").then(m => ({ default: m.MaterialList })), { ssr: false })
-const SafetyList = dynamic(() => import("@/components/safety-list").then(m => ({ default: m.SafetyList })), { ssr: false })
-const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-list").then(m => ({ default: m.MiscInspectionList })), { ssr: false })
-const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), { ssr: false })
-const PermanentDisconnectionList = dynamic(() => import("@/components/permanent-disconnection/permanent-disconnection-list").then(m => ({ default: m.PermanentDisconnectionList })), { ssr: false })
-const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), { ssr: false })
-const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), { ssr: false })
-const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m => ({ default: m.OsdPageView })), { ssr: false })
-const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), { ssr: false })
+import { ModuleWaiter } from "@/components/ui/module-waiter"
+
+// Lazy-load view components with instant beautiful waiter screens so switching modules never shows a blank page
+const ConsumerList = dynamic(() => import("@/components/consumer-list").then(m => ({ default: m.ConsumerList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="red"
+      title="Opening Disconnection Module"
+      subtitle="Loading consumer list, dues & field filters"
+      messages={["Loading disconnection list...", "Preparing consumer cards...", "Checking latest updates..."]}
+    />
+  ),
+})
+const AdminPanel = dynamic(() => import("@/components/admin-panel").then(m => ({ default: m.AdminPanel })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="indigo"
+      title="Opening Admin Panel"
+      subtitle="Loading agencies, users, roles & CCC settings"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const DDList = dynamic(() => import("@/components/dd-list").then(m => ({ default: m.DDList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="orange"
+      title="Opening Deemed Visit"
+      subtitle="Loading deemed disconnected consumer records"
+    />
+  ),
+})
+const AnalysisDashboard = dynamic(() => import("@/components/analysis-dashboard").then(m => ({ default: m.AnalysisDashboard })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="indigo"
+      title="Opening Analysis Dashboard"
+      subtitle="Preparing charts & agency performance metrics"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const ReconnectionList = dynamic(() => import("@/components/reconnection-list").then(m => ({ default: m.ReconnectionList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="blue"
+      title="Opening Reconnection Module"
+      subtitle="Loading pending supply restoration orders"
+    />
+  ),
+})
+const MeterList = dynamic(() => import("@/components/meter-list").then(m => ({ default: m.MeterList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="indigo"
+      title="Opening Meter Management"
+      subtitle="Loading meter stock, issuance & installation logs"
+    />
+  ),
+})
+const NscList = dynamic(() => import("@/components/nsc-list").then(m => ({ default: m.NscList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="emerald"
+      title="Opening NSC Module"
+      subtitle="Loading new service connection applications"
+    />
+  ),
+})
+const AgencyUpdatesReport = dynamic(() => import("@/components/agency-updates-report").then(m => ({ default: m.AgencyUpdatesReport })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="blue"
+      title="Opening Agency Updates Report"
+      subtitle="Compiling daily field updates across agencies"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const ConsumerMaster = dynamic(() => import("@/components/consumer-master").then(m => ({ default: m.ConsumerMaster })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="blue"
+      title="Opening Consumer Master"
+      subtitle="Connecting to consumer master database"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const DTRList = dynamic(() => import("@/components/dtr-list").then(m => ({ default: m.DTRList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="amber"
+      title="Opening DTR Verification"
+      subtitle="Loading transformer audit records"
+    />
+  ),
+})
+const DTRPaintingList = dynamic(() => import("@/components/dtr-painting-list").then(m => ({ default: m.DTRPaintingList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="orange"
+      title="Opening DTR Painting"
+      subtitle="Loading DTR painting logs & photo proofs"
+    />
+  ),
+})
+const MeterReplacementList = dynamic(() => import("@/components/meter-replacement-list").then(m => ({ default: m.MeterReplacementList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="indigo"
+      title="Opening Replacement List"
+      subtitle="Loading proposed meter replacements"
+    />
+  ),
+})
+const MaterialList = dynamic(() => import("@/components/material-list").then(m => ({ default: m.MaterialList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="amber"
+      title="Opening Material Management"
+      subtitle="Loading office store stock & issuance records"
+    />
+  ),
+})
+const SafetyList = dynamic(() => import("@/components/safety-list").then(m => ({ default: m.SafetyList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="amber"
+      title="Opening Safety Inspection"
+      subtitle="Loading safety hazard reports & approvals"
+    />
+  ),
+})
+const MiscInspectionList = dynamic(() => import("@/components/misc-inspection-list").then(m => ({ default: m.MiscInspectionList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="indigo"
+      title="Opening Misc Inspections"
+      subtitle="Loading field inspection requests"
+    />
+  ),
+})
+const IcdsList = dynamic(() => import("@/components/icds/icds-list").then(m => ({ default: m.IcdsList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="emerald"
+      title="Opening ICDS Electrification"
+      subtitle="Loading Anganwadi electrification progress"
+    />
+  ),
+})
+const PermanentDisconnectionList = dynamic(() => import("@/components/permanent-disconnection/permanent-disconnection-list").then(m => ({ default: m.PermanentDisconnectionList })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="red"
+      title="Opening Permanent Disconnection"
+      subtitle="Loading meter dismantling & note sheet records"
+    />
+  ),
+})
+const DivisionalDashboard = dynamic(() => import("@/components/divisional-dashboard").then(m => ({ default: m.DivisionalDashboard })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="blue"
+      title="Opening Divisional Dashboard"
+      subtitle="Loading division-wide CCC analytics"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const OsdDetailsView = dynamic(() => import("@/components/osd-details-view").then(m => ({ default: m.OsdDetailsView })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="blue"
+      title="Opening SpotAI Intelligence"
+      subtitle="Loading live consumer analytics"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const OsdPageView = dynamic(() => import("@/components/osd-page-view").then(m => ({ default: m.OsdPageView })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="blue"
+      title="Opening Consumer Details & OSD"
+      subtitle="Preparing live dues & billing lookup"
+      showSkeletonCards={false}
+    />
+  ),
+})
+const GisCamera = dynamic(() => import("@/components/gis-camera").then(m => ({ default: m.GisCamera })), {
+  ssr: false,
+  loading: () => (
+    <ModuleWaiter
+      variant="module"
+      accent="indigo"
+      title="Opening GIS Camera"
+      subtitle="Initializing GPS & watermark engine"
+      showSkeletonCards={false}
+    />
+  ),
+})
 const NewYearPopup = dynamic(() => import("@/components/new-year-popup").then(m => ({ default: m.NewYearPopup })), { ssr: false })
 const SubscriptionExpiryAlertModal = dynamic(() => import("@/components/subscription-expiry-alert-modal").then(m => ({ default: m.SubscriptionExpiryAlertModal })), { ssr: false })
 
@@ -1482,39 +1703,17 @@ export default function DashboardClient({ role, agencies, initialPermissions, in
 
   if (!permsLoaded) {
     return (
-      <div className="relative flex h-screen w-screen items-center justify-center bg-slate-950 overflow-hidden select-none">
-        {/* Decorative Floating Glowing Blobs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse delay-300" />
-        
-        {/* Premium Glassmorphic Card */}
-        <div className="relative z-10 px-8 py-10 rounded-3xl bg-slate-900/50 backdrop-blur-xl border border-slate-800/80 shadow-2xl flex flex-col items-center gap-8 max-w-sm w-full mx-4 transition-all duration-300">
-          
-          {/* Dynamic Colored Loader Icon */}
-          <div className="relative flex items-center justify-center w-24 h-24">
-            {/* Outer spinning ring with dual color gradient */}
-            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500 via-indigo-500 to-purple-600 animate-spin p-[3px]">
-              <div className="w-full h-full bg-slate-950 rounded-full" />
-            </div>
-            
-            {/* Pulsing inner glow */}
-            <div className="absolute w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 opacity-20 blur-md animate-ping" />
-            
-            {/* Inner dynamic rotating icon */}
-            <Loader2 className="relative h-8 w-8 animate-spin text-indigo-400" />
-          </div>
-
-          {/* Evolving Text Messages */}
-          <div className="text-center space-y-2.5">
-            <h3 className="text-sm font-bold tracking-widest text-slate-400 uppercase">
-              Access Authorization
-            </h3>
-            <p className="text-xs font-medium text-indigo-300/80 tracking-wide min-h-[16px] transition-all duration-500 animate-pulse">
-              {loadingText}
-            </p>
-          </div>
-        </div>
-      </div>
+      <ModuleWaiter
+        variant="fullscreen"
+        accent="indigo"
+        title="Authorizing Workspace"
+        subtitle="Preparing your CCC modules and role access"
+        messages={[
+          loadingText || "Securing connection...",
+          "Loading role permissions...",
+          "Syncing CCC workspace...",
+        ]}
+      />
     )
   }
 
