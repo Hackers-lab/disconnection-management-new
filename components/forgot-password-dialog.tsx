@@ -1,15 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Building2 } from "lucide-react"
-import type { RecaptchaVerifier, ConfirmationResult } from "firebase/auth"
-import { getFirebaseAuth } from "@/lib/firebase-client"
-import { sendFirebasePhoneOtp, clearRecaptchaVerifier, formatPhoneAuthError } from "@/lib/firebase-phone-otp"
+import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, ShieldCheck, Building2, ArrowRight } from "lucide-react"
+import { PhoneEmailButton } from "@/components/phone-email-button"
 
 interface ForgotPasswordDialogProps {
   open: boolean
@@ -19,7 +17,7 @@ interface ForgotPasswordDialogProps {
 }
 
 export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "", isFirstLogin = false }: ForgotPasswordDialogProps) {
-  const [step, setStep] = useState<1 | 2>(1) // 1: Request OTP via identifier, 2: OTP + New Password
+  const [step, setStep] = useState<1 | 2>(1) // 1: Find Account, 2: Verify via Phone.Email + Set New Password
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -29,18 +27,15 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
   const [mobileNumber, setMobileNumber] = useState("")
   const [mobileMasked, setMobileMasked] = useState("")
   const [username, setUsername] = useState("")
-  const [countdown, setCountdown] = useState(0)
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
   const [matchedAccounts, setMatchedAccounts] = useState<any[]>([])
   const [selectedAccount, setSelectedAccount] = useState<string>("all")
   const [selectedAccountLabel, setSelectedAccountLabel] = useState<string>("All Stations")
 
-  // Step 2: OTP & New Password
-  const [otp, setOtp] = useState("")
+  // Step 2: Verified token & New Password
+  const [verificationToken, setVerificationToken] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
 
   // Reset / sync state on open change
   useEffect(() => {
@@ -48,10 +43,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       setIdentifier(initialIdentifier)
     }
     if (!open) {
-      recaptchaVerifierRef.current = clearRecaptchaVerifier(
-        recaptchaVerifierRef.current,
-        "forgot-recaptcha-container"
-      )
       const timer = setTimeout(() => {
         setStep(1)
         setError(null)
@@ -63,37 +54,19 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         setMatchedAccounts([])
         setSelectedAccount("all")
         setSelectedAccountLabel("All Stations")
-        setOtp("")
+        setVerificationToken("")
         setNewPassword("")
         setConfirmPassword("")
-        setConfirmationResult(null)
       }, 250)
       return () => clearTimeout(timer)
     }
   }, [open, initialIdentifier])
 
-  // Clean up reCAPTCHA on unmount
-  useEffect(() => {
-    return () => {
-      recaptchaVerifierRef.current = clearRecaptchaVerifier(
-        recaptchaVerifierRef.current,
-        "forgot-recaptcha-container"
-      )
-    }
-  }, [])
-
-  // Countdown timer for Resend OTP
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [countdown])
-
-  // 1. Request Reset OTP (Look up linked phone and send SMS via Firebase)
-  const handleRequestOtp = async (e: React.FormEvent, accountChoice?: string) => {
+  // 1. Find account & linked mobile number
+  const handleFindAccount = async (e: React.FormEvent, accountChoice?: string) => {
     e.preventDefault()
     setError(null)
+    setSuccessMsg(null)
     const cleanIdent = identifier.trim()
 
     if (!cleanIdent) {
@@ -103,18 +76,17 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
 
     try {
       setLoading(true)
-      // Look up linked account on server
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          action: "request", 
+        body: JSON.stringify({
+          action: "request",
           identifier: cleanIdent,
-          selectedAccount: accountChoice
-        })
+          selectedAccount: accountChoice,
+        }),
       })
 
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Failed to find account.")
 
       // If multiple accounts found and user hasn't made a choice, display the account picker
@@ -124,7 +96,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         setMatchedAccounts(data.accounts || [])
         setSelectedAccount("all")
         setSelectedAccountLabel("All Stations")
-        setLoading(false)
         return
       }
 
@@ -136,46 +107,53 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       if (resolvedUsername && resolvedUsername !== "all" && !accountChoice) {
         setSelectedAccountLabel(resolvedUsername)
       }
-
-      // Send SMS OTP via Firebase using real Auth instance and fresh reCAPTCHA mount
-      const { confirmationResult: confirmation, verifier } = await sendFirebasePhoneOtp(
-        "forgot-recaptcha-container",
-        data.mobileNumber,
-        recaptchaVerifierRef.current,
-        () => {
-          recaptchaVerifierRef.current = null
-          setError("Security check expired. Please click Send OTP again.")
-        }
-      )
-      recaptchaVerifierRef.current = verifier
-      setConfirmationResult(confirmation)
-
-      setCountdown(45)
-      setSuccessMsg(`OTP sent to +91 ${data.mobileMasked}. If not received, please check your SMS Spam / Blocked folder.`)
-      setTimeout(() => {
-        setSuccessMsg(null)
-        setStep(2)
-      }, 600)
+      setVerificationToken("")
+      setStep(2)
     } catch (err: any) {
-      console.error("Auth request OTP error:", err)
-      recaptchaVerifierRef.current = clearRecaptchaVerifier(
-        recaptchaVerifierRef.current,
-        "forgot-recaptcha-container"
-      )
-      setError(formatPhoneAuthError(err, "send"))
+      console.error("Forgot password account lookup error:", err)
+      setError(err?.message || "Failed to find account.")
     } finally {
       setLoading(false)
     }
   }
 
-  // 2. Verify OTP & Reset Password
+  // 2. Handle Phone.Email verification callback (enforces match against linked account mobile)
+  const handlePhoneEmailVerified = async (userJsonUrl: string) => {
+    setError(null)
+    setSuccessMsg(null)
+    try {
+      setLoading(true)
+      const verifyRes = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "phone-email-verified",
+          userJsonUrl,
+          expectedMobileNumber: mobileNumber,
+        }),
+      })
+      const verifyData = await verifyRes.json().catch(() => ({}))
+      if (!verifyRes.ok || !verifyData.verificationToken) {
+        throw new Error(verifyData.error || "Failed to verify mobile number. Please try again.")
+      }
+
+      setVerificationToken(verifyData.verificationToken)
+      setSuccessMsg(`Mobile +91 ${mobileMasked} verified! Now choose your new password below.`)
+    } catch (err: any) {
+      console.error("Phone.Email forgot-password verify error:", err)
+      setError(err?.message || "Verification failed. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 3. Reset Password with verified token
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    const cleanOtp = otp.replace(/\D/g, "").slice(0, 6)
-    if (cleanOtp.length !== 6) {
-      setError("Please enter the complete 6-digit OTP.")
+    if (!verificationToken) {
+      setError("Please verify your registered mobile number first.")
       return
     }
 
@@ -191,38 +169,6 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
 
     try {
       setLoading(true)
-      let verificationToken = ""
-
-      if (confirmationResult) {
-        // Verify OTP with Firebase and pass signed Firebase ID token to server
-        const credential = await confirmationResult.confirm(cleanOtp)
-        const firebaseIdToken = await credential.user.getIdToken()
-        const verifyRes = await fetch("/api/auth/otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "firebase-verified", mobileNumber, firebaseIdToken })
-        })
-        const verifyData = await verifyRes.json().catch(() => ({}))
-        if (!verifyRes.ok || !verifyData.verificationToken) {
-          throw new Error(verifyData.error || "Failed to complete mobile verification. Please try again.")
-        }
-        verificationToken = verifyData.verificationToken
-        getFirebaseAuth()?.signOut().catch(() => {})
-      } else {
-        // Verify with Server OTP
-        const verifyRes = await fetch("/api/auth/otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
-        })
-        const verifyData = await verifyRes.json().catch(() => ({}))
-        if (!verifyRes.ok || !verifyData.verificationToken) {
-          throw new Error(verifyData.error || "Invalid OTP code.")
-        }
-        verificationToken = verifyData.verificationToken
-      }
-
-      // Execute Password Reset
       const resetRes = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +179,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
           selectedAccount,
           verificationToken,
           newPassword,
-        })
+        }),
       })
 
       const resetData = await resetRes.json().catch(() => ({}))
@@ -245,7 +191,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       }, 1500)
     } catch (err: any) {
       console.error("Auth reset password error:", err)
-      setError(formatPhoneAuthError(err, "verify"))
+      setError(err?.message || "Failed to reset password.")
     } finally {
       setLoading(false)
     }
@@ -253,13 +199,10 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
+      <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="sm:max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl"
       >
-        {/* Non-hidden off-flow anchor for Firebase invisible reCAPTCHA */}
-        <div id="forgot-recaptcha-container" aria-hidden="true"></div>
-
         <DialogHeader className="space-y-2 text-center pb-1">
           <div className="mx-auto w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/15 ring-4 ring-slate-100">
             <KeyRound className="w-5 h-5" />
@@ -269,12 +212,18 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
             {isFirstLogin
-              ? (step === 1 ? "First login detected! Click 'Send OTP' to verify your linked phone number." : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and choose your new password.`)
+              ? (step === 1
+                  ? "First login detected! Continue to verify your linked phone number."
+                  : verificationToken
+                    ? "Mobile verified! Choose your new permanent password."
+                    : `Verify your linked mobile (+91 ${mobileMasked}) via SMS OTP to set your password.`)
               : (step === 1
                   ? (matchedAccounts.length > 1
-                      ? `Select which supply station account password to reset.`
-                      : "Enter your mobile number, username, or CCC code to receive an OTP.")
-                  : `Enter the 6-digit OTP sent to +91 ${mobileMasked} and set your new password.`)}
+                      ? "Select which supply station account password to reset."
+                      : "Enter your mobile number, username, or CCC code to locate your account.")
+                  : verificationToken
+                    ? "Mobile verified! Set your new password below."
+                    : `Verify your registered mobile (+91 ${mobileMasked}) via SMS OTP to reset your password.`)}
           </DialogDescription>
         </DialogHeader>
 
@@ -293,7 +242,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         )}
 
         {/* ===================================================================== */}
-        {/* STEP 1.5: MULTIPLE ACCOUNTS FOUND - SELECT SUPPLY STATION */}
+        {/* STEP 1.5: MULTIPLE ACCOUNTS FOUND - SELECT SUPPLY STATION             */}
         {/* ===================================================================== */}
         {step === 1 && matchedAccounts.length > 1 && (
           <div className="space-y-3 pt-1">
@@ -381,21 +330,21 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
               <Button
                 type="button"
                 disabled={loading}
-                onClick={(e) => handleRequestOtp(e, selectedAccount)}
+                onClick={(e) => handleFindAccount(e, selectedAccount)}
                 className="flex-2 h-10 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl text-xs cursor-pointer"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-                Send OTP
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
+                Continue to Verify
               </Button>
             </div>
           </div>
         )}
 
         {/* ===================================================================== */}
-        {/* STEP 1: FIND ACCOUNT BY USERNAME / CCC / MOBILE */}
+        {/* STEP 1: FIND ACCOUNT BY USERNAME / CCC / MOBILE                       */}
         {/* ===================================================================== */}
         {step === 1 && matchedAccounts.length <= 1 && (
-          <form onSubmit={(e) => handleRequestOtp(e)} className="space-y-3.5 pt-1">
+          <form onSubmit={(e) => handleFindAccount(e)} className="space-y-3.5 pt-1">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700">
                 Mobile Number, Username, or CCC Code <span className="text-rose-500">*</span>
@@ -418,108 +367,110 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
               disabled={loading || !identifier.trim()}
               className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl cursor-pointer shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm mt-1"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-              Send OTP
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ArrowRight className="w-4 h-4 mr-2" />}
+              Continue
             </Button>
           </form>
         )}
 
         {/* ===================================================================== */}
-        {/* STEP 2: VERIFY OTP & SET NEW PASSWORD */}
+        {/* STEP 2: VERIFY VIA PHONE.EMAIL & SET NEW PASSWORD                     */}
         {/* ===================================================================== */}
         {step === 2 && (
-          <form onSubmit={handleResetPassword} className="space-y-3.5 pt-1">
+          <div className="space-y-3.5 pt-1">
             <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-800 dark:text-slate-200 font-medium">
-              <span className="truncate max-w-[240px]">
+              <span className="truncate max-w-[230px]">
                 Target: <strong>{selectedAccount === "all" ? "All Stations" : (selectedAccountLabel || username)}</strong>
               </span>
               <span className="text-slate-500 font-mono shrink-0">+91 {mobileMasked}</span>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
-              <Input
-                required
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="• • • • • •"
-                className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                autoFocus
-              />
-              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg p-2 flex items-start gap-1.5 mt-1 leading-tight">
-                <span className="shrink-0 text-amber-600">📩</span>
-                <span><strong>Google Messages Note:</strong> Verification SMS may be placed in your <strong>Spam & Blocked</strong> folder. Please check there if OTP is delayed.</span>
-              </p>
-            </div>
+            {!verificationToken ? (
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    Please verify your registered mobile number <strong>+91 {mobileMasked}</strong> using the button below to unlock password reset.
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">New Password <span className="text-rose-500">*</span></Label>
-                <div className="relative">
-                  <Input
-                    required
-                    type={showPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="New password"
-                    className="h-10 pr-8 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                  />
+                <PhoneEmailButton
+                  onVerified={handlePhoneEmailVerified}
+                  verifying={loading}
+                  helperText={`Make sure you verify using +91 ${mobileMasked}.`}
+                />
+
+                <div className="flex justify-end text-xs pt-1">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    onClick={() => {
+                      setStep(1)
+                      setError(null)
+                      setSuccessMsg(null)
+                      setMatchedAccounts([])
+                      setSelectedAccount("all")
+                      setSelectedAccountLabel("All Stations")
+                    }}
+                    className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    Change Account
                   </button>
                 </div>
               </div>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-3.5">
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800 font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Verified: +91 {mobileMasked}</span>
+                </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Confirm Password <span className="text-rose-500">*</span></Label>
-                <Input
-                  required
-                  type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
-                  className="h-10 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700">New Password <span className="text-rose-500">*</span></Label>
+                    <div className="relative">
+                      <Input
+                        required
+                        autoFocus
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="New password"
+                        className="h-10 pr-8 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
 
-            <div className="flex items-center justify-between text-xs px-0.5">
-              <button
-                type="button"
-                disabled={countdown > 0 || loading}
-                onClick={(e) => handleRequestOtp(e, selectedAccount)}
-                className="text-slate-800 hover:text-black font-semibold disabled:text-slate-400 cursor-pointer transition-colors"
-              >
-                {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep(1)
-                  setMatchedAccounts([])
-                  setSelectedAccount("all")
-                  setSelectedAccountLabel("All Stations")
-                }}
-                className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-              >
-                Change Account
-              </button>
-            </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700">Confirm Password <span className="text-rose-500">*</span></Label>
+                    <Input
+                      required
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm password"
+                      className="h-10 text-xs rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+                    />
+                  </div>
+                </div>
 
-            <Button
-              type="submit"
-              disabled={loading || otp.length !== 6 || !newPassword || newPassword !== confirmPassword}
-              className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all mt-1 cursor-pointer text-xs sm:text-sm"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-              Reset Password
-            </Button>
-          </form>
+                <Button
+                  type="submit"
+                  disabled={loading || !newPassword || newPassword !== confirmPassword}
+                  className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all mt-1 cursor-pointer text-xs sm:text-sm"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  Reset Password
+                </Button>
+              </form>
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>

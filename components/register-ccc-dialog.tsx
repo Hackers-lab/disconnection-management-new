@@ -1,16 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Building2, Smartphone, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react"
-import type { RecaptchaVerifier, ConfirmationResult } from "firebase/auth"
-import { getFirebaseAuth } from "@/lib/firebase-client"
-import { sendFirebasePhoneOtp, clearRecaptchaVerifier, formatPhoneAuthError } from "@/lib/firebase-phone-otp"
+import { Building2, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import { PhoneEmailButton } from "@/components/phone-email-button"
 
 interface RegisterCccDialogProps {
   open: boolean
@@ -20,18 +18,14 @@ interface RegisterCccDialogProps {
 
 export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCccDialogProps) {
   const router = useRouter()
-  const [step, setStep] = useState<1 | 2>(1) // 1: OTP verification, 2: CCC details & password
+  const [step, setStep] = useState<1 | 2>(1) // 1: Phone.Email OTP verification, 2: CCC details & password
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
-  // Step 1: Mobile & OTP state
+  // Step 1: Verified mobile & token
   const [mobileNumber, setMobileNumber] = useState("")
-  const [otp, setOtp] = useState("")
-  const [otpSent, setOtpSent] = useState(false)
-  const [countdown, setCountdown] = useState(0)
   const [verificationToken, setVerificationToken] = useState("")
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
 
   // Step 2: CCC station details
   const [cccCode, setCccCode] = useState("")
@@ -40,24 +34,16 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
 
   // Reset state on close
   useEffect(() => {
     if (!open) {
-      recaptchaVerifierRef.current = clearRecaptchaVerifier(
-        recaptchaVerifierRef.current,
-        "register-recaptcha-container"
-      )
       const timer = setTimeout(() => {
         setStep(1)
         setError(null)
         setSuccessMsg(null)
         setMobileNumber("")
-        setOtp("")
-        setOtpSent(false)
         setVerificationToken("")
-        setConfirmationResult(null)
         setCccCode("")
         setCccName("")
         setContactPerson("")
@@ -68,138 +54,62 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
     }
   }, [open])
 
-  // Clean up reCAPTCHA on unmount
-  useEffect(() => {
-    return () => {
-      recaptchaVerifierRef.current = clearRecaptchaVerifier(
-        recaptchaVerifierRef.current,
-        "register-recaptcha-container"
-      )
-    }
-  }, [])
-
-  // Countdown timer for Resend OTP
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [countdown])
-
-  // 1. Send SMS OTP via Firebase Phone Auth (with Server fallback)
-  const handleSendOtp = async () => {
+  // 1. Handle verified Phone.Email callback
+  const handlePhoneEmailVerified = async (userJsonUrl: string) => {
     setError(null)
-    const cleanMob = mobileNumber.replace(/\D/g, "").slice(-10)
-    if (cleanMob.length !== 10) {
-      setError("Please enter a valid 10-digit mobile number.")
-      return
-    }
-
+    setSuccessMsg(null)
     try {
       setLoading(true)
 
-      // Pre-check if mobile number is already registered
-      const checkRes = await fetch(`/api/auth/register-ccc?mobile=${encodeURIComponent(cleanMob)}`, {
+      // Exchange Phone.Email user_json_url server-side for verified mobile + signed token
+      const verifyRes = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "phone-email-verified",
+          userJsonUrl,
+        }),
+      })
+      const verifyData = await verifyRes.json().catch(() => ({}))
+      if (!verifyRes.ok || !verifyData.verificationToken || !verifyData.verifiedMobile) {
+        throw new Error(verifyData.error || "Mobile verification failed. Please try again.")
+      }
+
+      const verifiedMob = String(verifyData.verifiedMobile)
+
+      // Check if this mobile number is already registered before moving to Step 2
+      const checkRes = await fetch(`/api/auth/register-ccc?mobile=${encodeURIComponent(verifiedMob)}`, {
         cache: "no-store",
       })
       const checkData = await checkRes.json().catch(() => ({}))
       if (!checkRes.ok) {
-        throw new Error(checkData.error || "Could not check mobile number registration status.")
+        throw new Error(checkData.error || "Could not check mobile registration status.")
       }
 
       if (checkData.exists) {
-        setError(checkData.error || "This mobile number is already registered. Please sign in or use 'Forgot Password'.")
-        setLoading(false)
+        setError(
+          checkData.error ||
+            "This mobile number is already registered. Please sign in or use 'Forgot Password'."
+        )
         return
       }
 
-      // Send SMS OTP via Firebase using real Auth instance and fresh reCAPTCHA mount
-      const { confirmationResult: confirmation, verifier } = await sendFirebasePhoneOtp(
-        "register-recaptcha-container",
-        cleanMob,
-        recaptchaVerifierRef.current,
-        () => {
-          recaptchaVerifierRef.current = null
-          setError("Security check expired. Please click Send OTP again.")
-        }
-      )
-      recaptchaVerifierRef.current = verifier
-      setConfirmationResult(confirmation)
-
-      setOtpSent(true)
-      setCountdown(45)
-      setSuccessMsg(`OTP sent to +91 ${cleanMob}. If not received, please check your SMS Spam / Blocked folder.`)
-    } catch (err: any) {
-      console.error("Auth send OTP error:", err)
-      recaptchaVerifierRef.current = clearRecaptchaVerifier(
-        recaptchaVerifierRef.current,
-        "register-recaptcha-container"
-      )
-      setError(formatPhoneAuthError(err, "send"))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // 2. Verify OTP code
-  const handleVerifyOtp = async () => {
-    setError(null)
-    const cleanMob = mobileNumber.replace(/\D/g, "").slice(-10)
-    const cleanOtp = otp.replace(/\D/g, "").slice(0, 6)
-
-    if (cleanOtp.length !== 6) {
-      setError("Please enter the complete 6-digit OTP.")
-      return
-    }
-
-    try {
-      setLoading(true)
-
-      if (confirmationResult) {
-        // Verify via Firebase confirmation result and send signed ID token to server
-        const credential = await confirmationResult.confirm(cleanOtp)
-        const firebaseIdToken = await credential.user.getIdToken()
-
-        // Exchange with server for signed verification token
-        const res = await fetch("/api/auth/otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "firebase-verified", mobileNumber: cleanMob, firebaseIdToken })
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok || !data.verificationToken) {
-          throw new Error(data.error || "Failed to complete mobile verification. Please try again.")
-        }
-        setVerificationToken(data.verificationToken)
-        getFirebaseAuth()?.signOut().catch(() => {})
-      } else {
-        // Verify directly via server OTP endpoint
-        const res = await fetch("/api/auth/otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
-        })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok || !data.verificationToken) {
-          throw new Error(data.error || "Invalid OTP code.")
-        }
-        setVerificationToken(data.verificationToken)
-      }
-
-      setSuccessMsg("Mobile number verified successfully!")
+      setMobileNumber(verifiedMob)
+      setVerificationToken(verifyData.verificationToken)
+      setSuccessMsg(`Mobile +91 ${verifiedMob} verified successfully!`)
       setTimeout(() => {
         setSuccessMsg(null)
         setStep(2)
-      }, 700)
+      }, 600)
     } catch (err: any) {
-      console.error("Auth verify error:", err)
-      setError(formatPhoneAuthError(err, "verify"))
+      console.error("Phone.Email register verify error:", err)
+      setError(err?.message || "Failed to verify mobile number. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
-  // 3. Register CCC Station
+  // 2. Register CCC Station
   const handleRegisterCcc = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -240,10 +150,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
           mobileNumber: mobileNumber.replace(/\D/g, "").slice(-10),
           password,
           verificationToken,
-        })
+        }),
       })
 
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Failed to register CCC station.")
 
       setSuccessMsg(data.message || "Station registered successfully! Redirecting...")
@@ -253,7 +163,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         router.push(data.redirectTo || "/dashboard")
       }, 1000)
     } catch (err: any) {
-      setError(err.message)
+      setError(err?.message || "Failed to register CCC station.")
     } finally {
       setLoading(false)
     }
@@ -261,13 +171,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
+      <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="sm:max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl"
       >
-        {/* Non-hidden off-flow anchor for Firebase invisible reCAPTCHA */}
-        <div id="register-recaptcha-container" aria-hidden="true"></div>
-
         <DialogHeader className="space-y-2 text-center pb-1">
           <div className="mx-auto w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/15 ring-4 ring-slate-100">
             <Building2 className="w-5 h-5" />
@@ -277,7 +184,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
             {step === 1
-              ? "Verify your 10-digit mobile number via OTP to create your station account."
+              ? "Verify your 10-digit mobile number via SMS OTP to create your station account."
               : "Enter your station details to complete registration."}
           </DialogDescription>
         </DialogHeader>
@@ -303,105 +210,47 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         )}
 
         {/* ===================================================================== */}
-        {/* STEP 1: MOBILE & OTP VERIFICATION */}
+        {/* STEP 1: MOBILE VERIFICATION VIA PHONE.EMAIL                           */}
         {/* ===================================================================== */}
         {step === 1 && (
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!otpSent) {
-                handleSendOtp()
-              } else {
-                handleVerifyOtp()
-              }
-            }}
-            className="space-y-3.5 pt-1"
-          >
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">10-Digit Mobile Number <span className="text-rose-500">*</span></Label>
-              <div className="relative">
-                <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <Input
-                  type="tel"
-                  maxLength={10}
-                  disabled={otpSent}
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="Enter 10-digit phone"
-                  className="pl-10 h-10 sm:h-11 rounded-xl font-mono text-xs sm:text-sm border-slate-200 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 transition-all"
-                />
-              </div>
+          <div className="space-y-3.5 pt-1">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                Click the button below to verify your <strong>10-digit mobile number</strong> with a quick SMS OTP. Once verified, you can set up your CCC Station ID and password.
+              </p>
             </div>
 
-            {!otpSent ? (
-              <Button
-                type="submit"
-                disabled={loading || mobileNumber.length !== 10}
-                className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm cursor-pointer mt-1"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Smartphone className="w-4 h-4 mr-2" />}
-                Send OTP
-              </Button>
-            ) : (
-              <div className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Enter 6-Digit OTP <span className="text-rose-500">*</span></Label>
-                  <Input
-                    type="text"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="• • • • • •"
-                    className="h-11 text-center font-mono text-lg tracking-widest rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
-                  />
-                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg p-2 flex items-start gap-1.5 mt-1 leading-tight">
-                    <span className="shrink-0 text-amber-600">📩</span>
-                    <span><strong>Google Messages Note:</strong> Verification SMS may be placed in your <strong>Spam & Blocked</strong> folder. Please check there if OTP is delayed.</span>
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between text-xs px-0.5">
-                  <button
-                    type="button"
-                    disabled={countdown > 0 || loading}
-                    onClick={handleSendOtp}
-                    className="text-slate-800 hover:text-black font-semibold disabled:text-slate-400 cursor-pointer transition-colors"
-                  >
-                    {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setOtpSent(false); setOtp(""); }}
-                    className="text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                  >
-                    Change Number
-                  </button>
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={loading || otp.length !== 6}
-                  className="w-full h-10 sm:h-11 bg-slate-900 hover:bg-black text-white font-semibold rounded-xl shadow transition-all duration-200 active:scale-[0.99] text-xs sm:text-sm cursor-pointer mt-1"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                  Verify OTP
-                </Button>
-              </div>
-            )}
-          </form>
+            <PhoneEmailButton
+              onVerified={handlePhoneEmailVerified}
+              verifying={loading}
+              helperText="A secure Phone.Email popup will open to send & verify your SMS OTP."
+            />
+          </div>
         )}
 
-
         {/* ===================================================================== */}
-        {/* STEP 2: CCC DETAILS & PASSWORD CREATION */}
+        {/* STEP 2: CCC DETAILS & PASSWORD CREATION                               */}
         {/* ===================================================================== */}
         {step === 2 && (
           <form onSubmit={handleRegisterCcc} className="space-y-3.5 pt-1">
-            <div className="p-2.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs text-slate-800 font-medium">
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-900 font-medium">
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 Verified: +91 {mobileNumber}
               </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep(1)
+                  setVerificationToken("")
+                  setMobileNumber("")
+                  setError(null)
+                }}
+                className="text-[11px] text-slate-500 hover:text-slate-900 underline cursor-pointer"
+              >
+                Change
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
