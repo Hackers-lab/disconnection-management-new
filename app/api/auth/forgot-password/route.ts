@@ -44,13 +44,16 @@ export async function POST(req: NextRequest) {
         if (last10.length === 10) cleanIdent = last10
       }
 
+      const phoneWithCountry = `+91${cleanIdent}`
+      const is10Digit = /^\d{10}$/.test(cleanIdent)
+
       // Query user or CCC in Turso DB with multi-supply resolution
       const res = await db.execute({
         sql: `SELECT DISTINCT 
                 u.id, 
                 u.username, 
                 u.full_name, 
-                COALESCE(u.mobile_number, a.mobile_number, c.mobile_number) as userMobile, 
+                COALESCE(NULLIF(TRIM(u.mobile_number), ''), NULLIF(TRIM(a.mobile_number), ''), NULLIF(TRIM(c.mobile_number), '')) as userMobile, 
                 u.role, 
                 c.ccc_code, 
                 c.ccc_name,
@@ -65,14 +68,30 @@ export async function POST(req: NextRequest) {
               )
               WHERE u.username = ? COLLATE NOCASE
                  OR u.mobile_number = ?
+                 OR (? = 1 AND u.mobile_number = ?)
                  OR (c.ccc_code = ? AND u.role = 'admin')
-                 OR (a.mobile_number = ? AND (u.username = a.name COLLATE NOCASE OR u.full_name = a.name COLLATE NOCASE OR u.agencies = a.name COLLATE NOCASE))
+                 OR ((c.mobile_number = ? OR (? = 1 AND c.mobile_number = ?)) AND u.role = 'admin')
+                 OR ((a.mobile_number = ? OR (? = 1 AND a.mobile_number = ?)) AND (u.username = a.name COLLATE NOCASE OR u.full_name = a.name COLLATE NOCASE OR u.agencies = a.name COLLATE NOCASE))
               ORDER BY (CASE 
                 WHEN u.username = ? COLLATE NOCASE THEN 1 
                 WHEN u.mobile_number = ? THEN 2 
                 ELSE 3 
               END)`,
-        args: [cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent, cleanIdent]
+        args: [
+          cleanIdent,
+          cleanIdent,
+          is10Digit ? 1 : 0,
+          phoneWithCountry,
+          cleanIdent,
+          cleanIdent,
+          is10Digit ? 1 : 0,
+          phoneWithCountry,
+          cleanIdent,
+          is10Digit ? 1 : 0,
+          phoneWithCountry,
+          cleanIdent,
+          cleanIdent,
+        ]
       })
 
       if (!res.rows || res.rows.length === 0) {
@@ -159,29 +178,56 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "OTP verification expired or invalid. Please verify again." }, { status: 401 })
       }
 
-      // Update in Turso DB users table: target specific username or all linked accounts
+      const phoneWithCountry = `+91${cleanMobile}`
+      const mobileOwnershipClause = `(
+        mobile_number = ?
+        OR mobile_number = ?
+        OR username = ?
+        OR (role = 'admin' AND ccc_id IN (
+          SELECT id FROM ccc_registry WHERE mobile_number = ? OR mobile_number = ?
+        ))
+        OR id IN (
+          SELECT u2.id FROM users u2
+          JOIN agencies a2 ON u2.ccc_id = a2.ccc_id
+          WHERE (a2.mobile_number = ? OR a2.mobile_number = ?)
+            AND (u2.username = a2.name COLLATE NOCASE OR u2.full_name = a2.name COLLATE NOCASE OR u2.agencies = a2.name COLLATE NOCASE)
+        )
+      )`
+      const ownershipArgs = [
+        cleanMobile,
+        phoneWithCountry,
+        cleanMobile,
+        cleanMobile,
+        phoneWithCountry,
+        cleanMobile,
+        phoneWithCountry,
+      ]
+
+      // Update in Turso DB users table: target specific username (verified to belong to cleanMobile) or all linked accounts
       let updateRes: any
       if (targetUsername && targetUsername !== "all") {
         updateRes = await db.execute({
           sql: `UPDATE users 
                 SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE username = ? COLLATE NOCASE`,
-          args: [cleanNewPassword, targetUsername]
+                WHERE username = ? COLLATE NOCASE
+                  AND ${mobileOwnershipClause}`,
+          args: [cleanNewPassword, targetUsername, ...ownershipArgs]
         })
       } else {
-        // Reset across all accounts linked to this phone number / vendor agencies
+        // Reset across all accounts linked to this verified phone number / CCC admin / vendor agencies
         updateRes = await db.execute({
           sql: `UPDATE users 
                 SET password_hash = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE mobile_number = ? 
-                   OR username = ?
-                   OR id IN (
-                     SELECT u2.id FROM users u2
-                     JOIN agencies a2 ON u2.ccc_id = a2.ccc_id
-                     WHERE a2.mobile_number = ? AND (u2.username = a2.name COLLATE NOCASE OR u2.full_name = a2.name COLLATE NOCASE OR u2.agencies = a2.name COLLATE NOCASE)
-                   )`,
-          args: [cleanNewPassword, cleanMobile, cleanMobile, cleanMobile]
+                WHERE ${mobileOwnershipClause}`,
+          args: [cleanNewPassword, ...ownershipArgs]
         })
+      }
+
+      if (!updateRes?.rowsAffected || Number(updateRes.rowsAffected) === 0) {
+        return NextResponse.json(
+          { error: "No matching account linked to this verified mobile number could be updated. Please contact your CCC Admin." },
+          { status: 404 }
+        )
       }
 
       console.log(`🔑 [PASSWORD RESET SUCCESS] Updated password for mobile +91 ${cleanMobile}${targetUsername ? ` (User/Target: ${targetUsername})` : ""} in Turso DB (${updateRes.rowsAffected} rows affected)`)
@@ -202,7 +248,11 @@ export async function POST(req: NextRequest) {
               const r = rows[i] || []
               const u = String(r[1] || "").trim()
               const c = String(r[4] || "").trim()
-              if (u === cleanMobile || c === cleanMobile) {
+              const matchesUser =
+                u === cleanMobile ||
+                c === cleanMobile ||
+                (targetUsername && targetUsername !== "all" && u.toLowerCase() === targetUsername.toLowerCase())
+              if (matchesUser) {
                 const sheetRow = i + 2
                 await sheets.spreadsheets.values.update({
                   spreadsheetId: SHEET_ID,
@@ -210,7 +260,7 @@ export async function POST(req: NextRequest) {
                   valueInputOption: "USER_ENTERED",
                   requestBody: { values: [[cleanNewPassword]] },
                 })
-                break
+                if (targetUsername && targetUsername !== "all") break
               }
             }
           } catch (e) {}

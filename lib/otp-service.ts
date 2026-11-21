@@ -10,14 +10,23 @@ interface OtpEntry {
 const otpStore = new Map<string, OtpEntry>()
 
 const OTP_TTL_MS = 5 * 60 * 1000 // 5 minutes
-const OTP_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || "disconnection-otp-secret-key-2026"
+const EPHEMERAL_FALLBACK_SECRET = crypto.randomBytes(32).toString("hex")
+
+function getOtpSecret(): string {
+  return (
+    process.env.SESSION_SECRET ||
+    process.env.JWT_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    EPHEMERAL_FALLBACK_SECRET
+  )
+}
 
 /**
  * Generate a 6-digit random numeric OTP
  */
 export function generateOtp(mobileNumber: string): { otp: string; expiresAt: number } {
   const cleanMobile = mobileNumber.replace(/\D/g, "").slice(-10)
-  
+
   // Generate cryptographically secure 6-digit code
   const code = crypto.randomInt(100000, 1000000).toString()
   const expiresAt = Date.now() + OTP_TTL_MS
@@ -28,7 +37,9 @@ export function generateOtp(mobileNumber: string): { otp: string; expiresAt: num
     attempts: 0,
   })
 
-  console.log(`📱 [OTP GENERATED] Mobile: ${cleanMobile} | OTP: ${code} (Expires in 5 mins)`)
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`📱 [OTP GENERATED] Mobile: ${cleanMobile} | OTP: ${code} (Expires in 5 mins)`)
+  }
   return { otp: code, expiresAt }
 }
 
@@ -55,7 +66,9 @@ export function verifyOtp(mobileNumber: string, submittedCode: string): { succes
 
   entry.attempts += 1
 
-  if (entry.code !== submittedCode.trim()) {
+  const expectedBuf = Buffer.from(entry.code, "utf8")
+  const submittedBuf = Buffer.from(submittedCode.trim(), "utf8")
+  if (expectedBuf.length !== submittedBuf.length || !crypto.timingSafeEqual(expectedBuf, submittedBuf)) {
     return { success: false, message: "Invalid OTP code. Please check and try again." }
   }
 
@@ -76,7 +89,7 @@ export function createVerificationToken(mobileNumber: string): string {
   const cleanMobile = mobileNumber.replace(/\D/g, "").slice(-10)
   const expires = Date.now() + 15 * 60 * 1000 // 15 minutes
   const payload = `${cleanMobile}:${expires}`
-  const signature = crypto.createHmac("sha256", OTP_SECRET).update(payload).digest("hex")
+  const signature = crypto.createHmac("sha256", getOtpSecret()).update(payload).digest("hex")
   return Buffer.from(`${payload}:${signature}`).toString("base64")
 }
 
@@ -84,7 +97,7 @@ export function createVerificationToken(mobileNumber: string): string {
  * Verifies that the HMAC verification token is genuine and unexpired
  */
 export function validateVerificationToken(mobileNumber: string, token: string): boolean {
-  if (!token) return false
+  if (!token || typeof token !== "string") return false
   try {
     const cleanMobile = mobileNumber.replace(/\D/g, "").slice(-10)
     const decoded = Buffer.from(token, "base64").toString("utf8")
@@ -97,8 +110,11 @@ export function validateVerificationToken(mobileNumber: string, token: string): 
     const expires = parseInt(expiresStr, 10)
     if (isNaN(expires) || Date.now() > expires) return false
 
-    const expectedSignature = crypto.createHmac("sha256", OTP_SECRET).update(`${tokenMobile}:${expiresStr}`).digest("hex")
-    return signature === expectedSignature
+    const expectedSignature = crypto.createHmac("sha256", getOtpSecret()).update(`${tokenMobile}:${expiresStr}`).digest("hex")
+    const sigBuf = Buffer.from(signature, "utf8")
+    const expBuf = Buffer.from(expectedSignature, "utf8")
+    if (sigBuf.length !== expBuf.length) return false
+    return crypto.timingSafeEqual(sigBuf, expBuf)
   } catch {
     return false
   }

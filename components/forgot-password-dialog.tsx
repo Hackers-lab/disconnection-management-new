@@ -1,46 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, ShieldCheck, Building2 } from "lucide-react"
-import { firebaseAuth } from "@/lib/firebase-client"
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
-
-function formatFriendlyError(err: any): string {
-  const code = String(err?.code || "").toLowerCase()
-  const msg = String(err?.message || "").toLowerCase()
-
-  if (code.includes("invalid-verification-code") || code.includes("invalid-otp") || msg.includes("invalid-verification-code")) {
-    return "Invalid OTP code. Please check the 6-digit code and try again."
-  }
-  if (code.includes("code-expired") || msg.includes("code-expired")) {
-    return "OTP code has expired. Please request a new OTP."
-  }
-  if (code.includes("too-many-requests") || msg.includes("too-many-requests")) {
-    return "Too many attempts from this device. Please wait a few minutes and try again."
-  }
-  if (code.includes("invalid-phone-number") || msg.includes("invalid-phone-number")) {
-    return "Please enter a valid 10-digit mobile number."
-  }
-  if (code.includes("quota-exceeded") || msg.includes("quota-exceeded")) {
-    return "SMS quota exceeded for today. Please try again later."
-  }
-  if (code.includes("captcha-check-failed") || msg.includes("captcha-check-failed")) {
-    return "Security verification check failed. Please refresh the page and try again."
-  }
-  if (code.includes("network-request-failed") || msg.includes("network-request-failed")) {
-    return "Network connection issue. Please check your internet connection."
-  }
-
-  // Strip any raw library error prefixes
-  const raw = String(err?.message || "")
-  const sanitized = raw.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/i, "").trim()
-  return sanitized || "Verification failed. Please check the code and try again."
-}
+import { KeyRound, Smartphone, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Building2 } from "lucide-react"
+import type { RecaptchaVerifier, ConfirmationResult } from "firebase/auth"
+import { getFirebaseAuth } from "@/lib/firebase-client"
+import { sendFirebasePhoneOtp, clearRecaptchaVerifier, formatPhoneAuthError } from "@/lib/firebase-phone-otp"
 
 interface ForgotPasswordDialogProps {
   open: boolean
@@ -71,6 +40,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
 
   // Reset / sync state on open change
   useEffect(() => {
@@ -78,7 +48,11 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       setIdentifier(initialIdentifier)
     }
     if (!open) {
-      setTimeout(() => {
+      recaptchaVerifierRef.current = clearRecaptchaVerifier(
+        recaptchaVerifierRef.current,
+        "forgot-recaptcha-container"
+      )
+      const timer = setTimeout(() => {
         setStep(1)
         setError(null)
         setSuccessMsg(null)
@@ -93,47 +67,20 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         setNewPassword("")
         setConfirmPassword("")
         setConfirmationResult(null)
-        if (typeof window !== "undefined" && (window as any).forgotRecaptchaVerifier) {
-          try { (window as any).forgotRecaptchaVerifier.clear() } catch {}
-          ;(window as any).forgotRecaptchaVerifier = null
-        }
-      }, 300)
+      }, 250)
+      return () => clearTimeout(timer)
     }
   }, [open, initialIdentifier])
 
-  // Pre-warm reCAPTCHA verifier as soon as dialog is opened
+  // Clean up reCAPTCHA on unmount
   useEffect(() => {
-    if (!open) return
-    let isMounted = true
-    const initVerifier = async () => {
-      if (typeof window === "undefined") return
-      await new Promise((res) => setTimeout(res, 50))
-      if (!isMounted) return
-      const container = document.getElementById("forgot-recaptcha-container")
-      if (container && !(window as any).forgotRecaptchaVerifier) {
-        try {
-          const verifier = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
-            size: "invisible",
-            callback: () => {},
-            "expired-callback": () => {
-              try { (window as any).forgotRecaptchaVerifier?.clear() } catch {}
-              (window as any).forgotRecaptchaVerifier = null
-            },
-          })
-          await verifier.render()
-          if (isMounted) {
-            (window as any).forgotRecaptchaVerifier = verifier
-          }
-        } catch (err) {
-          console.warn("Failed to pre-warm forgot-password reCAPTCHA:", err)
-        }
-      }
-    }
-    initVerifier()
     return () => {
-      isMounted = false
+      recaptchaVerifierRef.current = clearRecaptchaVerifier(
+        recaptchaVerifierRef.current,
+        "forgot-recaptcha-container"
+      )
     }
-  }, [open])
+  }, [])
 
   // Countdown timer for Resend OTP
   useEffect(() => {
@@ -181,34 +128,27 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         return
       }
 
+      const resolvedUsername = data.selectedAccount || data.username || ""
       setMobileNumber(data.mobileNumber)
       setMobileMasked(data.mobileMasked)
-      setUsername(data.username || data.selectedAccount || "")
-
-      // Send SMS OTP via Firebase
-      try {
-        let appVerifier = typeof window !== "undefined" ? (window as any).forgotRecaptchaVerifier : null
-        if (!appVerifier && typeof window !== "undefined") {
-          appVerifier = new RecaptchaVerifier(firebaseAuth, "forgot-recaptcha-container", {
-            size: "invisible",
-            callback: () => {},
-            "expired-callback": () => {
-              try { (window as any).forgotRecaptchaVerifier?.clear() } catch {}
-              (window as any).forgotRecaptchaVerifier = null
-              setError("reCAPTCHA expired. Please try sending OTP again.")
-            },
-          })
-          await appVerifier.render()
-          ;(window as any).forgotRecaptchaVerifier = appVerifier
-        }
-
-        const formattedPhone = `+91${data.mobileNumber}`
-        const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier)
-        setConfirmationResult(confirmation)
-      } catch (fbErr: any) {
-        console.error("Firebase Phone Auth error:", fbErr)
-        throw new Error(fbErr.message || "Failed to send SMS OTP to linked phone number.")
+      setUsername(resolvedUsername)
+      setSelectedAccount(resolvedUsername || "all")
+      if (resolvedUsername && resolvedUsername !== "all" && !accountChoice) {
+        setSelectedAccountLabel(resolvedUsername)
       }
+
+      // Send SMS OTP via Firebase using real Auth instance and fresh reCAPTCHA mount
+      const { confirmationResult: confirmation, verifier } = await sendFirebasePhoneOtp(
+        "forgot-recaptcha-container",
+        data.mobileNumber,
+        recaptchaVerifierRef.current,
+        () => {
+          recaptchaVerifierRef.current = null
+          setError("Security check expired. Please click Send OTP again.")
+        }
+      )
+      recaptchaVerifierRef.current = verifier
+      setConfirmationResult(confirmation)
 
       setCountdown(45)
       setSuccessMsg(`OTP sent to +91 ${data.mobileMasked}. If not received, please check your SMS Spam / Blocked folder.`)
@@ -218,7 +158,11 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       }, 600)
     } catch (err: any) {
       console.error("Auth request OTP error:", err)
-      setError(formatFriendlyError(err))
+      recaptchaVerifierRef.current = clearRecaptchaVerifier(
+        recaptchaVerifierRef.current,
+        "forgot-recaptcha-container"
+      )
+      setError(formatPhoneAuthError(err, "send"))
     } finally {
       setLoading(false)
     }
@@ -250,15 +194,20 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       let verificationToken = ""
 
       if (confirmationResult) {
-        // Verify with Firebase
-        await confirmationResult.confirm(cleanOtp)
+        // Verify OTP with Firebase and pass signed Firebase ID token to server
+        const credential = await confirmationResult.confirm(cleanOtp)
+        const firebaseIdToken = await credential.user.getIdToken()
         const verifyRes = await fetch("/api/auth/otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "firebase-verified", mobileNumber })
+          body: JSON.stringify({ action: "firebase-verified", mobileNumber, firebaseIdToken })
         })
-        const verifyData = await verifyRes.json()
+        const verifyData = await verifyRes.json().catch(() => ({}))
+        if (!verifyRes.ok || !verifyData.verificationToken) {
+          throw new Error(verifyData.error || "Failed to complete mobile verification. Please try again.")
+        }
         verificationToken = verifyData.verificationToken
+        getFirebaseAuth()?.signOut().catch(() => {})
       } else {
         // Verify with Server OTP
         const verifyRes = await fetch("/api/auth/otp", {
@@ -266,8 +215,10 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "verify", mobileNumber, otp: cleanOtp })
         })
-        const verifyData = await verifyRes.json()
-        if (!verifyRes.ok) throw new Error(verifyData.error || "Invalid OTP code.")
+        const verifyData = await verifyRes.json().catch(() => ({}))
+        if (!verifyRes.ok || !verifyData.verificationToken) {
+          throw new Error(verifyData.error || "Invalid OTP code.")
+        }
         verificationToken = verifyData.verificationToken
       }
 
@@ -285,7 +236,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         })
       })
 
-      const resetData = await resetRes.json()
+      const resetData = await resetRes.json().catch(() => ({}))
       if (!resetRes.ok) throw new Error(resetData.error || "Failed to reset password.")
 
       setSuccessMsg("Password reset successfully! You can now sign in.")
@@ -294,7 +245,7 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
       }, 1500)
     } catch (err: any) {
       console.error("Auth reset password error:", err)
-      setError(formatFriendlyError(err))
+      setError(formatPhoneAuthError(err, "verify"))
     } finally {
       setLoading(false)
     }
@@ -306,8 +257,8 @@ export function ForgotPasswordDialog({ open, onOpenChange, initialIdentifier = "
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="sm:max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl"
       >
-        {/* Strictly hidden container for Firebase reCAPTCHA */}
-        <div id="forgot-recaptcha-container" className="hidden absolute w-0 h-0 overflow-hidden pointer-events-none opacity-0" aria-hidden="true"></div>
+        {/* Non-hidden off-flow anchor for Firebase invisible reCAPTCHA */}
+        <div id="forgot-recaptcha-container" aria-hidden="true"></div>
 
         <DialogHeader className="space-y-2 text-center pb-1">
           <div className="mx-auto w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/15 ring-4 ring-slate-100">

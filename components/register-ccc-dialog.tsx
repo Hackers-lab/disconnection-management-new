@@ -1,47 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Building2, Smartphone, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff, KeyRound, MapPin } from "lucide-react"
-import { firebaseAuth } from "@/lib/firebase-client"
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from "firebase/auth"
-
-function formatFriendlyError(err: any): string {
-  const code = String(err?.code || "").toLowerCase()
-  const msg = String(err?.message || "").toLowerCase()
-
-  if (code.includes("invalid-verification-code") || code.includes("invalid-otp") || msg.includes("invalid-verification-code")) {
-    return "Invalid OTP code. Please check the 6-digit code and try again."
-  }
-  if (code.includes("code-expired") || msg.includes("code-expired")) {
-    return "OTP code has expired. Please request a new OTP."
-  }
-  if (code.includes("too-many-requests") || msg.includes("too-many-requests")) {
-    return "Too many attempts from this device. Please wait a few minutes and try again."
-  }
-  if (code.includes("invalid-phone-number") || msg.includes("invalid-phone-number")) {
-    return "Please enter a valid 10-digit mobile number."
-  }
-  if (code.includes("quota-exceeded") || msg.includes("quota-exceeded")) {
-    return "SMS quota exceeded for today. Please try again later."
-  }
-  if (code.includes("captcha-check-failed") || msg.includes("captcha-check-failed")) {
-    return "Security verification check failed. Please refresh the page and try again."
-  }
-  if (code.includes("network-request-failed") || msg.includes("network-request-failed")) {
-    return "Network connection issue. Please check your internet connection."
-  }
-
-  // Strip any raw library error prefixes
-  const raw = String(err?.message || "")
-  const sanitized = raw.replace(/^Firebase:\s*Error\s*\((.*?)\)\.?/i, "").trim()
-  return sanitized || "Verification failed. Please check the code and try again."
-}
+import { Building2, Smartphone, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react"
+import type { RecaptchaVerifier, ConfirmationResult } from "firebase/auth"
+import { getFirebaseAuth } from "@/lib/firebase-client"
+import { sendFirebasePhoneOtp, clearRecaptchaVerifier, formatPhoneAuthError } from "@/lib/firebase-phone-otp"
 
 interface RegisterCccDialogProps {
   open: boolean
@@ -71,11 +40,16 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null)
 
   // Reset state on close
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
+      recaptchaVerifierRef.current = clearRecaptchaVerifier(
+        recaptchaVerifierRef.current,
+        "register-recaptcha-container"
+      )
+      const timer = setTimeout(() => {
         setStep(1)
         setError(null)
         setSuccessMsg(null)
@@ -89,47 +63,20 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         setContactPerson("")
         setPassword("")
         setConfirmPassword("")
-        if (typeof window !== "undefined" && (window as any).registerRecaptchaVerifier) {
-          try { (window as any).registerRecaptchaVerifier.clear() } catch {}
-          ;(window as any).registerRecaptchaVerifier = null
-        }
-      }, 300)
+      }, 250)
+      return () => clearTimeout(timer)
     }
   }, [open])
 
-  // Pre-warm reCAPTCHA verifier as soon as dialog is opened
+  // Clean up reCAPTCHA on unmount
   useEffect(() => {
-    if (!open) return
-    let isMounted = true
-    const initVerifier = async () => {
-      if (typeof window === "undefined") return
-      await new Promise((res) => setTimeout(res, 50))
-      if (!isMounted) return
-      const container = document.getElementById("register-recaptcha-container")
-      if (container && !(window as any).registerRecaptchaVerifier) {
-        try {
-          const verifier = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
-            size: "invisible",
-            callback: () => {},
-            "expired-callback": () => {
-              try { (window as any).registerRecaptchaVerifier?.clear() } catch {}
-              (window as any).registerRecaptchaVerifier = null
-            },
-          })
-          await verifier.render()
-          if (isMounted) {
-            (window as any).registerRecaptchaVerifier = verifier
-          }
-        } catch (err) {
-          console.warn("Failed to pre-warm register reCAPTCHA:", err)
-        }
-      }
-    }
-    initVerifier()
     return () => {
-      isMounted = false
+      recaptchaVerifierRef.current = clearRecaptchaVerifier(
+        recaptchaVerifierRef.current,
+        "register-recaptcha-container"
+      )
     }
-  }, [open])
+  }, [])
 
   // Countdown timer for Resend OTP
   useEffect(() => {
@@ -155,7 +102,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
       const checkRes = await fetch(`/api/auth/register-ccc?mobile=${encodeURIComponent(cleanMob)}`, {
         cache: "no-store",
       })
-      const checkData = await checkRes.json()
+      const checkData = await checkRes.json().catch(() => ({}))
+      if (!checkRes.ok) {
+        throw new Error(checkData.error || "Could not check mobile number registration status.")
+      }
 
       if (checkData.exists) {
         setError(checkData.error || "This mobile number is already registered. Please sign in or use 'Forgot Password'.")
@@ -163,24 +113,17 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         return
       }
 
-      // Use pre-warmed reCAPTCHA verifier instance or instantiate if needed
-      let appVerifier = typeof window !== "undefined" ? (window as any).registerRecaptchaVerifier : null
-      if (!appVerifier && typeof window !== "undefined") {
-        appVerifier = new RecaptchaVerifier(firebaseAuth, "register-recaptcha-container", {
-          size: "invisible",
-          callback: () => {},
-          "expired-callback": () => {
-            try { (window as any).registerRecaptchaVerifier?.clear() } catch {}
-            (window as any).registerRecaptchaVerifier = null
-            setError("reCAPTCHA expired. Please try sending OTP again.")
-          },
-        })
-        await appVerifier.render()
-        ;(window as any).registerRecaptchaVerifier = appVerifier
-      }
-
-      const formattedPhone = `+91${cleanMob}`
-      const confirmation = await signInWithPhoneNumber(firebaseAuth, formattedPhone, appVerifier)
+      // Send SMS OTP via Firebase using real Auth instance and fresh reCAPTCHA mount
+      const { confirmationResult: confirmation, verifier } = await sendFirebasePhoneOtp(
+        "register-recaptcha-container",
+        cleanMob,
+        recaptchaVerifierRef.current,
+        () => {
+          recaptchaVerifierRef.current = null
+          setError("Security check expired. Please click Send OTP again.")
+        }
+      )
+      recaptchaVerifierRef.current = verifier
       setConfirmationResult(confirmation)
 
       setOtpSent(true)
@@ -188,8 +131,11 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
       setSuccessMsg(`OTP sent to +91 ${cleanMob}. If not received, please check your SMS Spam / Blocked folder.`)
     } catch (err: any) {
       console.error("Auth send OTP error:", err)
-      const errorMsg = formatFriendlyError(err)
-      setError(errorMsg)
+      recaptchaVerifierRef.current = clearRecaptchaVerifier(
+        recaptchaVerifierRef.current,
+        "register-recaptcha-container"
+      )
+      setError(formatPhoneAuthError(err, "send"))
     } finally {
       setLoading(false)
     }
@@ -210,17 +156,22 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
       setLoading(true)
 
       if (confirmationResult) {
-        // Verify via Firebase confirmation result
-        await confirmationResult.confirm(cleanOtp)
-        
+        // Verify via Firebase confirmation result and send signed ID token to server
+        const credential = await confirmationResult.confirm(cleanOtp)
+        const firebaseIdToken = await credential.user.getIdToken()
+
         // Exchange with server for signed verification token
         const res = await fetch("/api/auth/otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "firebase-verified", mobileNumber: cleanMob })
+          body: JSON.stringify({ action: "firebase-verified", mobileNumber: cleanMob, firebaseIdToken })
         })
-        const data = await res.json()
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.verificationToken) {
+          throw new Error(data.error || "Failed to complete mobile verification. Please try again.")
+        }
         setVerificationToken(data.verificationToken)
+        getFirebaseAuth()?.signOut().catch(() => {})
       } else {
         // Verify directly via server OTP endpoint
         const res = await fetch("/api/auth/otp", {
@@ -228,8 +179,10 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "verify", mobileNumber: cleanMob, otp: cleanOtp })
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || "Invalid OTP code.")
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.verificationToken) {
+          throw new Error(data.error || "Invalid OTP code.")
+        }
         setVerificationToken(data.verificationToken)
       }
 
@@ -240,7 +193,7 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
       }, 700)
     } catch (err: any) {
       console.error("Auth verify error:", err)
-      setError(formatFriendlyError(err))
+      setError(formatPhoneAuthError(err, "verify"))
     } finally {
       setLoading(false)
     }
@@ -312,8 +265,8 @@ export function RegisterCccDialog({ open, onOpenChange, onSuccess }: RegisterCcc
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="sm:max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-[0_22px_45px_-12px_rgba(15,23,42,0.14),0_8px_18px_-6px_rgba(15,23,42,0.06)] border border-slate-200/90 bg-white/95 backdrop-blur-xl"
       >
-        {/* Strictly hidden container for Firebase reCAPTCHA */}
-        <div id="register-recaptcha-container" className="hidden absolute w-0 h-0 overflow-hidden pointer-events-none opacity-0" aria-hidden="true"></div>
+        {/* Non-hidden off-flow anchor for Firebase invisible reCAPTCHA */}
+        <div id="register-recaptcha-container" aria-hidden="true"></div>
 
         <DialogHeader className="space-y-2 text-center pb-1">
           <div className="mx-auto w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/15 ring-4 ring-slate-100">
